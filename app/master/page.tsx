@@ -33,7 +33,6 @@ type SignupRequestItem = {
 
 type MasterStats = {
   totalSchools: number;
-  pendingPrincipalRequests: number;
   activePrincipals: number;
   schoolsNeedingSetup: number;
   pendingSignupRequests: number;
@@ -56,13 +55,16 @@ export default function MasterPage() {
   const [principalEmail, setPrincipalEmail] = useState("");
   const [selectedSchoolId, setSelectedSchoolId] = useState("");
 
+  const [selectedSignupRequest, setSelectedSignupRequest] =
+    useState<SignupRequestItem | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [savingSchool, setSavingSchool] = useState(false);
   const [savingPrincipal, setSavingPrincipal] = useState(false);
+  const [approvingSignup, setApprovingSignup] = useState(false);
 
   const [stats, setStats] = useState<MasterStats>({
     totalSchools: 0,
-    pendingPrincipalRequests: 0,
     activePrincipals: 0,
     schoolsNeedingSetup: 0,
     pendingSignupRequests: 0,
@@ -128,10 +130,6 @@ export default function MasterPage() {
     const principalRows = (data || []) as PrincipalItem[];
     setPrincipals(principalRows);
 
-    const pendingCount = principalRows.filter(
-      (item) => String(item.approval_status || "").toLowerCase() === "pending"
-    ).length;
-
     const activeCount = principalRows.filter((item) => {
       const status = String(item.approval_status || "").toLowerCase();
       return status === "approved" || status === "";
@@ -139,7 +137,6 @@ export default function MasterPage() {
 
     setStats((prev) => ({
       ...prev,
-      pendingPrincipalRequests: pendingCount,
       activePrincipals: activeCount,
     }));
   }
@@ -166,6 +163,12 @@ export default function MasterPage() {
       ...prev,
       pendingSignupRequests: pendingCount,
     }));
+
+    setSelectedSignupRequest((current) => {
+      if (!current) return current;
+      const refreshed = requestRows.find((item) => item.id === current.id);
+      return refreshed || null;
+    });
   }
 
   async function createSchool() {
@@ -234,30 +237,68 @@ export default function MasterPage() {
     setSelectedSchoolId("");
 
     await fetchPrincipals();
+    await fetchSignupRequests();
+
     setSavingPrincipal(false);
     alert("Principal invite email sent successfully.");
   }
 
-  async function approvePrincipalRequest(principalId: string | number) {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ approval_status: "approved" })
-      .eq("id", principalId);
-
-    if (error) {
-      alert(error.message);
+  async function approveSignupRequest(request: SignupRequestItem) {
+    if (!request.school_name || !request.principal_full_name || !request.principal_email) {
+      alert("This sign-up request is missing school or principal details.");
       return;
     }
 
-    await fetchPrincipals();
-    alert("Principal request approved.");
-  }
+    setApprovingSignup(true);
 
-  const pendingPrincipals = useMemo(() => {
-    return principals.filter(
-      (item) => String(item.approval_status || "").toLowerCase() === "pending"
+    const { data: createdSchool, error: schoolError } = await supabase
+      .from("schools")
+      .insert([
+        {
+          school_name: request.school_name.trim(),
+          primary_color: "#7CCCF3",
+          secondary_color: "#FFD76A",
+          logo_url: null,
+        },
+      ])
+      .select("id, school_name")
+      .single();
+
+    if (schoolError || !createdSchool) {
+      alert(schoolError?.message || "Could not create school.");
+      setApprovingSignup(false);
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from("school_signup_requests")
+      .update({
+        status: "approved",
+      })
+      .eq("id", request.id);
+
+    if (updateError) {
+      alert(updateError.message);
+      setApprovingSignup(false);
+      return;
+    }
+
+    setSelectedSchoolId(String(createdSchool.id));
+    setPrincipalFullName(request.principal_full_name);
+    setPrincipalEmail(request.principal_email);
+    setSelectedSignupRequest({
+      ...request,
+      status: "approved",
+    });
+
+    await Promise.all([fetchSchools(), fetchSignupRequests()]);
+
+    setApprovingSignup(false);
+
+    alert(
+      "School approved. Continue below to send the principal invite and finish setup."
     );
-  }, [principals]);
+  }
 
   const approvedPrincipals = useMemo(() => {
     return principals.filter((item) => {
@@ -349,7 +390,7 @@ export default function MasterPage() {
             lineHeight: 1.6,
           }}
         >
-          Manage schools, principals, setup status, and platform access from one place.
+          Manage schools, setup status, sign-ups, and platform access from one place.
         </p>
       </div>
 
@@ -367,13 +408,6 @@ export default function MasterPage() {
           href="/master?view=manage-schools"
           background="#EAF7FD"
           border="#CBEAF7"
-        />
-        <StatLinkCard
-          label="Principal Requests"
-          value={stats.pendingPrincipalRequests}
-          href="/master?view=pending-principals"
-          background="#F8E8F0"
-          border="#EBC9D8"
         />
         <StatLinkCard
           label="Active Principals"
@@ -508,109 +542,145 @@ export default function MasterPage() {
       )}
 
       {currentView === "pending-signups" && (
-        <div
-          style={{
-            background: "#FFFFFF",
-            border: "1px solid #F0E3D8",
-            borderRadius: "24px",
-            padding: "20px",
-            boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-            marginBottom: "24px",
-          }}
-        >
-          <h3
+        <>
+          <div
             style={{
-              marginTop: 0,
-              marginBottom: "14px",
-              color: "#2D2A3E",
-              fontSize: "22px",
-              fontWeight: 800,
+              background: "#FFFFFF",
+              border: "1px solid #F0E3D8",
+              borderRadius: "24px",
+              padding: "20px",
+              boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
+              marginBottom: "24px",
             }}
           >
-            Pending School Sign-Up Requests
-          </h3>
+            <h3
+              style={{
+                marginTop: 0,
+                marginBottom: "14px",
+                color: "#2D2A3E",
+                fontSize: "22px",
+                fontWeight: 800,
+              }}
+            >
+              Pending School Sign-Up Requests
+            </h3>
 
-          {pendingSignupRequests.length === 0 ? (
-            <p style={helperText}>No pending school sign-up requests.</p>
-          ) : (
-            <div style={{ display: "grid", gap: "12px" }}>
-              {pendingSignupRequests.map((request) => (
-                <div key={request.id} style={listCard}>
-                  <strong style={listTitle}>
-                    {request.school_name || "Unnamed school"}
-                  </strong>
-                  <p style={helperText}>
-                    Principal: {request.principal_full_name || "Not added"}
-                  </p>
-                  <p style={helperText}>
-                    Email: {request.principal_email || "Not added"}
-                  </p>
-                  <p style={helperText}>
-                    Status: {request.status || "pending"}
-                  </p>
-                  <p style={helperText}>
-                    Submitted:{" "}
-                    {request.created_at
-                      ? new Date(request.created_at).toLocaleString()
-                      : "No timestamp"}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+            {pendingSignupRequests.length === 0 ? (
+              <p style={helperText}>No pending school sign-up requests.</p>
+            ) : (
+              <div style={{ display: "grid", gap: "12px" }}>
+                {pendingSignupRequests.map((request) => {
+                  const isSelected = selectedSignupRequest?.id === request.id;
 
-      {currentView === "pending-principals" && (
-        <div
-          style={{
-            background: "#FFFFFF",
-            border: "1px solid #F0E3D8",
-            borderRadius: "24px",
-            padding: "20px",
-            boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-            marginBottom: "24px",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              marginBottom: "14px",
-              color: "#2D2A3E",
-              fontSize: "22px",
-              fontWeight: 800,
-            }}
-          >
-            Pending Principal Requests
-          </h3>
-
-          {pendingPrincipals.length === 0 ? (
-            <p style={helperText}>No pending principal requests.</p>
-          ) : (
-            <div style={{ display: "grid", gap: "12px" }}>
-              {pendingPrincipals.map((principal) => (
-                <div key={principal.id} style={listCard}>
-                  <strong style={listTitle}>
-                    {principal.full_name || "Unnamed principal"}
-                  </strong>
-                  <p style={helperText}>Email: {principal.email || "Not added"}</p>
-                  <p style={helperText}>
-                    School ID: {principal.school_id || "Not linked"}
-                  </p>
-                  <div style={{ marginTop: "10px" }}>
+                  return (
                     <button
+                      key={request.id}
                       type="button"
-                      className="db-button-primary"
-                      onClick={() => approvePrincipalRequest(principal.id)}
+                      onClick={() => setSelectedSignupRequest(request)}
+                      style={{
+                        ...listCard,
+                        textAlign: "left",
+                        cursor: "pointer",
+                        background: isSelected ? "#F4FBFF" : "#FFFDFB",
+                        border: isSelected
+                          ? "2px solid #7CCCF3"
+                          : "1px solid #F0E3D8",
+                      }}
                     >
-                      Approve Request
+                      <strong style={listTitle}>
+                        {request.school_name || "Unnamed school"}
+                      </strong>
+                      <p style={helperText}>
+                        Principal: {request.principal_full_name || "Not added"}
+                      </p>
+                      <p style={helperText}>
+                        Email: {request.principal_email || "Not added"}
+                      </p>
+                      <p style={helperText}>
+                        Status: {request.status || "pending"}
+                      </p>
+                      <p style={helperText}>
+                        Submitted:{" "}
+                        {request.created_at
+                          ? new Date(request.created_at).toLocaleString()
+                          : "No timestamp"}
+                      </p>
                     </button>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {selectedSignupRequest ? (
+            <div
+              style={{
+                background: "#FFFFFF",
+                border: "1px solid #F0E3D8",
+                borderRadius: "24px",
+                padding: "20px",
+                boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
+                marginBottom: "24px",
+              }}
+            >
+              <h3
+                style={{
+                  marginTop: 0,
+                  marginBottom: "14px",
+                  color: "#2D2A3E",
+                  fontSize: "22px",
+                  fontWeight: 800,
+                }}
+              >
+                School Sign-Up Setup
+              </h3>
+
+              <p style={helperText}>
+                School: {selectedSignupRequest.school_name || "Not added"}
+              </p>
+              <p style={helperText}>
+                Principal: {selectedSignupRequest.principal_full_name || "Not added"}
+              </p>
+              <p style={helperText}>
+                Email: {selectedSignupRequest.principal_email || "Not added"}
+              </p>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                  marginTop: "14px",
+                }}
+              >
+                <button
+                  type="button"
+                  className="db-button-primary"
+                  onClick={() => approveSignupRequest(selectedSignupRequest)}
+                  disabled={approvingSignup}
+                >
+                  {approvingSignup ? "Approving..." : "Approve and Continue Setup"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedSignupRequest(null)}
+                  style={{
+                    border: "1px solid #E3D9CD",
+                    background: "#FFFFFF",
+                    color: "#5B5675",
+                    borderRadius: "12px",
+                    padding: "10px 14px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Clear Selection
+                </button>
+              </div>
             </div>
-          )}
-        </div>
+          ) : null}
+        </>
       )}
 
       {currentView === "active-principals" && (

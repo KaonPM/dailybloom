@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 
@@ -22,9 +22,6 @@ type ClassroomItem = {
 
 export default function ActivitiesPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const schoolParam = searchParams.get("school");
 
   const today = new Date();
   const yyyy = today.getFullYear();
@@ -48,10 +45,18 @@ export default function ActivitiesPage() {
   }, []);
 
   async function loadPage() {
+    const searchParams = new URLSearchParams(window.location.search);
+    const schoolParam = searchParams.get("school");
+
     const context = await resolveSchoolContext(schoolParam);
 
-    if (context.error || !context.schoolId) {
+    if (context.error) {
       router.push("/login");
+      return;
+    }
+
+    if (context.shouldReturnToMaster || !context.schoolId) {
+      router.push("/master");
       return;
     }
 

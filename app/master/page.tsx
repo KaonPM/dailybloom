@@ -29,6 +29,7 @@ type SignupRequestItem = {
   principal_email?: string | null;
   status?: string | null;
   created_at?: string | null;
+  school_id?: number | null;
 };
 
 type MasterStats = {
@@ -274,6 +275,7 @@ export default function MasterPage() {
       .from("school_signup_requests")
       .update({
         status: "approved",
+        school_id: createdSchool.id,
       })
       .eq("id", request.id);
 
@@ -283,20 +285,14 @@ export default function MasterPage() {
       return;
     }
 
-    setSelectedSchoolId(String(createdSchool.id));
-    setPrincipalFullName(request.principal_full_name);
-    setPrincipalEmail(request.principal_email);
-    setSelectedSignupRequest({
-      ...request,
-      status: "approved",
-    });
-
     await Promise.all([fetchSchools(), fetchSignupRequests()]);
 
     setApprovingSignup(false);
 
-    alert(
-      "School approved. Continue below to send the principal invite and finish setup."
+    router.push(
+      `/master/school/${createdSchool.id}?principalName=${encodeURIComponent(
+        request.principal_full_name
+      )}&principalEmail=${encodeURIComponent(request.principal_email)}`
     );
   }
 
@@ -581,6 +577,7 @@ export default function MasterPage() {
                         ...listCard,
                         textAlign: "left",
                         cursor: "pointer",
+                        width: "100%",
                         background: isSelected ? "#F4FBFF" : "#FFFDFB",
                         border: isSelected
                           ? "2px solid #7CCCF3"

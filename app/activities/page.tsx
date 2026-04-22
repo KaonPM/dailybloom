@@ -295,6 +295,6 @@ const textStyle = {
 
 const metaTextStyle = {
   margin: "10px 0 0 0",
-  color: "#8A84A3",
+  color: "8A84A3",
   fontSize: "12px",
 };

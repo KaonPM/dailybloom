@@ -1,110 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
-import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { supabase } from "../lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
-  const [isSignup, setIsSignup] = useState(false);
-  const [schoolName, setSchoolName] = useState("");
-  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [logoUrl, setLogoUrl] = useState("");
-
-  useEffect(() => {
-    fetchBranding();
-
-    const mode = searchParams.get("mode");
-    setIsSignup(mode === "signup");
-  }, [searchParams]);
-
-  async function fetchBranding() {
-    const { data } = await supabase
-      .from("schools")
-      .select("logo_url")
-      .limit(1)
-      .single();
-
-    if (data?.logo_url) {
-      setLogoUrl(data.logo_url);
-    }
-  }
 
   async function handleSubmit() {
     setLoading(true);
-
-    if (isSignup) {
-      if (!schoolName || !fullName || !email || !password) {
-        alert("Please complete all fields");
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (error) {
-        alert(error.message);
-        setLoading(false);
-        return;
-      }
-
-      const user = data.user;
-
-      if (!user) {
-        alert("Could not create user account.");
-        setLoading(false);
-        return;
-      }
-
-      const { data: schoolData, error: schoolError } = await supabase
-        .from("schools")
-        .insert([
-          {
-            school_name: schoolName,
-          },
-        ])
-        .select()
-        .single();
-
-      if (schoolError) {
-        alert(schoolError.message);
-        setLoading(false);
-        return;
-      }
-
-      const { error: profileError } = await supabase.from("profiles").insert([
-        {
-          id: user.id,
-          email,
-          full_name: fullName,
-          school_id: schoolData.id,
-          role: "owner",
-        },
-      ]);
-
-      if (profileError) {
-        alert(profileError.message);
-        setLoading(false);
-        return;
-      }
-
-      alert("Trial account created successfully. You can now log in.");
-      setIsSignup(false);
-      setSchoolName("");
-      setFullName("");
-      setPassword("");
-      setLoading(false);
-      return;
-    }
 
     if (!email || !password) {
       alert("Please enter email and password");
@@ -112,30 +21,69 @@ export default function LoginPage() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data: authData, error: authError } =
+      await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
 
-    if (error) {
-      alert(error.message);
+    if (authError || !authData.user) {
+      alert(authError?.message || "Could not sign in.");
       setLoading(false);
       return;
     }
 
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("role")
-      .eq("email", email)
+      .select(
+        `
+        id,
+        role,
+        school_id,
+        is_active,
+        schools (
+          is_active
+        )
+      `
+      )
+      .eq("id", authData.user.id)
       .single();
 
-    if (profileError) {
-      alert(profileError.message);
+    if (profileError || !profileData) {
+      alert("Could not load your account profile.");
+      await supabase.auth.signOut();
       setLoading(false);
       return;
     }
 
-    if (profileData?.role === "master") {
+    const role = profileData.role;
+    const userIsActive = profileData.is_active !== false;
+    const schoolRow = Array.isArray(profileData.schools)
+  ? profileData.schools[0]
+  : profileData.schools;
+
+const schoolIsActive = schoolRow?.is_active !== false;
+    const isSchoolUser = role === "principal" || role === "teacher";
+
+    if (!userIsActive) {
+      alert(
+        "Your access has been deactivated. Please contact the platform administrator."
+      );
+      await supabase.auth.signOut();
+      setLoading(false);
+      return;
+    }
+
+    if (isSchoolUser && !schoolIsActive) {
+      alert(
+        "Your school's access has been deactivated. Please contact the platform administrator."
+      );
+      await supabase.auth.signOut();
+      setLoading(false);
+      return;
+    }
+
+    if (role === "master") {
       router.push("/master");
     } else {
       router.push("/dashboard");
@@ -150,9 +98,15 @@ export default function LoginPage() {
       return;
     }
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: "http://localhost:3000/login",
-    });
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+      {
+        redirectTo:
+          typeof window !== "undefined"
+            ? `${window.location.origin}/login`
+            : undefined,
+      }
+    );
 
     if (error) {
       alert(error.message);
@@ -201,22 +155,6 @@ export default function LoginPage() {
         }}
       />
 
-      {logoUrl ? (
-        <img
-          src={logoUrl}
-          alt="DailyBloom Logo"
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            width: "280px",
-            opacity: 0.08,
-            pointerEvents: "none",
-          }}
-        />
-      ) : null}
-
       <div
         style={{
           position: "relative",
@@ -240,7 +178,7 @@ export default function LoginPage() {
               color: "#2D2A3E",
             }}
           >
-            Daily<span style={{ color: "#F66BA0" }}>Bloom</span>
+            Daily<span style={{ color: "#F66BA03" }}>Bloom</span>
           </h1>
 
           <p
@@ -265,7 +203,7 @@ export default function LoginPage() {
             textAlign: "center",
           }}
         >
-          {isSignup ? "Start Your Free Trial" : "Welcome Back"}
+          Welcome Back
         </h2>
 
         <p
@@ -276,28 +214,8 @@ export default function LoginPage() {
             lineHeight: 1.6,
           }}
         >
-          {isSignup
-            ? "Create your school account and begin using DailyBloom."
-            : "Login to continue to your school dashboard."}
+          Login to continue to your school dashboard.
         </p>
-
-        {isSignup && (
-          <>
-            <input
-              className="db-input"
-              placeholder="School Name"
-              value={schoolName}
-              onChange={(e) => setSchoolName(e.target.value)}
-            />
-
-            <input
-              className="db-input"
-              placeholder="Your Full Name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-            />
-          </>
-        )}
 
         <input
           className="db-input"
@@ -314,22 +232,20 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
         />
 
-        {!isSignup && (
-          <button
-            onClick={handleForgotPassword}
-            style={{
-              border: "none",
-              background: "transparent",
-              color: "#F66BA0",
-              fontWeight: 800,
-              padding: 0,
-              marginBottom: "16px",
-              cursor: "pointer",
-            }}
-          >
-            I forgot my password
-          </button>
-        )}
+        <button
+          onClick={handleForgotPassword}
+          style={{
+            border: "none",
+            background: "transparent",
+            color: "#F66BA0",
+            fontWeight: 800,
+            padding: 0,
+            marginBottom: "16px",
+            cursor: "pointer",
+          }}
+        >
+          I forgot my password
+        </button>
 
         <button
           onClick={handleSubmit}
@@ -345,15 +261,11 @@ export default function LoginPage() {
             cursor: "pointer",
           }}
         >
-          {loading
-            ? "Please wait..."
-            : isSignup
-            ? "Create Trial Account"
-            : "Login"}
+          {loading ? "Please wait..." : "Login"}
         </button>
 
         <button
-          onClick={() => setIsSignup(!isSignup)}
+          onClick={() => router.push("/signup")}
           style={{
             width: "100%",
             minHeight: "48px",
@@ -366,9 +278,7 @@ export default function LoginPage() {
             cursor: "pointer",
           }}
         >
-          {isSignup
-            ? "Already have an account? Login"
-            : "New school? Start Free Trial"}
+          New school? Start Free Trial
         </button>
 
         <div style={{ textAlign: "center", marginTop: "18px" }}>

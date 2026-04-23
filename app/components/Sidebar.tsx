@@ -103,11 +103,10 @@ export default function Sidebar() {
         view: "manage-schools",
       },
       {
-        label: "Pending Principal Requests",
-        href: "/master?view=pending-principals",
-        match: ["/master"],
-        view: "pending-principals",
-      },
+  label: "Principal Management",
+  href: "/principals",
+  match: ["/principals"],
+},
       {
         label: "Active Principals",
         href: "/master?view=active-principals",

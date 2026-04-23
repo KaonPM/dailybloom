@@ -20,7 +20,7 @@ type PrincipalProfile = {
   is_active?: boolean | null;
   created_at?: string | null;
   schools?: {
-    school_name: string;
+    school_name?: string | null;
     is_active?: boolean | null;
   } | null;
 };
@@ -99,7 +99,7 @@ export default function PrincipalsPage() {
       return;
     }
 
-    setPrincipals((data as PrincipalProfile[]) || []);
+    setPrincipals((data ?? []) as PrincipalProfile[]);
   }
 
   const filteredPrincipals = useMemo(() => {

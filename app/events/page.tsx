@@ -1,89 +1,43 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 
-type EventItem = {
+type EventRow = {
   id: number;
+  school_id?: number | null;
   title?: string | null;
   event_date?: string | null;
-  school_id?: number | null;
+  description?: string | null;
   created_at?: string | null;
 };
 
 export default function EventsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  const [events, setEvents] = useState<EventItem[]>([]);
-  const [filteredEvents, setFilteredEvents] = useState<EventItem[]>([]);
-  const [schoolId, setSchoolId] = useState<number | null>(null);
-
-  const [title, setTitle] = useState("");
-  const [eventDate, setEventDate] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const [showAddForm, setShowAddForm] = useState(true);
-  const [highlightAddForm, setHighlightAddForm] = useState(false);
-  const [lastSavedSuccess, setLastSavedSuccess] = useState(false);
-
-  const formRef = useRef<HTMLDivElement | null>(null);
-  const titleInputRef = useRef<HTMLInputElement | null>(null);
-
-  const action = searchParams.get("action");
   const schoolParam = searchParams.get("school");
-  const activeFilter = searchParams.get("filter");
-  const returnTo = searchParams.get("returnTo");
 
-  const shouldShowBackToOverview =
-    returnTo === "school-overview" && schoolId !== null;
-  const shouldShowBackToDashboard = returnTo === "dashboard";
+  const today = new Date().toISOString().split("T")[0];
+
+  const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<EventRow | null>(null);
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  const [eventDate, setEventDate] = useState(today);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadPage();
   }, []);
-
-  useEffect(() => {
-    applyFilter();
-  }, [events, activeFilter]);
-
-  useEffect(() => {
-    if (action === "add") {
-      setShowAddForm(true);
-      setHighlightAddForm(true);
-
-      const timer = window.setTimeout(() => {
-        formRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-
-        window.setTimeout(() => {
-          titleInputRef.current?.focus();
-
-          const params = new URLSearchParams(searchParams.toString());
-          params.delete("action");
-
-          const nextQuery = params.toString();
-          router.replace(nextQuery ? `/events?${nextQuery}` : "/events", { scroll: false });
-        }, 350);
-      }, 250);
-
-      return () => window.clearTimeout(timer);
-    }
-  }, [action, router, searchParams]);
-
-  useEffect(() => {
-    if (!highlightAddForm) return;
-
-    const timer = window.setTimeout(() => {
-      setHighlightAddForm(false);
-    }, 2200);
-
-    return () => window.clearTimeout(timer);
-  }, [highlightAddForm]);
 
   async function loadPage() {
     const context = await resolveSchoolContext(schoolParam);
@@ -100,6 +54,8 @@ export default function EventsPage() {
 
     setSchoolId(context.schoolId);
     await fetchEvents(context.schoolId);
+
+    setLoading(false);
   }
 
   async function fetchEvents(currentSchoolId: number) {
@@ -107,212 +63,281 @@ export default function EventsPage() {
       .from("events")
       .select("*")
       .eq("school_id", currentSchoolId)
-      .order("event_date", { ascending: true });
+      .gte("event_date", today)
+      .order("event_date", { ascending: true })
+      .order("created_at", { ascending: true });
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    setEvents((data || []) as EventItem[]);
+    setEvents((data || []) as EventRow[]);
   }
 
-  function applyFilter() {
-    if (activeFilter === "today") {
-      const today = new Date();
-      const yyyy = today.getFullYear();
-      const mm = String(today.getMonth() + 1).padStart(2, "0");
-      const dd = String(today.getDate()).padStart(2, "0");
-      const todayDate = `${yyyy}-${mm}-${dd}`;
+  function resetForm() {
+    setEventDate(today);
+    setTitle("");
+    setDescription("");
+    setEditingId(null);
+  }
 
-      const todaysEvents = events.filter((event) => event.event_date === todayDate);
-      setFilteredEvents(todaysEvents);
+  function startEdit(event: EventRow) {
+    setEditingId(event.id);
+    setEventDate(event.event_date || today);
+    setTitle(event.title || "");
+    setDescription(event.description || "");
+    setSelectedEvent(event);
+    setShowForm(true);
+  }
+
+  async function saveEvent() {
+    if (!schoolId) return;
+
+    if (!eventDate || !title.trim()) {
+      alert("Please complete event date and event title.");
       return;
     }
 
-    setFilteredEvents(events);
-  }
+    setSaving(true);
 
-  async function addEvent() {
-    if (!title.trim() || !eventDate || !schoolId) {
-      alert("Please complete event title and date");
+    if (editingId) {
+      const { error } = await supabase
+        .from("events")
+        .update({
+          event_date: eventDate,
+          title: title.trim(),
+          description: description.trim() || null,
+        })
+        .eq("id", editingId);
+
+      if (error) {
+        alert(error.message);
+        setSaving(false);
+        return;
+      }
+
+      resetForm();
+      setShowForm(false);
+      await fetchEvents(schoolId);
+
+      setSaving(false);
+      alert("Event updated.");
       return;
     }
-
-    setLoading(true);
-    setLastSavedSuccess(false);
 
     const { error } = await supabase.from("events").insert([
       {
-        title: title.trim(),
+        school_id: schoolId,
         event_date: eventDate,
-        school_id: Number(schoolId),
+        title: title.trim(),
+        description: description.trim() || null,
       },
     ]);
 
     if (error) {
       alert(error.message);
-      setLoading(false);
+      setSaving(false);
       return;
     }
 
-    setTitle("");
-    setEventDate("");
+    resetForm();
+    setShowForm(false);
+    await fetchEvents(schoolId);
 
-    await fetchEvents(Number(schoolId));
-    setLoading(false);
-    setLastSavedSuccess(true);
+    setSaving(false);
+    alert("Event saved.");
+  }
+
+  async function deleteEvent(eventId: number) {
+    const confirmed = confirm("Delete this event?");
+    if (!confirmed) return;
+
+    const { error } = await supabase.from("events").delete().eq("id", eventId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    if (selectedEvent?.id === eventId) {
+      setSelectedEvent(null);
+    }
+
+    if (schoolId) {
+      await fetchEvents(schoolId);
+    }
+
+    alert("Event deleted.");
+  }
+
+  if (loading) {
+    return <p>Loading events...</p>;
   }
 
   return (
     <div>
-      <div className="db-soft-card" style={{ padding: "20px 22px", marginBottom: "24px" }}>
-        <h2 className="db-page-title">
-          {activeFilter === "today" ? "Today’s Events" : "Events"}
-        </h2>
-        <p className="db-page-subtitle">
-          {activeFilter === "today"
-            ? "Events happening today for this school."
-            : "Add and manage events for this school."}
-        </p>
-      </div>
-
-      <div
-        ref={formRef}
-        className="db-card db-card-yellow"
-        style={{
-          padding: "20px",
-          marginBottom: "24px",
-          border: highlightAddForm ? "2px solid #7CCCF3" : "1px solid rgba(0,0,0,0.06)",
-          boxShadow: highlightAddForm
-            ? "0 0 0 4px rgba(124, 204, 243, 0.18)"
-            : undefined,
-          transition: "all 0.2s ease",
-        }}
-      >
+      <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
+            gap: 12,
             alignItems: "center",
-            gap: "12px",
             flexWrap: "wrap",
-            marginBottom: "14px",
           }}
         >
-          <h3 style={sectionTitle}>Add Event</h3>
+          <div>
+            <h2 className="db-page-title">Events</h2>
+            <p className="db-page-subtitle">
+              View upcoming events first and add new events only when needed.
+            </p>
+          </div>
 
           <button
             type="button"
-            className="db-button-secondary"
-            style={{ minHeight: "38px", padding: "8px 12px" }}
-            onClick={() => setShowAddForm((prev) => !prev)}
-          >
-            {showAddForm ? "Hide Form" : "Show Form"}
-          </button>
-        </div>
-
-        {lastSavedSuccess && (
-          <div
-            style={{
-              background: "#EEF9EE",
-              border: "1px solid #D3EDD4",
-              borderRadius: "14px",
-              padding: "12px 14px",
-              marginBottom: "14px",
+            className="db-button-primary"
+            onClick={() => {
+              resetForm();
+              setShowForm((prev) => !prev);
             }}
           >
-            <p
-              style={{
-                margin: 0,
-                color: "#2D2A3E",
-                fontSize: "14px",
-                fontWeight: 700,
-              }}
-            >
-              Event added successfully.
-            </p>
-
-            {shouldShowBackToOverview && (
-              <button
-                type="button"
-                className="db-button-primary"
-                style={{ marginTop: "10px" }}
-                onClick={() => router.push(`/master/school/${schoolId}`)}
-              >
-                Back to School Overview
-              </button>
-            )}
-
-            {shouldShowBackToDashboard && (
-              <button
-                type="button"
-                className="db-button-primary"
-                style={{ marginTop: "10px" }}
-                onClick={() => router.push("/dashboard")}
-              >
-                Back to Dashboard
-              </button>
-            )}
-          </div>
-        )}
-
-        {showAddForm ? (
-          <>
-            <input
-              ref={titleInputRef}
-              className="db-input"
-              placeholder="Event Title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-
-            <input
-              className="db-input"
-              type="date"
-              value={eventDate}
-              onChange={(e) => setEventDate(e.target.value)}
-            />
-
-            <button
-              className="db-button-primary"
-              style={{ width: "100%" }}
-              onClick={addEvent}
-              disabled={loading}
-            >
-              {loading ? "Saving..." : "Add Event"}
-            </button>
-          </>
-        ) : (
-          <p className="db-helper">The add event form is hidden.</p>
-        )}
+            {showForm ? "Close" : "Add Event"}
+          </button>
+        </div>
       </div>
 
-      <div className="db-card db-card-lavender" style={{ padding: "20px" }}>
-        <h3 style={sectionTitle}>
-          {activeFilter === "today"
-            ? `Today’s Events (${filteredEvents.length})`
-            : `Events (${filteredEvents.length})`}
-        </h3>
+      {showForm ? (
+        <div
+          className="db-card db-card-blue"
+          style={{ padding: 16, marginBottom: 18 }}
+        >
+          <h3 style={sectionTitle}>{editingId ? "Edit Event" : "Add Event"}</h3>
 
-        {filteredEvents.length === 0 ? (
-          <p className="db-helper">
-            {activeFilter === "today"
-              ? "No events today."
-              : "No events added yet."}
-          </p>
+          <div style={grid2}>
+            <div>
+              <p style={labelText}>Date</p>
+              <input
+                type="date"
+                className="db-input"
+                value={eventDate}
+                onChange={(e) => setEventDate(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Event Title</p>
+              <input
+                className="db-input"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Parent Meeting, Theme Day, School Outing..."
+              />
+            </div>
+          </div>
+
+          <div style={{ marginTop: 10 }}>
+            <p style={labelText}>Short Description Optional</p>
+            <textarea
+              className="db-input"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add a short note about the event."
+              style={{ width: "100%", resize: "vertical" }}
+            />
+          </div>
+
+          <button
+            type="button"
+            className="db-button-primary"
+            onClick={saveEvent}
+            disabled={saving}
+            style={{ width: "100%", marginTop: 12 }}
+          >
+            {saving ? "Saving..." : editingId ? "Update Event" : "Save Event"}
+          </button>
+        </div>
+      ) : null}
+
+      <div className="db-card db-card-green" style={{ padding: 16 }}>
+        <h3 style={sectionTitle}>Upcoming Events ({events.length})</h3>
+
+        {events.length === 0 ? (
+          <p className="db-helper">No upcoming events planned yet.</p>
         ) : (
-          <div style={{ display: "grid", gap: "12px" }}>
-            {filteredEvents.map((event) => (
-              <div key={event.id} className="db-list-card">
-                <strong style={{ fontSize: "17px" }}>
-                  {event.title || "Untitled event"}
-                </strong>
-                <p style={textStyle}>
-                  Date: {event.event_date || "Not set"}
-                </p>
-              </div>
-            ))}
+          <div style={{ display: "grid", gap: 8 }}>
+            {events.map((event) => {
+              const active = selectedEvent?.id === event.id;
+
+              return (
+                <div key={event.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEvent(active ? null : event)}
+                    style={{
+                      width: "100%",
+                      display: "grid",
+                      gridTemplateColumns: "120px 1fr",
+                      gap: 8,
+                      alignItems: "center",
+                      background: active ? "#EAF7FD" : "#FFFDFB",
+                      border: active ? "1px solid #CBEAF7" : "1px solid #F0E3D8",
+                      borderRadius: 12,
+                      padding: "10px 12px",
+                      color: "#2D2A3E",
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <span style={pillBlue}>{event.event_date || "No date"}</span>
+                    <strong>{event.title || "Untitled event"}</strong>
+                  </button>
+
+                  {active ? (
+                    <div
+                      style={{
+                        background: "#FFFDFB",
+                        border: "1px solid #F0E3D8",
+                        borderRadius: 12,
+                        padding: 12,
+                        marginTop: 8,
+                      }}
+                    >
+                      <p style={smallText}>Event Details</p>
+                      <p style={detailText}>
+                        {event.description || "No description added."}
+                      </p>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 10,
+                          flexWrap: "wrap",
+                          marginTop: 12,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="db-button-secondary"
+                          onClick={() => startEdit(event)}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          className="db-button-secondary"
+                          onClick={() => deleteEvent(event.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -321,14 +346,44 @@ export default function EventsPage() {
 }
 
 const sectionTitle = {
-  marginTop: 0,
-  marginBottom: "14px",
-  color: "var(--db-text)",
-  fontSize: "22px",
-  fontWeight: 800 as const,
+  margin: "0 0 10px 0",
+  color: "#2D2A3E",
+  fontSize: 20,
+  fontWeight: 700 as const,
 };
 
-const textStyle = {
-  margin: "6px 0 0 0",
-  color: "var(--db-text-soft)",
+const labelText = {
+  margin: "0 0 8px 0",
+  color: "#6D6888",
+  fontSize: 13,
+  fontWeight: 800,
+};
+
+const smallText = {
+  margin: "4px 0 0 0",
+  color: "#6D6888",
+  fontSize: 13,
+};
+
+const detailText = {
+  margin: "4px 0 0 0",
+  color: "#2D2A3E",
+  fontSize: 14,
+  lineHeight: 1.5,
+};
+
+const grid2 = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 10,
+};
+
+const pillBlue = {
+  background: "#EAF7FD",
+  border: "1px solid #CBEAF7",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 12,
+  color: "#2D2A3E",
+  textAlign: "center" as const,
 };

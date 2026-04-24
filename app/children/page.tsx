@@ -11,6 +11,9 @@ type LearnerItem = {
   class?: string | null;
   date_of_birth?: string | null;
   parent_phone?: string | null;
+  parent_name?: string | null;
+  allergies?: string | null;
+  notes?: string | null;
   school_id?: number | null;
   classroom_id?: number | null;
 };
@@ -18,6 +21,24 @@ type LearnerItem = {
 type ClassroomItem = {
   id: number;
   classroom_name?: string | null;
+};
+
+type AttendanceItem = {
+  id: number;
+  status?: string | null;
+  attendance_date?: string | null;
+};
+
+type SummaryItem = {
+  id: number;
+  learner_name?: string | null;
+  mood?: string | null;
+  meals?: string | null;
+  rest?: string | null;
+  health_safety?: string | null;
+  today_highlight?: string | null;
+  teacher_notes?: string | null;
+  created_at?: string | null;
 };
 
 export default function LearnersPage() {
@@ -33,12 +54,18 @@ export default function LearnersPage() {
   const [schoolId, setSchoolId] = useState<number | null>(null);
 
   const [selectedLearnerId, setSelectedLearnerId] = useState<number | null>(null);
+  const [selectedAttendanceTrend, setSelectedAttendanceTrend] = useState("");
+  const [selectedLatestSummary, setSelectedLatestSummary] = useState<SummaryItem | null>(null);
+
   const [showAddForm, setShowAddForm] = useState(false);
 
   const [name, setName] = useState("");
   const [selectedClassroomId, setSelectedClassroomId] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
+  const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
+  const [allergies, setAllergies] = useState("");
+  const [notes, setNotes] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
@@ -150,7 +177,10 @@ export default function LearnersPage() {
       name: name.trim(),
       class: selectedClassroomName,
       date_of_birth: dateOfBirth || null,
+      parent_name: parentName.trim() || null,
       parent_phone: parentPhone.trim() || null,
+      allergies: allergies.trim() || null,
+      notes: notes.trim() || null,
       school_id: Number(schoolId),
     };
 
@@ -169,13 +199,80 @@ export default function LearnersPage() {
     setName("");
     setSelectedClassroomId("");
     setDateOfBirth("");
+    setParentName("");
     setParentPhone("");
+    setAllergies("");
+    setNotes("");
     setShowAddForm(false);
 
     await fetchLearners(Number(schoolId));
 
     setLoading(false);
     alert("Learner added successfully.");
+  }
+
+  async function selectLearner(learner: LearnerItem) {
+    const isClosing = selectedLearnerId === learner.id;
+
+    if (isClosing) {
+      setSelectedLearnerId(null);
+      setSelectedAttendanceTrend("");
+      setSelectedLatestSummary(null);
+      return;
+    }
+
+    setSelectedLearnerId(learner.id);
+    setSelectedAttendanceTrend("Loading...");
+    setSelectedLatestSummary(null);
+
+    if (!schoolId || !learner.name) return;
+
+    const [attendanceResult, summaryResult] = await Promise.all([
+      supabase
+        .from("attendance")
+        .select("id, status, attendance_date")
+        .eq("school_id", schoolId)
+        .eq("learner_name", learner.name)
+        .order("attendance_date", { ascending: false })
+        .limit(10),
+
+      supabase
+        .from("summaries")
+        .select(
+          "id, learner_name, mood, meals, rest, health_safety, today_highlight, teacher_notes, created_at"
+        )
+        .eq("school_id", schoolId)
+        .eq("learner_name", learner.name)
+        .order("created_at", { ascending: false })
+        .limit(1),
+    ]);
+
+    if (attendanceResult.error) {
+      setSelectedAttendanceTrend("Could not load attendance trend.");
+    } else {
+      const rows = (attendanceResult.data || []) as AttendanceItem[];
+      const present = rows.filter(
+        (row) => String(row.status || "").toLowerCase() === "present"
+      ).length;
+      const absent = rows.filter(
+        (row) => String(row.status || "").toLowerCase() === "absent"
+      ).length;
+
+      if (rows.length === 0) {
+        setSelectedAttendanceTrend("No attendance records yet.");
+      } else {
+        setSelectedAttendanceTrend(
+          `Last ${rows.length} records: ${present} present, ${absent} absent.`
+        );
+      }
+    }
+
+    if (summaryResult.error) {
+      setSelectedLatestSummary(null);
+    } else {
+      const rows = (summaryResult.data || []) as SummaryItem[];
+      setSelectedLatestSummary(rows[0] || null);
+    }
   }
 
   const selectedLearner = filteredLearners.find(
@@ -262,9 +359,7 @@ export default function LearnersPage() {
                 <button
                   key={learner.id}
                   type="button"
-                  onClick={() =>
-                    setSelectedLearnerId(isSelected ? null : learner.id)
-                  }
+                  onClick={() => selectLearner(learner)}
                   style={{
                     textAlign: "left",
                     background: isSelected ? "#EAF7FD" : "#FFFDFB",
@@ -318,25 +413,68 @@ export default function LearnersPage() {
               display: "flex",
               justifyContent: "space-between",
               gap: "12px",
-              alignItems: "center",
+              alignItems: "flex-start",
               flexWrap: "wrap",
             }}
           >
-            <div>
+            <div style={{ flex: 1, minWidth: "240px" }}>
               <h3 style={sectionTitle}>{selectedLearner.name}</h3>
-              <p style={textStyle}>Class: {selectedLearner.class || "Unassigned"}</p>
-              <p style={textStyle}>
-                Date of Birth: {selectedLearner.date_of_birth || "Not added"}
-              </p>
-              <p style={textStyle}>
-                Parent Phone: {selectedLearner.parent_phone || "Not added"}
-              </p>
+
+              <div style={detailGrid}>
+                <InfoLine label="Class" value={selectedLearner.class || "Unassigned"} />
+                <InfoLine label="Parent Name" value={selectedLearner.parent_name || "Not added"} />
+                <InfoLine label="Parent Phone" value={selectedLearner.parent_phone || "Not added"} />
+                <InfoLine label="Birthday" value={selectedLearner.date_of_birth || "Not added"} />
+                <InfoLine label="Allergies" value={selectedLearner.allergies || "None added"} />
+                <InfoLine label="Notes" value={selectedLearner.notes || "No notes added"} />
+                <InfoLine label="Attendance Trend" value={selectedAttendanceTrend || "Not loaded"} />
+              </div>
+
+              <div
+                style={{
+                  marginTop: "14px",
+                  background: "#FFFDFB",
+                  border: "1px solid #F0E3D8",
+                  borderRadius: "14px",
+                  padding: "12px",
+                }}
+              >
+                <strong style={{ color: "#2D2A3E", fontSize: "14px" }}>
+                  Latest Summary
+                </strong>
+
+                {selectedLatestSummary ? (
+                  <>
+                    <p style={textStyle}>
+                      Mood: {selectedLatestSummary.mood || "Not added"} | Meals:{" "}
+                      {selectedLatestSummary.meals || "Not added"}
+                    </p>
+                    <p style={textStyle}>
+                      Rest: {selectedLatestSummary.rest || "Not added"}
+                    </p>
+                    <p style={textStyle}>
+                      Highlight: {selectedLatestSummary.today_highlight || "Not added"}
+                    </p>
+                    {selectedLatestSummary.teacher_notes ? (
+                      <p style={textStyle}>
+                        Teacher Notes: {selectedLatestSummary.teacher_notes}
+                      </p>
+                    ) : null}
+                  </>
+                ) : (
+                  <p style={textStyle}>No summary recorded yet.</p>
+                )}
+              </div>
             </div>
 
             <button
               type="button"
               className="db-button-secondary"
-              onClick={() => setSelectedLearnerId(null)}
+              onClick={() => {
+                setSelectedLearnerId(null);
+                setSelectedAttendanceTrend("");
+                setSelectedLatestSummary(null);
+              }}
             >
               Close Details
             </button>
@@ -382,9 +520,36 @@ export default function LearnersPage() {
 
           <input
             className="db-input"
+            placeholder="Parent Name"
+            value={parentName}
+            onChange={(e) => setParentName(e.target.value)}
+          />
+
+          <input
+            className="db-input"
             placeholder="Parent Phone Number"
             value={parentPhone}
             onChange={(e) => setParentPhone(e.target.value)}
+          />
+
+          <input
+            className="db-input"
+            placeholder="Allergies"
+            value={allergies}
+            onChange={(e) => setAllergies(e.target.value)}
+          />
+
+          <textarea
+            className="db-input"
+            placeholder="Learner Notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            style={{
+              width: "100%",
+              minHeight: "86px",
+              resize: "vertical",
+            }}
           />
 
           <button
@@ -397,6 +562,40 @@ export default function LearnersPage() {
           </button>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function InfoLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        background: "#FFFDFB",
+        border: "1px solid #F0E3D8",
+        borderRadius: "12px",
+        padding: "10px",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          color: "#6D6888",
+          fontSize: "12px",
+          fontWeight: 700,
+        }}
+      >
+        {label}
+      </p>
+      <p
+        style={{
+          margin: "4px 0 0 0",
+          color: "#2D2A3E",
+          fontSize: "14px",
+          lineHeight: 1.4,
+        }}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -414,4 +613,10 @@ const textStyle = {
   color: "var(--db-text-soft)",
   fontSize: "14px",
   lineHeight: 1.5,
+};
+
+const detailGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "10px",
 };

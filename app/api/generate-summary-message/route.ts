@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 
 export async function POST(request: Request) {
   try {
@@ -21,50 +20,29 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
-        { error: "Missing OPENAI_API_KEY." },
-        { status: 500 }
-      );
-    }
+    const healthLine =
+      healthSafety.toLowerCase() === "no incident"
+        ? "There were no health or safety concerns reported."
+        : `Health and safety note: ${healthSafety}.`;
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    const noteLine = teacherNotes ? `Teacher note: ${teacherNotes}.` : "";
 
-    const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
-      input: `
-You write preschool WhatsApp summaries for parents.
+    const messageParts = [
+      `Good day from ${schoolName}.`,
+      `${learnerName} had a ${mood.toLowerCase()} day today.`,
+      `Meals: ${meals.toLowerCase()}.`,
+      `Rest: ${rest.toLowerCase()}.`,
+      `Highlight: ${todayHighlight.toLowerCase()}.`,
+      healthLine,
+      noteLine,
+    ].filter(Boolean);
 
-Rules:
-- Keep the message warm, natural, and professional.
-- Always start with a greeting.
-- Always mention the school name and learner name.
-- Keep it short, between 45 and 80 words.
-- Use only the facts provided.
-- Take the teacher notes as they are.
-- Do not invent details.
-- Do not use bullet points.
-- Do not sound robotic.
+    const message = messageParts.join(" ");
 
-School: ${schoolName}
-Learner: ${learnerName}
-Health & Safety: ${healthSafety}
-Meals: ${meals}
-Rest: ${rest}
-Mood: ${mood}
-Today's Highlight: ${todayHighlight}
-Teacher Notes: ${teacherNotes || "None"}
-      `,
-    });
-
-    return NextResponse.json({
-      message: response.output_text || "Could not generate message.",
-    });
-  } catch (error: any) {
+    return NextResponse.json({ message });
+  } catch {
     return NextResponse.json(
-      { error: error?.message || "Could not generate summary message." },
+      { error: "Could not generate parent message." },
       { status: 500 }
     );
   }

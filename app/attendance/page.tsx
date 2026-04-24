@@ -369,78 +369,83 @@ export default function AttendancePage() {
         </button>
       </div>
 
-      <div
-        className="db-card db-card-yellow"
-        style={{ padding: 16, marginTop: 18 }}
-      >
-        <h3 style={sectionTitle}>Learner Attendance History</h3>
+      {selectedLearnerName ? (
+        <div
+          className="db-card db-card-yellow"
+          style={{ padding: 16, marginTop: 18 }}
+        >
+          <h3 style={sectionTitle}>Learner Attendance History</h3>
 
-        <p style={smallText}>
-          {selectedLearnerName
-            ? `Learner: ${selectedLearnerName}`
-            : "Click View next to a learner to load their attendance."}
-        </p>
+          <p style={smallText}>Learner: {selectedLearnerName}</p>
 
-        <div style={dateGrid}>
-          <div>
-            <p style={labelText}>From</p>
-            <input
-              type="date"
-              className="db-input"
-              value={learnerFromDate}
-              onChange={(e) => setLearnerFromDate(e.target.value)}
-            />
+          <div style={dateGrid}>
+            <div>
+              <p style={labelText}>From</p>
+              <input
+                type="date"
+                className="db-input"
+                value={learnerFromDate}
+                onChange={(e) => setLearnerFromDate(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>To</p>
+              <input
+                type="date"
+                className="db-input"
+                value={learnerToDate}
+                onChange={(e) => setLearnerToDate(e.target.value)}
+              />
+            </div>
+
+            <button
+              type="button"
+              className="db-button-secondary"
+              onClick={() => viewLearnerHistory(selectedLearnerName)}
+            >
+              View Learner Attendance
+            </button>
+
+            <button
+              type="button"
+              className="db-button-secondary"
+              onClick={() =>
+                exportCsv(
+                  `${selectedLearnerName || "learner"}-attendance.csv`,
+                  learnerHistoryRows
+                )
+              }
+            >
+              Export Learner CSV
+            </button>
+
+            <button
+              type="button"
+              className="db-button-secondary"
+              onClick={() => {
+                setSelectedLearnerName("");
+                setLearnerHistoryRows([]);
+              }}
+            >
+              Close
+            </button>
           </div>
 
-          <div>
-            <p style={labelText}>To</p>
-            <input
-              type="date"
-              className="db-input"
-              value={learnerToDate}
-              onChange={(e) => setLearnerToDate(e.target.value)}
-            />
-          </div>
-
-          <button
-            type="button"
-            className="db-button-secondary"
-            onClick={() =>
-              selectedLearnerName
-                ? viewLearnerHistory(selectedLearnerName)
-                : alert("Select a learner first.")
-            }
-          >
-            View Learner Attendance
-          </button>
-
-          <button
-            type="button"
-            className="db-button-secondary"
-            onClick={() =>
-              exportCsv(
-                `${selectedLearnerName || "learner"}-attendance.csv`,
-                learnerHistoryRows
-              )
-            }
-          >
-            Export Learner CSV
-          </button>
+          {learnerHistoryRows.length === 0 ? (
+            <p className="db-helper">No learner history loaded.</p>
+          ) : (
+            <div style={{ display: "grid", gap: 8 }}>
+              {learnerHistoryRows.map((row) => (
+                <div key={row.id} style={recordRow}>
+                  <strong>{row.attendance_date}</strong>
+                  <span>{row.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-
-        {learnerHistoryRows.length === 0 ? (
-          <p className="db-helper">No learner history loaded.</p>
-        ) : (
-          <div style={{ display: "grid", gap: 8 }}>
-            {learnerHistoryRows.map((row) => (
-              <div key={row.id} style={recordRow}>
-                <strong>{row.attendance_date}</strong>
-                <span>{row.status}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      ) : null}
 
       <div
         className="db-card db-card-green"

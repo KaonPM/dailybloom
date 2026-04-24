@@ -58,11 +58,12 @@ export default function LoginPage() {
 
     const role = profileData.role;
     const userIsActive = profileData.is_active !== false;
-    const schoolRow = Array.isArray(profileData.schools)
-  ? profileData.schools[0]
-  : profileData.schools;
 
-const schoolIsActive = schoolRow?.is_active !== false;
+    const schoolRow = Array.isArray(profileData.schools)
+      ? profileData.schools[0]
+      : profileData.schools;
+
+    const schoolIsActive = schoolRow?.is_active !== false;
     const isSchoolUser = role === "principal" || role === "teacher";
 
     if (!userIsActive) {
@@ -84,11 +85,18 @@ const schoolIsActive = schoolRow?.is_active !== false;
     }
 
     if (role === "master") {
-      router.push("/master");
-    } else {
-      router.push("/dashboard");
+      router.push("/master?view=manage-schools");
+      setLoading(false);
+      return;
     }
 
+    if (role === "teacher") {
+      router.push("/teacher");
+      setLoading(false);
+      return;
+    }
+
+    router.push("/dashboard");
     setLoading(false);
   }
 
@@ -178,7 +186,7 @@ const schoolIsActive = schoolRow?.is_active !== false;
               color: "#2D2A3E",
             }}
           >
-            Daily<span style={{ color: "#F66BA03" }}>Bloom</span>
+            Daily<span style={{ color: "#F66BA0" }}>Bloom</span>
           </h1>
 
           <p
@@ -278,7 +286,7 @@ const schoolIsActive = schoolRow?.is_active !== false;
             cursor: "pointer",
           }}
         >
-          New school? Start Free Trial
+          New school? Sign Up
         </button>
 
         <div style={{ textAlign: "center", marginTop: "18px" }}>

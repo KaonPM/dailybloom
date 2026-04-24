@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resolveSchoolContext } from "../lib/school-context";
@@ -24,33 +24,24 @@ export default function LearnersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const activeFilter = searchParams.get("filter");
+  const schoolParam = searchParams.get("school");
+
   const [learners, setLearners] = useState<LearnerItem[]>([]);
   const [filteredLearners, setFilteredLearners] = useState<LearnerItem[]>([]);
   const [classrooms, setClassrooms] = useState<ClassroomItem[]>([]);
   const [schoolId, setSchoolId] = useState<number | null>(null);
 
+  const [selectedLearnerId, setSelectedLearnerId] = useState<number | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+
   const [name, setName] = useState("");
   const [selectedClassroomId, setSelectedClassroomId] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [parentPhone, setParentPhone] = useState("");
+
   const [loading, setLoading] = useState(false);
-
-  const [showAddForm, setShowAddForm] = useState(true);
-  const [highlightAddForm, setHighlightAddForm] = useState(false);
-  const [lastSavedSuccess, setLastSavedSuccess] = useState(false);
-
-  const formRef = useRef<HTMLDivElement | null>(null);
-  const nameInputRef = useRef<HTMLInputElement | null>(null);
-
-  const activeFilter = searchParams.get("filter");
-  const schoolParam = searchParams.get("school");
-  const classroomParam = searchParams.get("classroom");
-  const action = searchParams.get("action");
-  const returnTo = searchParams.get("returnTo");
-
-  const shouldShowBackToOverview =
-    returnTo === "school-overview" && schoolId !== null;
-  const shouldShowBackToDashboard = returnTo === "dashboard";
+  const [pageLoading, setPageLoading] = useState(true);
 
   useEffect(() => {
     loadPage();
@@ -58,59 +49,7 @@ export default function LearnersPage() {
 
   useEffect(() => {
     applyFilter();
-  }, [learners, activeFilter, classroomParam]);
-
-  useEffect(() => {
-    if (action === "add") {
-      setShowAddForm(true);
-      setHighlightAddForm(true);
-
-      const timer = window.setTimeout(() => {
-        formRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-
-        window.setTimeout(() => {
-          nameInputRef.current?.focus();
-
-          const params = new URLSearchParams(searchParams.toString());
-          params.delete("action");
-
-          const nextQuery = params.toString();
-          router.replace(nextQuery ? `/children?${nextQuery}` : "/children", {
-            scroll: false,
-          });
-        }, 350);
-      }, 250);
-
-      return () => window.clearTimeout(timer);
-    }
-  }, [action, router, searchParams]);
-
-  useEffect(() => {
-    if (!highlightAddForm) return;
-
-    const timer = window.setTimeout(() => {
-      setHighlightAddForm(false);
-    }, 2200);
-
-    return () => window.clearTimeout(timer);
-  }, [highlightAddForm]);
-
-  useEffect(() => {
-    if (!classroomParam || classrooms.length === 0) return;
-
-    const match = classrooms.find(
-      (item) =>
-        String(item.classroom_name || "").trim().toLowerCase() ===
-        classroomParam.trim().toLowerCase()
-    );
-
-    if (match) {
-      setSelectedClassroomId(String(match.id));
-    }
-  }, [classroomParam, classrooms]);
+  }, [learners, activeFilter]);
 
   async function loadPage() {
     const context = await resolveSchoolContext(schoolParam);
@@ -127,14 +66,18 @@ export default function LearnersPage() {
 
     setSchoolId(context.schoolId);
 
-    await fetchClassrooms(context.schoolId);
-    await fetchLearners(context.schoolId);
+    await Promise.all([
+      fetchClassrooms(context.schoolId),
+      fetchLearners(context.schoolId),
+    ]);
+
+    setPageLoading(false);
   }
 
   async function fetchClassrooms(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("classrooms")
-      .select("id, classroom_name")
+      .select("*")
       .eq("school_id", currentSchoolId)
       .order("classroom_name", { ascending: true });
 
@@ -151,7 +94,7 @@ export default function LearnersPage() {
       .from("learners")
       .select("*")
       .eq("school_id", currentSchoolId)
-      .order("created_at", { ascending: false });
+      .order("name", { ascending: true });
 
     if (error) {
       alert(error.message);
@@ -162,47 +105,37 @@ export default function LearnersPage() {
   }
 
   function applyFilter() {
-    let next = [...learners];
-
-    if (classroomParam) {
-      const targetClassroom = classroomParam.trim().toLowerCase();
-      next = next.filter(
-        (learner) => String(learner.class || "").trim().toLowerCase() === targetClassroom
-      );
-    }
-
     if (activeFilter === "birthdays-today") {
       const today = new Date();
       const month = today.getMonth() + 1;
       const day = today.getDate();
 
-      next = next.filter((learner) => {
+      const todaysBirthdays = learners.filter((learner) => {
         if (!learner.date_of_birth) return false;
+
         const dob = new Date(learner.date_of_birth);
         return dob.getMonth() + 1 === month && dob.getDate() === day;
       });
+
+      setFilteredLearners(todaysBirthdays);
+      return;
     }
 
-    setFilteredLearners(next);
+    setFilteredLearners(learners);
   }
 
   async function addLearner() {
-    if (!name || !schoolId) {
-      alert("Please enter learner name");
+    if (!name.trim() || !schoolId) {
+      alert("Please enter learner name.");
       return;
     }
 
     setLoading(true);
-    setLastSavedSuccess(false);
 
     let selectedClassroomName = "Unassigned";
     let parsedClassroomId: number | null = null;
 
-    if (
-      selectedClassroomId &&
-      selectedClassroomId !== "null" &&
-      selectedClassroomId !== ""
-    ) {
+    if (selectedClassroomId) {
       const classroomMatch = classrooms.find(
         (item) => String(item.id) === String(selectedClassroomId)
       );
@@ -214,10 +147,10 @@ export default function LearnersPage() {
     }
 
     const payload: any = {
-      name,
+      name: name.trim(),
       class: selectedClassroomName,
       date_of_birth: dateOfBirth || null,
-      parent_phone: parentPhone || null,
+      parent_phone: parentPhone.trim() || null,
       school_id: Number(schoolId),
     };
 
@@ -234,218 +167,251 @@ export default function LearnersPage() {
     }
 
     setName("");
-    setSelectedClassroomId(classroomParam ? selectedClassroomId : "");
+    setSelectedClassroomId("");
     setDateOfBirth("");
     setParentPhone("");
+    setShowAddForm(false);
 
     await fetchLearners(Number(schoolId));
+
     setLoading(false);
-    setLastSavedSuccess(true);
+    alert("Learner added successfully.");
   }
 
-  const classroomTitlePrefix = classroomParam ? `${classroomParam} ` : "";
+  const selectedLearner = filteredLearners.find(
+    (learner) => learner.id === selectedLearnerId
+  );
+
+  if (pageLoading) {
+    return <p>Loading learners...</p>;
+  }
 
   return (
     <div>
-      <div className="db-soft-card" style={{ padding: "20px 22px", marginBottom: "24px" }}>
-        <h2 className="db-page-title">
-          {activeFilter === "birthdays-today"
-            ? `${classroomTitlePrefix}Today’s Birthdays`
-            : `${classroomTitlePrefix}Learners`}
-        </h2>
-        <p className="db-page-subtitle">
-          {activeFilter === "birthdays-today"
-            ? classroomParam
-              ? `Learners in ${classroomParam} celebrating birthdays today.`
-              : "Learners celebrating birthdays today."
-            : classroomParam
-            ? `Add and manage learners for ${classroomParam}.`
-            : "Add and manage learners for this school."}
-        </p>
-      </div>
-
-      {activeFilter !== "birthdays-today" && (
+      <div
+        className="db-soft-card"
+        style={{
+          padding: "18px 20px",
+          marginBottom: "18px",
+        }}
+      >
         <div
-          ref={formRef}
-          className="db-card db-card-blue"
           style={{
-            padding: "20px",
-            marginBottom: "24px",
-            border: highlightAddForm ? "2px solid #7CCCF3" : "1px solid rgba(0,0,0,0.06)",
-            boxShadow: highlightAddForm
-              ? "0 0 0 4px rgba(124, 204, 243, 0.18)"
-              : undefined,
-            transition: "all 0.2s ease",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "12px",
+            alignItems: "center",
+            flexWrap: "wrap",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: "12px",
-              flexWrap: "wrap",
-              marginBottom: "14px",
-            }}
-          >
-            <h3 style={sectionTitle}>
-              {classroomParam ? `Add Learner to ${classroomParam}` : "Add Learner"}
-            </h3>
+          <div>
+            <h2 className="db-page-title">
+              {activeFilter === "birthdays-today" ? "Today’s Birthdays" : "Learners"}
+            </h2>
 
-            <button
-              type="button"
-              className="db-button-secondary"
-              style={{ minHeight: "38px", padding: "8px 12px" }}
-              onClick={() => setShowAddForm((prev) => !prev)}
-            >
-              {showAddForm ? "Hide Form" : "Show Form"}
-            </button>
+            <p className="db-page-subtitle">
+              {activeFilter === "birthdays-today"
+                ? "Learners celebrating birthdays today."
+                : "View learners first. Add a learner only when needed."}
+            </p>
           </div>
 
-          {lastSavedSuccess && (
-            <div
-              style={{
-                background: "#EEF9EE",
-                border: "1px solid #D3EDD4",
-                borderRadius: "14px",
-                padding: "12px 14px",
-                marginBottom: "14px",
-              }}
+          {activeFilter !== "birthdays-today" ? (
+            <button
+              type="button"
+              className="db-button-primary"
+              onClick={() => setShowAddForm((prev) => !prev)}
             >
-              <p
-                style={{
-                  margin: 0,
-                  color: "#2D2A3E",
-                  fontSize: "14px",
-                  fontWeight: 700,
-                }}
-              >
-                Learner added successfully.
-              </p>
-
-              {shouldShowBackToOverview && (
-                <button
-                  type="button"
-                  className="db-button-primary"
-                  style={{ marginTop: "10px" }}
-                  onClick={() => router.push(`/master/school/${schoolId}`)}
-                >
-                  Back to School Overview
-                </button>
-              )}
-
-              {shouldShowBackToDashboard && (
-                <button
-                  type="button"
-                  className="db-button-primary"
-                  style={{ marginTop: "10px" }}
-                  onClick={() => router.push("/dashboard")}
-                >
-                  Back to Dashboard
-                </button>
-              )}
-            </div>
-          )}
-
-          {showAddForm ? (
-            <>
-              <input
-                ref={nameInputRef}
-                className="db-input"
-                placeholder="Learner Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-
-              <select
-                className="db-input"
-                value={selectedClassroomId}
-                onChange={(e) => setSelectedClassroomId(e.target.value)}
-              >
-                <option value="">
-                  {classroomParam ? `Assign to ${classroomParam}` : "Select Classroom"}
-                </option>
-                {classrooms.map((classroom) => (
-                  <option key={classroom.id} value={classroom.id}>
-                    {classroom.classroom_name}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                className="db-input"
-                type="date"
-                value={dateOfBirth}
-                onChange={(e) => setDateOfBirth(e.target.value)}
-              />
-
-              <input
-                className="db-input"
-                placeholder="Parent Phone Number"
-                value={parentPhone}
-                onChange={(e) => setParentPhone(e.target.value)}
-              />
-
-              <button
-                className="db-button-primary"
-                style={{ width: "100%" }}
-                onClick={addLearner}
-                disabled={loading}
-              >
-                {loading ? "Saving..." : "Add Learner"}
-              </button>
-            </>
-          ) : (
-            <p className="db-helper">The add learner form is hidden.</p>
-          )}
+              {showAddForm ? "Close Form" : "+ Add Learner"}
+            </button>
+          ) : null}
         </div>
-      )}
+      </div>
 
-      <div className="db-card db-card-lavender" style={{ padding: "20px" }}>
+      <div
+        className="db-card db-card-lavender"
+        style={{
+          padding: "16px",
+          marginBottom: "18px",
+        }}
+      >
         <h3 style={sectionTitle}>
           {activeFilter === "birthdays-today"
-            ? `${classroomTitlePrefix}Birthdays Today (${filteredLearners.length})`
-            : `${classroomTitlePrefix}Learners (${filteredLearners.length})`}
+            ? `Birthdays Today (${filteredLearners.length})`
+            : `Learners (${filteredLearners.length})`}
         </h3>
 
         {filteredLearners.length === 0 ? (
           <p className="db-helper">
             {activeFilter === "birthdays-today"
               ? "No birthdays today."
-              : classroomParam
-              ? "No learners found for this classroom."
               : "No learners added yet."}
           </p>
         ) : (
-          <div style={{ display: "grid", gap: "12px" }}>
-            {filteredLearners.map((learner) => (
-              <div key={learner.id} className="db-list-card">
-                <strong style={{ fontSize: "17px" }}>{learner.name}</strong>
-                <p style={textStyle}>Class: {learner.class || "Unassigned"}</p>
-                <p style={textStyle}>
-                  Date of Birth: {learner.date_of_birth || "Not added"}
-                </p>
-                <p style={textStyle}>
-                  Parent Phone: {learner.parent_phone || "Not added"}
-                </p>
-              </div>
-            ))}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: "10px",
+            }}
+          >
+            {filteredLearners.map((learner) => {
+              const isSelected = learner.id === selectedLearnerId;
+
+              return (
+                <button
+                  key={learner.id}
+                  type="button"
+                  onClick={() =>
+                    setSelectedLearnerId(isSelected ? null : learner.id)
+                  }
+                  style={{
+                    textAlign: "left",
+                    background: isSelected ? "#EAF7FD" : "#FFFDFB",
+                    border: isSelected
+                      ? "1px solid #CBEAF7"
+                      : "1px solid #F0E3D8",
+                    borderRadius: "16px",
+                    padding: "12px",
+                    cursor: "pointer",
+                    color: "#2D2A3E",
+                    boxShadow: "0 6px 14px rgba(45, 42, 62, 0.04)",
+                  }}
+                >
+                  <strong
+                    style={{
+                      display: "block",
+                      fontSize: "15px",
+                      fontWeight: 700,
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {learner.name || "Unnamed learner"}
+                  </strong>
+
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "12px",
+                      color: "#6D6888",
+                    }}
+                  >
+                    {learner.class || "Unassigned"}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
+
+      {selectedLearner ? (
+        <div
+          className="db-card db-card-blue"
+          style={{
+            padding: "16px",
+            marginBottom: "18px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "12px",
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h3 style={sectionTitle}>{selectedLearner.name}</h3>
+              <p style={textStyle}>Class: {selectedLearner.class || "Unassigned"}</p>
+              <p style={textStyle}>
+                Date of Birth: {selectedLearner.date_of_birth || "Not added"}
+              </p>
+              <p style={textStyle}>
+                Parent Phone: {selectedLearner.parent_phone || "Not added"}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="db-button-secondary"
+              onClick={() => setSelectedLearnerId(null)}
+            >
+              Close Details
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {showAddForm && activeFilter !== "birthdays-today" ? (
+        <div
+          className="db-card db-card-green"
+          style={{
+            padding: "16px",
+          }}
+        >
+          <h3 style={sectionTitle}>Add Learner</h3>
+
+          <input
+            className="db-input"
+            placeholder="Learner Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+
+          <select
+            className="db-input"
+            value={selectedClassroomId}
+            onChange={(e) => setSelectedClassroomId(e.target.value)}
+          >
+            <option value="">Select Classroom</option>
+            {classrooms.map((classroom) => (
+              <option key={classroom.id} value={classroom.id}>
+                {classroom.classroom_name}
+              </option>
+            ))}
+          </select>
+
+          <input
+            className="db-input"
+            type="date"
+            value={dateOfBirth}
+            onChange={(e) => setDateOfBirth(e.target.value)}
+          />
+
+          <input
+            className="db-input"
+            placeholder="Parent Phone Number"
+            value={parentPhone}
+            onChange={(e) => setParentPhone(e.target.value)}
+          />
+
+          <button
+            className="db-button-primary"
+            style={{ width: "100%" }}
+            onClick={addLearner}
+            disabled={loading}
+          >
+            {loading ? "Saving..." : "Save Learner"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 const sectionTitle = {
   marginTop: 0,
-  marginBottom: "14px",
+  marginBottom: "10px",
   color: "var(--db-text)",
-  fontSize: "22px",
-  fontWeight: 800 as const,
+  fontSize: "20px",
+  fontWeight: 700 as const,
 };
 
 const textStyle = {
   margin: "6px 0 0 0",
   color: "var(--db-text-soft)",
+  fontSize: "14px",
+  lineHeight: 1.5,
 };

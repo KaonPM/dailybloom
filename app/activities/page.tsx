@@ -14,10 +14,35 @@ type ActivityRow = {
   subject?: string | null;
   title?: string | null;
   description?: string | null;
-  materials?: string | null;
   repeat_group_id?: string | null;
   created_at?: string | null;
 };
+
+const subjectOptions = [
+  "Literacy",
+  "Numbers",
+  "Creative Art",
+  "Outdoor Play",
+  "Music and Movement",
+  "Fine Motor Skills",
+  "Gross Motor Skills",
+  "Life Skills",
+  "Story Time",
+  "Sensory Play",
+];
+
+const activityTitleOptions = [
+  "Counting Objects",
+  "Colour Sorting",
+  "Story Reading",
+  "Drawing and Colouring",
+  "Sing-Along",
+  "Outdoor Ball Play",
+  "Building Blocks",
+  "Puzzle Time",
+  "Playdough Activity",
+  "Shape Matching",
+];
 
 export default function ActivitiesPage() {
   const router = useRouter();
@@ -40,7 +65,6 @@ export default function ActivitiesPage() {
   const [subject, setSubject] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [materials, setMaterials] = useState("");
   const [repeatWeeks, setRepeatWeeks] = useState("1");
 
   const [loading, setLoading] = useState(true);
@@ -111,7 +135,6 @@ export default function ActivitiesPage() {
     setSubject("");
     setTitle("");
     setDescription("");
-    setMaterials("");
     setRepeatWeeks("1");
     setEditingId(null);
   }
@@ -122,7 +145,6 @@ export default function ActivitiesPage() {
     setSubject(activity.subject || "");
     setTitle(activity.title || "");
     setDescription(activity.description || "");
-    setMaterials(activity.materials || "");
     setRepeatWeeks("1");
     setShowForm(true);
     setSelectedActivity(activity);
@@ -143,7 +165,7 @@ export default function ActivitiesPage() {
     if (!schoolId) return;
 
     if (!activityDate || !subject || !title || !description) {
-      alert("Please complete date, subject, title and description.");
+      alert("Please complete date, subject/theme, activity title and short description.");
       return;
     }
 
@@ -157,7 +179,6 @@ export default function ActivitiesPage() {
           subject,
           title,
           description,
-          materials: materials.trim() || null,
         })
         .eq("id", editingId);
 
@@ -178,7 +199,9 @@ export default function ActivitiesPage() {
 
     const repeatCount = Math.max(Number(repeatWeeks) || 1, 1);
     const repeatGroupId =
-      repeatCount > 1 ? `repeat-${Date.now()}-${Math.random().toString(36).slice(2)}` : null;
+      repeatCount > 1
+        ? `repeat-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        : null;
 
     const rows = Array.from({ length: repeatCount }).map((_, index) => ({
       school_id: schoolId,
@@ -187,7 +210,6 @@ export default function ActivitiesPage() {
       subject,
       title,
       description,
-      materials: materials.trim() || null,
       repeat_group_id: repeatGroupId,
     }));
 
@@ -251,7 +273,7 @@ export default function ActivitiesPage() {
           <div>
             <h2 className="db-page-title">Today’s Activities</h2>
             <p className="db-page-subtitle">
-              Plan classroom activities, including weekly repeats.
+              Plan classroom activities with simple suggestions and weekly repeats.
             </p>
 
             {role === "teacher" && classroomName ? (
@@ -291,23 +313,35 @@ export default function ActivitiesPage() {
 
             <div>
               <p style={labelText}>Subject / Theme</p>
-              <input
+              <select
                 className="db-input"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                placeholder="Numbers, Literacy, Art..."
-              />
+              >
+                <option value="">Select subject or theme</option>
+                {subjectOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
           <div style={{ marginTop: 10 }}>
             <p style={labelText}>Activity Title</p>
-            <input
+            <select
               className="db-input"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Counting Objects"
-            />
+            >
+              <option value="">Select activity title</option>
+              {activityTitleOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div style={{ marginTop: 10 }}>
@@ -317,18 +351,8 @@ export default function ActivitiesPage() {
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Count buttons from 1 to 10."
+              placeholder="Briefly describe what the class will do."
               style={{ width: "100%", resize: "vertical" }}
-            />
-          </div>
-
-          <div style={{ marginTop: 10 }}>
-            <p style={labelText}>Materials Optional</p>
-            <input
-              className="db-input"
-              value={materials}
-              onChange={(e) => setMaterials(e.target.value)}
-              placeholder="Buttons, trays, crayons..."
             />
           </div>
 
@@ -408,21 +432,16 @@ export default function ActivitiesPage() {
                         marginTop: 8,
                       }}
                     >
-                      <p style={smallText}>Title</p>
+                      <p style={smallText}>Activity Title</p>
                       <strong>{item.title || "Untitled Activity"}</strong>
 
-                      <p style={{ ...smallText, marginTop: 10 }}>Description</p>
+                      <p style={{ ...smallText, marginTop: 10 }}>Short Description</p>
                       <p style={detailText}>{item.description || "No description"}</p>
 
-                      {item.materials ? (
-                        <>
-                          <p style={{ ...smallText, marginTop: 10 }}>Materials</p>
-                          <p style={detailText}>{item.materials}</p>
-                        </>
-                      ) : null}
-
                       {item.repeat_group_id ? (
-                        <p style={smallText}>Weekly repeat activity</p>
+                        <p style={{ ...smallText, marginTop: 10 }}>
+                          Weekly repeat activity
+                        </p>
                       ) : null}
 
                       <div

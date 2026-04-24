@@ -32,7 +32,9 @@ export default function SummariesPage() {
   const today = new Date().toISOString().split("T")[0];
 
   const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [schoolName, setSchoolName] = useState("");
   const [classroomName, setClassroomName] = useState("");
+
   const [learners, setLearners] = useState<Learner[]>([]);
   const [summaries, setSummaries] = useState<Summary[]>([]);
 
@@ -44,6 +46,9 @@ export default function SummariesPage() {
   const [mood, setMood] = useState("");
   const [todayHighlight, setTodayHighlight] = useState("");
   const [teacherNotes, setTeacherNotes] = useState("");
+
+  const [generatedMessages, setGeneratedMessages] = useState<Record<number, string>>({});
+  const [generatingId, setGeneratingId] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -75,12 +80,27 @@ export default function SummariesPage() {
     setSchoolId(context.schoolId);
     setClassroomName(teacherClass);
 
-    await Promise.all([
-      fetchLearners(context.schoolId, teacherClass),
-      fetchSummaries(context.schoolId, teacherClass),
-    ]);
+    await fetchSchoolName(context.schoolId);
+
+    const learnerRows = await fetchLearners(context.schoolId, teacherClass);
+    await fetchSummaries(context.schoolId, teacherClass, learnerRows);
 
     setLoading(false);
+  }
+
+  async function fetchSchoolName(currentSchoolId: number) {
+    const { data, error } = await supabase
+      .from("schools")
+      .select("school_name")
+      .eq("id", currentSchoolId)
+      .single();
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setSchoolName(data?.school_name || "DailyBloom");
   }
 
   async function fetchLearners(currentSchoolId: number, teacherClass: string) {
@@ -98,13 +118,20 @@ export default function SummariesPage() {
 
     if (error) {
       alert(error.message);
-      return;
+      return [];
     }
 
-    setLearners((data || []) as Learner[]);
+    const rows = (data || []) as Learner[];
+    setLearners(rows);
+
+    return rows;
   }
 
-  async function fetchSummaries(currentSchoolId: number, teacherClass: string) {
+  async function fetchSummaries(
+    currentSchoolId: number,
+    teacherClass: string,
+    learnerRows: Learner[] = learners
+  ) {
     const { data, error } = await supabase
       .from("summaries")
       .select(
@@ -123,7 +150,7 @@ export default function SummariesPage() {
     let rows = (data || []) as Summary[];
 
     if (teacherClass) {
-      const learnerNames = learners.map((learner) =>
+      const learnerNames = learnerRows.map((learner) =>
         String(learner.name || "").trim().toLowerCase()
       );
 
@@ -181,10 +208,51 @@ export default function SummariesPage() {
     resetForm();
     setSelectedLearner(null);
 
-    await fetchSummaries(schoolId, classroomName);
+    await fetchSummaries(schoolId, classroomName, learners);
 
     setSaving(false);
     alert("Summary saved.");
+  }
+
+  async function generateParentMessage(summary: Summary) {
+    setGeneratingId(summary.id);
+
+    const response = await fetch("/api/generate-summary-message", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        school_name: schoolName,
+        learner_name: summary.learner_name,
+        health_safety: summary.health_safety,
+        meals: summary.meals,
+        rest: summary.rest,
+        mood: summary.mood,
+        today_highlight: summary.today_highlight,
+        teacher_notes: summary.teacher_notes,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Could not generate parent message.");
+      setGeneratingId(null);
+      return;
+    }
+
+    setGeneratedMessages((prev) => ({
+      ...prev,
+      [summary.id]: result.message,
+    }));
+
+    setGeneratingId(null);
+  }
+
+  function copyMessage(message: string) {
+    navigator.clipboard.writeText(message);
+    alert("Message copied.");
   }
 
   if (loading) {
@@ -364,19 +432,77 @@ export default function SummariesPage() {
           <div style={{ display: "grid", gap: 8 }}>
             {summaries.map((summary) => (
               <div key={summary.id} style={summaryRow}>
-                <div>
+                <div style={{ flex: 1 }}>
                   <strong>{summary.learner_name || "Unnamed learner"}</strong>
+
                   <p style={smallText}>
                     Mood: {summary.mood || "Not added"} | Meals:{" "}
                     {summary.meals || "Not added"}
                   </p>
+
+                  {generatedMessages[summary.id] ? (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        background: "#FFFDFB",
+                        border: "1px solid #F0E3D8",
+                        borderRadius: 12,
+                        padding: 10,
+                        color: "#2D2A3E",
+                        fontSize: 14,
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {generatedMessages[summary.id]}
+                    </div>
+                  ) : null}
                 </div>
 
-                <span style={summaryPill}>
-                  {summary.created_at
-                    ? new Date(summary.created_at).toLocaleTimeString()
-                    : "Saved"}
-                </span>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                    alignItems: "flex-end",
+                  }}
+                >
+                  <span style={summaryPill}>
+                    {summary.created_at
+                      ? new Date(summary.created_at).toLocaleTimeString()
+                      : "Saved"}
+                  </span>
+
+                  <button
+                    type="button"
+                    className="db-button-secondary"
+                    onClick={() => generateParentMessage(summary)}
+                    disabled={generatingId === summary.id}
+                    style={{
+                      minHeight: 34,
+                      padding: "8px 10px",
+                      fontSize: 12,
+                    }}
+                  >
+                    {generatingId === summary.id
+                      ? "Generating..."
+                      : "Generate Parent Message"}
+                  </button>
+
+                  {generatedMessages[summary.id] ? (
+                    <button
+                      type="button"
+                      className="db-button-secondary"
+                      onClick={() => copyMessage(generatedMessages[summary.id])}
+                      style={{
+                        minHeight: 34,
+                        padding: "8px 10px",
+                        fontSize: 12,
+                      }}
+                    >
+                      Copy Message
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ))}
           </div>
@@ -460,7 +586,7 @@ const smallText = {
 const summaryRow = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
+  alignItems: "flex-start",
   gap: 12,
   background: "#FFFDFB",
   border: "1px solid #F0E3D8",

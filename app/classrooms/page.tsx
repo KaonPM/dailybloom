@@ -10,6 +10,7 @@ type ClassroomRow = {
   school_id?: number | null;
   classroom_name?: string | null;
   name?: string | null;
+  age_group?: string | null;
   created_at?: string | null;
 };
 
@@ -28,6 +29,16 @@ type TeacherRow = {
   is_active?: boolean | null;
 };
 
+const ageGroupOptions = [
+  "Babies",
+  "Toddlers",
+  "2 - 3 years",
+  "3 - 4 years",
+  "4 - 5 years",
+  "Grade R",
+  "Mixed age group",
+];
+
 export default function ClassroomsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -38,14 +49,18 @@ export default function ClassroomsPage() {
   const [learners, setLearners] = useState<LearnerRow[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
 
-  const [selectedClassroom, setSelectedClassroom] = useState<ClassroomRow | null>(null);
+  const [selectedClassroom, setSelectedClassroom] =
+    useState<ClassroomRow | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [classroomName, setClassroomName] = useState("");
+  const [ageGroup, setAgeGroup] = useState("");
 
   const [teacherToAssign, setTeacherToAssign] = useState("");
-  const [selectedLearnerId, setSelectedLearnerId] = useState<number | null>(null);
+  const [selectedLearnerId, setSelectedLearnerId] = useState<number | null>(
+    null
+  );
   const [moveLearnerToClassroomId, setMoveLearnerToClassroomId] = useState("");
 
   const [loading, setLoading] = useState(true);
@@ -69,9 +84,7 @@ export default function ClassroomsPage() {
     }
 
     setSchoolId(context.schoolId);
-
     await refreshAll(context.schoolId);
-
     setLoading(false);
   }
 
@@ -135,12 +148,14 @@ export default function ClassroomsPage() {
 
   function resetForm() {
     setClassroomName("");
+    setAgeGroup("");
     setEditingId(null);
   }
 
   function startEdit(room: ClassroomRow) {
     setEditingId(room.id);
     setClassroomName(getClassroomName(room));
+    setAgeGroup(room.age_group || "");
     setSelectedClassroom(room);
     setShowForm(true);
   }
@@ -150,6 +165,11 @@ export default function ClassroomsPage() {
 
     if (!classroomName.trim()) {
       alert("Please enter classroom name.");
+      return;
+    }
+
+    if (!ageGroup.trim()) {
+      alert("Please select an age group.");
       return;
     }
 
@@ -164,6 +184,7 @@ export default function ClassroomsPage() {
         .from("classrooms")
         .update({
           classroom_name: newName,
+          age_group: ageGroup,
         })
         .eq("id", editingId);
 
@@ -190,16 +211,14 @@ export default function ClassroomsPage() {
 
       resetForm();
       setShowForm(false);
-
       await refreshAll(schoolId);
 
-      const updatedClassroom = classrooms.find((room) => room.id === editingId);
-      if (updatedClassroom) {
-        setSelectedClassroom({
-          ...updatedClassroom,
-          classroom_name: newName,
-        });
-      }
+      setSelectedClassroom({
+        id: editingId,
+        school_id: schoolId,
+        classroom_name: newName,
+        age_group: ageGroup,
+      });
 
       setSaving(false);
       alert("Classroom updated.");
@@ -210,6 +229,7 @@ export default function ClassroomsPage() {
       {
         school_id: schoolId,
         classroom_name: classroomName.trim(),
+        age_group: ageGroup,
       },
     ]);
 
@@ -234,7 +254,9 @@ export default function ClassroomsPage() {
     const hasLearners = learners.some(
       (learner) => learner.class === roomName || learner.classroom_id === room.id
     );
-    const hasTeachers = teachers.some((teacher) => teacher.classroom_name === roomName);
+    const hasTeachers = teachers.some(
+      (teacher) => teacher.classroom_name === roomName
+    );
 
     if (hasLearners || hasTeachers) {
       alert(
@@ -246,7 +268,10 @@ export default function ClassroomsPage() {
     const confirmed = confirm("Delete this classroom?");
     if (!confirmed) return;
 
-    const { error } = await supabase.from("classrooms").delete().eq("id", room.id);
+    const { error } = await supabase
+      .from("classrooms")
+      .delete()
+      .eq("id", room.id);
 
     if (error) {
       alert(error.message);
@@ -405,7 +430,7 @@ export default function ClassroomsPage() {
           <div>
             <h2 className="db-page-title">Classrooms</h2>
             <p className="db-page-subtitle">
-              Manage classrooms, assigned teachers, and learner placement.
+              Manage classrooms, age groups, assigned teachers, and learner placement.
             </p>
           </div>
 
@@ -423,21 +448,38 @@ export default function ClassroomsPage() {
       </div>
 
       {showForm ? (
-        <div
-          className="db-card db-card-blue"
-          style={{ padding: 16, marginBottom: 18 }}
-        >
+        <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
           <h3 style={sectionTitle}>
             {editingId ? "Edit Classroom" : "Add Classroom"}
           </h3>
 
-          <p style={labelText}>Classroom Name</p>
-          <input
-            className="db-input"
-            value={classroomName}
-            onChange={(e) => setClassroomName(e.target.value)}
-            placeholder="Dolphins, Butterflies, Cubs..."
-          />
+          <div style={grid2}>
+            <div>
+              <p style={labelText}>Classroom Name</p>
+              <input
+                className="db-input"
+                value={classroomName}
+                onChange={(e) => setClassroomName(e.target.value)}
+                placeholder="Dolphins, Butterflies, Cubs..."
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Age Group</p>
+              <select
+                className="db-input"
+                value={ageGroup}
+                onChange={(e) => setAgeGroup(e.target.value)}
+              >
+                <option value="">Select age group</option>
+                {ageGroupOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           <button
             type="button"
@@ -478,7 +520,7 @@ export default function ClassroomsPage() {
                     style={{
                       width: "100%",
                       display: "grid",
-                      gridTemplateColumns: "1fr 110px 110px",
+                      gridTemplateColumns: "1fr 130px 110px 110px",
                       gap: 8,
                       alignItems: "center",
                       background: active ? "#EAF7FD" : "#FFFDFB",
@@ -493,6 +535,9 @@ export default function ClassroomsPage() {
                     }}
                   >
                     <strong>{item.roomName}</strong>
+                    <span style={pillAge}>
+                      {item.room.age_group || "No age group"}
+                    </span>
                     <span style={pillBlue}>{item.learnerCount} learners</span>
                     <span style={pillNeutral}>{item.teacherCount} teachers</span>
                   </button>
@@ -508,6 +553,9 @@ export default function ClassroomsPage() {
                       }}
                     >
                       <h3 style={sectionTitle}>{selectedStats.roomName}</h3>
+                      <p style={smallText}>
+                        Age group: {selectedStats.room.age_group || "Not added"}
+                      </p>
 
                       <div style={miniGrid}>
                         <MiniBlock label="Learners" value={selectedStats.learnerCount} />
@@ -588,9 +636,7 @@ export default function ClassroomsPage() {
                                   }}
                                   style={{
                                     ...compactButton,
-                                    background: learnerActive
-                                      ? "#EAF7FD"
-                                      : "#FFFFFF",
+                                    background: learnerActive ? "#EAF7FD" : "#FFFFFF",
                                   }}
                                 >
                                   {learner.name || "Unnamed learner"}
@@ -657,7 +703,7 @@ export default function ClassroomsPage() {
                           className="db-button-secondary"
                           onClick={() => startEdit(selectedStats.room)}
                         >
-                          Edit Classroom Name
+                          Edit Classroom
                         </button>
 
                         <button
@@ -716,10 +762,17 @@ const smallText = {
   fontSize: 13,
 };
 
+const grid2 = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 10,
+};
+
 const miniGrid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
   gap: 8,
+  marginTop: 12,
 };
 
 const actionGrid = {
@@ -751,6 +804,16 @@ const compactButton = {
   fontSize: 14,
   textAlign: "left" as const,
   cursor: "pointer",
+};
+
+const pillAge = {
+  background: "#FFF7D9",
+  border: "1px solid #F3E4A3",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 12,
+  color: "#2D2A3E",
+  textAlign: "center" as const,
 };
 
 const pillBlue = {

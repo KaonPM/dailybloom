@@ -23,7 +23,9 @@ type LearnerRow = {
 type TeacherRow = {
   id: string;
   full_name?: string | null;
+  email?: string | null;
   classroom_name?: string | null;
+  is_active?: boolean | null;
 };
 
 export default function ClassroomsPage() {
@@ -41,6 +43,10 @@ export default function ClassroomsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [classroomName, setClassroomName] = useState("");
+
+  const [teacherToAssign, setTeacherToAssign] = useState("");
+  const [selectedLearnerId, setSelectedLearnerId] = useState<number | null>(null);
+  const [moveLearnerToClassroomId, setMoveLearnerToClassroomId] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -64,13 +70,17 @@ export default function ClassroomsPage() {
 
     setSchoolId(context.schoolId);
 
-    await Promise.all([
-      fetchClassrooms(context.schoolId),
-      fetchLearners(context.schoolId),
-      fetchTeachers(context.schoolId),
-    ]);
+    await refreshAll(context.schoolId);
 
     setLoading(false);
+  }
+
+  async function refreshAll(currentSchoolId: number) {
+    await Promise.all([
+      fetchClassrooms(currentSchoolId),
+      fetchLearners(currentSchoolId),
+      fetchTeachers(currentSchoolId),
+    ]);
   }
 
   async function fetchClassrooms(currentSchoolId: number) {
@@ -106,7 +116,7 @@ export default function ClassroomsPage() {
   async function fetchTeachers(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, classroom_name")
+      .select("id, full_name, email, classroom_name, is_active")
       .eq("school_id", currentSchoolId)
       .eq("role", "teacher")
       .order("full_name", { ascending: true });
@@ -148,11 +158,12 @@ export default function ClassroomsPage() {
     if (editingId) {
       const oldClassroom = classrooms.find((room) => room.id === editingId);
       const oldName = oldClassroom ? getClassroomName(oldClassroom) : "";
+      const newName = classroomName.trim();
 
       const { error } = await supabase
         .from("classrooms")
         .update({
-          classroom_name: classroomName.trim(),
+          classroom_name: newName,
         })
         .eq("id", editingId);
 
@@ -162,28 +173,33 @@ export default function ClassroomsPage() {
         return;
       }
 
-      if (oldName && oldName !== classroomName.trim()) {
+      if (oldName && oldName !== newName) {
         await supabase
           .from("learners")
-          .update({ class: classroomName.trim() })
+          .update({ class: newName })
           .eq("school_id", schoolId)
           .eq("class", oldName);
 
         await supabase
           .from("profiles")
-          .update({ classroom_name: classroomName.trim() })
+          .update({ classroom_name: newName })
           .eq("school_id", schoolId)
+          .eq("role", "teacher")
           .eq("classroom_name", oldName);
       }
 
       resetForm();
       setShowForm(false);
 
-      await Promise.all([
-        fetchClassrooms(schoolId),
-        fetchLearners(schoolId),
-        fetchTeachers(schoolId),
-      ]);
+      await refreshAll(schoolId);
+
+      const updatedClassroom = classrooms.find((room) => room.id === editingId);
+      if (updatedClassroom) {
+        setSelectedClassroom({
+          ...updatedClassroom,
+          classroom_name: newName,
+        });
+      }
 
       setSaving(false);
       alert("Classroom updated.");
@@ -215,12 +231,14 @@ export default function ClassroomsPage() {
     if (!schoolId) return;
 
     const roomName = getClassroomName(room);
-    const hasLearners = learners.some((learner) => learner.class === roomName);
+    const hasLearners = learners.some(
+      (learner) => learner.class === roomName || learner.classroom_id === room.id
+    );
     const hasTeachers = teachers.some((teacher) => teacher.classroom_name === roomName);
 
     if (hasLearners || hasTeachers) {
       alert(
-        "This classroom has learners or teachers linked to it. Move them first before deleting."
+        "This classroom has learners or teachers linked to it. Move them or unassign them first before deleting."
       );
       return;
     }
@@ -241,6 +259,86 @@ export default function ClassroomsPage() {
 
     await fetchClassrooms(schoolId);
     alert("Classroom deleted.");
+  }
+
+  async function assignTeacherToClassroom() {
+    if (!schoolId || !selectedClassroom || !teacherToAssign) {
+      alert("Please select a teacher.");
+      return;
+    }
+
+    const roomName = getClassroomName(selectedClassroom);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ classroom_name: roomName })
+      .eq("id", teacherToAssign);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setTeacherToAssign("");
+    await fetchTeachers(schoolId);
+    alert("Teacher assigned.");
+  }
+
+  async function removeTeacherFromClassroom(teacherId: string) {
+    if (!schoolId) return;
+
+    const confirmed = confirm("Remove this teacher from this classroom?");
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ classroom_name: null })
+      .eq("id", teacherId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await fetchTeachers(schoolId);
+    alert("Teacher removed from classroom.");
+  }
+
+  async function moveLearnerToClassroom() {
+    if (!schoolId || !selectedLearnerId || !moveLearnerToClassroomId) {
+      alert("Please select a classroom to move the learner to.");
+      return;
+    }
+
+    const targetRoom = classrooms.find(
+      (room) => String(room.id) === String(moveLearnerToClassroomId)
+    );
+
+    if (!targetRoom) {
+      alert("Classroom not found.");
+      return;
+    }
+
+    const targetName = getClassroomName(targetRoom);
+
+    const { error } = await supabase
+      .from("learners")
+      .update({
+        class: targetName,
+        classroom_id: targetRoom.id,
+      })
+      .eq("id", selectedLearnerId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setSelectedLearnerId(null);
+    setMoveLearnerToClassroomId("");
+
+    await fetchLearners(schoolId);
+    alert("Learner moved.");
   }
 
   const classroomStats = useMemo(() => {
@@ -280,6 +378,14 @@ export default function ClassroomsPage() {
     ? teachers.filter((teacher) => teacher.classroom_name === selectedStats.roomName)
     : [];
 
+  const availableTeachers = selectedStats
+    ? teachers.filter((teacher) => teacher.classroom_name !== selectedStats.roomName)
+    : teachers;
+
+  const selectedLearner = selectedLearnerId
+    ? learners.find((learner) => learner.id === selectedLearnerId)
+    : null;
+
   if (loading) {
     return <p>Loading classrooms...</p>;
   }
@@ -299,7 +405,7 @@ export default function ClassroomsPage() {
           <div>
             <h2 className="db-page-title">Classrooms</h2>
             <p className="db-page-subtitle">
-              Manage classrooms, view linked learners, and see assigned teachers.
+              Manage classrooms, assigned teachers, and learner placement.
             </p>
           </div>
 
@@ -363,9 +469,12 @@ export default function ClassroomsPage() {
                 <div key={item.room.id}>
                   <button
                     type="button"
-                    onClick={() =>
-                      setSelectedClassroom(active ? null : item.room)
-                    }
+                    onClick={() => {
+                      setSelectedClassroom(active ? null : item.room);
+                      setSelectedLearnerId(null);
+                      setMoveLearnerToClassroomId("");
+                      setTeacherToAssign("");
+                    }}
                     style={{
                       width: "100%",
                       display: "grid",
@@ -405,7 +514,34 @@ export default function ClassroomsPage() {
                         <MiniBlock label="Teachers" value={selectedStats.teacherCount} />
                       </div>
 
-                      <div style={{ marginTop: 12 }}>
+                      <div style={{ marginTop: 14 }}>
+                        <p style={labelText}>Assign Teacher</p>
+
+                        <div style={actionGrid}>
+                          <select
+                            className="db-input"
+                            value={teacherToAssign}
+                            onChange={(e) => setTeacherToAssign(e.target.value)}
+                          >
+                            <option value="">Select teacher</option>
+                            {availableTeachers.map((teacher) => (
+                              <option key={teacher.id} value={teacher.id}>
+                                {teacher.full_name || teacher.email || "Unnamed teacher"}
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            type="button"
+                            className="db-button-secondary"
+                            onClick={assignTeacherToClassroom}
+                          >
+                            Assign
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 14 }}>
                         <p style={labelText}>Assigned Teachers</p>
 
                         {selectedTeachers.length === 0 ? (
@@ -413,29 +549,100 @@ export default function ClassroomsPage() {
                         ) : (
                           <div style={{ display: "grid", gap: 6 }}>
                             {selectedTeachers.map((teacher) => (
-                              <div key={teacher.id} style={compactRow}>
-                                {teacher.full_name || "Unnamed teacher"}
+                              <div key={teacher.id} style={compactRowWithAction}>
+                                <span>{teacher.full_name || "Unnamed teacher"}</span>
+
+                                <button
+                                  type="button"
+                                  className="db-button-secondary"
+                                  onClick={() => removeTeacherFromClassroom(teacher.id)}
+                                  style={{ minHeight: 32, padding: "6px 10px" }}
+                                >
+                                  Remove
+                                </button>
                               </div>
                             ))}
                           </div>
                         )}
                       </div>
 
-                      <div style={{ marginTop: 12 }}>
+                      <div style={{ marginTop: 14 }}>
                         <p style={labelText}>Learners</p>
 
                         {selectedLearners.length === 0 ? (
                           <p className="db-helper">No learners in this classroom.</p>
                         ) : (
                           <div style={{ display: "grid", gap: 6 }}>
-                            {selectedLearners.map((learner) => (
-                              <div key={learner.id} style={compactRow}>
-                                {learner.name || "Unnamed learner"}
-                              </div>
-                            ))}
+                            {selectedLearners.map((learner) => {
+                              const learnerActive = selectedLearnerId === learner.id;
+
+                              return (
+                                <button
+                                  key={learner.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedLearnerId(
+                                      learnerActive ? null : learner.id
+                                    );
+                                    setMoveLearnerToClassroomId("");
+                                  }}
+                                  style={{
+                                    ...compactButton,
+                                    background: learnerActive
+                                      ? "#EAF7FD"
+                                      : "#FFFFFF",
+                                  }}
+                                >
+                                  {learner.name || "Unnamed learner"}
+                                </button>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
+
+                      {selectedLearner ? (
+                        <div
+                          style={{
+                            marginTop: 12,
+                            background: "#FFFFFF",
+                            border: "1px solid #F0E3D8",
+                            borderRadius: 12,
+                            padding: 12,
+                          }}
+                        >
+                          <p style={labelText}>
+                            Move {selectedLearner.name || "learner"} to another classroom
+                          </p>
+
+                          <div style={actionGrid}>
+                            <select
+                              className="db-input"
+                              value={moveLearnerToClassroomId}
+                              onChange={(e) =>
+                                setMoveLearnerToClassroomId(e.target.value)
+                              }
+                            >
+                              <option value="">Select classroom</option>
+                              {classrooms
+                                .filter((room) => room.id !== selectedClassroom.id)
+                                .map((room) => (
+                                  <option key={room.id} value={room.id}>
+                                    {getClassroomName(room)}
+                                  </option>
+                                ))}
+                            </select>
+
+                            <button
+                              type="button"
+                              className="db-button-secondary"
+                              onClick={moveLearnerToClassroom}
+                            >
+                              Save Move
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
 
                       <div
                         style={{
@@ -450,7 +657,7 @@ export default function ClassroomsPage() {
                           className="db-button-secondary"
                           onClick={() => startEdit(selectedStats.room)}
                         >
-                          Edit
+                          Edit Classroom Name
                         </button>
 
                         <button
@@ -458,7 +665,7 @@ export default function ClassroomsPage() {
                           className="db-button-secondary"
                           onClick={() => deleteClassroom(selectedStats.room)}
                         >
-                          Delete
+                          Delete Classroom
                         </button>
                       </div>
                     </div>
@@ -515,13 +722,35 @@ const miniGrid = {
   gap: 8,
 };
 
-const compactRow = {
+const actionGrid = {
+  display: "grid",
+  gridTemplateColumns: "1fr auto",
+  gap: 8,
+  alignItems: "center",
+};
+
+const compactRowWithAction = {
   background: "#FFFFFF",
   border: "1px solid #F0E3D8",
   borderRadius: 10,
   padding: "8px 10px",
   color: "#2D2A3E",
   fontSize: 14,
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "center",
+};
+
+const compactButton = {
+  width: "100%",
+  border: "1px solid #F0E3D8",
+  borderRadius: 10,
+  padding: "8px 10px",
+  color: "#2D2A3E",
+  fontSize: 14,
+  textAlign: "left" as const,
+  cursor: "pointer",
 };
 
 const pillBlue = {

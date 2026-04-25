@@ -52,17 +52,25 @@ export default function TeachersPage() {
   }
 
   async function loadTeachers(id: number) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("role", "teacher")
-      .eq("school_id", id)
-      .order("full_name", { ascending: true });
+  const response = await fetch("/api/list-teachers", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      school_id: id,
+    }),
+  });
 
-    if (!error) {
-      setTeachers(data || []);
-    }
+  const result = await response.json();
+
+  if (!response.ok) {
+    alert(result.error || "Could not load teachers.");
+    return;
   }
+
+  setTeachers(result.teachers || []);
+}
 
   async function loadClassrooms(id: number) {
     const { data, error } = await supabase

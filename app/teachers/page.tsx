@@ -168,21 +168,37 @@ export default function TeachersPage() {
       return;
     }
 
-    const createResponse = await fetch("/api/create-teacher", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        school_id: schoolId,
-        full_name: fullName.trim(),
-        email: email.trim().toLowerCase(),
-        password: password.trim(),
-        classroom_name: classroomName || null,
-      }),
-    });
+    let createResponse: Response;
 
-    const result = await createResponse.json();
+    try {
+      createResponse = await fetch("/api/create-teacher", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          school_id: schoolId,
+          full_name: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          password: password.trim(),
+          classroom_name: classroomName || null,
+        }),
+      });
+    } catch {
+      alert("Could not reach the teacher creation service.");
+      setSaving(false);
+      return;
+    }
+
+    let result: any = {};
+
+    try {
+      result = await createResponse.json();
+    } catch {
+      alert("Teacher creation returned an invalid response.");
+      setSaving(false);
+      return;
+    }
 
     if (!createResponse.ok) {
       alert(result.error || "Could not create teacher.");

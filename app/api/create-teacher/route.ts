@@ -5,51 +5,72 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const schoolId = body.school_id;
+    const schoolId = Number(body.school_id);
     const fullName = String(body.full_name || "").trim();
-    const email = String(body.email || "").trim();
+    const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "").trim();
     const classroomName = String(body.classroom_name || "").trim();
 
     if (!schoolId || !fullName || !email || !password) {
       return NextResponse.json(
-        { error: "Missing required fields." },
+        { error: "Please complete teacher name, email, password, and school." },
         { status: 400 }
       );
     }
 
-    if (
-      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-      !process.env.SUPABASE_SERVICE_ROLE_KEY
-    ) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
-        { error: "Missing server environment keys." },
+        { error: "Missing Supabase service role key." },
         { status: 500 }
       );
     }
 
-    const admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    const admin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    const { data: existingProfile } = await admin
+      .from("profiles")
+      .select("id, email")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (existingProfile) {
+      return NextResponse.json(
+        { error: "A user with this email already exists." },
+        { status: 400 }
+      );
+    }
 
     const { data: authData, error: authError } =
       await admin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
+        user_metadata: {
+          full_name: fullName,
+          role: "teacher",
+        },
       });
 
     if (authError || !authData.user) {
       return NextResponse.json(
-        { error: authError?.message || "Could not create auth user." },
-        { status: 500 }
+        { error: authError?.message || "Could not create teacher login." },
+        { status: 400 }
       );
     }
 
+    const userId = authData.user.id;
+
     const { error: profileError } = await admin.from("profiles").insert([
       {
-        id: authData.user.id,
+        id: userId,
         school_id: schoolId,
         full_name: fullName,
         email,
@@ -60,13 +81,18 @@ export async function POST(request: Request) {
     ]);
 
     if (profileError) {
+      await admin.auth.admin.deleteUser(userId);
+
       return NextResponse.json(
         { error: profileError.message },
-        { status: 500 }
+        { status: 400 }
       );
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      message: "Teacher created successfully.",
+    });
   } catch (error: any) {
     return NextResponse.json(
       { error: error?.message || "Could not create teacher." },

@@ -5,33 +5,40 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 
-type TeacherItem = {
+type TeacherRow = {
   id: number;
   school_id?: number | null;
   full_name?: string | null;
   email?: string | null;
+  role?: string | null;
   classroom_name?: string | null;
+  is_active?: boolean | null;
   created_at?: string | null;
 };
 
-type ClassroomItem = {
+type ClassroomRow = {
   id: number;
-  classroom_name?: string | null;
+  name?: string | null;
 };
 
 export default function TeachersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
   const schoolParam = searchParams.get("school");
 
   const [schoolId, setSchoolId] = useState<number | null>(null);
-  const [teachers, setTeachers] = useState<TeacherItem[]>([]);
-  const [classrooms, setClassrooms] = useState<ClassroomItem[]>([]);
+
+  const [teachers, setTeachers] = useState<TeacherRow[]>([]);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
+
+  const [selectedTeacher, setSelectedTeacher] = useState<TeacherRow | null>(null);
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [password, setPassword] = useState("");
   const [classroomName, setClassroomName] = useState("");
 
   const [loading, setLoading] = useState(true);
@@ -66,78 +73,143 @@ export default function TeachersPage() {
 
   async function fetchTeachers(currentSchoolId: number) {
     const { data, error } = await supabase
-      .from("teachers")
-      .select("*")
+      .from("profiles")
+      .select(
+        "id, school_id, full_name, email, role, classroom_name, is_active, created_at"
+      )
       .eq("school_id", currentSchoolId)
-      .order("created_at", { ascending: false });
+      .eq("role", "teacher")
+      .order("full_name", { ascending: true });
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    setTeachers((data || []) as TeacherItem[]);
+    setTeachers((data || []) as TeacherRow[]);
   }
 
   async function fetchClassrooms(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("classrooms")
-      .select("id, classroom_name")
+      .select("id, name")
       .eq("school_id", currentSchoolId)
-      .order("classroom_name", { ascending: true });
+      .order("name", { ascending: true });
+
+    if (error) {
+      return;
+    }
+
+    setClassrooms((data || []) as ClassroomRow[]);
+  }
+
+  function resetForm() {
+    setFullName("");
+    setEmail("");
+    setPassword("");
+    setClassroomName("");
+    setEditingId(null);
+  }
+
+  function startEdit(teacher: TeacherRow) {
+    setEditingId(teacher.id);
+    setFullName(teacher.full_name || "");
+    setEmail(teacher.email || "");
+    setPassword("");
+    setClassroomName(teacher.classroom_name || "");
+    setSelectedTeacher(teacher);
+    setShowForm(true);
+  }
+
+  async function saveTeacher() {
+    if (!schoolId) return;
+
+    if (!fullName.trim() || !email.trim()) {
+      alert("Please complete full name and email.");
+      return;
+    }
+
+    setSaving(true);
+
+    if (editingId) {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fullName.trim(),
+          email: email.trim(),
+          classroom_name: classroomName || null,
+        })
+        .eq("id", editingId);
+
+      if (error) {
+        alert(error.message);
+        setSaving(false);
+        return;
+      }
+
+      resetForm();
+      setShowForm(false);
+      await fetchTeachers(schoolId);
+
+      setSaving(false);
+      alert("Teacher updated.");
+      return;
+    }
+
+    if (!password.trim()) {
+      alert("Please add a temporary password.");
+      setSaving(false);
+      return;
+    }
+
+    const createResponse = await fetch("/api/create-teacher", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        school_id: schoolId,
+        full_name: fullName.trim(),
+        email: email.trim(),
+        password: password.trim(),
+        classroom_name: classroomName || null,
+      }),
+    });
+
+    const result = await createResponse.json();
+
+    if (!createResponse.ok) {
+      alert(result.error || "Could not create teacher.");
+      setSaving(false);
+      return;
+    }
+
+    resetForm();
+    setShowForm(false);
+    await fetchTeachers(schoolId);
+
+    setSaving(false);
+    alert("Teacher created.");
+  }
+
+  async function toggleTeacherStatus(teacher: TeacherRow) {
+    const nextValue = !teacher.is_active;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        is_active: nextValue,
+      })
+      .eq("id", teacher.id);
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    setClassrooms((data || []) as ClassroomItem[]);
-  }
-
-  async function createTeacherLogin() {
-    if (!schoolId) {
-      alert("School context is missing.");
-      return;
+    if (schoolId) {
+      await fetchTeachers(schoolId);
     }
-
-    if (!fullName.trim() || !email.trim() || !temporaryPassword.trim()) {
-      alert("Please complete teacher name, email, and temporary password.");
-      return;
-    }
-
-    setSaving(true);
-
-    const response = await fetch("/api/create-teacher", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        full_name: fullName.trim(),
-        email: email.trim(),
-        password: temporaryPassword.trim(),
-        school_id: Number(schoolId),
-        classroom_name: classroomName || null,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      alert(result.error || "Could not create teacher login.");
-      setSaving(false);
-      return;
-    }
-
-    setFullName("");
-    setEmail("");
-    setTemporaryPassword("");
-    setClassroomName("");
-
-    await fetchTeachers(Number(schoolId));
-
-    setSaving(false);
-    alert("Teacher login created successfully.");
   }
 
   if (loading) {
@@ -146,84 +218,212 @@ export default function TeachersPage() {
 
   return (
     <div>
-      <div className="db-soft-card" style={{ padding: "20px 22px", marginBottom: "24px" }}>
-        <h2 className="db-page-title">Teachers</h2>
-        <p className="db-page-subtitle">
-          Create teacher logins, assign teachers to classes, and manage teacher access.
-        </p>
+      <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 className="db-page-title">Teachers</h2>
+            <p className="db-page-subtitle">
+              Manage teachers, classroom assignments, and access.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="db-button-primary"
+            onClick={() => {
+              resetForm();
+              setShowForm((prev) => !prev);
+            }}
+          >
+            {showForm ? "Close" : "Add Teacher"}
+          </button>
+        </div>
       </div>
 
-      <div className="db-card db-card-green" style={{ padding: "20px", marginBottom: "24px" }}>
-        <h3 style={sectionTitle}>Create Teacher Login</h3>
-
-        <input
-          className="db-input"
-          placeholder="Teacher Full Name"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-        />
-
-        <input
-          className="db-input"
-          placeholder="Teacher Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <input
-          className="db-input"
-          placeholder="Temporary Password"
-          value={temporaryPassword}
-          onChange={(e) => setTemporaryPassword(e.target.value)}
-        />
-
-        <select
-          className="db-input"
-          value={classroomName}
-          onChange={(e) => setClassroomName(e.target.value)}
+      {showForm ? (
+        <div
+          className="db-card db-card-blue"
+          style={{ padding: 16, marginBottom: 18 }}
         >
-          <option value="">Assign Classroom Optional</option>
-          {classrooms.map((classroom) => (
-            <option key={classroom.id} value={classroom.classroom_name || ""}>
-              {classroom.classroom_name}
-            </option>
-          ))}
-        </select>
+          <h3 style={sectionTitle}>
+            {editingId ? "Edit Teacher" : "Add Teacher"}
+          </h3>
 
-        <button
-          className="db-button-primary"
-          style={{ width: "100%" }}
-          onClick={createTeacherLogin}
-          disabled={saving}
-        >
-          {saving ? "Creating..." : "Create Teacher Login"}
-        </button>
-      </div>
+          <div style={grid2}>
+            <div>
+              <p style={labelText}>Full Name</p>
+              <input
+                className="db-input"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Teacher full name"
+              />
+            </div>
 
-      <div className="db-card db-card-lavender" style={{ padding: "20px" }}>
-        <h3 style={sectionTitle}>Teacher List ({teachers.length})</h3>
+            <div>
+              <p style={labelText}>Email</p>
+              <input
+                className="db-input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="teacher@email.com"
+              />
+            </div>
+          </div>
+
+          {!editingId ? (
+            <div style={{ marginTop: 10 }}>
+              <p style={labelText}>Temporary Password</p>
+              <input
+                type="password"
+                className="db-input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Temporary password"
+              />
+            </div>
+          ) : null}
+
+          <div style={{ marginTop: 10 }}>
+            <p style={labelText}>Assign Classroom</p>
+            <select
+              className="db-input"
+              value={classroomName}
+              onChange={(e) => setClassroomName(e.target.value)}
+            >
+              <option value="">Select classroom</option>
+
+              {classrooms.map((room) => (
+                <option key={room.id} value={room.name || ""}>
+                  {room.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            className="db-button-primary"
+            onClick={saveTeacher}
+            disabled={saving}
+            style={{ width: "100%", marginTop: 12 }}
+          >
+            {saving
+              ? "Saving..."
+              : editingId
+              ? "Update Teacher"
+              : "Create Teacher"}
+          </button>
+        </div>
+      ) : null}
+
+      <div className="db-card db-card-green" style={{ padding: 16 }}>
+        <h3 style={sectionTitle}>Teachers ({teachers.length})</h3>
 
         {teachers.length === 0 ? (
-          <p className="db-helper">No teachers created yet.</p>
+          <p className="db-helper">No teachers added yet.</p>
         ) : (
-          <div style={{ display: "grid", gap: "12px" }}>
-            {teachers.map((teacher) => (
-              <div key={teacher.id} className="db-list-card">
-                <strong style={{ fontSize: "17px" }}>
-                  {teacher.full_name || "Unnamed teacher"}
-                </strong>
-                <p style={textStyle}>Email: {teacher.email || "Not added"}</p>
-                <p style={textStyle}>
-                  Classroom: {teacher.classroom_name || "Not assigned"}
-                </p>
-                <p style={metaTextStyle}>
-                  Created:{" "}
-                  {teacher.created_at
-                    ? new Date(teacher.created_at).toLocaleString()
-                    : "No timestamp"}
-                </p>
-              </div>
-            ))}
+          <div style={{ display: "grid", gap: 8 }}>
+            {teachers.map((teacher) => {
+              const active = selectedTeacher?.id === teacher.id;
+
+              return (
+                <div key={teacher.id}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedTeacher(active ? null : teacher)
+                    }
+                    style={{
+                      width: "100%",
+                      display: "grid",
+                      gridTemplateColumns: "1fr 140px",
+                      gap: 8,
+                      alignItems: "center",
+                      background: active ? "#EAF7FD" : "#FFFDFB",
+                      border: active
+                        ? "1px solid #CBEAF7"
+                        : "1px solid #F0E3D8",
+                      borderRadius: 12,
+                      padding: "10px 12px",
+                      color: "#2D2A3E",
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <strong>{teacher.full_name || "Unnamed teacher"}</strong>
+
+                    <span
+                      style={
+                        teacher.is_active === false
+                          ? pillRed
+                          : pillGreen
+                      }
+                    >
+                      {teacher.is_active === false
+                        ? "Inactive"
+                        : "Active"}
+                    </span>
+                  </button>
+
+                  {active ? (
+                    <div
+                      style={{
+                        background: "#FFFDFB",
+                        border: "1px solid #F0E3D8",
+                        borderRadius: 12,
+                        padding: 12,
+                        marginTop: 8,
+                      }}
+                    >
+                      <p style={smallText}>
+                        Email: {teacher.email || "No email"}
+                      </p>
+
+                      <p style={smallText}>
+                        Classroom:{" "}
+                        {teacher.classroom_name || "Not assigned"}
+                      </p>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 10,
+                          flexWrap: "wrap",
+                          marginTop: 12,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="db-button-secondary"
+                          onClick={() => startEdit(teacher)}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          className="db-button-secondary"
+                          onClick={() => toggleTeacherStatus(teacher)}
+                        >
+                          {teacher.is_active === false
+                            ? "Activate"
+                            : "Deactivate"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -232,20 +432,45 @@ export default function TeachersPage() {
 }
 
 const sectionTitle = {
-  marginTop: 0,
-  marginBottom: "14px",
-  color: "var(--db-text)",
-  fontSize: "22px",
-  fontWeight: 800 as const,
+  margin: "0 0 10px 0",
+  color: "#2D2A3E",
+  fontSize: 20,
+  fontWeight: 700 as const,
 };
 
-const textStyle = {
-  margin: "6px 0 0 0",
-  color: "var(--db-text-soft)",
+const labelText = {
+  margin: "0 0 8px 0",
+  color: "#6D6888",
+  fontSize: 13,
+  fontWeight: 800,
 };
 
-const metaTextStyle = {
-  margin: "10px 0 0 0",
-  color: "#8A84A3",
-  fontSize: "12px",
+const smallText = {
+  margin: "4px 0 0 0",
+  color: "#6D6888",
+  fontSize: 13,
+};
+
+const grid2 = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 10,
+};
+
+const pillGreen = {
+  background: "#EAF8EE",
+  border: "1px solid #CDEED8",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 12,
+  textAlign: "center" as const,
+};
+
+const pillRed = {
+  background: "#FDEDED",
+  border: "1px solid #F3CACA",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 12,
+  textAlign: "center" as const,
 };

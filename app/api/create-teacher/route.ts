@@ -5,104 +5,71 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
+    const schoolId = body.school_id;
     const fullName = String(body.full_name || "").trim();
-    const email = String(body.email || "").trim().toLowerCase();
+    const email = String(body.email || "").trim();
     const password = String(body.password || "").trim();
-    const schoolId = Number(body.school_id);
     const classroomName = String(body.classroom_name || "").trim();
 
-    if (!fullName || !email || !password || !schoolId) {
+    if (!schoolId || !fullName || !email || !password) {
       return NextResponse.json(
-        { error: "Full name, email, password, and school are required." },
+        { error: "Missing required fields." },
         { status: 400 }
       );
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
+    if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.SUPABASE_SERVICE_ROLE_KEY
+    ) {
       return NextResponse.json(
-        { error: "Missing Supabase server environment variables." },
+        { error: "Missing server environment keys." },
         { status: 500 }
       );
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    const admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
 
-    const { data: userData, error: userError } =
-      await supabaseAdmin.auth.admin.createUser({
+    const { data: authData, error: authError } =
+      await admin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
-        user_metadata: {
-          full_name: fullName,
-          role: "teacher",
-        },
       });
 
-    if (userError || !userData.user) {
+    if (authError || !authData.user) {
       return NextResponse.json(
-        { error: userError?.message || "Could not create teacher login." },
-        { status: 400 }
+        { error: authError?.message || "Could not create auth user." },
+        { status: 500 }
       );
     }
 
-    const userId = userData.user.id;
-
-    const { error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .upsert(
-        [
-          {
-            id: userId,
-            full_name: fullName,
-            email,
-            role: "teacher",
-            school_id: schoolId,
-            classroom_name: classroomName || null,
-            approval_status: "approved",
-          },
-        ],
-        { onConflict: "id" }
-      );
+    const { error: profileError } = await admin.from("profiles").insert([
+      {
+        id: authData.user.id,
+        school_id: schoolId,
+        full_name: fullName,
+        email,
+        role: "teacher",
+        classroom_name: classroomName || null,
+        is_active: true,
+      },
+    ]);
 
     if (profileError) {
       return NextResponse.json(
         { error: profileError.message },
-        { status: 400 }
+        { status: 500 }
       );
     }
 
-    const { error: teacherError } = await supabaseAdmin.from("teachers").insert([
-      {
-        school_id: schoolId,
-        full_name: fullName,
-        email,
-        classroom_name: classroomName || null,
-        profile_id: userId,
-      },
-    ]);
-
-    if (teacherError) {
-      return NextResponse.json(
-        { error: teacherError.message },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: "Teacher login created successfully.",
-    });
-  } catch {
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
     return NextResponse.json(
-      { error: "Something went wrong while creating teacher login." },
+      { error: error?.message || "Could not create teacher." },
       { status: 500 }
     );
   }

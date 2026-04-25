@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 
 type TeacherRow = {
-  id: number;
+  id: string;
   school_id?: number | null;
   full_name?: string | null;
   email?: string | null;
@@ -18,6 +18,7 @@ type TeacherRow = {
 
 type ClassroomRow = {
   id: number;
+  classroom_name?: string | null;
   name?: string | null;
 };
 
@@ -30,11 +31,10 @@ export default function TeachersPage() {
 
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
-
   const [selectedTeacher, setSelectedTeacher] = useState<TeacherRow | null>(null);
 
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -74,9 +74,7 @@ export default function TeachersPage() {
   async function fetchTeachers(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("profiles")
-      .select(
-        "id, school_id, full_name, email, role, classroom_name, is_active, created_at"
-      )
+      .select("id, school_id, full_name, email, role, classroom_name, is_active, created_at")
       .eq("school_id", currentSchoolId)
       .eq("role", "teacher")
       .order("full_name", { ascending: true });
@@ -92,15 +90,20 @@ export default function TeachersPage() {
   async function fetchClassrooms(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("classrooms")
-      .select("id, name")
+      .select("id, classroom_name, name")
       .eq("school_id", currentSchoolId)
-      .order("name", { ascending: true });
+      .order("classroom_name", { ascending: true });
 
     if (error) {
+      alert(error.message);
       return;
     }
 
     setClassrooms((data || []) as ClassroomRow[]);
+  }
+
+  function getClassroomName(room: ClassroomRow) {
+    return room.classroom_name || room.name || "Unnamed classroom";
   }
 
   function resetForm() {
@@ -136,7 +139,7 @@ export default function TeachersPage() {
         .from("profiles")
         .update({
           full_name: fullName.trim(),
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           classroom_name: classroomName || null,
         })
         .eq("id", editingId);
@@ -170,7 +173,7 @@ export default function TeachersPage() {
       body: JSON.stringify({
         school_id: schoolId,
         full_name: fullName.trim(),
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password: password.trim(),
         classroom_name: classroomName || null,
       }),
@@ -193,7 +196,7 @@ export default function TeachersPage() {
   }
 
   async function toggleTeacherStatus(teacher: TeacherRow) {
-    const nextValue = !teacher.is_active;
+    const nextValue = teacher.is_active === false ? true : false;
 
     const { error } = await supabase
       .from("profiles")
@@ -300,12 +303,15 @@ export default function TeachersPage() {
               onChange={(e) => setClassroomName(e.target.value)}
             >
               <option value="">Select classroom</option>
+              {classrooms.map((room) => {
+                const roomName = getClassroomName(room);
 
-              {classrooms.map((room) => (
-                <option key={room.id} value={room.name || ""}>
-                  {room.name}
-                </option>
-              ))}
+                return (
+                  <option key={room.id} value={roomName}>
+                    {roomName}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -339,9 +345,7 @@ export default function TeachersPage() {
                 <div key={teacher.id}>
                   <button
                     type="button"
-                    onClick={() =>
-                      setSelectedTeacher(active ? null : teacher)
-                    }
+                    onClick={() => setSelectedTeacher(active ? null : teacher)}
                     style={{
                       width: "100%",
                       display: "grid",
@@ -349,9 +353,7 @@ export default function TeachersPage() {
                       gap: 8,
                       alignItems: "center",
                       background: active ? "#EAF7FD" : "#FFFDFB",
-                      border: active
-                        ? "1px solid #CBEAF7"
-                        : "1px solid #F0E3D8",
+                      border: active ? "1px solid #CBEAF7" : "1px solid #F0E3D8",
                       borderRadius: 12,
                       padding: "10px 12px",
                       color: "#2D2A3E",
@@ -361,16 +363,8 @@ export default function TeachersPage() {
                   >
                     <strong>{teacher.full_name || "Unnamed teacher"}</strong>
 
-                    <span
-                      style={
-                        teacher.is_active === false
-                          ? pillRed
-                          : pillGreen
-                      }
-                    >
-                      {teacher.is_active === false
-                        ? "Inactive"
-                        : "Active"}
+                    <span style={teacher.is_active === false ? pillRed : pillGreen}>
+                      {teacher.is_active === false ? "Inactive" : "Active"}
                     </span>
                   </button>
 
@@ -384,13 +378,10 @@ export default function TeachersPage() {
                         marginTop: 8,
                       }}
                     >
-                      <p style={smallText}>
-                        Email: {teacher.email || "No email"}
-                      </p>
+                      <p style={smallText}>Email: {teacher.email || "No email"}</p>
 
                       <p style={smallText}>
-                        Classroom:{" "}
-                        {teacher.classroom_name || "Not assigned"}
+                        Classroom: {teacher.classroom_name || "Not assigned"}
                       </p>
 
                       <div
@@ -414,9 +405,7 @@ export default function TeachersPage() {
                           className="db-button-secondary"
                           onClick={() => toggleTeacherStatus(teacher)}
                         >
-                          {teacher.is_active === false
-                            ? "Activate"
-                            : "Deactivate"}
+                          {teacher.is_active === false ? "Activate" : "Deactivate"}
                         </button>
                       </div>
                     </div>

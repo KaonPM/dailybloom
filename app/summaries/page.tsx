@@ -158,6 +158,8 @@ export default function SummariesPage() {
 
   const [generatedMessage, setGeneratedMessage] = useState("");
 
+  const [showSavedSummaries, setShowSavedSummaries] = useState(false);
+
 
 
   const [loading, setLoading] = useState(true);
@@ -528,11 +530,7 @@ export default function SummariesPage() {
 
 
 
-    const notesLine = teacherNotes.trim()
-
-      ? ` ${teacherNotes.trim()}`
-
-      : "";
+    const notesLine = teacherNotes.trim() ? ` ${teacherNotes.trim()}` : "";
 
 
 
@@ -726,73 +724,15 @@ export default function SummariesPage() {
 
 
 
-          <OptionGroup
+          <OptionGroup label="Health and Safety" options={healthSafetyOptions} value={healthSafety} setValue={setHealthSafety} />
 
-            label="Health and Safety"
+          <OptionGroup label="Meals" options={mealsOptions} value={meals} setValue={setMeals} />
 
-            options={healthSafetyOptions}
+          <OptionGroup label="Rest" options={restOptions} value={rest} setValue={setRest} />
 
-            value={healthSafety}
+          <OptionGroup label="Mood" options={moodOptions} value={mood} setValue={setMood} />
 
-            setValue={setHealthSafety}
-
-          />
-
-
-
-          <OptionGroup
-
-            label="Meals"
-
-            options={mealsOptions}
-
-            value={meals}
-
-            setValue={setMeals}
-
-          />
-
-
-
-          <OptionGroup
-
-            label="Rest"
-
-            options={restOptions}
-
-            value={rest}
-
-            setValue={setRest}
-
-          />
-
-
-
-          <OptionGroup
-
-            label="Mood"
-
-            options={moodOptions}
-
-            value={mood}
-
-            setValue={setMood}
-
-          />
-
-
-
-          <OptionGroup
-
-            label="Today’s Highlight"
-
-            options={highlightOptions}
-
-            value={todayHighlight}
-
-            setValue={setTodayHighlight}
-
-          />
+          <OptionGroup label="Today’s Highlight" options={highlightOptions} value={todayHighlight} setValue={setTodayHighlight} />
 
 
 
@@ -822,17 +762,7 @@ export default function SummariesPage() {
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
 
-            <button
-
-              type="button"
-
-              className="db-button-primary"
-
-              onClick={saveSummary}
-
-              disabled={saving}
-
-            >
+            <button type="button" className="db-button-primary" onClick={saveSummary} disabled={saving}>
 
               {saving ? "Saving..." : "Save Summary"}
 
@@ -840,15 +770,7 @@ export default function SummariesPage() {
 
 
 
-            <button
-
-              type="button"
-
-              className="db-button-secondary"
-
-              onClick={generateWhatsAppMessage}
-
-            >
+            <button type="button" className="db-button-secondary" onClick={generateWhatsAppMessage}>
 
               Generate WhatsApp Message
 
@@ -888,15 +810,7 @@ export default function SummariesPage() {
 
 
 
-              <button
-
-                type="button"
-
-                className="db-button-secondary"
-
-                onClick={copyMessage}
-
-              >
+              <button type="button" className="db-button-secondary" onClick={copyMessage}>
 
                 Copy WhatsApp Message
 
@@ -914,45 +828,91 @@ export default function SummariesPage() {
 
       <div className="db-card db-card-yellow" style={{ padding: 16 }}>
 
-        <h3 style={sectionTitle}>Saved Summaries</h3>
+        <div
 
+          style={{
 
+            display: "flex",
 
-        {summaries.length === 0 ? (
+            justifyContent: "space-between",
 
-          <p className="db-helper">No saved summaries yet.</p>
+            alignItems: "center",
 
-        ) : (
+            gap: 10,
 
-          <div style={{ display: "grid", gap: 8 }}>
+            flexWrap: "wrap",
 
-            {summaries.map((summary) => (
+          }}
 
-              <div key={summary.id} style={summaryRow}>
+        >
 
-                <strong>{summary.learner_name || "Unnamed learner"}</strong>
+          <div>
 
-                <p style={smallText}>
+            <h3 style={sectionTitle}>Saved Summaries ({summaries.length})</h3>
 
-                  Mood: {summary.mood || "Not added"} | Meals:{" "}
-
-                  {summary.meals || "Not added"}
-
-                </p>
-
-                <p style={smallText}>
-
-                  {summary.created_at ? summary.created_at.split("T")[0] : ""}
-
-                </p>
-
-              </div>
-
-            ))}
+            <p style={smallText}>Open only when you need to review saved records.</p>
 
           </div>
 
-        )}
+
+
+          <button
+
+            type="button"
+
+            className="db-button-secondary"
+
+            onClick={() => setShowSavedSummaries((prev) => !prev)}
+
+          >
+
+            {showSavedSummaries ? "Hide" : "View Saved"}
+
+          </button>
+
+        </div>
+
+
+
+        {showSavedSummaries ? (
+
+          summaries.length === 0 ? (
+
+            <p className="db-helper">No saved summaries yet.</p>
+
+          ) : (
+
+            <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+
+              {summaries.map((summary) => (
+
+                <div key={summary.id} style={summaryRow}>
+
+                  <strong>{summary.learner_name || "Unnamed learner"}</strong>
+
+                  <p style={smallText}>
+
+                    Mood: {summary.mood || "Not added"} | Meals:{" "}
+
+                    {summary.meals || "Not added"}
+
+                  </p>
+
+                  <p style={smallText}>
+
+                    {summary.created_at ? summary.created_at.split("T")[0] : ""}
+
+                  </p>
+
+                </div>
+
+              ))}
+
+            </div>
+
+          )
+
+        ) : null}
 
       </div>
 

@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 
 type Learner = {
   id: number;
   name: string;
-  class: string;
+  class?: string | null;
+  classroom_id?: number | null;
+};
+
+type Classroom = {
+  id: number;
+  classroom_name?: string | null;
 };
 
 type AttendanceRow = {
@@ -22,9 +28,13 @@ type AttendanceRow = {
 export default function AttendancePage() {
   const today = new Date().toISOString().split("T")[0];
 
-  const [learners, setLearners] = useState<Learner[]>([]);
+  const [allLearners, setAllLearners] = useState<Learner[]>([]);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+
   const [schoolId, setSchoolId] = useState<number | null>(null);
-  const [classroomName, setClassroomName] = useState("");
+  const [role, setRole] = useState("");
+  const [teacherClassroom, setTeacherClassroom] = useState("");
+  const [selectedClassroom, setSelectedClassroom] = useState("");
 
   const [attendance, setAttendance] = useState<Record<string, string>>({});
 
@@ -45,37 +55,72 @@ export default function AttendancePage() {
     loadPage();
   }, []);
 
+  useEffect(() => {
+    if (schoolId) {
+      loadTodayAttendance(schoolId);
+      setSelectedLearnerName("");
+      setLearnerHistoryRows([]);
+      setClassHistoryRows([]);
+    }
+  }, [selectedClassroom, schoolId]);
+
   async function loadPage() {
     const { profile } = await getCurrentProfile();
 
-    if (!profile) {
+    if (!profile || !profile.school_id) {
       setLoading(false);
       return;
     }
 
     const currentSchoolId = Number(profile.school_id);
-    const currentClassroom = String(profile.classroom_name || "");
+    const currentRole = String(profile.role || "");
+    const currentTeacherClassroom = String(profile.classroom_name || "");
 
     setSchoolId(currentSchoolId);
-    setClassroomName(currentClassroom);
+    setRole(currentRole);
+    setTeacherClassroom(currentTeacherClassroom);
 
+    if (currentRole === "teacher") {
+      setSelectedClassroom(currentTeacherClassroom);
+    }
+
+    await Promise.all([
+      loadClassrooms(currentSchoolId),
+      loadLearners(currentSchoolId),
+      loadTodayAttendance(currentSchoolId),
+    ]);
+
+    setLoading(false);
+  }
+
+  async function loadClassrooms(currentSchoolId: number) {
+    const { data, error } = await supabase
+      .from("classrooms")
+      .select("id, classroom_name")
+      .eq("school_id", currentSchoolId)
+      .order("classroom_name", { ascending: true });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setClassrooms((data || []) as Classroom[]);
+  }
+
+  async function loadLearners(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("learners")
-      .select("id,name,class")
+      .select("id, name, class, classroom_id")
       .eq("school_id", currentSchoolId)
-      .eq("class", currentClassroom)
       .order("name", { ascending: true });
 
     if (error) {
       alert(error.message);
-      setLoading(false);
       return;
     }
 
-    setLearners((data || []) as Learner[]);
-    await loadTodayAttendance(currentSchoolId);
-
-    setLoading(false);
+    setAllLearners((data || []) as Learner[]);
   }
 
   async function loadTodayAttendance(currentSchoolId: number) {
@@ -101,6 +146,18 @@ export default function AttendancePage() {
     setAttendance(map);
   }
 
+  const visibleLearners = useMemo(() => {
+    if (role === "teacher") {
+      return allLearners.filter((learner) => learner.class === teacherClassroom);
+    }
+
+    if (selectedClassroom) {
+      return allLearners.filter((learner) => learner.class === selectedClassroom);
+    }
+
+    return allLearners;
+  }, [allLearners, role, teacherClassroom, selectedClassroom]);
+
   function mark(name: string, status: "present" | "absent") {
     setAttendance((prev) => ({
       ...prev,
@@ -111,7 +168,7 @@ export default function AttendancePage() {
   async function saveAttendance() {
     if (!schoolId) return;
 
-    const rows = learners
+    const rows = visibleLearners
       .filter((learner) => attendance[learner.name])
       .map((learner) => ({
         school_id: schoolId,
@@ -181,10 +238,10 @@ export default function AttendancePage() {
   async function viewClassHistory() {
     if (!schoolId) return;
 
-    const learnerNames = learners.map((learner) => learner.name);
+    const learnerNames = visibleLearners.map((learner) => learner.name);
 
     if (learnerNames.length === 0) {
-      alert("No learners found for this class.");
+      alert("No learners found for this view.");
       return;
     }
 
@@ -240,15 +297,20 @@ export default function AttendancePage() {
     URL.revokeObjectURL(url);
   }
 
-  const presentCount = Object.values(attendance).filter(
-    (status) => status === "present"
+  const presentCount = visibleLearners.filter(
+    (learner) => attendance[learner.name] === "present"
   ).length;
 
-  const absentCount = Object.values(attendance).filter(
-    (status) => status === "absent"
+  const absentCount = visibleLearners.filter(
+    (learner) => attendance[learner.name] === "absent"
   ).length;
 
-  const unmarkedCount = Math.max(learners.length - presentCount - absentCount, 0);
+  const unmarkedCount = Math.max(visibleLearners.length - presentCount - absentCount, 0);
+
+  const viewLabel =
+    role === "teacher"
+      ? teacherClassroom || "Assigned classroom"
+      : selectedClassroom || "Entire school";
 
   if (loading) {
     return <p>Loading attendance...</p>;
@@ -259,17 +321,30 @@ export default function AttendancePage() {
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">Attendance</h2>
         <p className="db-page-subtitle">
-          Today: {today} | Classroom: {classroomName || "Not assigned"}
+          Today: {today} | View: {viewLabel}
         </p>
       </div>
 
-      <div
-        className="db-card db-card-blue"
-        style={{
-          padding: 16,
-          marginBottom: 18,
-        }}
-      >
+      {role !== "teacher" ? (
+        <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
+          <p style={labelText}>Select Classroom Optional</p>
+
+          <select
+            className="db-input"
+            value={selectedClassroom}
+            onChange={(e) => setSelectedClassroom(e.target.value)}
+          >
+            <option value="">Entire School</option>
+            {classrooms.map((room) => (
+              <option key={room.id} value={room.classroom_name || ""}>
+                {room.classroom_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
+      <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
         <div
           style={{
             display: "grid",
@@ -280,7 +355,7 @@ export default function AttendancePage() {
           <MiniStat label="Present" value={presentCount} />
           <MiniStat label="Absent" value={absentCount} />
           <MiniStat label="Unmarked" value={unmarkedCount} />
-          <MiniStat label="Learners" value={learners.length} />
+          <MiniStat label="Learners" value={visibleLearners.length} />
         </div>
       </div>
 
@@ -301,12 +376,10 @@ export default function AttendancePage() {
           <div style={{ textAlign: "right" }}>History</div>
         </div>
 
-        {learners.length === 0 ? (
-          <p className="db-helper">
-            No learners found for this teacher classroom.
-          </p>
+        {visibleLearners.length === 0 ? (
+          <p className="db-helper">No learners found for this view.</p>
         ) : (
-          learners.map((learner) => (
+          visibleLearners.map((learner) => (
             <div
               key={learner.id}
               style={{
@@ -323,7 +396,7 @@ export default function AttendancePage() {
             >
               <div>
                 <strong>{learner.name}</strong>
-                <p style={smallText}>{learner.class}</p>
+                <p style={smallText}>{learner.class || "Unassigned"}</p>
               </div>
 
               <button
@@ -370,10 +443,7 @@ export default function AttendancePage() {
       </div>
 
       {selectedLearnerName ? (
-        <div
-          className="db-card db-card-yellow"
-          style={{ padding: 16, marginTop: 18 }}
-        >
+        <div className="db-card db-card-yellow" style={{ padding: 16, marginTop: 18 }}>
           <h3 style={sectionTitle}>Learner Attendance History</h3>
 
           <p style={smallText}>Learner: {selectedLearnerName}</p>
@@ -447,14 +517,9 @@ export default function AttendancePage() {
         </div>
       ) : null}
 
-      <div
-        className="db-card db-card-green"
-        style={{ padding: 16, marginTop: 18 }}
-      >
-        <h3 style={sectionTitle}>Class Attendance History</h3>
-        <p style={smallText}>
-          View and export attendance for the whole {classroomName || "class"} class.
-        </p>
+      <div className="db-card db-card-green" style={{ padding: 16, marginTop: 18 }}>
+        <h3 style={sectionTitle}>Attendance History</h3>
+        <p style={smallText}>View and export attendance for {viewLabel}.</p>
 
         <div style={dateGrid}>
           <div>
@@ -482,22 +547,25 @@ export default function AttendancePage() {
             className="db-button-secondary"
             onClick={viewClassHistory}
           >
-            View Class Attendance
+            View Attendance
           </button>
 
           <button
             type="button"
             className="db-button-secondary"
             onClick={() =>
-              exportCsv(`${classroomName || "class"}-attendance.csv`, classHistoryRows)
+              exportCsv(
+                `${viewLabel.replaceAll(" ", "-").toLowerCase()}-attendance.csv`,
+                classHistoryRows
+              )
             }
           >
-            Export Class CSV
+            Export CSV
           </button>
         </div>
 
         {classHistoryRows.length === 0 ? (
-          <p className="db-helper">No class history loaded.</p>
+          <p className="db-helper">No attendance history loaded.</p>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
             {classHistoryRows.map((row) => (

@@ -220,6 +220,27 @@ export default function AttendancePage() {
       return updated;
     });
   }
+  function markAllVisible(status: "present" | "absent") {
+
+  setAttendance((prev) => {
+
+    const updated = { ...prev };
+
+
+
+    visibleLearners.forEach((learner) => {
+
+      updated[learner.name] = status;
+
+    });
+
+
+
+    return updated;
+
+  });
+
+}
 
   async function saveAttendance(learnersToSave = visibleLearners) {
     if (!schoolId) return;
@@ -461,7 +482,7 @@ export default function AttendancePage() {
                             className="db-button-secondary"
                             onClick={() => markAllForClassroom(item.roomName, "present")}
                           >
-                            Mark All Present
+                            Select All Present
                           </button>
 
                           <button
@@ -469,7 +490,7 @@ export default function AttendancePage() {
                             className="db-button-secondary"
                             onClick={() => markAllForClassroom(item.roomName, "absent")}
                           >
-                            Mark All Absent
+                            Select All Absent
                           </button>
 
                           <button
@@ -506,15 +527,74 @@ export default function AttendancePage() {
           )}
         </div>
       ) : (
-        <div className="db-card db-card-lavender" style={{ padding: 16 }}>
-          <AttendanceList
-            learners={visibleLearners}
-            attendance={attendance}
-            mark={mark}
-            viewLearnerHistory={viewLearnerHistory}
-          />
 
-          <button
+  <div className="db-card db-card-lavender" style={{ padding: 16 }}>
+
+    <div
+
+      style={{
+
+        display: "flex",
+
+        gap: 10,
+
+        flexWrap: "wrap",
+
+        marginBottom: 10,
+
+      }}
+
+    >
+
+      <button
+
+        type="button"
+
+        className="db-button-secondary"
+
+        onClick={() => markAllVisible("present")}
+
+      >
+
+        Select All Present
+
+      </button>
+
+
+
+      <button
+
+        type="button"
+
+        className="db-button-secondary"
+
+        onClick={() => markAllVisible("absent")}
+
+      >
+
+        Select All Absent
+
+      </button>
+
+    </div>
+
+
+
+    <AttendanceList
+
+      learners={visibleLearners}
+
+      attendance={attendance}
+
+      mark={mark}
+
+      viewLearnerHistory={viewLearnerHistory}
+
+    />
+
+
+
+    <button
             type="button"
             onClick={() => saveAttendance(visibleLearners)}
             disabled={saving}

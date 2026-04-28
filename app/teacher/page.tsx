@@ -30,15 +30,22 @@ type LearnerItem = {
   id: number;
   name?: string | null;
   class?: string | null;
+  classroom_id?: number | null;
   date_of_birth?: string | null;
+};
+
+type ClassroomItem = {
+  id: number;
+  classroom_name?: string | null;
 };
 
 type ActivityItem = {
   id: number;
   activity_date?: string | null;
-  classroom?: string | null;
+  class_name?: string | null;
   subject?: string | null;
-  activity_note?: string | null;
+  title?: string | null;
+  description?: string | null;
 };
 
 type SummaryItem = {
@@ -93,6 +100,21 @@ export default function TeacherDashboardPage() {
     loadTeacherDashboard();
   }, []);
 
+  function getTodayString() {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function formatDate(date: Date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
   async function loadTeacherDashboard() {
     const { profile: currentProfile, error } = await getCurrentProfile();
 
@@ -146,14 +168,6 @@ export default function TeacherDashboardPage() {
     setLoading(false);
   }
 
-  function getTodayString() {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
   async function fetchTeacherDashboardData(
     schoolId: number,
     classroomName: string | null
@@ -163,60 +177,112 @@ export default function TeacherDashboardPage() {
     const todayMonth = today.getMonth() + 1;
     const todayDay = today.getDate();
 
-    const learnersQuery = supabase
-      .from("learners")
-      .select("id, name, class, date_of_birth")
-      .eq("school_id", schoolId)
-      .order("name", { ascending: true });
+    let classroomId: number | null = null;
 
     if (classroomName) {
-      learnersQuery.eq("class", classroomName);
+      const { data: classroomData } = await supabase
+        .from("classrooms")
+        .select("id, classroom_name")
+        .eq("school_id", schoolId)
+        .eq("classroom_name", classroomName)
+        .maybeSingle();
+
+      const classroom = classroomData as ClassroomItem | null;
+      classroomId = classroom?.id || null;
     }
 
-    const activitiesQuery = supabase
-      .from("activities")
-      .select("id, activity_date, classroom, subject, activity_note")
-      .eq("school_id", schoolId)
-      .eq("activity_date", todayDate)
-      .order("created_at", { ascending: false });
+    const [
+      learnersRes,
+      eventsRes,
+      activitiesRes,
+      summariesRes,
+      attendanceRes,
+    ] = await Promise.all([
+      supabase
+        .from("learners")
+        .select("id, name, class, classroom_id, date_of_birth")
+        .eq("school_id", schoolId)
+        .order("name", { ascending: true }),
 
-    if (classroomName) {
-      activitiesQuery.eq("classroom", classroomName);
+      supabase
+        .from("events")
+        .select("id, title, event_date")
+        .eq("school_id", schoolId)
+        .gte("event_date", todayDate)
+        .order("event_date", { ascending: true })
+        .order("title", { ascending: true }),
+
+      supabase
+        .from("activities")
+        .select("id, activity_date, class_name, subject, title, description")
+        .eq("school_id", schoolId)
+        .eq("activity_date", todayDate)
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("summaries")
+        .select("id, learner_name, created_at")
+        .eq("school_id", schoolId)
+        .gte("created_at", `${todayDate} 00:00:00`)
+        .lt("created_at", `${todayDate} 23:59:59`),
+
+      supabase
+        .from("attendance")
+        .select("id, learner_name, attendance_date, status")
+        .eq("school_id", schoolId)
+        .eq("attendance_date", todayDate),
+    ]);
+
+    if (learnersRes.error) {
+      alert(learnersRes.error.message);
+      return;
     }
 
-    const [learnersRes, eventsRes, activitiesRes, summariesRes, attendanceRes] =
-      await Promise.all([
-        learnersQuery,
+    if (eventsRes.error) {
+      alert(eventsRes.error.message);
+      return;
+    }
 
-        supabase
-          .from("events")
-          .select("id, title, event_date")
-          .eq("school_id", schoolId)
-          .gte("event_date", todayDate)
-          .order("event_date", { ascending: true })
-          .order("title", { ascending: true }),
+    if (activitiesRes.error) {
+      alert(activitiesRes.error.message);
+      return;
+    }
 
-        activitiesQuery,
+    if (summariesRes.error) {
+      alert(summariesRes.error.message);
+      return;
+    }
 
-        supabase
-          .from("summaries")
-          .select("id, learner_name, created_at")
-          .eq("school_id", schoolId)
-          .gte("created_at", `${todayDate} 00:00:00`)
-          .lt("created_at", `${todayDate} 23:59:59`),
+    if (attendanceRes.error) {
+      alert(attendanceRes.error.message);
+      return;
+    }
 
-        supabase
-          .from("attendance")
-          .select("id, learner_name, attendance_date, status")
-          .eq("school_id", schoolId)
-          .eq("attendance_date", todayDate),
-      ]);
-
-    const learners = (learnersRes.data || []) as LearnerItem[];
+    const allLearners = (learnersRes.data || []) as LearnerItem[];
     const events = (eventsRes.data || []) as EventItem[];
-    const activities = (activitiesRes.data || []) as ActivityItem[];
+    const allActivities = (activitiesRes.data || []) as ActivityItem[];
     const summaries = (summariesRes.data || []) as SummaryItem[];
     const attendance = (attendanceRes.data || []) as AttendanceItem[];
+
+    const learners = classroomName
+      ? allLearners.filter((learner) => {
+          const learnerClass = String(learner.class || "").trim().toLowerCase();
+          const teacherClass = String(classroomName || "").trim().toLowerCase();
+
+          return (
+            learnerClass === teacherClass ||
+            (classroomId !== null && Number(learner.classroom_id) === classroomId)
+          );
+        })
+      : [];
+
+    const activities = classroomName
+      ? allActivities.filter(
+          (activity) =>
+            String(activity.class_name || "").trim().toLowerCase() ===
+            String(classroomName).trim().toLowerCase()
+        )
+      : [];
 
     const classroomLearnerNames = new Set(
       learners
@@ -224,21 +290,17 @@ export default function TeacherDashboardPage() {
         .filter(Boolean)
     );
 
-    const filteredSummaries = classroomName
-      ? summaries.filter((summary) =>
-          classroomLearnerNames.has(
-            String(summary.learner_name || "").trim().toLowerCase()
-          )
-        )
-      : summaries;
+    const filteredSummaries = summaries.filter((summary) =>
+      classroomLearnerNames.has(
+        String(summary.learner_name || "").trim().toLowerCase()
+      )
+    );
 
-    const filteredAttendance = classroomName
-      ? attendance.filter((item) =>
-          classroomLearnerNames.has(
-            String(item.learner_name || "").trim().toLowerCase()
-          )
-        )
-      : attendance;
+    const filteredAttendance = attendance.filter((item) =>
+      classroomLearnerNames.has(
+        String(item.learner_name || "").trim().toLowerCase()
+      )
+    );
 
     const todaysEvents = events.filter(
       (event) => String(event.event_date || "") === todayDate
@@ -258,6 +320,7 @@ export default function TeacherDashboardPage() {
       .filter((learner) => Boolean(learner.date_of_birth))
       .map((learner) => {
         const dob = new Date(String(learner.date_of_birth));
+
         const birthdayThisYear = new Date(
           today.getFullYear(),
           dob.getMonth(),
@@ -266,10 +329,13 @@ export default function TeacherDashboardPage() {
 
         let nextBirthday = birthdayThisYear;
 
-        if (
-          birthdayThisYear <
-          new Date(today.getFullYear(), today.getMonth(), today.getDate())
-        ) {
+        const todayOnly = new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          today.getDate()
+        );
+
+        if (birthdayThisYear < todayOnly) {
           nextBirthday = new Date(
             today.getFullYear() + 1,
             dob.getMonth(),
@@ -282,15 +348,14 @@ export default function TeacherDashboardPage() {
             nextBirthday.getFullYear(),
             nextBirthday.getMonth(),
             nextBirthday.getDate()
-          ).getTime() -
-          new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+          ).getTime() - todayOnly.getTime();
 
         const daysUntil = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
         return {
           id: learner.id,
           name: learner.name,
-          nextBirthdayLabel: nextBirthday.toLocaleDateString(),
+          nextBirthdayLabel: formatDate(nextBirthday),
           daysUntil,
         };
       })
@@ -320,7 +385,7 @@ export default function TeacherDashboardPage() {
     return <p>Teacher dashboard unavailable.</p>;
   }
 
-  const classroomLabel = profile.classroom_name || "Assigned school";
+  const classroomLabel = profile.classroom_name || "No classroom assigned";
 
   return (
     <div
@@ -476,8 +541,10 @@ export default function TeacherDashboardPage() {
                     {activity.subject || "No subject"}
                   </strong>
                   <p style={compactMiniText}>
-                    {activity.classroom || "No class"}:{" "}
-                    {activity.activity_note || "No activity note"}
+                    {activity.title || "No title"}
+                  </p>
+                  <p style={compactMiniMeta}>
+                    {activity.description || "No description"}
                   </p>
                 </div>
               ))

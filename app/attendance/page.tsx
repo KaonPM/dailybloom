@@ -34,7 +34,7 @@ export default function AttendancePage() {
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [role, setRole] = useState("");
   const [teacherClassroom, setTeacherClassroom] = useState("");
-  const [selectedClassroom, setSelectedClassroom] = useState("");
+  const [openClassroom, setOpenClassroom] = useState("");
 
   const [attendance, setAttendance] = useState<Record<string, string>>({});
 
@@ -62,7 +62,7 @@ export default function AttendancePage() {
       setLearnerHistoryRows([]);
       setClassHistoryRows([]);
     }
-  }, [selectedClassroom, schoolId]);
+  }, [openClassroom, schoolId]);
 
   async function loadPage() {
     const { profile } = await getCurrentProfile();
@@ -81,7 +81,7 @@ export default function AttendancePage() {
     setTeacherClassroom(currentTeacherClassroom);
 
     if (currentRole === "teacher") {
-      setSelectedClassroom(currentTeacherClassroom);
+      setOpenClassroom(currentTeacherClassroom);
     }
 
     await Promise.all([
@@ -146,17 +146,45 @@ export default function AttendancePage() {
     setAttendance(map);
   }
 
+  function getLearnersForClassroom(classroomName: string) {
+    return allLearners.filter((learner) => learner.class === classroomName);
+  }
+
   const visibleLearners = useMemo(() => {
     if (role === "teacher") {
       return allLearners.filter((learner) => learner.class === teacherClassroom);
     }
 
-    if (selectedClassroom) {
-      return allLearners.filter((learner) => learner.class === selectedClassroom);
+    if (openClassroom) {
+      return allLearners.filter((learner) => learner.class === openClassroom);
     }
 
     return allLearners;
-  }, [allLearners, role, teacherClassroom, selectedClassroom]);
+  }, [allLearners, role, teacherClassroom, openClassroom]);
+
+  const classroomStats = useMemo(() => {
+    return classrooms.map((room) => {
+      const roomName = room.classroom_name || "Unassigned";
+      const learners = getLearnersForClassroom(roomName);
+
+      const present = learners.filter(
+        (learner) => attendance[learner.name] === "present"
+      ).length;
+
+      const absent = learners.filter(
+        (learner) => attendance[learner.name] === "absent"
+      ).length;
+
+      return {
+        roomName,
+        learners,
+        total: learners.length,
+        present,
+        absent,
+        unmarked: Math.max(learners.length - present - absent, 0),
+      };
+    });
+  }, [classrooms, allLearners, attendance]);
 
   function mark(name: string, status: "present" | "absent") {
     setAttendance((prev) => ({
@@ -165,10 +193,38 @@ export default function AttendancePage() {
     }));
   }
 
-  async function saveAttendance() {
+  function markAllForClassroom(classroomName: string, status: "present" | "absent") {
+    const learners = getLearnersForClassroom(classroomName);
+
+    setAttendance((prev) => {
+      const updated = { ...prev };
+
+      learners.forEach((learner) => {
+        updated[learner.name] = status;
+      });
+
+      return updated;
+    });
+  }
+
+  function clearClassroom(classroomName: string) {
+    const learners = getLearnersForClassroom(classroomName);
+
+    setAttendance((prev) => {
+      const updated = { ...prev };
+
+      learners.forEach((learner) => {
+        updated[learner.name] = "";
+      });
+
+      return updated;
+    });
+  }
+
+  async function saveAttendance(learnersToSave = visibleLearners) {
     if (!schoolId) return;
 
-    const rows = visibleLearners
+    const rows = learnersToSave
       .filter((learner) => attendance[learner.name])
       .map((learner) => ({
         school_id: schoolId,
@@ -310,7 +366,7 @@ export default function AttendancePage() {
   const viewLabel =
     role === "teacher"
       ? teacherClassroom || "Assigned classroom"
-      : selectedClassroom || "Entire school";
+      : openClassroom || "Entire school";
 
   if (loading) {
     return <p>Loading attendance...</p>;
@@ -324,25 +380,6 @@ export default function AttendancePage() {
           Today: {today} | View: {viewLabel}
         </p>
       </div>
-
-      {role !== "teacher" ? (
-        <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
-          <p style={labelText}>Select Classroom Optional</p>
-
-          <select
-            className="db-input"
-            value={selectedClassroom}
-            onChange={(e) => setSelectedClassroom(e.target.value)}
-          >
-            <option value="">Entire School</option>
-            {classrooms.map((room) => (
-              <option key={room.id} value={room.classroom_name || ""}>
-                {room.classroom_name}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : null}
 
       <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
         <div
@@ -359,93 +396,139 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      <div className="db-card db-card-lavender" style={{ padding: 16 }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 90px 90px 120px",
-            gap: 8,
-            marginBottom: 10,
-            fontWeight: 700,
-            color: "#5B5675",
-          }}
-        >
-          <div>Learner</div>
-          <div style={{ textAlign: "center" }}>Present</div>
-          <div style={{ textAlign: "center" }}>Absent</div>
-          <div style={{ textAlign: "right" }}>History</div>
-        </div>
+      {role !== "teacher" ? (
+        <div className="db-card db-card-lavender" style={{ padding: 16 }}>
+          <h3 style={sectionTitle}>Classroom Attendance</h3>
 
-        {visibleLearners.length === 0 ? (
-          <p className="db-helper">No learners found for this view.</p>
-        ) : (
-          visibleLearners.map((learner) => (
-            <div
-              key={learner.id}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 90px 90px 120px",
-                gap: 8,
-                padding: 10,
-                border: "1px solid #F0E3D8",
-                borderRadius: 12,
-                marginBottom: 8,
-                background: "#FFFDFB",
-                alignItems: "center",
-              }}
-            >
-              <div>
-                <strong>{learner.name}</strong>
-                <p style={smallText}>{learner.class || "Unassigned"}</p>
-              </div>
+          {classroomStats.length === 0 ? (
+            <p className="db-helper">No classrooms found.</p>
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              {classroomStats.map((item) => {
+                const active = openClassroom === item.roomName;
 
-              <button
-                type="button"
-                onClick={() => mark(learner.name, "present")}
-                style={tickButton(attendance[learner.name] === "present")}
-              >
-                {attendance[learner.name] === "present" ? "✓" : ""}
-              </button>
+                return (
+                  <div key={item.roomName}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenClassroom(active ? "" : item.roomName);
+                        setSelectedLearnerName("");
+                        setLearnerHistoryRows([]);
+                      }}
+                      style={{
+                        width: "100%",
+                        display: "grid",
+                        gridTemplateColumns: "1fr 90px 90px 100px 90px",
+                        gap: 8,
+                        alignItems: "center",
+                        background: active ? "#EAF7FD" : "#FFFDFB",
+                        border: active ? "1px solid #CBEAF7" : "1px solid #F0E3D8",
+                        borderRadius: 14,
+                        padding: "10px 12px",
+                        color: "#2D2A3E",
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      <strong>{item.roomName}</strong>
+                      <span style={pillBlue}>{item.total} learners</span>
+                      <span style={pillGreen}>{item.present} present</span>
+                      <span style={pillRed}>{item.absent} absent</span>
+                      <span style={pillNeutral}>{item.unmarked} open</span>
+                    </button>
 
-              <button
-                type="button"
-                onClick={() => mark(learner.name, "absent")}
-                style={tickButton(attendance[learner.name] === "absent")}
-              >
-                {attendance[learner.name] === "absent" ? "✓" : ""}
-              </button>
+                    {active ? (
+                      <div
+                        style={{
+                          background: "#FFFDFB",
+                          border: "1px solid #F0E3D8",
+                          borderRadius: 14,
+                          padding: 12,
+                          marginTop: 8,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 10,
+                            flexWrap: "wrap",
+                            marginBottom: 10,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="db-button-secondary"
+                            onClick={() => markAllForClassroom(item.roomName, "present")}
+                          >
+                            Mark All Present
+                          </button>
 
-              <button
-                type="button"
-                onClick={() => viewLearnerHistory(learner.name)}
-                className="db-button-secondary"
-                style={{
-                  minHeight: 36,
-                  padding: "8px 10px",
-                  fontSize: 12,
-                }}
-              >
-                View
-              </button>
+                          <button
+                            type="button"
+                            className="db-button-secondary"
+                            onClick={() => markAllForClassroom(item.roomName, "absent")}
+                          >
+                            Mark All Absent
+                          </button>
+
+                          <button
+                            type="button"
+                            className="db-button-secondary"
+                            onClick={() => clearClassroom(item.roomName)}
+                          >
+                            Clear
+                          </button>
+                        </div>
+
+                        <AttendanceList
+                          learners={item.learners}
+                          attendance={attendance}
+                          mark={mark}
+                          viewLearnerHistory={viewLearnerHistory}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => saveAttendance(item.learners)}
+                          disabled={saving}
+                          className="db-button-primary"
+                          style={{ width: "100%", marginTop: 10 }}
+                        >
+                          {saving ? "Saving..." : `Save ${item.roomName} Attendance`}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
-          ))
-        )}
+          )}
+        </div>
+      ) : (
+        <div className="db-card db-card-lavender" style={{ padding: 16 }}>
+          <AttendanceList
+            learners={visibleLearners}
+            attendance={attendance}
+            mark={mark}
+            viewLearnerHistory={viewLearnerHistory}
+          />
 
-        <button
-          type="button"
-          onClick={saveAttendance}
-          disabled={saving}
-          className="db-button-primary"
-          style={{ width: "100%", marginTop: 10 }}
-        >
-          {saving ? "Saving..." : "Save Attendance"}
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => saveAttendance(visibleLearners)}
+            disabled={saving}
+            className="db-button-primary"
+            style={{ width: "100%", marginTop: 10 }}
+          >
+            {saving ? "Saving..." : "Save Attendance"}
+          </button>
+        </div>
+      )}
 
       {selectedLearnerName ? (
         <div className="db-card db-card-yellow" style={{ padding: 16, marginTop: 18 }}>
           <h3 style={sectionTitle}>Learner Attendance History</h3>
-
           <p style={smallText}>Learner: {selectedLearnerName}</p>
 
           <div style={dateGrid}>
@@ -542,11 +625,7 @@ export default function AttendancePage() {
             />
           </div>
 
-          <button
-            type="button"
-            className="db-button-secondary"
-            onClick={viewClassHistory}
-          >
+          <button type="button" className="db-button-secondary" onClick={viewClassHistory}>
             View Attendance
           </button>
 
@@ -579,6 +658,93 @@ export default function AttendancePage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function AttendanceList({
+  learners,
+  attendance,
+  mark,
+  viewLearnerHistory,
+}: {
+  learners: Learner[];
+  attendance: Record<string, string>;
+  mark: (name: string, status: "present" | "absent") => void;
+  viewLearnerHistory: (name: string) => void;
+}) {
+  return (
+    <div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 70px 70px 90px",
+          gap: 8,
+          marginBottom: 10,
+          fontWeight: 700,
+          color: "#5B5675",
+        }}
+      >
+        <div>Learner</div>
+        <div style={{ textAlign: "center" }}>Present</div>
+        <div style={{ textAlign: "center" }}>Absent</div>
+        <div style={{ textAlign: "right" }}>History</div>
+      </div>
+
+      {learners.length === 0 ? (
+        <p className="db-helper">No learners found for this view.</p>
+      ) : (
+        learners.map((learner) => (
+          <div
+            key={learner.id}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 70px 70px 90px",
+              gap: 8,
+              padding: 8,
+              border: "1px solid #F0E3D8",
+              borderRadius: 12,
+              marginBottom: 7,
+              background: "#FFFFFF",
+              alignItems: "center",
+            }}
+          >
+            <div>
+              <strong>{learner.name}</strong>
+              <p style={smallText}>{learner.class || "Unassigned"}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => mark(learner.name, "present")}
+              style={tickButton(attendance[learner.name] === "present")}
+            >
+              {attendance[learner.name] === "present" ? "✓" : ""}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => mark(learner.name, "absent")}
+              style={tickButton(attendance[learner.name] === "absent")}
+            >
+              {attendance[learner.name] === "absent" ? "✓" : ""}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => viewLearnerHistory(learner.name)}
+              className="db-button-secondary"
+              style={{
+                minHeight: 34,
+                padding: "7px 8px",
+                fontSize: 12,
+              }}
+            >
+              View
+            </button>
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -661,4 +827,40 @@ const recordRow = {
   padding: "10px 12px",
   color: "#2D2A3E",
   textTransform: "capitalize" as const,
+};
+
+const pillBlue = {
+  background: "#EAF7FD",
+  border: "1px solid #CBEAF7",
+  borderRadius: 999,
+  padding: "4px 8px",
+  fontSize: 12,
+  textAlign: "center" as const,
+};
+
+const pillGreen = {
+  background: "#EAF8EE",
+  border: "1px solid #CDEED8",
+  borderRadius: 999,
+  padding: "4px 8px",
+  fontSize: 12,
+  textAlign: "center" as const,
+};
+
+const pillRed = {
+  background: "#FDEDED",
+  border: "1px solid #F3CACA",
+  borderRadius: 999,
+  padding: "4px 8px",
+  fontSize: 12,
+  textAlign: "center" as const,
+};
+
+const pillNeutral = {
+  background: "#F8F4FF",
+  border: "1px solid #E7DFF8",
+  borderRadius: 999,
+  padding: "4px 8px",
+  fontSize: 12,
+  textAlign: "center" as const,
 };

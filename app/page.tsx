@@ -57,7 +57,7 @@ export default function LandingPage() {
               </p>
 
               <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
-                <Link href="/signup" style={{ ...primaryButton, width: isMobile ? "100%" : "auto" }}>
+                <Link href="/legal" style={{ ...primaryButton, width: isMobile ? "100%" : "auto" }}>
                   Sign Up
                 </Link>
 

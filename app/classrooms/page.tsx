@@ -9,7 +9,6 @@ type ClassroomRow = {
   id: number;
   school_id?: number | null;
   classroom_name?: string | null;
-  name?: string | null;
   age_group?: string | null;
   created_at?: string | null;
 };
@@ -63,6 +62,10 @@ export default function ClassroomsPage() {
   );
   const [moveLearnerToClassroomId, setMoveLearnerToClassroomId] = useState("");
 
+  const [deleteTargetClassroom, setDeleteTargetClassroom] =
+    useState<ClassroomRow | null>(null);
+  const [moveAllTargetClassroomId, setMoveAllTargetClassroomId] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -99,7 +102,7 @@ export default function ClassroomsPage() {
   async function fetchClassrooms(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("classrooms")
-      .select("*")
+      .select("id, school_id, classroom_name, age_group, created_at")
       .eq("school_id", currentSchoolId)
       .order("classroom_name", { ascending: true });
 
@@ -127,23 +130,28 @@ export default function ClassroomsPage() {
   }
 
   async function fetchTeachers(currentSchoolId: number) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, email, classroom_name, is_active")
-      .eq("school_id", currentSchoolId)
-      .eq("role", "teacher")
-      .order("full_name", { ascending: true });
+    const response = await fetch("/api/list-teachers", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        school_id: currentSchoolId,
+      }),
+    });
 
-    if (error) {
-      alert(error.message);
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Could not load teachers.");
       return;
     }
 
-    setTeachers((data || []) as TeacherRow[]);
+    setTeachers((result.teachers || []) as TeacherRow[]);
   }
 
   function getClassroomName(room: ClassroomRow) {
-    return room.classroom_name || room.name || "Unnamed classroom";
+    return room.classroom_name || "Unnamed classroom";
   }
 
   function resetForm() {
@@ -247,45 +255,6 @@ export default function ClassroomsPage() {
     alert("Classroom added.");
   }
 
-  async function deleteClassroom(room: ClassroomRow) {
-    if (!schoolId) return;
-
-    const roomName = getClassroomName(room);
-    const hasLearners = learners.some(
-      (learner) => learner.class === roomName || learner.classroom_id === room.id
-    );
-    const hasTeachers = teachers.some(
-      (teacher) => teacher.classroom_name === roomName
-    );
-
-    if (hasLearners || hasTeachers) {
-      alert(
-        "This classroom has learners or teachers linked to it. Move them or unassign them first before deleting."
-      );
-      return;
-    }
-
-    const confirmed = confirm("Delete this classroom?");
-    if (!confirmed) return;
-
-    const { error } = await supabase
-      .from("classrooms")
-      .delete()
-      .eq("id", room.id);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    if (selectedClassroom?.id === room.id) {
-      setSelectedClassroom(null);
-    }
-
-    await fetchClassrooms(schoolId);
-    alert("Classroom deleted.");
-  }
-
   async function assignTeacherToClassroom() {
     if (!schoolId || !selectedClassroom || !teacherToAssign) {
       alert("Please select a teacher.");
@@ -366,6 +335,124 @@ export default function ClassroomsPage() {
     alert("Learner moved.");
   }
 
+  function beginDeleteClassroom(room: ClassroomRow) {
+    setDeleteTargetClassroom(room);
+    setMoveAllTargetClassroomId("");
+  }
+
+  async function deleteClassroomDirectly(room: ClassroomRow) {
+    if (!schoolId) return;
+
+    const confirmed = confirm("Delete this classroom?");
+    if (!confirmed) return;
+
+    const { error } = await supabase.from("classrooms").delete().eq("id", room.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    if (selectedClassroom?.id === room.id) {
+      setSelectedClassroom(null);
+    }
+
+    setDeleteTargetClassroom(null);
+    await fetchClassrooms(schoolId);
+    alert("Classroom deleted.");
+  }
+
+  async function moveAllLearnersThenDelete() {
+    if (!schoolId || !deleteTargetClassroom || !moveAllTargetClassroomId) {
+      alert("Please select the classroom where learners must be moved.");
+      return;
+    }
+
+    const sourceName = getClassroomName(deleteTargetClassroom);
+
+    const targetRoom = classrooms.find(
+      (room) => String(room.id) === String(moveAllTargetClassroomId)
+    );
+
+    if (!targetRoom) {
+      alert("Target classroom not found.");
+      return;
+    }
+
+    const targetName = getClassroomName(targetRoom);
+
+    const linkedTeachers = teachers.filter(
+      (teacher) => teacher.classroom_name === sourceName
+    );
+
+    if (linkedTeachers.length > 0) {
+      alert(
+        "Please remove or reassign teachers from this classroom before deleting it."
+      );
+      return;
+    }
+
+    const { error: moveError } = await supabase
+      .from("learners")
+      .update({
+        class: targetName,
+        classroom_id: targetRoom.id,
+      })
+      .eq("school_id", schoolId)
+      .or(`class.eq.${sourceName},classroom_id.eq.${deleteTargetClassroom.id}`);
+
+    if (moveError) {
+      alert(moveError.message);
+      return;
+    }
+
+    const { error: deleteError } = await supabase
+      .from("classrooms")
+      .delete()
+      .eq("id", deleteTargetClassroom.id);
+
+    if (deleteError) {
+      alert(deleteError.message);
+      return;
+    }
+
+    if (selectedClassroom?.id === deleteTargetClassroom.id) {
+      setSelectedClassroom(null);
+    }
+
+    setDeleteTargetClassroom(null);
+    setMoveAllTargetClassroomId("");
+
+    await refreshAll(schoolId);
+    alert("Learners moved and classroom deleted.");
+  }
+
+  async function handleDeleteClassroom(room: ClassroomRow) {
+    const roomName = getClassroomName(room);
+
+    const hasLearners = learners.some(
+      (learner) => learner.class === roomName || learner.classroom_id === room.id
+    );
+
+    const hasTeachers = teachers.some(
+      (teacher) => teacher.classroom_name === roomName
+    );
+
+    if (hasTeachers) {
+      alert(
+        "This classroom has teachers assigned. Please remove or reassign teachers first."
+      );
+      return;
+    }
+
+    if (hasLearners) {
+      beginDeleteClassroom(room);
+      return;
+    }
+
+    await deleteClassroomDirectly(room);
+  }
+
   const classroomStats = useMemo(() => {
     return classrooms.map((room) => {
       const roomName = getClassroomName(room);
@@ -410,6 +497,18 @@ export default function ClassroomsPage() {
   const selectedLearner = selectedLearnerId
     ? learners.find((learner) => learner.id === selectedLearnerId)
     : null;
+
+  const deleteTargetName = deleteTargetClassroom
+    ? getClassroomName(deleteTargetClassroom)
+    : "";
+
+  const deleteTargetLearners = deleteTargetClassroom
+    ? learners.filter(
+        (learner) =>
+          learner.class === deleteTargetName ||
+          learner.classroom_id === deleteTargetClassroom.id
+      )
+    : [];
 
   if (loading) {
     return <p>Loading classrooms...</p>;
@@ -493,6 +592,57 @@ export default function ClassroomsPage() {
               : editingId
               ? "Update Classroom"
               : "Save Classroom"}
+          </button>
+        </div>
+      ) : null}
+
+      {deleteTargetClassroom ? (
+        <div
+          className="db-card db-card-yellow"
+          style={{ padding: 16, marginBottom: 18 }}
+        >
+          <h3 style={sectionTitle}>Move Learners Before Deleting</h3>
+
+          <p style={smallText}>
+            {deleteTargetName} has {deleteTargetLearners.length} learner(s).
+            Choose another classroom before deleting it.
+          </p>
+
+          <div style={actionGrid}>
+            <select
+              className="db-input"
+              value={moveAllTargetClassroomId}
+              onChange={(e) => setMoveAllTargetClassroomId(e.target.value)}
+            >
+              <option value="">Move learners to...</option>
+              {classrooms
+                .filter((room) => room.id !== deleteTargetClassroom.id)
+                .map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {getClassroomName(room)}
+                  </option>
+                ))}
+            </select>
+
+            <button
+              type="button"
+              className="db-button-secondary"
+              onClick={moveAllLearnersThenDelete}
+            >
+              Move & Delete
+            </button>
+          </div>
+
+          <button
+            type="button"
+            className="db-button-secondary"
+            onClick={() => {
+              setDeleteTargetClassroom(null);
+              setMoveAllTargetClassroomId("");
+            }}
+            style={{ marginTop: 10 }}
+          >
+            Cancel
           </button>
         </div>
       ) : null}
@@ -709,7 +859,7 @@ export default function ClassroomsPage() {
                         <button
                           type="button"
                           className="db-button-secondary"
-                          onClick={() => deleteClassroom(selectedStats.room)}
+                          onClick={() => handleDeleteClassroom(selectedStats.room)}
                         >
                           Delete Classroom
                         </button>

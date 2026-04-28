@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 export default function LandingPage() {
   const [isMobile, setIsMobile] = useState(false);
+  const [openPackage, setOpenPackage] = useState<string | null>("Bloom Pro");
 
   useEffect(() => {
     function handleResize() {
@@ -74,12 +75,73 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <SectionTitle title="Packages" subtitle="Launch pricing available for the first six months from launch date." isMobile={isMobile} />
+        <SectionTitle
+          title="Packages"
+          subtitle="Choose the level of support that fits your school. Click a package to view what is included."
+          isMobile={isMobile}
+        />
 
         <div style={packageGrid(isMobile)}>
-          <PackageCard name="Bloom" price="R299/month" learners="0 to 30 learners" details="Core preschool management for smaller schools." accent="#7CCCF3" isMobile={isMobile} />
-          <PackageCard name="Bloom Pro" price="R399/month" learners="31 to 60 learners" details="For growing preschools that need more learner capacity." accent="#FFD166" isMobile={isMobile} />
-          <PackageCard name="Bloom Elite" price="R499/month" learners="60+ learners" details="Includes WageFlow payroll and HR support for staff records." accent="#57C785" isMobile={isMobile} />
+          <PackageCard
+            name="Bloom"
+            price="R299/month"
+            learners="0 to 30 learners"
+            summary="For small preschools ready to replace paper registers with a simple daily system."
+            accent="#7CCCF3"
+            isMobile={isMobile}
+            isOpen={openPackage === "Bloom"}
+            onClick={() => setOpenPackage(openPackage === "Bloom" ? null : "Bloom")}
+            items={[
+              "Learner profiles and parent contact records",
+              "Daily attendance tracking",
+              "Birthdays and school events",
+              "Daily learner summaries",
+              "Basic broadcasts",
+              "Simple payment reminders",
+              "Standard setup support",
+            ]}
+          />
+
+          <PackageCard
+            name="Bloom Pro"
+            price="R399/month"
+            learners="31 to 60 learners"
+            summary="For growing schools that need better structure, smoother admin, and clearer oversight."
+            accent="#FFD166"
+            isMobile={isMobile}
+            isOpen={openPackage === "Bloom Pro"}
+            onClick={() => setOpenPackage(openPackage === "Bloom Pro" ? null : "Bloom Pro")}
+            badge="Popular"
+            items={[
+              "Everything in Bloom",
+              "Classroom-based organisation",
+              "Principal overview dashboard",
+              "Teacher daily workflows",
+              "Export-ready school records",
+              "Stronger parent communication tools",
+              "Priority setup support",
+            ]}
+          />
+
+          <PackageCard
+            name="Bloom Elite"
+            price="R499/month"
+            learners="60+ learners"
+            summary="For schools that want fuller operational support across school admin, staff, and payroll records."
+            accent="#57C785"
+            isMobile={isMobile}
+            isOpen={openPackage === "Bloom Elite"}
+            onClick={() => setOpenPackage(openPackage === "Bloom Elite" ? null : "Bloom Elite")}
+            items={[
+              "Everything in Bloom Pro",
+              "WageFlow payroll support",
+              "Staff records",
+              "HR notes and staff admin support",
+              "Payslip-ready payroll records",
+              "Premium onboarding",
+              "Priority admin assistance",
+            ]}
+          />
         </div>
 
         <div style={noticeBox(isMobile)}>
@@ -95,9 +157,7 @@ export default function LandingPage() {
         </div>
 
         <details style={contactDetailsBox(isMobile)}>
-          <summary style={contactSummary(isMobile)}>
-            Contact DailyBloom
-          </summary>
+          <summary style={contactSummary(isMobile)}>Contact DailyBloom</summary>
 
           <p style={paragraph(isMobile)}>
             Send us your details and we will guide you through onboarding.
@@ -166,14 +226,80 @@ function FeatureCard({ title, body, accent, isMobile }: { title: string; body: s
   );
 }
 
-function PackageCard({ name, price, learners, details, accent, isMobile }: { name: string; price: string; learners: string; details: string; accent: string; isMobile: boolean }) {
+function PackageCard({
+  name,
+  price,
+  learners,
+  summary,
+  accent,
+  isMobile,
+  isOpen,
+  onClick,
+  items,
+  badge,
+}: {
+  name: string;
+  price: string;
+  learners: string;
+  summary: string;
+  accent: string;
+  isMobile: boolean;
+  isOpen: boolean;
+  onClick: () => void;
+  items: string[];
+  badge?: string;
+}) {
   return (
-    <div style={{ ...card(isMobile), borderTop: `8px solid ${accent}` }}>
-      <h3 style={smallHeading(isMobile)}>{name}</h3>
-      <h2 style={{ margin: "8px 0", color: "#2D2A3E" }}>{price}</h2>
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        ...card(isMobile),
+        borderTop: `8px solid ${accent}`,
+        textAlign: "left",
+        cursor: "pointer",
+        transform: isOpen ? "translateY(-3px)" : "none",
+        transition: "all 0.2s ease",
+        outline: isOpen ? `2px solid ${accent}` : "none",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+        <div>
+          <h3 style={smallHeading(isMobile)}>{name}</h3>
+          <h2 style={{ margin: "8px 0", color: "#2D2A3E" }}>{price}</h2>
+        </div>
+
+        {badge && (
+          <span
+            style={{
+              background: "#F66BA0",
+              color: "#FFFFFF",
+              borderRadius: 999,
+              padding: "6px 10px",
+              fontSize: 12,
+              fontWeight: 800,
+            }}
+          >
+            {badge}
+          </span>
+        )}
+      </div>
+
       <p style={paragraph(isMobile)}>{learners}</p>
-      <p style={paragraph(isMobile)}>{details}</p>
-    </div>
+      <p style={paragraph(isMobile)}>{summary}</p>
+
+      <p style={{ ...paragraph(isMobile), fontWeight: 800, marginTop: 12 }}>
+        {isOpen ? "Hide offering" : "View offering"}
+      </p>
+
+      {isOpen && (
+        <ul style={{ margin: "12px 0 0 18px", padding: 0, color: "#5F6275", lineHeight: 1.7, fontSize: isMobile ? 14 : 15 }}>
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      )}
+    </button>
   );
 }
 
@@ -391,6 +517,7 @@ function packageGrid(isMobile: boolean): React.CSSProperties {
     display: "grid",
     gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
     gap: isMobile ? 12 : 18,
+    alignItems: "start",
   };
 }
 

@@ -129,26 +129,26 @@ export default function ClassroomsPage() {
     setLearners((data || []) as LearnerRow[]);
   }
 
-  async function fetchTeachers(currentSchoolId: number) {
-    const response = await fetch("/api/list-teachers", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        school_id: currentSchoolId,
-      }),
-    });
+async function fetchTeachers(currentSchoolId: number) {
+  const response = await fetch("/api/list-teachers", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      school_id: currentSchoolId,
+    }),
+  });
 
-    const result = await response.json();
+  const result = await response.json();
 
-    if (!response.ok) {
-      alert(result.error || "Could not load teachers.");
-      return;
-    }
-
-    setTeachers((result.teachers || []) as TeacherRow[]);
+  if (!response.ok) {
+    alert(result.error || "Could not load teachers.");
+    return;
   }
+
+  setTeachers(result.teachers || []);
+}
 
   function getClassroomName(room: ClassroomRow) {
     return room.classroom_name || "Unnamed classroom";
@@ -256,28 +256,37 @@ export default function ClassroomsPage() {
   }
 
   async function assignTeacherToClassroom() {
-    if (!schoolId || !selectedClassroom || !teacherToAssign) {
-      alert("Please select a teacher.");
-      return;
-    }
-
-    const roomName = getClassroomName(selectedClassroom);
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({ classroom_name: roomName })
-      .eq("id", teacherToAssign);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setTeacherToAssign("");
-    await fetchTeachers(schoolId);
-    alert("Teacher assigned.");
+  if (!schoolId || !selectedClassroom || !teacherToAssign) {
+    alert("Please select a teacher.");
+    return;
   }
 
+  const roomName = getClassroomName(selectedClassroom);
+
+  const response = await fetch("/api/assign-classroom-teacher", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      school_id: schoolId,
+      classroom_name: roomName,
+      teacher_id: teacherToAssign,
+    }),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    alert(result.error || "Could not assign teacher.");
+    return;
+  }
+
+  setTeacherToAssign("");
+  await fetchTeachers(schoolId);
+
+  alert("Teacher assigned.");
+}
   async function removeTeacherFromClassroom(teacherId: string) {
     if (!schoolId) return;
 

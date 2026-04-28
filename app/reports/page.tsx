@@ -52,6 +52,8 @@ export default function ReportsPage() {
   const [toDate, setToDate] = useState(today);
 
   const [reportRows, setReportRows] = useState<ReportRow[]>([]);
+  const [showReportResults, setShowReportResults] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
 
@@ -200,6 +202,7 @@ export default function ReportsPage() {
     if (reportType === "Incidents") await runIncidentsReport();
     if (reportType === "Activities") await runActivitiesReport();
 
+    setShowReportResults(true);
     setRunning(false);
   }
 
@@ -252,9 +255,9 @@ export default function ReportsPage() {
         learner: item.learner_name || "",
         classroom: getLearnerClass(item.learner_name),
         type: "Summary",
-        detail: `Mood: ${item.mood || "N/A"} | Meals: ${item.meals || "N/A"} | Rest: ${
-          item.rest || "N/A"
-        }`,
+        detail: `Mood: ${item.mood || "N/A"} | Meals: ${
+          item.meals || "N/A"
+        } | Rest: ${item.rest || "N/A"}`,
         extra: item.teacher_notes || "",
       }));
 
@@ -281,7 +284,10 @@ export default function ReportsPage() {
             item.payment_month || 1
           ).padStart(2, "0")}-01`;
 
-        return isWithinRange(String(dateValue)) && isInScopeByLearner(item.learner_name);
+        return (
+          isWithinRange(String(dateValue)) &&
+          isInScopeByLearner(item.learner_name)
+        );
       })
       .map((item: any) => ({
         date:
@@ -523,30 +529,49 @@ export default function ReportsPage() {
       </div>
 
       <div className="db-card db-card-green" style={{ padding: 16 }}>
-        <h3 style={sectionTitle}>Report Results ({reportRows.length})</h3>
-
-        {reportRows.length === 0 ? (
-          <p className="db-helper">No report results yet.</p>
-        ) : (
-          <div style={{ display: "grid", gap: 8 }}>
-            {reportRows.map((row, index) => (
-              <div key={`${row.type}-${index}`} style={resultRow}>
-                <div>
-                  <strong>{row.date}</strong>
-                  <p style={smallText}>
-                    {row.learner} | {row.classroom}
-                  </p>
-                </div>
-
-                <div>
-                  <strong>{row.type}</strong>
-                  <p style={smallText}>{row.detail}</p>
-                  {row.extra ? <p style={smallText}>{row.extra}</p> : null}
-                </div>
-              </div>
-            ))}
+        <div style={sectionHeader}>
+          <div>
+            <h3 style={sectionTitle}>Report Results ({reportRows.length})</h3>
+            <p style={smallText}>
+              Open only when you need to review the report output.
+            </p>
           </div>
-        )}
+
+          <button
+            type="button"
+            className="db-button-secondary"
+            onClick={() => setShowReportResults((prev) => !prev)}
+          >
+            {showReportResults ? "Hide" : "View Results"}
+          </button>
+        </div>
+
+        {showReportResults ? (
+          reportRows.length === 0 ? (
+            <p className="db-helper" style={{ marginTop: 12 }}>
+              No report results yet.
+            </p>
+          ) : (
+            <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+              {reportRows.map((row, index) => (
+                <div key={`${row.type}-${index}`} style={resultRow}>
+                  <div>
+                    <strong>{row.date}</strong>
+                    <p style={smallText}>
+                      {row.learner} | {row.classroom}
+                    </p>
+                  </div>
+
+                  <div>
+                    <strong>{row.type}</strong>
+                    <p style={smallText}>{row.detail}</p>
+                    {row.extra ? <p style={smallText}>{row.extra}</p> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : null}
       </div>
     </div>
   );
@@ -576,6 +601,14 @@ const grid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
   gap: 10,
+};
+
+const sectionHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap" as const,
 };
 
 const resultRow = {

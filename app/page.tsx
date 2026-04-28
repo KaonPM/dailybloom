@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 export default function LandingPage() {
   const [isMobile, setIsMobile] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
     function handleResize() {
@@ -17,404 +18,171 @@ export default function LandingPage() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  function handleSignUpClick(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (!acceptedTerms) {
+      event.preventDefault();
+      alert("Please accept the Terms of Use and Privacy Policy before signing up.");
+    }
+  }
+
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#FFF8F2",
-        color: "#2D2A3E",
-      }}
-    >
+    <main style={{ minHeight: "100vh", background: "#FFF8F2", color: "#2D2A3E" }}>
       <section
         style={{
           maxWidth: "1200px",
           margin: "0 auto",
-          padding: isMobile ? "18px 14px 42px 14px" : "32px 24px 80px 24px",
+          padding: isMobile ? "18px 14px 42px" : "32px 24px 80px",
         }}
       >
-        <div
-          style={{
-            background: "#F8E8F0",
-            border: "1px solid #EBC9D8",
-            borderRadius: isMobile ? "20px" : "28px",
-            padding: isMobile ? "16px 16px" : "24px 28px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: isMobile ? "flex-start" : "center",
-            marginBottom: isMobile ? "20px" : "36px",
-            flexWrap: "wrap",
-            gap: isMobile ? "12px" : "18px",
-          }}
-        >
+        <div style={topBar(isMobile)}>
           <div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: isMobile ? "34px" : "56px",
-                lineHeight: 1,
-                fontWeight: 800,
-                color: "#2D2A3E",
-              }}
-            >
+            <h1 style={logoText(isMobile)}>
               Daily<span style={{ color: "#F66BA0" }}>Bloom</span>
             </h1>
-
-            <p
-              style={{
-                margin: isMobile ? "8px 0 0 0" : "10px 0 0 0",
-                color: "#7A6F86",
-                fontSize: isMobile ? "11px" : "14px",
-                fontWeight: 700,
-                letterSpacing: "0.3px",
-              }}
-            >
-              WHERE PRESCHOOLS BLOOM EVERY DAY
-            </p>
+            <p style={tagline(isMobile)}>WHERE PRESCHOOLS BLOOM EVERY DAY</p>
           </div>
 
-          <div
-            style={{
-              textAlign: isMobile ? "left" : "right",
-              width: isMobile ? "100%" : "auto",
-            }}
-          >
-            <h2
-              style={{
-                margin: 0,
-                fontSize: isMobile ? "18px" : "24px",
-                color: "#F66BA0",
-                fontWeight: 800,
-              }}
-            >
-              Preschool Management App
-            </h2>
-            <p
-              style={{
-                margin: "6px 0 0 0",
-                color: "#7A6F86",
-                fontSize: isMobile ? "13px" : "15px",
-              }}
-            ></p>
+          <div style={{ textAlign: isMobile ? "left" : "right", width: isMobile ? "100%" : "auto" }}>
+            <h2 style={appTitle(isMobile)}>Preschool Management App</h2>
+            <p style={subtleText(isMobile)}>Powered by Lesedi Smart Solutions</p>
           </div>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "1.2fr 0.8fr",
-            gap: isMobile ? "14px" : "28px",
-            alignItems: "stretch",
-          }}
-        >
-          <div
-            style={{
-              background: "#FFFFFF",
-              border: "1px solid #E9E0D4",
-              borderRadius: isMobile ? "18px" : "22px",
-              padding: isMobile ? "18px 16px" : "22px 22px",
-              boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                top: "-30px",
-                right: "-20px",
-                width: isMobile ? "120px" : "180px",
-                height: isMobile ? "120px" : "180px",
-                background: "#FFD166",
-                borderRadius: "50%",
-                opacity: 0.22,
-              }}
-            />
-
-            <div
-              style={{
-                position: "absolute",
-                bottom: "-50px",
-                left: "-40px",
-                width: isMobile ? "120px" : "180px",
-                height: isMobile ? "120px" : "180px",
-                background: "#57C785",
-                borderRadius: "50%",
-                opacity: 0.2,
-              }}
-            />
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 0.8fr", gap: isMobile ? 14 : 28 }}>
+          <div style={heroCard(isMobile)}>
+            <div style={sunShape(isMobile)} />
+            <div style={greenShape(isMobile)} />
 
             <div style={{ position: "relative", zIndex: 1 }}>
-              <p
-                style={{
-                  margin: 0,
-                  color: "#F66BA0",
-                  fontWeight: 800,
-                  fontSize: isMobile ? "13px" : "15px",
-                }}
-              >
-                Preschool operations, simplified
+              <p style={pinkEyebrow(isMobile)}>Preschool operations, simplified</p>
+
+              <h2 style={heroHeading(isMobile)}>Where Preschools Bloom Every Day</h2>
+
+              <p style={heroBody(isMobile)}>
+                DailyBloom helps preschools manage learners, attendance, summaries, events, broadcasts,
+                payments and parent communication from one warm and organised workspace.
               </p>
 
-              <h2
-                style={{
-                  margin: isMobile ? "10px 0 12px 0" : "12px 0 14px 0",
-                  fontSize: isMobile ? "30px" : "40px",
-                  lineHeight: 1.05,
-                  color: "#2D2A3E",
-                  fontWeight: 800,
-                  maxWidth: isMobile ? "100%" : "680px",
-                }}
-              >
-                Where Preschools Bloom Every Day
-              </h2>
+              <div style={{ marginTop: 18 }}>
+                <label style={{ display: "flex", gap: 10, alignItems: "flex-start", color: "#5F6275", fontSize: 14, lineHeight: 1.5 }}>
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(event) => setAcceptedTerms(event.target.checked)}
+                    style={{ marginTop: 3 }}
+                  />
+                  <span>
+                    I accept the DailyBloom Terms of Use and Privacy Policy before continuing to Sign Up.
+                  </span>
+                </label>
+              </div>
 
-              <p
-                style={{
-                  margin: 0,
-                  maxWidth: isMobile ? "100%" : "620px",
-                  fontSize: isMobile ? "15px" : "16px",
-                  lineHeight: 1.6,
-                  color: "#5F6275",
-                }}
-              >
-                Simplify daily school operations, keep parents informed and
-                bring warmth to every preschool day.
-              </p>
-
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: isMobile ? "column" : "row",
-                  gap: "10px",
-                  marginTop: isMobile ? "16px" : "18px",
-                  flexWrap: "wrap",
-                }}
-              >
-                <Link
-                  href="/signup"
-                  style={{
-                    ...primaryButton,
-                    width: isMobile ? "100%" : "auto",
-                  }}
-                >
+              <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+                <Link href="/signup" onClick={handleSignUpClick} style={{ ...primaryButton, width: isMobile ? "100%" : "auto" }}>
                   Sign Up
                 </Link>
 
-                <Link
-                  href="/login"
-                  style={{
-                    ...secondaryButton,
-                    width: isMobile ? "100%" : "auto",
-                  }}
-                >
+                <Link href="/login" style={{ ...secondaryButton, width: isMobile ? "100%" : "auto" }}>
                   Login
                 </Link>
               </div>
             </div>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gap: isMobile ? "10px" : "18px",
-            }}
-          >
-            <FeatureCard
-              title="Save time with smarter daily admin"
-              body="Manage learners, attendance, birthdays, events and daily summaries without the clutter of a traditional admin system."
-              accent="#7CCCF3"
-              isMobile={isMobile}
-            />
-            <FeatureCard
-              title="Keep parents connected"
-              body="Create a warmer parent experience through clear updates, school notices and end-of-day communication that feels personal and professional."
-              accent="#FFD166"
-              isMobile={isMobile}
-            />
-            <FeatureCard
-              title="Built for growing preschools"
-              body="DailyBloom is designed for real preschool workflows, with classrooms, school branding and tools that support a calm, organised school day."
-              accent="#57C785"
-              isMobile={isMobile}
-            />
+          <div style={{ display: "grid", gap: isMobile ? 10 : 18 }}>
+            <FeatureCard title="Daily admin in one place" body="Manage learners, attendance, birthdays, activities, events, summaries, broadcasts, and payments without scattered paperwork." accent="#7CCCF3" isMobile={isMobile} />
+            <FeatureCard title="WhatsApp-ready communication" body="Prepare parent summaries, broadcasts, and payment reminders now, with WhatsApp API sending planned for integration." accent="#FFD166" isMobile={isMobile} />
+            <FeatureCard title="Built for preschool teams" body="Principals get full school oversight. Teachers see only their assigned classroom and daily workflows." accent="#57C785" isMobile={isMobile} />
           </div>
         </div>
 
-        <div
-          style={{
-            marginTop: isMobile ? "18px" : "34px",
-            display: "grid",
-            gridTemplateColumns: isMobile
-              ? "1fr"
-              : "repeat(auto-fit, minmax(250px, 1fr))",
-            gap: isMobile ? "10px" : "18px",
-          }}
-        >
-          <InfoBlock
-            title="Everything your preschool needs in one place"
-            text="Bring together attendance, learners, events, birthdays, daily summaries and school-wide messages in one calm workspace."
-            border="#F66BA0"
-            bg="#FDF1F7"
-            isMobile={isMobile}
-          />
-          <InfoBlock
-            title="Warm, professional parent communication"
-            text="Help your school look organised, caring and consistent every day with updates that are simple to manage and easy for parents to understand."
-            border="#FFD166"
-            bg="#FFF8DD"
-            isMobile={isMobile}
-          />
-          <InfoBlock
-            title="Made for modern preschool teams"
-            text="Designed for principals, admins and teachers who need a system that feels friendly and simple enough for daily use and structured enough to trust."
-            border="#57C785"
-            bg="#EAF8EF"
-            isMobile={isMobile}
-          />
+        <SectionTitle title="Packages" subtitle="Launch pricing available for the first six months from launch date." isMobile={isMobile} />
+
+        <div style={packageGrid(isMobile)}>
+          <PackageCard name="Bloom" price="R299/month" learners="0 to 30 learners" details="Core preschool management for smaller schools." accent="#7CCCF3" isMobile={isMobile} />
+          <PackageCard name="Bloom Pro" price="R399/month" learners="31 to 60 learners" details="For growing preschools that need more learner capacity." accent="#FFD166" isMobile={isMobile} />
+          <PackageCard name="Bloom Elite" price="R499/month" learners="60+ learners" details="Includes WageFlow payroll and HR support for staff records." accent="#57C785" isMobile={isMobile} />
         </div>
 
-        <div
-          style={{
-            marginTop: isMobile ? "18px" : "34px",
-            background: "#F8E8F0",
-            border: "1px solid #EBC9D8",
-            borderRadius: isMobile ? "18px" : "24px",
-            padding: isMobile ? "16px" : "22px 24px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: isMobile ? "flex-start" : "center",
-            flexWrap: "wrap",
-            gap: "14px",
-          }}
-        >
-          <div>
-            <p
-              style={{
-                margin: 0,
-                color: "#2D2A3E",
-                fontWeight: 800,
-                fontSize: isMobile ? "16px" : "18px",
-              }}
-            >
-              DailyBloom
-            </p>
-            <p
-              style={{
-                margin: "4px 0 0 0",
-                color: "#7A6F86",
-                fontSize: isMobile ? "13px" : "14px",
-              }}
-            >
-              Where preschools bloom every day
-            </p>
-          </div>
-
-          <p
-            style={{
-              margin: 0,
-              color: "#7A6F86",
-              fontSize: isMobile ? "13px" : "14px",
-            }}
-          >
-            Built for a mordern and organised preschool
+        <div style={noticeBox(isMobile)}>
+          <h3 style={smallHeading(isMobile)}>Once-off setup fee</h3>
+          <p style={paragraph(isMobile)}>
+            R599 once off. This includes onboarding, school setup, administrative configuration, and ongoing administrative assistance while your school remains subscribed.
+          </p>
+          <p style={paragraph(isMobile)}>
+            After the first six months from launch date, monthly package prices may increase by R100 per plan. The setup fee remains R599.
           </p>
         </div>
+
+        <SectionTitle title="Contact DailyBloom" subtitle="Send us your details and we will guide you through onboarding." isMobile={isMobile} />
+
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 18 }}>
+          <div style={card(isMobile)}>
+            <h3 style={smallHeading(isMobile)}>Contact details</h3>
+            <p style={paragraph(isMobile)}>Phone: 076 361 6044</p>
+            <p style={paragraph(isMobile)}>WhatsApp: 076 361 6044</p>
+            <p style={paragraph(isMobile)}>Email: info@dailybloom.co.za</p>
+          </div>
+
+          <form style={card(isMobile)}>
+            <h3 style={smallHeading(isMobile)}>Contact form</h3>
+
+            <input style={inputStyle} placeholder="Your name" />
+            <input style={inputStyle} placeholder="School name" />
+            <input style={inputStyle} placeholder="Phone number" />
+            <input style={inputStyle} placeholder="Email address" />
+            <textarea style={{ ...inputStyle, minHeight: 100, resize: "vertical" }} placeholder="Tell us what you need help with" />
+
+            <a href="mailto:info@dailybloom.co.za" style={{ ...primaryButton, width: "100%", marginTop: 8 }}>
+              Email DailyBloom
+            </a>
+          </form>
+        </div>
+
+        <footer style={footer(isMobile)}>
+          <div>
+            <strong>DailyBloom</strong>
+            <p style={footerText}>Powered by Lesedi Smart Solutions (Pty) Ltd</p>
+            <p style={footerText}>Business registration number: 2026/315790/07</p>
+            <p style={footerText}>Registered with the Information Regulator South Africa</p>
+            <p style={footerText}>POPIA registration number: 2026-010141</p>
+          </div>
+
+          <div>
+            <p style={footerText}>Privacy Policy | Terms of Use</p>
+            <p style={footerText}>© 2026 DailyBloom. All rights reserved.</p>
+          </div>
+        </footer>
       </section>
     </main>
   );
 }
 
-function FeatureCard({
-  title,
-  body,
-  accent,
-  isMobile,
-}: {
-  title: string;
-  body: string;
-  accent: string;
-  isMobile: boolean;
-}) {
+function FeatureCard({ title, body, accent, isMobile }: { title: string; body: string; accent: string; isMobile: boolean }) {
   return (
-    <div
-      style={{
-        background: "#FFFFFF",
-        border: "1px solid #E9E0D4",
-        borderTop: `8px solid ${accent}`,
-        borderRadius: isMobile ? "18px" : "24px",
-        padding: isMobile ? "16px" : "22px",
-        boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
-      }}
-    >
-      <h3
-        style={{
-          margin: "0 0 10px 0",
-          color: "#2D2A3E",
-          fontSize: isMobile ? "18px" : "22px",
-          lineHeight: 1.25,
-          fontWeight: 800,
-        }}
-      >
-        {title}
-      </h3>
-
-      <p
-        style={{
-          margin: 0,
-          color: "#5F6275",
-          lineHeight: 1.6,
-          fontSize: isMobile ? "14px" : "16px",
-        }}
-      >
-        {body}
-      </p>
+    <div style={{ ...card(isMobile), borderTop: `8px solid ${accent}` }}>
+      <h3 style={smallHeading(isMobile)}>{title}</h3>
+      <p style={paragraph(isMobile)}>{body}</p>
     </div>
   );
 }
 
-function InfoBlock({
-  title,
-  text,
-  border,
-  bg,
-  isMobile,
-}: {
-  title: string;
-  text: string;
-  border: string;
-  bg: string;
-  isMobile: boolean;
-}) {
+function PackageCard({ name, price, learners, details, accent, isMobile }: { name: string; price: string; learners: string; details: string; accent: string; isMobile: boolean }) {
   return (
-    <div
-      style={{
-        background: bg,
-        border: `1px solid ${border}`,
-        borderRadius: isMobile ? "18px" : "22px",
-        padding: isMobile ? "16px" : "22px",
-      }}
-    >
-      <h3
-        style={{
-          margin: "0 0 10px 0",
-          color: "#2D2A3E",
-          fontSize: isMobile ? "18px" : "22px",
-          fontWeight: 800,
-        }}
-      >
-        {title}
-      </h3>
+    <div style={{ ...card(isMobile), borderTop: `8px solid ${accent}` }}>
+      <h3 style={smallHeading(isMobile)}>{name}</h3>
+      <h2 style={{ margin: "8px 0", color: "#2D2A3E" }}>{price}</h2>
+      <p style={paragraph(isMobile)}>{learners}</p>
+      <p style={paragraph(isMobile)}>{details}</p>
+    </div>
+  );
+}
 
-      <p
-        style={{
-          margin: 0,
-          color: "#5F6275",
-          fontSize: isMobile ? "14px" : "16px",
-          lineHeight: 1.6,
-        }}
-      >
-        {text}
-      </p>
+function SectionTitle({ title, subtitle, isMobile }: { title: string; subtitle: string; isMobile: boolean }) {
+  return (
+    <div style={{ marginTop: isMobile ? 24 : 42, marginBottom: 16 }}>
+      <h2 style={{ margin: 0, fontSize: isMobile ? 26 : 34, color: "#2D2A3E" }}>{title}</h2>
+      <p style={paragraph(isMobile)}>{subtitle}</p>
     </div>
   );
 }
@@ -446,3 +214,200 @@ const secondaryButton = {
   textDecoration: "none",
   border: "1px solid #F0D98A",
 };
+
+const inputStyle = {
+  width: "100%",
+  boxSizing: "border-box" as const,
+  marginBottom: 10,
+  border: "1px solid #E9E0D4",
+  borderRadius: 14,
+  padding: "12px 14px",
+  fontSize: 14,
+  background: "#FFFDFB",
+};
+
+const footerText = {
+  margin: "6px 0 0 0",
+  color: "#7A6F86",
+  fontSize: 13,
+};
+
+function topBar(isMobile: boolean): React.CSSProperties {
+  return {
+    background: "#F8E8F0",
+    border: "1px solid #EBC9D8",
+    borderRadius: isMobile ? 20 : 28,
+    padding: isMobile ? "16px" : "24px 28px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: isMobile ? "flex-start" : "center",
+    marginBottom: isMobile ? 20 : 36,
+    flexWrap: "wrap",
+    gap: isMobile ? 12 : 18,
+  };
+}
+
+function logoText(isMobile: boolean): React.CSSProperties {
+  return {
+    margin: 0,
+    fontSize: isMobile ? 34 : 56,
+    lineHeight: 1,
+    fontWeight: 800,
+    color: "#2D2A3E",
+  };
+}
+
+function tagline(isMobile: boolean): React.CSSProperties {
+  return {
+    margin: isMobile ? "8px 0 0 0" : "10px 0 0 0",
+    color: "#7A6F86",
+    fontSize: isMobile ? 11 : 14,
+    fontWeight: 700,
+    letterSpacing: "0.3px",
+  };
+}
+
+function appTitle(isMobile: boolean): React.CSSProperties {
+  return {
+    margin: 0,
+    fontSize: isMobile ? 18 : 24,
+    color: "#F66BA0",
+    fontWeight: 800,
+  };
+}
+
+function subtleText(isMobile: boolean): React.CSSProperties {
+  return {
+    margin: "6px 0 0 0",
+    color: "#7A6F86",
+    fontSize: isMobile ? 13 : 15,
+  };
+}
+
+function heroCard(isMobile: boolean): React.CSSProperties {
+  return {
+    background: "#FFFFFF",
+    border: "1px solid #E9E0D4",
+    borderRadius: isMobile ? 18 : 22,
+    padding: isMobile ? "18px 16px" : "22px",
+    boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
+    position: "relative",
+    overflow: "hidden",
+  };
+}
+
+function sunShape(isMobile: boolean): React.CSSProperties {
+  return {
+    position: "absolute",
+    top: -30,
+    right: -20,
+    width: isMobile ? 120 : 180,
+    height: isMobile ? 120 : 180,
+    background: "#FFD166",
+    borderRadius: "50%",
+    opacity: 0.22,
+  };
+}
+
+function greenShape(isMobile: boolean): React.CSSProperties {
+  return {
+    position: "absolute",
+    bottom: -50,
+    left: -40,
+    width: isMobile ? 120 : 180,
+    height: isMobile ? 120 : 180,
+    background: "#57C785",
+    borderRadius: "50%",
+    opacity: 0.2,
+  };
+}
+
+function pinkEyebrow(isMobile: boolean): React.CSSProperties {
+  return {
+    margin: 0,
+    color: "#F66BA0",
+    fontWeight: 800,
+    fontSize: isMobile ? 13 : 15,
+  };
+}
+
+function heroHeading(isMobile: boolean): React.CSSProperties {
+  return {
+    margin: isMobile ? "10px 0 12px" : "12px 0 14px",
+    fontSize: isMobile ? 30 : 40,
+    lineHeight: 1.05,
+    color: "#2D2A3E",
+    fontWeight: 800,
+    maxWidth: isMobile ? "100%" : 680,
+  };
+}
+
+function heroBody(isMobile: boolean): React.CSSProperties {
+  return {
+    margin: 0,
+    maxWidth: isMobile ? "100%" : 620,
+    fontSize: isMobile ? 15 : 16,
+    lineHeight: 1.6,
+    color: "#5F6275",
+  };
+}
+
+function card(isMobile: boolean): React.CSSProperties {
+  return {
+    background: "#FFFFFF",
+    border: "1px solid #E9E0D4",
+    borderRadius: isMobile ? 18 : 24,
+    padding: isMobile ? 16 : 22,
+    boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
+  };
+}
+
+function smallHeading(isMobile: boolean): React.CSSProperties {
+  return {
+    margin: "0 0 10px 0",
+    color: "#2D2A3E",
+    fontSize: isMobile ? 18 : 22,
+    fontWeight: 800,
+  };
+}
+
+function paragraph(isMobile: boolean): React.CSSProperties {
+  return {
+    margin: "6px 0 0 0",
+    color: "#5F6275",
+    fontSize: isMobile ? 14 : 16,
+    lineHeight: 1.6,
+  };
+}
+
+function packageGrid(isMobile: boolean): React.CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
+    gap: isMobile ? 12 : 18,
+  };
+}
+
+function noticeBox(isMobile: boolean): React.CSSProperties {
+  return {
+    marginTop: isMobile ? 18 : 24,
+    background: "#F8E8F0",
+    border: "1px solid #EBC9D8",
+    borderRadius: isMobile ? 18 : 24,
+    padding: isMobile ? 16 : 22,
+  };
+}
+
+function footer(isMobile: boolean): React.CSSProperties {
+  return {
+    marginTop: isMobile ? 26 : 42,
+    background: "#F8E8F0",
+    border: "1px solid #EBC9D8",
+    borderRadius: isMobile ? 18 : 24,
+    padding: isMobile ? 16 : 22,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 16,
+    flexWrap: "wrap",
+  };
+}

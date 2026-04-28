@@ -1,44 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resolveSchoolContext } from "../lib/school-context";
+import { getCurrentProfile } from "../lib/auth";
 
-type LearnerItem = {
+type LearnerRow = {
   id: number;
   name?: string | null;
   class?: string | null;
+  classroom_id?: number | null;
   date_of_birth?: string | null;
   parent_phone?: string | null;
-  parent_name?: string | null;
-  allergies?: string | null;
-  notes?: string | null;
   school_id?: number | null;
-  classroom_id?: number | null;
 };
 
-type ClassroomItem = {
+type ClassroomRow = {
   id: number;
   classroom_name?: string | null;
 };
 
-type AttendanceItem = {
-  id: number;
-  status?: string | null;
-  attendance_date?: string | null;
-};
-
-type SummaryItem = {
-  id: number;
-  learner_name?: string | null;
-  mood?: string | null;
-  meals?: string | null;
-  rest?: string | null;
-  health_safety?: string | null;
-  today_highlight?: string | null;
-  teacher_notes?: string | null;
-  created_at?: string | null;
+type ProfileRow = {
+  role?: string | null;
+  classroom_name?: string | null;
+  school_id?: number | null;
 };
 
 export default function LearnersPage() {
@@ -48,37 +34,38 @@ export default function LearnersPage() {
   const activeFilter = searchParams.get("filter");
   const schoolParam = searchParams.get("school");
 
-  const [learners, setLearners] = useState<LearnerItem[]>([]);
-  const [filteredLearners, setFilteredLearners] = useState<LearnerItem[]>([]);
-  const [classrooms, setClassrooms] = useState<ClassroomItem[]>([]);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
 
-  const [selectedLearnerId, setSelectedLearnerId] = useState<number | null>(null);
-  const [selectedAttendanceTrend, setSelectedAttendanceTrend] = useState("");
-  const [selectedLatestSummary, setSelectedLatestSummary] = useState<SummaryItem | null>(null);
-
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [learners, setLearners] = useState<LearnerRow[]>([]);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
 
   const [name, setName] = useState("");
   const [selectedClassroomId, setSelectedClassroomId] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
-  const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
-  const [allergies, setAllergies] = useState("");
-  const [notes, setNotes] = useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(true);
+  const [selectedLearner, setSelectedLearner] = useState<LearnerRow | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadPage();
   }, []);
 
-  useEffect(() => {
-    applyFilter();
-  }, [learners, activeFilter]);
-
   async function loadPage() {
+    const { profile: currentProfile, error: profileError } =
+      await getCurrentProfile();
+
+    if (profileError || !currentProfile) {
+      router.push("/login");
+      return;
+    }
+
+    setProfile(currentProfile);
+
     const context = await resolveSchoolContext(schoolParam);
 
     if (context.error) {
@@ -98,13 +85,13 @@ export default function LearnersPage() {
       fetchLearners(context.schoolId),
     ]);
 
-    setPageLoading(false);
+    setLoading(false);
   }
 
   async function fetchClassrooms(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("classrooms")
-      .select("*")
+      .select("id, classroom_name")
       .eq("school_id", currentSchoolId)
       .order("classroom_name", { ascending: true });
 
@@ -113,13 +100,13 @@ export default function LearnersPage() {
       return;
     }
 
-    setClassrooms((data || []) as ClassroomItem[]);
+    setClassrooms((data || []) as ClassroomRow[]);
   }
 
   async function fetchLearners(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("learners")
-      .select("*")
+      .select("id, name, class, classroom_id, date_of_birth, parent_phone, school_id")
       .eq("school_id", currentSchoolId)
       .order("name", { ascending: true });
 
@@ -128,175 +115,127 @@ export default function LearnersPage() {
       return;
     }
 
-    setLearners((data || []) as LearnerItem[]);
+    setLearners((data || []) as LearnerRow[]);
   }
 
-  function applyFilter() {
+  const teacherClassroom = String(profile?.classroom_name || "").trim();
+
+  const teacherClassroomId = useMemo(() => {
+    if (!teacherClassroom) return null;
+
+    const match = classrooms.find(
+      (room) =>
+        String(room.classroom_name || "").trim().toLowerCase() ===
+        teacherClassroom.toLowerCase()
+    );
+
+    return match?.id || null;
+  }, [classrooms, teacherClassroom]);
+
+  const visibleLearners = useMemo(() => {
+    let scopedLearners = learners;
+
+    if (profile?.role === "teacher") {
+      scopedLearners = learners.filter((learner) => {
+        const learnerClass = String(learner.class || "").trim().toLowerCase();
+        const teacherClass = teacherClassroom.toLowerCase();
+
+        return (
+          learnerClass === teacherClass ||
+          (teacherClassroomId !== null &&
+            Number(learner.classroom_id) === Number(teacherClassroomId))
+        );
+      });
+    }
+
     if (activeFilter === "birthdays-today") {
       const today = new Date();
       const month = today.getMonth() + 1;
       const day = today.getDate();
 
-      const todaysBirthdays = learners.filter((learner) => {
+      return scopedLearners.filter((learner) => {
         if (!learner.date_of_birth) return false;
 
         const dob = new Date(learner.date_of_birth);
         return dob.getMonth() + 1 === month && dob.getDate() === day;
       });
-
-      setFilteredLearners(todaysBirthdays);
-      return;
     }
 
-    setFilteredLearners(learners);
+    return scopedLearners;
+  }, [learners, profile, teacherClassroom, teacherClassroomId, activeFilter]);
+
+  function resetForm() {
+    setName("");
+    setSelectedClassroomId("");
+    setDateOfBirth("");
+    setParentPhone("");
+    setSelectedLearner(null);
   }
 
   async function addLearner() {
-    if (!name.trim() || !schoolId) {
+    if (!schoolId) return;
+
+    if (!name.trim()) {
       alert("Please enter learner name.");
       return;
     }
 
-    setLoading(true);
-
-    let selectedClassroomName = "Unassigned";
-    let parsedClassroomId: number | null = null;
-
-    if (selectedClassroomId) {
-      const classroomMatch = classrooms.find(
-        (item) => String(item.id) === String(selectedClassroomId)
-      );
-
-      if (classroomMatch) {
-        selectedClassroomName = classroomMatch.classroom_name || "Unassigned";
-        parsedClassroomId = Number(classroomMatch.id);
-      }
+    if (!selectedClassroomId) {
+      alert("Please select a classroom.");
+      return;
     }
 
-    const payload: any = {
-      name: name.trim(),
-      class: selectedClassroomName,
-      date_of_birth: dateOfBirth || null,
-      parent_name: parentName.trim() || null,
-      parent_phone: parentPhone.trim() || null,
-      allergies: allergies.trim() || null,
-      notes: notes.trim() || null,
-      school_id: Number(schoolId),
-    };
+    setSaving(true);
 
-    if (parsedClassroomId !== null) {
-      payload.classroom_id = parsedClassroomId;
+    const classroomMatch = classrooms.find(
+      (item) => String(item.id) === String(selectedClassroomId)
+    );
+
+    if (!classroomMatch) {
+      alert("Classroom not found.");
+      setSaving(false);
+      return;
     }
 
-    const { error } = await supabase.from("learners").insert([payload]);
+    const { error } = await supabase.from("learners").insert([
+      {
+        name: name.trim(),
+        class: classroomMatch.classroom_name || "Unassigned",
+        classroom_id: classroomMatch.id,
+        date_of_birth: dateOfBirth || null,
+        parent_phone: parentPhone || null,
+        school_id: schoolId,
+      },
+    ]);
 
     if (error) {
       alert(error.message);
-      setLoading(false);
+      setSaving(false);
       return;
     }
 
-    setName("");
-    setSelectedClassroomId("");
-    setDateOfBirth("");
-    setParentName("");
-    setParentPhone("");
-    setAllergies("");
-    setNotes("");
-    setShowAddForm(false);
+    resetForm();
+    setShowForm(false);
+    await fetchLearners(schoolId);
 
-    await fetchLearners(Number(schoolId));
-
-    setLoading(false);
-    alert("Learner added successfully.");
+    setSaving(false);
+    alert("Learner added.");
   }
 
-  async function selectLearner(learner: LearnerItem) {
-    const isClosing = selectedLearnerId === learner.id;
-
-    if (isClosing) {
-      setSelectedLearnerId(null);
-      setSelectedAttendanceTrend("");
-      setSelectedLatestSummary(null);
-      return;
-    }
-
-    setSelectedLearnerId(learner.id);
-    setSelectedAttendanceTrend("Loading...");
-    setSelectedLatestSummary(null);
-
-    if (!schoolId || !learner.name) return;
-
-    const [attendanceResult, summaryResult] = await Promise.all([
-      supabase
-        .from("attendance")
-        .select("id, status, attendance_date")
-        .eq("school_id", schoolId)
-        .eq("learner_name", learner.name)
-        .order("attendance_date", { ascending: false })
-        .limit(10),
-
-      supabase
-        .from("summaries")
-        .select(
-          "id, learner_name, mood, meals, rest, health_safety, today_highlight, teacher_notes, created_at"
-        )
-        .eq("school_id", schoolId)
-        .eq("learner_name", learner.name)
-        .order("created_at", { ascending: false })
-        .limit(1),
-    ]);
-
-    if (attendanceResult.error) {
-      setSelectedAttendanceTrend("Could not load attendance trend.");
-    } else {
-      const rows = (attendanceResult.data || []) as AttendanceItem[];
-      const present = rows.filter(
-        (row) => String(row.status || "").toLowerCase() === "present"
-      ).length;
-      const absent = rows.filter(
-        (row) => String(row.status || "").toLowerCase() === "absent"
-      ).length;
-
-      if (rows.length === 0) {
-        setSelectedAttendanceTrend("No attendance records yet.");
-      } else {
-        setSelectedAttendanceTrend(
-          `Last ${rows.length} records: ${present} present, ${absent} absent.`
-        );
-      }
-    }
-
-    if (summaryResult.error) {
-      setSelectedLatestSummary(null);
-    } else {
-      const rows = (summaryResult.data || []) as SummaryItem[];
-      setSelectedLatestSummary(rows[0] || null);
-    }
-  }
-
-  const selectedLearner = filteredLearners.find(
-    (learner) => learner.id === selectedLearnerId
-  );
-
-  if (pageLoading) {
+  if (loading) {
     return <p>Loading learners...</p>;
   }
 
+  const canAddLearner = profile?.role !== "teacher";
+
   return (
     <div>
-      <div
-        className="db-soft-card"
-        style={{
-          padding: "18px 20px",
-          marginBottom: "18px",
-        }}
-      >
+      <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            gap: "12px",
+            gap: 12,
             alignItems: "center",
             flexWrap: "wrap",
           }}
@@ -307,41 +246,104 @@ export default function LearnersPage() {
             </h2>
 
             <p className="db-page-subtitle">
-              {activeFilter === "birthdays-today"
-                ? "Learners celebrating birthdays today."
+              {profile?.role === "teacher"
+                ? `Viewing learners for ${teacherClassroom || "assigned classroom"}.`
                 : "View learners first. Add a learner only when needed."}
             </p>
           </div>
 
-          {activeFilter !== "birthdays-today" ? (
+          {canAddLearner && activeFilter !== "birthdays-today" ? (
             <button
               type="button"
               className="db-button-primary"
-              onClick={() => setShowAddForm((prev) => !prev)}
+              onClick={() => {
+                resetForm();
+                setShowForm((prev) => !prev);
+              }}
             >
-              {showAddForm ? "Close Form" : "+ Add Learner"}
+              {showForm ? "Close" : "+ Add Learner"}
             </button>
           ) : null}
         </div>
       </div>
 
-      <div
-        className="db-card db-card-lavender"
-        style={{
-          padding: "16px",
-          marginBottom: "18px",
-        }}
-      >
+      {showForm && canAddLearner ? (
+        <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
+          <h3 style={sectionTitle}>Add Learner</h3>
+
+          <div style={grid2}>
+            <div>
+              <p style={labelText}>Learner Name</p>
+              <input
+                className="db-input"
+                placeholder="Learner name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Classroom</p>
+              <select
+                className="db-input"
+                value={selectedClassroomId}
+                onChange={(e) => setSelectedClassroomId(e.target.value)}
+              >
+                <option value="">Select classroom</option>
+                {classrooms.map((classroom) => (
+                  <option key={classroom.id} value={classroom.id}>
+                    {classroom.classroom_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div style={grid2}>
+            <div>
+              <p style={labelText}>Date of Birth</p>
+              <input
+                className="db-input"
+                type="date"
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Parent Phone</p>
+              <input
+                className="db-input"
+                placeholder="Parent phone number"
+                value={parentPhone}
+                onChange={(e) => setParentPhone(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="db-button-primary"
+            style={{ width: "100%", marginTop: 12 }}
+            onClick={addLearner}
+            disabled={saving}
+          >
+            {saving ? "Saving..." : "Save Learner"}
+          </button>
+        </div>
+      ) : null}
+
+      <div className="db-card db-card-lavender" style={{ padding: 16 }}>
         <h3 style={sectionTitle}>
           {activeFilter === "birthdays-today"
-            ? `Birthdays Today (${filteredLearners.length})`
-            : `Learners (${filteredLearners.length})`}
+            ? `Birthdays Today (${visibleLearners.length})`
+            : `Learners (${visibleLearners.length})`}
         </h3>
 
-        {filteredLearners.length === 0 ? (
+        {visibleLearners.length === 0 ? (
           <p className="db-helper">
-            {activeFilter === "birthdays-today"
-              ? "No birthdays today."
+            {profile?.role === "teacher"
+              ? "No learners found for your assigned classroom."
               : "No learners added yet."}
           </p>
         ) : (
@@ -349,274 +351,79 @@ export default function LearnersPage() {
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: "10px",
+              gap: 10,
             }}
           >
-            {filteredLearners.map((learner) => {
-              const isSelected = learner.id === selectedLearnerId;
+            {visibleLearners.map((learner) => {
+              const active = selectedLearner?.id === learner.id;
 
               return (
                 <button
                   key={learner.id}
                   type="button"
-                  onClick={() => selectLearner(learner)}
+                  onClick={() => setSelectedLearner(active ? null : learner)}
                   style={{
+                    background: active ? "#EAF7FD" : "#FFFDFB",
+                    border: active ? "1px solid #CBEAF7" : "1px solid #F0E3D8",
+                    borderRadius: 16,
+                    padding: 14,
                     textAlign: "left",
-                    background: isSelected ? "#EAF7FD" : "#FFFDFB",
-                    border: isSelected
-                      ? "1px solid #CBEAF7"
-                      : "1px solid #F0E3D8",
-                    borderRadius: "16px",
-                    padding: "12px",
-                    cursor: "pointer",
                     color: "#2D2A3E",
-                    boxShadow: "0 6px 14px rgba(45, 42, 62, 0.04)",
+                    cursor: "pointer",
                   }}
                 >
-                  <strong
-                    style={{
-                      display: "block",
-                      fontSize: "15px",
-                      fontWeight: 700,
-                      marginBottom: "4px",
-                    }}
-                  >
+                  <strong style={{ display: "block", fontSize: 15 }}>
                     {learner.name || "Unnamed learner"}
                   </strong>
 
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: "12px",
-                      color: "#6D6888",
-                    }}
-                  >
+                  <span style={smallText}>
                     {learner.class || "Unassigned"}
                   </span>
+
+                  {active ? (
+                    <div style={{ marginTop: 10 }}>
+                      <p style={smallText}>
+                        Date of Birth: {learner.date_of_birth || "Not added"}
+                      </p>
+                      <p style={smallText}>
+                        Parent Phone: {learner.parent_phone || "Not added"}
+                      </p>
+                    </div>
+                  ) : null}
                 </button>
               );
             })}
           </div>
         )}
       </div>
-
-      {selectedLearner ? (
-        <div
-          className="db-card db-card-blue"
-          style={{
-            padding: "16px",
-            marginBottom: "18px",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: "12px",
-              alignItems: "flex-start",
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ flex: 1, minWidth: "240px" }}>
-              <h3 style={sectionTitle}>{selectedLearner.name}</h3>
-
-              <div style={detailGrid}>
-                <InfoLine label="Class" value={selectedLearner.class || "Unassigned"} />
-                <InfoLine label="Parent Name" value={selectedLearner.parent_name || "Not added"} />
-                <InfoLine label="Parent Phone" value={selectedLearner.parent_phone || "Not added"} />
-                <InfoLine label="Birthday" value={selectedLearner.date_of_birth || "Not added"} />
-                <InfoLine label="Allergies" value={selectedLearner.allergies || "None added"} />
-                <InfoLine label="Notes" value={selectedLearner.notes || "No notes added"} />
-                <InfoLine label="Attendance Trend" value={selectedAttendanceTrend || "Not loaded"} />
-              </div>
-
-              <div
-                style={{
-                  marginTop: "14px",
-                  background: "#FFFDFB",
-                  border: "1px solid #F0E3D8",
-                  borderRadius: "14px",
-                  padding: "12px",
-                }}
-              >
-                <strong style={{ color: "#2D2A3E", fontSize: "14px" }}>
-                  Latest Summary
-                </strong>
-
-                {selectedLatestSummary ? (
-                  <>
-                    <p style={textStyle}>
-                      Mood: {selectedLatestSummary.mood || "Not added"} | Meals:{" "}
-                      {selectedLatestSummary.meals || "Not added"}
-                    </p>
-                    <p style={textStyle}>
-                      Rest: {selectedLatestSummary.rest || "Not added"}
-                    </p>
-                    <p style={textStyle}>
-                      Highlight: {selectedLatestSummary.today_highlight || "Not added"}
-                    </p>
-                    {selectedLatestSummary.teacher_notes ? (
-                      <p style={textStyle}>
-                        Teacher Notes: {selectedLatestSummary.teacher_notes}
-                      </p>
-                    ) : null}
-                  </>
-                ) : (
-                  <p style={textStyle}>No summary recorded yet.</p>
-                )}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="db-button-secondary"
-              onClick={() => {
-                setSelectedLearnerId(null);
-                setSelectedAttendanceTrend("");
-                setSelectedLatestSummary(null);
-              }}
-            >
-              Close Details
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {showAddForm && activeFilter !== "birthdays-today" ? (
-        <div
-          className="db-card db-card-green"
-          style={{
-            padding: "16px",
-          }}
-        >
-          <h3 style={sectionTitle}>Add Learner</h3>
-
-          <input
-            className="db-input"
-            placeholder="Learner Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-
-          <select
-            className="db-input"
-            value={selectedClassroomId}
-            onChange={(e) => setSelectedClassroomId(e.target.value)}
-          >
-            <option value="">Select Classroom</option>
-            {classrooms.map((classroom) => (
-              <option key={classroom.id} value={classroom.id}>
-                {classroom.classroom_name}
-              </option>
-            ))}
-          </select>
-
-          <input
-            className="db-input"
-            type="date"
-            value={dateOfBirth}
-            onChange={(e) => setDateOfBirth(e.target.value)}
-          />
-
-          <input
-            className="db-input"
-            placeholder="Parent Name"
-            value={parentName}
-            onChange={(e) => setParentName(e.target.value)}
-          />
-
-          <input
-            className="db-input"
-            placeholder="Parent Phone Number"
-            value={parentPhone}
-            onChange={(e) => setParentPhone(e.target.value)}
-          />
-
-          <input
-            className="db-input"
-            placeholder="Allergies"
-            value={allergies}
-            onChange={(e) => setAllergies(e.target.value)}
-          />
-
-          <textarea
-            className="db-input"
-            placeholder="Learner Notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            style={{
-              width: "100%",
-              minHeight: "86px",
-              resize: "vertical",
-            }}
-          />
-
-          <button
-            className="db-button-primary"
-            style={{ width: "100%" }}
-            onClick={addLearner}
-            disabled={loading}
-          >
-            {loading ? "Saving..." : "Save Learner"}
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function InfoLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        background: "#FFFDFB",
-        border: "1px solid #F0E3D8",
-        borderRadius: "12px",
-        padding: "10px",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: "#6D6888",
-          fontSize: "12px",
-          fontWeight: 700,
-        }}
-      >
-        {label}
-      </p>
-      <p
-        style={{
-          margin: "4px 0 0 0",
-          color: "#2D2A3E",
-          fontSize: "14px",
-          lineHeight: 1.4,
-        }}
-      >
-        {value}
-      </p>
     </div>
   );
 }
 
 const sectionTitle = {
-  marginTop: 0,
-  marginBottom: "10px",
-  color: "var(--db-text)",
-  fontSize: "20px",
+  margin: "0 0 10px 0",
+  color: "#2D2A3E",
+  fontSize: 20,
   fontWeight: 700 as const,
 };
 
-const textStyle = {
-  margin: "6px 0 0 0",
-  color: "var(--db-text-soft)",
-  fontSize: "14px",
-  lineHeight: 1.5,
+const labelText = {
+  margin: "0 0 8px 0",
+  color: "#6D6888",
+  fontSize: 13,
+  fontWeight: 800,
 };
 
-const detailGrid = {
+const smallText = {
+  display: "block",
+  margin: "4px 0 0 0",
+  color: "#6D6888",
+  fontSize: 13,
+};
+
+const grid2 = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: "10px",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 10,
+  marginTop: 10,
 };

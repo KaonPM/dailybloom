@@ -13,13 +13,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
-    setLoading(true);
-
     if (!email || !password) {
       alert("Please enter email and password");
-      setLoading(false);
       return;
     }
+
+    setLoading(true);
 
     const { data: authData, error: authError } =
       await supabase.auth.signInWithPassword({
@@ -41,6 +40,7 @@ export default function LoginPage() {
         role,
         school_id,
         is_active,
+        must_change_password,
         schools (
           is_active
         )
@@ -80,6 +80,12 @@ export default function LoginPage() {
         "Your school's access has been deactivated. Please contact the platform administrator."
       );
       await supabase.auth.signOut();
+      setLoading(false);
+      return;
+    }
+
+    if (profileData.must_change_password) {
+      router.push("/change-password");
       setLoading(false);
       return;
     }
@@ -227,6 +233,7 @@ export default function LoginPage() {
 
         <input
           className="db-input"
+          type="email"
           placeholder="Email Address"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -238,69 +245,59 @@ export default function LoginPage() {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleSubmit();
+            }
+          }}
         />
 
         <button
-          onClick={handleForgotPassword}
-          style={{
-            border: "none",
-            background: "transparent",
-            color: "#F66BA0",
-            fontWeight: 800,
-            padding: 0,
-            marginBottom: "16px",
-            cursor: "pointer",
-          }}
-        >
-          I forgot my password
-        </button>
-
-        <button
+          type="button"
+          className="db-button-primary"
+          style={{ width: "100%", marginTop: "8px" }}
           onClick={handleSubmit}
           disabled={loading}
-          style={{
-            width: "100%",
-            minHeight: "48px",
-            border: "none",
-            borderRadius: "16px",
-            background: "#7CCCF3",
-            color: "#24324A",
-            fontWeight: 800,
-            cursor: "pointer",
-          }}
         >
-          {loading ? "Please wait..." : "Login"}
+          {loading ? "Logging in..." : "Login"}
         </button>
 
         <button
-          onClick={() => router.push("/signup")}
+          type="button"
+          onClick={handleForgotPassword}
           style={{
             width: "100%",
-            minHeight: "48px",
-            borderRadius: "16px",
-            background: "#FFFFFF",
-            color: "#24324A",
-            fontWeight: 800,
-            border: "1px solid #E6EEF5",
-            marginTop: "12px",
+            marginTop: "14px",
+            background: "transparent",
+            border: "none",
+            color: "#F66BA0",
+            fontWeight: 700,
             cursor: "pointer",
           }}
         >
-          New school? Sign Up
+          Forgot password?
         </button>
 
-        <div style={{ textAlign: "center", marginTop: "18px" }}>
+        <p
+          style={{
+            margin: "22px 0 0 0",
+            textAlign: "center",
+            color: "#5F6275",
+            fontSize: "14px",
+          }}
+        >
+          New school?{" "}
           <Link
-            href="/"
+            href="/signup"
             style={{
-              color: "#7A6F86",
+              color: "#2D2A3E",
+              fontWeight: 800,
               textDecoration: "none",
-              fontWeight: 700,
             }}
           >
-            Back to Home
+            Sign up
           </Link>
-        </div>
+        </p>
       </div>
     </main>
   );

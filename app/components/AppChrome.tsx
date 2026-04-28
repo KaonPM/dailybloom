@@ -15,9 +15,9 @@ export default function AppChrome({
     "/",
     "/login",
     "/signup",
-    "/legal",
     "/privacy",
     "/terms",
+    "/change-password",
   ];
 
   const isPublicRoute = publicRoutes.includes(pathname);

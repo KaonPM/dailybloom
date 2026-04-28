@@ -400,6 +400,50 @@ export default function MasterPage() {
           background="#EAF7FD"
           border="#CBEAF7"
         />
+
+        <Link href="/billing" style={{ textDecoration: "none" }}>
+          <div
+            style={{
+              background: "#FFF7D9",
+              border: "1px solid #F3E4A3",
+              borderRadius: "22px",
+              padding: "18px",
+              boxShadow: "0 8px 18px rgba(45, 42, 62, 0.05)",
+              cursor: "pointer",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: "#5B5675",
+                fontSize: "14px",
+                fontWeight: 700,
+              }}
+            >
+              Billing
+            </p>
+            <h2
+              style={{
+                margin: "8px 0 0 0",
+                color: "#2D2A3E",
+                fontSize: "30px",
+                fontWeight: 800,
+              }}
+            >
+              Subscriptions
+            </h2>
+            <p
+              style={{
+                margin: "8px 0 0 0",
+                color: "#6D6888",
+                fontSize: "13px",
+                fontWeight: 600,
+              }}
+            >
+              Manage DailyBloom billing
+            </p>
+          </div>
+        </Link>
       </div>
 
       {currentView === "manage-schools" && (

@@ -103,10 +103,15 @@ export default function Sidebar() {
         view: "manage-schools",
       },
       {
-  label: "Principal Management",
-  href: "/principals",
-  match: ["/principals"],
-},
+        label: "Billing",
+        href: "/billing",
+        match: ["/billing"],
+      },
+      {
+        label: "Principal Management",
+        href: "/principals",
+        match: ["/principals"],
+      },
       {
         label: "Active Principals",
         href: "/master?view=active-principals",
@@ -221,6 +226,11 @@ export default function Sidebar() {
         label: "Dashboard",
         href: "/dashboard",
         match: ["/dashboard"],
+      },
+      {
+        label: "Billing",
+        href: "/billing",
+        match: ["/billing"],
       },
       {
         label: "Today’s Activities",

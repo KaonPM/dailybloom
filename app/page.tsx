@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 
 export default function LandingPage() {
   const [isMobile, setIsMobile] = useState(false);
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
     function handleResize() {
@@ -17,13 +16,6 @@ export default function LandingPage() {
 
     return () => window.removeEventListener("resize", handleResize);
   }, []);
-
-  function handleSignUpClick(event: React.MouseEvent<HTMLAnchorElement>) {
-    if (!acceptedTerms) {
-      event.preventDefault();
-      alert("Please accept the Terms of Use and Privacy Policy before signing up.");
-    }
-  }
 
   return (
     <main style={{ minHeight: "100vh", background: "#FFF8F2", color: "#2D2A3E" }}>
@@ -63,22 +55,8 @@ export default function LandingPage() {
                 payments and parent communication from one warm and organised workspace.
               </p>
 
-              <div style={{ marginTop: 18 }}>
-                <label style={{ display: "flex", gap: 10, alignItems: "flex-start", color: "#5F6275", fontSize: 14, lineHeight: 1.5 }}>
-                  <input
-                    type="checkbox"
-                    checked={acceptedTerms}
-                    onChange={(event) => setAcceptedTerms(event.target.checked)}
-                    style={{ marginTop: 3 }}
-                  />
-                  <span>
-                    I accept the DailyBloom Terms of Use and Privacy Policy before continuing to Sign Up.
-                  </span>
-                </label>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
-                <Link href="/signup" onClick={handleSignUpClick} style={{ ...primaryButton, width: isMobile ? "100%" : "auto" }}>
+              <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+                <Link href="/signup" style={{ ...primaryButton, width: isMobile ? "100%" : "auto" }}>
                   Sign Up
                 </Link>
 
@@ -107,37 +85,54 @@ export default function LandingPage() {
         <div style={noticeBox(isMobile)}>
           <h3 style={smallHeading(isMobile)}>Once-off setup fee</h3>
           <p style={paragraph(isMobile)}>
-            R599 once off. This includes onboarding, school setup, administrative configuration, and ongoing administrative assistance while your school remains subscribed.
+            R599 once off. This includes onboarding, school setup, administrative configuration,
+            and ongoing administrative assistance while your school remains subscribed.
           </p>
           <p style={paragraph(isMobile)}>
-            After the first six months from launch date, monthly package prices may increase by R100 per plan. The setup fee remains R599.
+            After the first six months from launch date, monthly package prices may increase by R100 per plan.
+            The setup fee remains R599.
           </p>
         </div>
 
-        <SectionTitle title="Contact DailyBloom" subtitle="Send us your details and we will guide you through onboarding." isMobile={isMobile} />
+        <details style={contactDetailsBox(isMobile)}>
+          <summary style={contactSummary(isMobile)}>
+            Contact DailyBloom
+          </summary>
 
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 18 }}>
-          <div style={card(isMobile)}>
-            <h3 style={smallHeading(isMobile)}>Contact details</h3>
-            <p style={paragraph(isMobile)}>Phone: 076 361 6044</p>
-            <p style={paragraph(isMobile)}>WhatsApp: 076 361 6044</p>
-            <p style={paragraph(isMobile)}>Email: info@dailybloom.co.za</p>
+          <p style={paragraph(isMobile)}>
+            Send us your details and we will guide you through onboarding.
+          </p>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+              gap: 18,
+              marginTop: 16,
+            }}
+          >
+            <div style={card(isMobile)}>
+              <h3 style={smallHeading(isMobile)}>Contact details</h3>
+              <p style={paragraph(isMobile)}>Phone: 076 361 6044</p>
+              <p style={paragraph(isMobile)}>WhatsApp: 076 361 6044</p>
+              <p style={paragraph(isMobile)}>Email: info@dailybloom.co.za</p>
+            </div>
+
+            <form style={card(isMobile)}>
+              <h3 style={smallHeading(isMobile)}>Contact form</h3>
+
+              <input style={inputStyle} placeholder="Your name" />
+              <input style={inputStyle} placeholder="School name" />
+              <input style={inputStyle} placeholder="Phone number" />
+              <input style={inputStyle} placeholder="Email address" />
+              <textarea style={{ ...inputStyle, minHeight: 100, resize: "vertical" }} placeholder="Tell us what you need help with" />
+
+              <a href="mailto:info@dailybloom.co.za" style={{ ...primaryButton, width: "100%", marginTop: 8 }}>
+                Email DailyBloom
+              </a>
+            </form>
           </div>
-
-          <form style={card(isMobile)}>
-            <h3 style={smallHeading(isMobile)}>Contact form</h3>
-
-            <input style={inputStyle} placeholder="Your name" />
-            <input style={inputStyle} placeholder="School name" />
-            <input style={inputStyle} placeholder="Phone number" />
-            <input style={inputStyle} placeholder="Email address" />
-            <textarea style={{ ...inputStyle, minHeight: 100, resize: "vertical" }} placeholder="Tell us what you need help with" />
-
-            <a href="mailto:info@dailybloom.co.za" style={{ ...primaryButton, width: "100%", marginTop: 8 }}>
-              Email DailyBloom
-            </a>
-          </form>
-        </div>
+        </details>
 
         <footer style={footer(isMobile)}>
           <div>
@@ -149,7 +144,11 @@ export default function LandingPage() {
           </div>
 
           <div>
-            <p style={footerText}>Privacy Policy | Terms of Use</p>
+            <p style={footerText}>
+              <Link href="/privacy" style={footerLink}>Privacy Policy</Link>
+              <span style={{ margin: "0 8px" }}>|</span>
+              <Link href="/terms" style={footerLink}>Terms of Use</Link>
+            </p>
             <p style={footerText}>© 2026 DailyBloom. All rights reserved.</p>
           </div>
         </footer>
@@ -230,6 +229,13 @@ const footerText = {
   margin: "6px 0 0 0",
   color: "#7A6F86",
   fontSize: 13,
+};
+
+const footerLink = {
+  color: "#7A6F86",
+  fontSize: 13,
+  fontWeight: 700,
+  textDecoration: "none",
 };
 
 function topBar(isMobile: boolean): React.CSSProperties {
@@ -395,6 +401,26 @@ function noticeBox(isMobile: boolean): React.CSSProperties {
     border: "1px solid #EBC9D8",
     borderRadius: isMobile ? 18 : 24,
     padding: isMobile ? 16 : 22,
+  };
+}
+
+function contactDetailsBox(isMobile: boolean): React.CSSProperties {
+  return {
+    marginTop: isMobile ? 24 : 42,
+    background: "#FFFFFF",
+    border: "1px solid #E9E0D4",
+    borderRadius: isMobile ? 18 : 24,
+    padding: isMobile ? 16 : 22,
+    boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
+  };
+}
+
+function contactSummary(isMobile: boolean): React.CSSProperties {
+  return {
+    cursor: "pointer",
+    color: "#2D2A3E",
+    fontSize: isMobile ? 20 : 26,
+    fontWeight: 800,
   };
 }
 

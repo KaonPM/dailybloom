@@ -88,12 +88,7 @@ export default function MasterPage() {
       return;
     }
 
-    await Promise.all([
-      fetchSchools(),
-      fetchPrincipals(),
-      fetchSignupRequests(),
-    ]);
-
+    await Promise.all([fetchSchools(), fetchPrincipals(), fetchSignupRequests()]);
     setLoading(false);
   }
 
@@ -108,12 +103,12 @@ export default function MasterPage() {
       return;
     }
 
-    const schoolRows = (data || []) as SchoolItem[];
-    setSchools(schoolRows);
+    const rows = (data || []) as SchoolItem[];
+    setSchools(rows);
 
     setStats((prev) => ({
       ...prev,
-      totalSchools: schoolRows.length,
+      totalSchools: rows.length,
     }));
   }
 
@@ -128,10 +123,10 @@ export default function MasterPage() {
       return;
     }
 
-    const principalRows = (data || []) as PrincipalItem[];
-    setPrincipals(principalRows);
+    const rows = (data || []) as PrincipalItem[];
+    setPrincipals(rows);
 
-    const activeCount = principalRows.filter((item) => {
+    const activeCount = rows.filter((item) => {
       const status = String(item.approval_status || "").toLowerCase();
       return status === "approved" || status === "";
     }).length;
@@ -153,10 +148,10 @@ export default function MasterPage() {
       return;
     }
 
-    const requestRows = (data || []) as SignupRequestItem[];
-    setSignupRequests(requestRows);
+    const rows = (data || []) as SignupRequestItem[];
+    setSignupRequests(rows);
 
-    const pendingCount = requestRows.filter(
+    const pendingCount = rows.filter(
       (item) => String(item.status || "").toLowerCase() === "pending"
     ).length;
 
@@ -167,7 +162,7 @@ export default function MasterPage() {
 
     setSelectedSignupRequest((current) => {
       if (!current) return current;
-      const refreshed = requestRows.find((item) => item.id === current.id);
+      const refreshed = rows.find((item) => item.id === current.id);
       return refreshed || null;
     });
   }
@@ -180,14 +175,14 @@ export default function MasterPage() {
 
     setSavingSchool(true);
 
-    const payload = {
-      school_name: schoolName.trim(),
-      primary_color: primaryColor || "#7CCCF3",
-      secondary_color: secondaryColor || "#FFD76A",
-      logo_url: logoUrl.trim() || null,
-    };
-
-    const { error } = await supabase.from("schools").insert([payload]);
+    const { error } = await supabase.from("schools").insert([
+      {
+        school_name: schoolName.trim(),
+        primary_color: primaryColor || "#7CCCF3",
+        secondary_color: secondaryColor || "#FFD76A",
+        logo_url: logoUrl.trim() || null,
+      },
+    ]);
 
     if (error) {
       alert(error.message);
@@ -237,9 +232,7 @@ export default function MasterPage() {
     setPrincipalEmail("");
     setSelectedSchoolId("");
 
-    await fetchPrincipals();
-    await fetchSignupRequests();
-
+    await Promise.all([fetchPrincipals(), fetchSignupRequests()]);
     setSavingPrincipal(false);
     alert("Principal invite email sent successfully.");
   }
@@ -252,48 +245,38 @@ export default function MasterPage() {
 
     setApprovingSignup(true);
 
-    const { data: createdSchool, error: schoolError } = await supabase
-      .from("schools")
-      .insert([
-        {
-          school_name: request.school_name.trim(),
-          primary_color: "#7CCCF3",
-          secondary_color: "#FFD76A",
-          logo_url: null,
-        },
-      ])
-      .select("id, school_name")
-      .single();
+    const response = await fetch("/api/approve-signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        requestId: request.id,
+        schoolName: request.school_name,
+        principalFullName: request.principal_full_name,
+        principalEmail: request.principal_email,
+        primaryColor: "#7CCCF3",
+        secondaryColor: "#FFD76A",
+      }),
+    });
 
-    if (schoolError || !createdSchool) {
-      alert(schoolError?.message || "Could not create school.");
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Could not approve sign-up request.");
       setApprovingSignup(false);
       return;
     }
 
-    const { error: updateError } = await supabase
-      .from("school_signup_requests")
-      .update({
-        status: "approved",
-        school_id: createdSchool.id,
-      })
-      .eq("id", request.id);
-
-    if (updateError) {
-      alert(updateError.message);
-      setApprovingSignup(false);
-      return;
-    }
-
-    await Promise.all([fetchSchools(), fetchSignupRequests()]);
+    await Promise.all([fetchSchools(), fetchPrincipals(), fetchSignupRequests()]);
 
     setApprovingSignup(false);
 
-    router.push(
-      `/master/school/${createdSchool.id}?principalName=${encodeURIComponent(
-        request.principal_full_name
-      )}&principalEmail=${encodeURIComponent(request.principal_email)}`
+    alert(
+      `School approved and principal login created.\n\nTemporary password: ${result.tempPassword}`
     );
+
+    router.push(`/master/school/${result.schoolId}`);
   }
 
   const approvedPrincipals = useMemo(() => {
@@ -320,7 +303,7 @@ export default function MasterPage() {
         return status === "approved" || status === "";
       });
 
-      return !hasApprovedPrincipal;
+      return !hasApprovedPrincipal || !school.logo_url;
     });
   }, [schools, principals]);
 
@@ -355,16 +338,7 @@ export default function MasterPage() {
           boxShadow: "0 10px 24px rgba(45, 42, 62, 0.06)",
         }}
       >
-        <p
-          style={{
-            margin: 0,
-            color: "#6D6888",
-            fontSize: "13px",
-            fontWeight: 700,
-          }}
-        >
-          Master Dashboard
-        </p>
+        <p style={eyebrow}>Master Dashboard</p>
 
         <h1
           style={{
@@ -429,28 +403,7 @@ export default function MasterPage() {
       </div>
 
       {currentView === "manage-schools" && (
-        <div
-          style={{
-            background: "#FFFFFF",
-            border: "1px solid #F0E3D8",
-            borderRadius: "24px",
-            padding: "20px",
-            boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-            marginBottom: "24px",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              marginBottom: "14px",
-              color: "#2D2A3E",
-              fontSize: "22px",
-              fontWeight: 800,
-            }}
-          >
-            Manage Schools
-          </h3>
-
+        <SectionCard title="Manage Schools">
           {schools.length === 0 ? (
             <p style={helperText}>No schools created yet.</p>
           ) : (
@@ -473,94 +426,31 @@ export default function MasterPage() {
                 if (!hasApprovedPrincipal) missingItems.push("approved principal");
 
                 return (
-                  <div
-                    key={school.id}
-                    style={{
-                      background: "#FFFDFB",
-                      border: "1px solid #F0E3D8",
-                      borderRadius: "18px",
-                      padding: "16px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      gap: "16px",
-                      flexWrap: "wrap",
-                    }}
-                  >
+                  <div key={school.id} style={schoolListCard}>
                     <div style={{ flex: 1, minWidth: "220px" }}>
-                      <strong
-                        style={{
-                          display: "block",
-                          fontSize: "18px",
-                          color: "#2D2A3E",
-                          fontWeight: 700,
-                        }}
-                      >
+                      <strong style={listTitle}>
                         {school.school_name || "Unnamed school"}
                       </strong>
 
-                      <p
-                        style={{
-                          margin: "8px 0 0 0",
-                          fontSize: "14px",
-                          color: "#6D6888",
-                          lineHeight: 1.5,
-                        }}
-                      >
+                      <p style={helperText}>
                         Missing: {missingItems.length ? missingItems.join(", ") : "none"}
                       </p>
                     </div>
 
-                    <div style={{ flexShrink: 0 }}>
-                      <Link
-                        href={`/master/school/${school.id}`}
-                        style={{
-                          textDecoration: "none",
-                          background: "#7CCCF3",
-                          color: "#2D2A3E",
-                          padding: "10px 14px",
-                          borderRadius: "12px",
-                          fontWeight: 600,
-                          border: "1px solid #CBEAF7",
-                          whiteSpace: "nowrap",
-                          display: "inline-block",
-                        }}
-                      >
-                        Open School Overview
-                      </Link>
-                    </div>
+                    <Link href={`/master/school/${school.id}`} style={smallLinkButton}>
+                      Open School Overview
+                    </Link>
                   </div>
                 );
               })}
             </div>
           )}
-        </div>
+        </SectionCard>
       )}
 
       {currentView === "pending-signups" && (
         <>
-          <div
-            style={{
-              background: "#FFFFFF",
-              border: "1px solid #F0E3D8",
-              borderRadius: "24px",
-              padding: "20px",
-              boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-              marginBottom: "24px",
-            }}
-          >
-            <h3
-              style={{
-                marginTop: 0,
-                marginBottom: "14px",
-                color: "#2D2A3E",
-                fontSize: "22px",
-                fontWeight: 800,
-              }}
-            >
-              Pending School Sign-Up Requests
-            </h3>
-
+          <SectionCard title="Pending School Sign-Up Requests">
             {pendingSignupRequests.length === 0 ? (
               <p style={helperText}>No pending school sign-up requests.</p>
             ) : (
@@ -607,31 +497,10 @@ export default function MasterPage() {
                 })}
               </div>
             )}
-          </div>
+          </SectionCard>
 
           {selectedSignupRequest ? (
-            <div
-              style={{
-                background: "#FFFFFF",
-                border: "1px solid #F0E3D8",
-                borderRadius: "24px",
-                padding: "20px",
-                boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-                marginBottom: "24px",
-              }}
-            >
-              <h3
-                style={{
-                  marginTop: 0,
-                  marginBottom: "14px",
-                  color: "#2D2A3E",
-                  fontSize: "22px",
-                  fontWeight: 800,
-                }}
-              >
-                School Sign-Up Setup
-              </h3>
-
+            <SectionCard title="School Sign-Up Setup">
               <p style={helperText}>
                 School: {selectedSignupRequest.school_name || "Not added"}
               </p>
@@ -656,53 +525,24 @@ export default function MasterPage() {
                   onClick={() => approveSignupRequest(selectedSignupRequest)}
                   disabled={approvingSignup}
                 >
-                  {approvingSignup ? "Approving..." : "Approve and Continue Setup"}
+                  {approvingSignup ? "Approving..." : "Approve and Create Principal Login"}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setSelectedSignupRequest(null)}
-                  style={{
-                    border: "1px solid #E3D9CD",
-                    background: "#FFFFFF",
-                    color: "#5B5675",
-                    borderRadius: "12px",
-                    padding: "10px 14px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
+                  style={secondaryButton}
                 >
                   Clear Selection
                 </button>
               </div>
-            </div>
+            </SectionCard>
           ) : null}
         </>
       )}
 
       {currentView === "active-principals" && (
-        <div
-          style={{
-            background: "#FFFFFF",
-            border: "1px solid #F0E3D8",
-            borderRadius: "24px",
-            padding: "20px",
-            boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-            marginBottom: "24px",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              marginBottom: "14px",
-              color: "#2D2A3E",
-              fontSize: "22px",
-              fontWeight: 800,
-            }}
-          >
-            Active Principals
-          </h3>
-
+        <SectionCard title="Active Principals">
           {approvedPrincipals.length === 0 ? (
             <p style={helperText}>No active principals yet.</p>
           ) : (
@@ -720,32 +560,11 @@ export default function MasterPage() {
               ))}
             </div>
           )}
-        </div>
+        </SectionCard>
       )}
 
       {currentView === "schools-needing-setup" && (
-        <div
-          style={{
-            background: "#FFFFFF",
-            border: "1px solid #F0E3D8",
-            borderRadius: "24px",
-            padding: "20px",
-            boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-            marginBottom: "24px",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              marginBottom: "14px",
-              color: "#2D2A3E",
-              fontSize: "22px",
-              fontWeight: 800,
-            }}
-          >
-            Schools Needing Setup
-          </h3>
-
+        <SectionCard title="Schools Needing Setup">
           {schoolsNeedingSetup.length === 0 ? (
             <p style={helperText}>All schools look set up.</p>
           ) : (
@@ -755,6 +574,7 @@ export default function MasterPage() {
                   <strong style={listTitle}>
                     {school.school_name || "Unnamed school"}
                   </strong>
+
                   <div style={{ marginTop: "10px" }}>
                     <Link
                       href={`/master/school/${school.id}`}
@@ -768,7 +588,7 @@ export default function MasterPage() {
               ))}
             </div>
           )}
-        </div>
+        </SectionCard>
       )}
 
       <div
@@ -778,26 +598,8 @@ export default function MasterPage() {
           gap: "14px",
         }}
       >
-        <div
-          style={{
-            background: "#FFFFFF",
-            border: "1px solid #F0E3D8",
-            borderRadius: "24px",
-            padding: "20px",
-            boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              marginBottom: "14px",
-              color: "#2D2A3E",
-              fontSize: "22px",
-              fontWeight: 800,
-            }}
-          >
-            Create School
-          </h3>
+        <div style={formCard}>
+          <h3 style={sectionTitle}>Create School</h3>
 
           <input
             className="db-input"
@@ -838,26 +640,8 @@ export default function MasterPage() {
           </button>
         </div>
 
-        <div
-          style={{
-            background: "#FFFFFF",
-            border: "1px solid #F0E3D8",
-            borderRadius: "24px",
-            padding: "20px",
-            boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              marginBottom: "14px",
-              color: "#2D2A3E",
-              fontSize: "22px",
-              fontWeight: 800,
-            }}
-          >
-            Create Principal Login
-          </h3>
+        <div style={formCard}>
+          <h3 style={sectionTitle}>Create Principal Login</h3>
 
           <input
             className="db-input"
@@ -915,13 +699,7 @@ function StatLinkCard({
   border: string;
 }) {
   return (
-    <Link
-      href={href}
-      style={{
-        textDecoration: "none",
-        color: "inherit",
-      }}
-    >
+    <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
       <div
         style={{
           background,
@@ -932,40 +710,60 @@ function StatLinkCard({
           cursor: "pointer",
         }}
       >
-        <p
-          style={{
-            margin: 0,
-            color: "#5B5675",
-            fontSize: "14px",
-            fontWeight: 700,
-          }}
-        >
-          {label}
-        </p>
-        <h2
-          style={{
-            margin: "8px 0 0 0",
-            color: "#2D2A3E",
-            fontSize: "30px",
-            fontWeight: 800,
-          }}
-        >
-          {value}
-        </h2>
-        <p
-          style={{
-            margin: "8px 0 0 0",
-            color: "#6D6888",
-            fontSize: "13px",
-            fontWeight: 600,
-          }}
-        >
-          Open {label.toLowerCase()}
-        </p>
+        <p style={statLabel}>{label}</p>
+        <h2 style={statValue}>{value}</h2>
+        <p style={statHelper}>Open {label.toLowerCase()}</p>
       </div>
     </Link>
   );
 }
+
+function SectionCard({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={sectionCard}>
+      <h3 style={sectionTitle}>{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+const eyebrow = {
+  margin: 0,
+  color: "#6D6888",
+  fontSize: "13px",
+  fontWeight: 700,
+};
+
+const sectionCard = {
+  background: "#FFFFFF",
+  border: "1px solid #F0E3D8",
+  borderRadius: "24px",
+  padding: "20px",
+  boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
+  marginBottom: "24px",
+};
+
+const formCard = {
+  background: "#FFFFFF",
+  border: "1px solid #F0E3D8",
+  borderRadius: "24px",
+  padding: "20px",
+  boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
+};
+
+const sectionTitle = {
+  marginTop: 0,
+  marginBottom: "14px",
+  color: "#2D2A3E",
+  fontSize: "22px",
+  fontWeight: 800,
+};
 
 const helperText = {
   margin: "6px 0 0 0",
@@ -981,7 +779,64 @@ const listCard = {
   padding: "16px",
 };
 
+const schoolListCard = {
+  background: "#FFFDFB",
+  border: "1px solid #F0E3D8",
+  borderRadius: "18px",
+  padding: "16px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "16px",
+  flexWrap: "wrap" as const,
+};
+
 const listTitle = {
+  display: "block",
   fontSize: "17px",
   color: "#2D2A3E",
+  fontWeight: 700,
+};
+
+const smallLinkButton = {
+  textDecoration: "none",
+  background: "#7CCCF3",
+  color: "#2D2A3E",
+  padding: "10px 14px",
+  borderRadius: "12px",
+  fontWeight: 600,
+  border: "1px solid #CBEAF7",
+  whiteSpace: "nowrap" as const,
+  display: "inline-block",
+};
+
+const secondaryButton = {
+  border: "1px solid #E3D9CD",
+  background: "#FFFFFF",
+  color: "#5B5675",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const statLabel = {
+  margin: 0,
+  color: "#5B5675",
+  fontSize: "14px",
+  fontWeight: 700,
+};
+
+const statValue = {
+  margin: "8px 0 0 0",
+  color: "#2D2A3E",
+  fontSize: "30px",
+  fontWeight: 800,
+};
+
+const statHelper = {
+  margin: "8px 0 0 0",
+  color: "#6D6888",
+  fontSize: "13px",
+  fontWeight: 600,
 };

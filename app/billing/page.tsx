@@ -64,6 +64,13 @@ export default function BillingPage() {
   const [paymentMethod, setPaymentMethod] = useState("EFT");
   const [paymentNotes, setPaymentNotes] = useState("");
 
+  const [subscriptionsOpen, setSubscriptionsOpen] = useState(false);
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
+
+  const [filterSchoolId, setFilterSchoolId] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterMonth, setFilterMonth] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [savingSubscription, setSavingSubscription] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
@@ -214,6 +221,7 @@ export default function BillingPage() {
     setSelectedPlan(planName);
 
     const plan = PLAN_OPTIONS.find((item) => item.name === planName);
+
     if (plan) {
       setPaymentAmount(String(plan.price));
     }
@@ -267,6 +275,7 @@ export default function BillingPage() {
 
     await fetchAllSubscriptions();
     setSavingSubscription(false);
+    setSubscriptionsOpen(true);
     alert("Subscription saved.");
   }
 
@@ -282,6 +291,7 @@ export default function BillingPage() {
 
     const today = new Date();
     const nextDate = new Date(today);
+
     nextDate.setMonth(nextDate.getMonth() + 1);
 
     const paymentDate = today.toISOString().slice(0, 10);
@@ -333,6 +343,8 @@ export default function BillingPage() {
 
     await Promise.all([fetchAllSubscriptions(), fetchAllPayments()]);
     setSavingPayment(false);
+    setSubscriptionsOpen(true);
+    setPaymentsOpen(true);
     alert("Payment recorded.");
   }
 
@@ -356,8 +368,35 @@ export default function BillingPage() {
       .eq("id", subscription.school_id);
 
     await fetchAllSubscriptions();
+    setSubscriptionsOpen(true);
     alert("Subscription marked overdue.");
   }
+
+  const isMaster = profile?.role === "master";
+
+  const filteredSubscriptions = useMemo(() => {
+    return subscriptions.filter((subscription) => {
+      const schoolMatches =
+        !filterSchoolId || Number(filterSchoolId) === Number(subscription.school_id);
+
+      const statusMatches =
+        !filterStatus || subscription.status === filterStatus;
+
+      return schoolMatches && statusMatches;
+    });
+  }, [subscriptions, filterSchoolId, filterStatus]);
+
+  const filteredPayments = useMemo(() => {
+    return payments.filter((payment) => {
+      const schoolMatches =
+        !filterSchoolId || Number(filterSchoolId) === Number(payment.school_id);
+
+      const monthMatches =
+        !filterMonth || payment.payment_date?.slice(0, 7) === filterMonth;
+
+      return schoolMatches && monthMatches;
+    });
+  }, [payments, filterSchoolId, filterMonth]);
 
   const expectedMonthlyRevenue = useMemo(() => {
     return subscriptions
@@ -373,34 +412,63 @@ export default function BillingPage() {
     return subscriptions.filter((item) => item.status === "active").length;
   }, [subscriptions]);
 
-  const isMaster = profile?.role === "master";
-
   if (loading) {
     return <p>Loading billing...</p>;
   }
 
   return (
     <div>
-      <div className="db-soft-card" style={{ padding: "22px", marginBottom: "24px" }}>
-        <h1 className="db-page-title">Billing and Payments</h1>
-        <p className="db-page-subtitle">
+      <div
+        className="db-soft-card"
+        style={{
+          padding: "18px 20px",
+          marginBottom: "18px",
+        }}
+      >
+        <h1
+          className="db-page-title"
+          style={{
+            fontSize: "28px",
+            marginBottom: "6px",
+          }}
+        >
+          Billing and Payments
+        </h1>
+
+        <p className="db-page-subtitle" style={{ marginBottom: 0 }}>
           DailyBloom subscription billing for schools.
         </p>
       </div>
 
       {isMaster ? (
         <>
-          <div className="db-grid-3" style={{ marginBottom: "24px" }}>
-            <StatCard
+          <div
+            className="db-grid-3"
+            style={{
+              marginBottom: "18px",
+            }}
+          >
+            <CompactStatCard
               title="Expected Monthly Revenue"
               value={`R${expectedMonthlyRevenue.toFixed(2)}`}
             />
-            <StatCard title="Active Subscriptions" value={String(activeCount)} />
-            <StatCard title="Overdue Schools" value={String(overdueCount)} />
+            <CompactStatCard
+              title="Active Subscriptions"
+              value={String(activeCount)}
+            />
+            <CompactStatCard
+              title="Overdue Schools"
+              value={String(overdueCount)}
+            />
           </div>
 
-          <div className="db-grid-2" style={{ marginBottom: "24px" }}>
-            <div className="db-card db-card-blue" style={{ padding: "20px" }}>
+          <div
+            className="db-grid-2"
+            style={{
+              marginBottom: "18px",
+            }}
+          >
+            <div className="db-card db-card-blue" style={{ padding: "18px" }}>
               <h3 style={sectionTitle}>Create or Update Subscription</h3>
 
               <select
@@ -458,7 +526,7 @@ export default function BillingPage() {
               </button>
             </div>
 
-            <div className="db-card db-card-green" style={{ padding: "20px" }}>
+            <div className="db-card db-card-green" style={{ padding: "18px" }}>
               <h3 style={sectionTitle}>Payment Details</h3>
 
               <input
@@ -489,122 +557,241 @@ export default function BillingPage() {
               />
 
               <p className="db-helper">
-                Use the “Mark Paid” button on a school subscription below.
+                Use the Mark Paid button on a school subscription below.
               </p>
             </div>
           </div>
         </>
       ) : null}
 
-      <div className="db-card db-card-lavender" style={{ padding: "20px", marginBottom: "24px" }}>
-        <h3 style={sectionTitle}>
-          {isMaster ? "School Subscriptions" : "Your DailyBloom Subscription"}
-        </h3>
+      <div
+        className="db-card db-card-lavender"
+        style={{
+          padding: "16px",
+          marginBottom: "16px",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setSubscriptionsOpen((prev) => !prev)}
+          style={collapseHeaderButton}
+        >
+          <span>
+            {isMaster ? "School Subscriptions" : "Your DailyBloom Subscription"}
+          </span>
+          <span>{subscriptionsOpen ? "Hide" : "Show"}</span>
+        </button>
 
-        {subscriptions.length === 0 ? (
-          <p className="db-helper">
-            {isMaster
-              ? "No subscriptions created yet."
-              : "Your school does not have a subscription record yet."}
-          </p>
-        ) : (
-          <div style={{ display: "grid", gap: "12px" }}>
-            {subscriptions.map((subscription) => (
-              <div key={subscription.id} className="db-list-card">
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "14px",
-                    flexWrap: "wrap",
+        {subscriptionsOpen ? (
+          <div style={{ marginTop: "14px" }}>
+            {isMaster ? (
+              <div style={filterGrid}>
+                <select
+                  className="db-input"
+                  value={filterSchoolId}
+                  onChange={(e) => setFilterSchoolId(e.target.value)}
+                >
+                  <option value="">All schools</option>
+                  {schools.map((school) => (
+                    <option key={school.id} value={school.id}>
+                      {school.school_name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  className="db-input"
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                >
+                  <option value="">All statuses</option>
+                  {STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  style={secondaryButton}
+                  onClick={() => {
+                    setFilterSchoolId("");
+                    setFilterStatus("");
                   }}
                 >
-                  <div>
-                    <strong style={{ fontSize: "17px" }}>
-                      {subscription.schools?.school_name || "Unnamed school"}
-                    </strong>
-                    <p style={textStyle}>Plan: {subscription.plan_name}</p>
-                    <p style={textStyle}>
-                      Monthly Price: R{Number(subscription.monthly_price).toFixed(2)}
-                    </p>
-                    <p style={textStyle}>Status: {subscription.status}</p>
-                    <p style={textStyle}>
-                      Next Billing Date:{" "}
-                      {subscription.next_billing_date || "Not set"}
-                    </p>
-                    <p style={textStyle}>
-                      Last Payment Date:{" "}
-                      {subscription.last_payment_date || "No payment yet"}
-                    </p>
-                  </div>
-
-                  {isMaster ? (
-                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        className="db-button-primary"
-                        onClick={() => markPaymentReceived(subscription)}
-                        disabled={savingPayment}
-                      >
-                        {savingPayment ? "Saving..." : "Mark Paid"}
-                      </button>
-
-                      <button
-                        type="button"
-                        style={secondaryButton}
-                        onClick={() => markOverdue(subscription)}
-                      >
-                        Mark Overdue
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
+                  Clear Filters
+                </button>
               </div>
-            ))}
+            ) : null}
+
+            {filteredSubscriptions.length === 0 ? (
+              <p className="db-helper">
+                {isMaster
+                  ? "No subscriptions match your filters."
+                  : "Your school does not have a subscription record yet."}
+              </p>
+            ) : (
+              <div style={{ display: "grid", gap: "10px" }}>
+                {filteredSubscriptions.map((subscription) => (
+                  <div key={subscription.id} className="db-list-card">
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "14px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div>
+                        <strong style={{ fontSize: "16px" }}>
+                          {subscription.schools?.school_name || "Unnamed school"}
+                        </strong>
+                        <p style={textStyle}>
+                          {subscription.plan_name} · R
+                          {Number(subscription.monthly_price).toFixed(2)} ·{" "}
+                          {subscription.status}
+                        </p>
+                        <p style={textStyle}>
+                          Next billing:{" "}
+                          {subscription.next_billing_date || "Not set"} · Last paid:{" "}
+                          {subscription.last_payment_date || "No payment yet"}
+                        </p>
+                      </div>
+
+                      {isMaster ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "8px",
+                            flexWrap: "wrap",
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="db-button-primary"
+                            onClick={() => markPaymentReceived(subscription)}
+                            disabled={savingPayment}
+                            style={{ minHeight: "38px" }}
+                          >
+                            {savingPayment ? "Saving..." : "Mark Paid"}
+                          </button>
+
+                          <button
+                            type="button"
+                            style={secondaryButton}
+                            onClick={() => markOverdue(subscription)}
+                          >
+                            Mark Overdue
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        ) : null}
       </div>
 
-      <div className="db-card db-card-yellow" style={{ padding: "20px" }}>
-        <h3 style={sectionTitle}>Payment History</h3>
+      <div
+        className="db-card db-card-yellow"
+        style={{
+          padding: "16px",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setPaymentsOpen((prev) => !prev)}
+          style={collapseHeaderButton}
+        >
+          <span>Payment History</span>
+          <span>{paymentsOpen ? "Hide" : "Show"}</span>
+        </button>
 
-        {payments.length === 0 ? (
-          <p className="db-helper">No payments recorded yet.</p>
-        ) : (
-          <div style={{ display: "grid", gap: "12px" }}>
-            {payments.map((payment) => (
-              <div key={payment.id} className="db-list-card">
-                <strong style={{ fontSize: "17px" }}>
-                  {payment.schools?.school_name || "School"}
-                </strong>
-                <p style={textStyle}>
-                  Amount: R{Number(payment.amount).toFixed(2)}
-                </p>
-                <p style={textStyle}>Date: {payment.payment_date}</p>
-                <p style={textStyle}>
-                  Method: {payment.payment_method || "Not added"}
-                </p>
-                <p style={textStyle}>Notes: {payment.notes || "None"}</p>
+        {paymentsOpen ? (
+          <div style={{ marginTop: "14px" }}>
+            <div style={filterGrid}>
+              {isMaster ? (
+                <select
+                  className="db-input"
+                  value={filterSchoolId}
+                  onChange={(e) => setFilterSchoolId(e.target.value)}
+                >
+                  <option value="">All schools</option>
+                  {schools.map((school) => (
+                    <option key={school.id} value={school.id}>
+                      {school.school_name}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+
+              <input
+                className="db-input"
+                type="month"
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+              />
+
+              <button
+                type="button"
+                style={secondaryButton}
+                onClick={() => {
+                  setFilterSchoolId("");
+                  setFilterMonth("");
+                }}
+              >
+                Clear Filters
+              </button>
+            </div>
+
+            {filteredPayments.length === 0 ? (
+              <p className="db-helper">No payments match your filters.</p>
+            ) : (
+              <div style={{ display: "grid", gap: "10px" }}>
+                {filteredPayments.map((payment) => (
+                  <div key={payment.id} className="db-list-card">
+                    <strong style={{ fontSize: "16px" }}>
+                      {payment.schools?.school_name || "School"}
+                    </strong>
+                    <p style={textStyle}>
+                      R{Number(payment.amount).toFixed(2)} ·{" "}
+                      {payment.payment_date} ·{" "}
+                      {payment.payment_method || "No method"}
+                    </p>
+                    <p style={textStyle}>Notes: {payment.notes || "None"}</p>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
 }
 
-function StatCard({ title, value }: { title: string; value: string }) {
+function CompactStatCard({ title, value }: { title: string; value: string }) {
   return (
-    <div className="db-card db-card-blue" style={{ padding: "18px" }}>
-      <p style={{ margin: 0, color: "var(--db-text-soft)", fontWeight: 700 }}>
+    <div className="db-card db-card-blue" style={{ padding: "14px 16px" }}>
+      <p
+        style={{
+          margin: 0,
+          color: "var(--db-text-soft)",
+          fontWeight: 700,
+          fontSize: "13px",
+        }}
+      >
         {title}
       </p>
       <h2
         style={{
-          margin: "8px 0 0 0",
+          margin: "6px 0 0 0",
           color: "var(--db-text)",
-          fontSize: "28px",
+          fontSize: "24px",
           fontWeight: 800,
         }}
       >
@@ -616,15 +803,36 @@ function StatCard({ title, value }: { title: string; value: string }) {
 
 const sectionTitle = {
   marginTop: 0,
-  marginBottom: "14px",
+  marginBottom: "12px",
   color: "var(--db-text)",
-  fontSize: "22px",
+  fontSize: "20px",
   fontWeight: 800 as const,
 };
 
 const textStyle = {
-  margin: "6px 0 0 0",
+  margin: "5px 0 0 0",
   color: "var(--db-text-soft)",
+};
+
+const collapseHeaderButton = {
+  width: "100%",
+  border: "none",
+  background: "transparent",
+  padding: 0,
+  cursor: "pointer",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  color: "var(--db-text)",
+  fontSize: "18px",
+  fontWeight: 800,
+};
+
+const filterGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "10px",
+  marginBottom: "12px",
 };
 
 const secondaryButton = {

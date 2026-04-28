@@ -406,9 +406,9 @@ export default function MasterPage() {
             style={{
               background: "#FFF7D9",
               border: "1px solid #F3E4A3",
-              borderRadius: "22px",
-              padding: "18px",
-              boxShadow: "0 8px 18px rgba(45, 42, 62, 0.05)",
+              borderRadius: "18px",
+              padding: "14px",
+              boxShadow: "0 6px 14px rgba(45, 42, 62, 0.05)",
               cursor: "pointer",
             }}
           >
@@ -416,7 +416,7 @@ export default function MasterPage() {
               style={{
                 margin: 0,
                 color: "#5B5675",
-                fontSize: "14px",
+                fontSize: "13px",
                 fontWeight: 700,
               }}
             >
@@ -424,9 +424,9 @@ export default function MasterPage() {
             </p>
             <h2
               style={{
-                margin: "8px 0 0 0",
+                margin: "6px 0 0 0",
                 color: "#2D2A3E",
-                fontSize: "30px",
+                fontSize: "22px",
                 fontWeight: 800,
               }}
             >
@@ -434,9 +434,9 @@ export default function MasterPage() {
             </h2>
             <p
               style={{
-                margin: "8px 0 0 0",
+                margin: "6px 0 0 0",
                 color: "#6D6888",
-                fontSize: "13px",
+                fontSize: "12px",
                 fontWeight: 600,
               }}
             >

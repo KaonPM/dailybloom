@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 export default function LegalAcceptancePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const reviewed = searchParams.get("reviewed") === "true";
+
   const [accepted, setAccepted] = useState(false);
 
   function continueToSignup() {
@@ -20,47 +23,51 @@ export default function LegalAcceptancePage() {
   return (
     <main style={pageStyle}>
       <section style={cardStyle}>
-        <Link href="/" style={backLink}>← Back to Home</Link>
-
         <h1 style={titleStyle}>Before You Sign Up</h1>
 
         <p style={paragraphStyle}>
-          Please review DailyBloom’s Terms of Use and Privacy Policy before submitting your school signup request.
+          Please read the DailyBloom Terms of Use and Privacy Policy before submitting your school signup request.
         </p>
 
-        <div style={linkBox}>
-          <Link href="/terms" style={documentLink}>
-            Read Terms of Use
-          </Link>
+        {!reviewed && (
+          <>
+            <p style={noticeText}>
+              Start by reading the Terms of Use. From there, you will be guided to the Privacy Policy and then back here to accept.
+            </p>
 
-          <Link href="/privacy" style={documentLink}>
-            Read Privacy Policy
-          </Link>
-        </div>
+            <Link href="/terms?from=legal" style={documentLink}>
+              Read Terms of Use
+            </Link>
+          </>
+        )}
 
-        <label style={checkboxRow}>
-          <input
-            type="checkbox"
-            checked={accepted}
-            onChange={(event) => setAccepted(event.target.checked)}
-            style={{ marginTop: 4 }}
-          />
-          <span>
-            I confirm that I have read and accept the DailyBloom Terms of Use and Privacy Policy.
-          </span>
-        </label>
+        {reviewed && (
+          <>
+            <label style={checkboxRow}>
+              <input
+                type="checkbox"
+                checked={accepted}
+                onChange={(event) => setAccepted(event.target.checked)}
+                style={{ marginTop: 4 }}
+              />
+              <span>
+                I confirm that I have read and accept the DailyBloom Terms of Use and Privacy Policy.
+              </span>
+            </label>
 
-        <button
-          type="button"
-          onClick={continueToSignup}
-          style={{
-            ...buttonStyle,
-            opacity: accepted ? 1 : 0.6,
-            cursor: accepted ? "pointer" : "not-allowed",
-          }}
-        >
-          Continue to Sign Up
-        </button>
+            <button
+              type="button"
+              onClick={continueToSignup}
+              style={{
+                ...buttonStyle,
+                opacity: accepted ? 1 : 0.6,
+                cursor: accepted ? "pointer" : "not-allowed",
+              }}
+            >
+              Continue to Sign Up
+            </button>
+          </>
+        )}
       </section>
     </main>
   );
@@ -86,14 +93,8 @@ const cardStyle = {
   boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
 };
 
-const backLink = {
-  color: "#F66BA0",
-  fontWeight: 800,
-  textDecoration: "none",
-};
-
 const titleStyle = {
-  marginTop: "22px",
+  marginTop: 0,
   marginBottom: "12px",
   fontSize: "34px",
 };
@@ -104,15 +105,16 @@ const paragraphStyle = {
   fontSize: "16px",
 };
 
-const linkBox = {
-  display: "grid",
-  gap: "12px",
-  marginTop: "22px",
-  marginBottom: "22px",
+const noticeText = {
+  color: "#7A6F86",
+  lineHeight: 1.7,
+  fontSize: "15px",
+  marginTop: "16px",
 };
 
 const documentLink = {
   display: "block",
+  marginTop: "22px",
   background: "#F8E8F0",
   border: "1px solid #EBC9D8",
   borderRadius: "16px",
@@ -129,6 +131,7 @@ const checkboxRow = {
   color: "#5F6275",
   fontSize: "15px",
   lineHeight: 1.6,
+  marginTop: "22px",
 };
 
 const buttonStyle = {

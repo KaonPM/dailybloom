@@ -4,8 +4,6 @@ export default function TermsPage() {
   return (
     <main style={pageStyle}>
       <section style={cardStyle}>
-        <Link href="/" style={backLink}>← Back to Home</Link>
-
         <h1 style={titleStyle}>DailyBloom Service Agreement and Terms of Use</h1>
         <p style={dateStyle}>Last updated: 28 April 2026</p>
 
@@ -78,8 +76,9 @@ export default function TermsPage() {
 
         <Section title="10. Pricing Changes">
           After the first six (6) months from launch date, monthly package prices
-          may increase by up to R100 per plan for new schools. The once-off setup fee remains R599
-          unless otherwise communicated. Prices are reviewed annually.
+          may increase by up to R100 per plan for new schools. The once-off setup
+          fee remains R599 unless otherwise communicated. Prices are reviewed
+          annually.
         </Section>
 
         <Section title="11. School Responsibilities">
@@ -147,6 +146,12 @@ export default function TermsPage() {
           <br />
           Phone / WhatsApp: 076 361 6044
         </Section>
+
+        <div style={{ marginTop: 32 }}>
+          <Link href="/privacy?from=legal" style={primaryLink}>
+            I have read the Terms of Use. Continue to Privacy Policy
+          </Link>
+        </div>
       </section>
     </main>
   );
@@ -178,14 +183,8 @@ const cardStyle = {
   boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
 };
 
-const backLink = {
-  color: "#F66BA0",
-  fontWeight: 800,
-  textDecoration: "none",
-};
-
 const titleStyle = {
-  marginTop: "22px",
+  marginTop: "0",
   marginBottom: "8px",
   fontSize: "34px",
 };
@@ -204,4 +203,17 @@ const paragraphStyle = {
   color: "#5F6275",
   lineHeight: 1.7,
   fontSize: "16px",
+};
+
+const primaryLink = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "48px",
+  padding: "12px 18px",
+  borderRadius: "16px",
+  background: "#7CCCF3",
+  color: "#24324A",
+  fontWeight: 800,
+  textDecoration: "none",
 };

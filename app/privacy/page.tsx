@@ -4,8 +4,6 @@ export default function PrivacyPage() {
   return (
     <main style={pageStyle}>
       <section style={cardStyle}>
-        <Link href="/" style={backLink}>← Back to Home</Link>
-
         <h1 style={titleStyle}>DailyBloom Privacy Policy</h1>
         <p style={dateStyle}>Last updated: 28 April 2026</p>
 
@@ -66,6 +64,12 @@ export default function PrivacyPage() {
           <br />
           Phone / WhatsApp: 076 361 6044
         </Section>
+
+        <div style={{ marginTop: 32 }}>
+          <Link href="/legal?reviewed=true" style={primaryLink}>
+            I have read the Privacy Policy. Continue to Acceptance
+          </Link>
+        </div>
       </section>
     </main>
   );
@@ -97,14 +101,8 @@ const cardStyle = {
   boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
 };
 
-const backLink = {
-  color: "#F66BA0",
-  fontWeight: 800,
-  textDecoration: "none",
-};
-
 const titleStyle = {
-  marginTop: "22px",
+  marginTop: "0",
   marginBottom: "8px",
   fontSize: "36px",
 };
@@ -123,4 +121,17 @@ const paragraphStyle = {
   color: "#5F6275",
   lineHeight: 1.7,
   fontSize: "16px",
+};
+
+const primaryLink = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "48px",
+  padding: "12px 18px",
+  borderRadius: "16px",
+  background: "#7CCCF3",
+  color: "#24324A",
+  fontWeight: 800,
+  textDecoration: "none",
 };

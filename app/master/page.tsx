@@ -225,9 +225,32 @@ export default function MasterPage() {
       return;
     }
 
+    const emailResponse = await fetch("/api/school-status-email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        schoolId,
+        status: nextStatus,
+      }),
+    });
+
+    const emailResult = await emailResponse.json();
+
     await fetchSchools();
     setUpdatingSchoolId(null);
-    alert(`School marked as ${nextStatus}.`);
+
+    if (!emailResponse.ok) {
+      alert(
+        `School marked as ${nextStatus}, but email was not sent: ${
+          emailResult.error || "Unknown email error"
+        }`
+      );
+      return;
+    }
+
+    alert(`School marked as ${nextStatus}. Principal email sent.`);
   }
 
   async function softDeleteSchool(schoolId: number, schoolName?: string | null) {
@@ -327,7 +350,6 @@ export default function MasterPage() {
     }
 
     await Promise.all([fetchSchools(), fetchPrincipals(), fetchSignupRequests()]);
-
     setApprovingSignup(false);
 
     alert(
@@ -373,9 +395,7 @@ export default function MasterPage() {
     );
   }, [schools, schoolSearch]);
 
-  const visibleSchools = useMemo(() => {
-    return filteredSchools.slice(0, visibleSchoolCount);
-  }, [filteredSchools, visibleSchoolCount]);
+  const visibleSchools = filteredSchools.slice(0, visibleSchoolCount);
 
   useEffect(() => {
     setStats((prev) => ({
@@ -518,27 +538,13 @@ export default function MasterPage() {
 
       {currentView === "manage-schools" && (
         <SectionCard title="Manage Schools">
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: "12px",
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
+          <button
+            type="button"
+            onClick={() => setShowManageSchools(!showManageSchools)}
+            style={secondaryButton}
           >
-            <p style={helperText}>
-              View, search, activate, suspend, mark inactive, or soft delete schools.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => setShowManageSchools(!showManageSchools)}
-              style={secondaryButton}
-            >
-              {showManageSchools ? "Hide Managed Schools" : "Show Managed Schools"}
-            </button>
-          </div>
+            {showManageSchools ? "Hide Managed Schools" : "Show Managed Schools"}
+          </button>
 
           {showManageSchools && (
             <div style={{ marginTop: "16px" }}>
@@ -552,13 +558,7 @@ export default function MasterPage() {
                 }}
               />
 
-              <p style={helperText}>
-                Showing {visibleSchools.length} of {filteredSchools.length} schools.
-              </p>
-
-              {schools.length === 0 ? (
-                <p style={helperText}>No schools created yet.</p>
-              ) : filteredSchools.length === 0 ? (
+              {filteredSchools.length === 0 ? (
                 <p style={helperText}>No schools found.</p>
               ) : (
                 <>
@@ -640,7 +640,9 @@ export default function MasterPage() {
                             <button
                               type="button"
                               style={dangerButton}
-                              onClick={() => softDeleteSchool(school.id, school.school_name)}
+                              onClick={() =>
+                                softDeleteSchool(school.id, school.school_name)
+                              }
                               disabled={updatingSchoolId === school.id}
                             >
                               Soft Delete
@@ -655,19 +657,11 @@ export default function MasterPage() {
                     <button
                       type="button"
                       style={{ ...secondaryButton, marginTop: "14px" }}
-                      onClick={() => setVisibleSchoolCount((current) => current + 5)}
+                      onClick={() =>
+                        setVisibleSchoolCount((current) => current + 5)
+                      }
                     >
                       Show Next 5
-                    </button>
-                  )}
-
-                  {visibleSchoolCount > 5 && (
-                    <button
-                      type="button"
-                      style={{ ...secondaryButton, marginTop: "14px", marginLeft: "10px" }}
-                      onClick={() => setVisibleSchoolCount(5)}
-                    >
-                      Reset List
                     </button>
                   )}
                 </>
@@ -752,7 +746,9 @@ export default function MasterPage() {
                   onClick={() => approveSignupRequest(selectedSignupRequest)}
                   disabled={approvingSignup}
                 >
-                  {approvingSignup ? "Approving..." : "Approve and Create Principal Login"}
+                  {approvingSignup
+                    ? "Approving..."
+                    : "Approve and Create Principal Login"}
                 </button>
 
                 <button

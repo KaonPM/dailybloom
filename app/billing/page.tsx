@@ -69,7 +69,7 @@ export default function BillingPage() {
   const [paymentMethod, setPaymentMethod] = useState("EFT");
   const [paymentNotes, setPaymentNotes] = useState("");
 
-  const [subscriptionsOpen, setSubscriptionsOpen] = useState(false);
+  const [subscriptionsOpen, setSubscriptionsOpen] = useState(true);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
 
   const [filterSchoolId, setFilterSchoolId] = useState("");
@@ -78,7 +78,8 @@ export default function BillingPage() {
 
   const [loading, setLoading] = useState(true);
   const [savingSubscription, setSavingSubscription] = useState(false);
-  const [savingPayment, setSavingPayment] = useState(false);
+  const [savingPaymentId, setSavingPaymentId] = useState<number | null>(null);
+  const [markingOverdueId, setMarkingOverdueId] = useState<number | null>(null);
 
   useEffect(() => {
     loadBillingPage();
@@ -314,7 +315,7 @@ export default function BillingPage() {
       return;
     }
 
-    setSavingPayment(true);
+    setSavingPaymentId(subscription.id);
 
     const today = new Date();
     const nextDate = new Date(today);
@@ -339,7 +340,7 @@ export default function BillingPage() {
 
     if (paymentError) {
       alert(paymentError.message);
-      setSavingPayment(false);
+      setSavingPaymentId(null);
       return;
     }
 
@@ -355,7 +356,7 @@ export default function BillingPage() {
 
     if (subscriptionError) {
       alert(subscriptionError.message);
-      setSavingPayment(false);
+      setSavingPaymentId(null);
       return;
     }
 
@@ -395,7 +396,8 @@ export default function BillingPage() {
     setPaymentAmount(String(subscription.monthly_price));
 
     await Promise.all([fetchAllSubscriptions(), fetchAllPayments()]);
-    setSavingPayment(false);
+
+    setSavingPaymentId(null);
     setSubscriptionsOpen(true);
     setPaymentsOpen(true);
 
@@ -409,6 +411,8 @@ export default function BillingPage() {
   }
 
   async function markOverdue(subscription: Subscription) {
+    setMarkingOverdueId(subscription.id);
+
     const { error } = await supabase
       .from("school_subscriptions")
       .update({
@@ -419,6 +423,7 @@ export default function BillingPage() {
 
     if (error) {
       alert(error.message);
+      setMarkingOverdueId(null);
       return;
     }
 
@@ -428,6 +433,7 @@ export default function BillingPage() {
       .eq("id", subscription.school_id);
 
     await fetchAllSubscriptions();
+    setMarkingOverdueId(null);
     setSubscriptionsOpen(true);
     alert("Subscription marked overdue.");
   }
@@ -707,11 +713,13 @@ export default function BillingPage() {
                         <strong style={{ fontSize: "16px" }}>
                           {subscription.schools?.school_name || "Unnamed school"}
                         </strong>
+
                         <p style={textStyle}>
                           {subscription.plan_name} · R
                           {Number(subscription.monthly_price).toFixed(2)} ·{" "}
                           {subscription.status}
                         </p>
+
                         <p style={textStyle}>
                           Next billing:{" "}
                           {subscription.next_billing_date || "Not set"} · Last
@@ -732,18 +740,23 @@ export default function BillingPage() {
                             type="button"
                             className="db-button-primary"
                             onClick={() => markPaymentReceived(subscription)}
-                            disabled={savingPayment}
+                            disabled={savingPaymentId === subscription.id}
                             style={{ minHeight: "38px" }}
                           >
-                            {savingPayment ? "Saving..." : "Mark Paid"}
+                            {savingPaymentId === subscription.id
+                              ? "Saving..."
+                              : "Mark Paid"}
                           </button>
 
                           <button
                             type="button"
                             style={secondaryButton}
                             onClick={() => markOverdue(subscription)}
+                            disabled={markingOverdueId === subscription.id}
                           >
-                            Mark Overdue
+                            {markingOverdueId === subscription.id
+                              ? "Saving..."
+                              : "Mark Overdue"}
                           </button>
                         </div>
                       ) : null}
@@ -817,11 +830,13 @@ export default function BillingPage() {
                     <strong style={{ fontSize: "16px" }}>
                       {payment.schools?.school_name || "School"}
                     </strong>
+
                     <p style={textStyle}>
                       R{Number(payment.amount).toFixed(2)} ·{" "}
                       {payment.payment_date} ·{" "}
                       {payment.payment_method || "No method"}
                     </p>
+
                     <p style={textStyle}>Notes: {payment.notes || "None"}</p>
                   </div>
                 ))}
@@ -847,6 +862,7 @@ function CompactStatCard({ title, value }: { title: string; value: string }) {
       >
         {title}
       </p>
+
       <h2
         style={{
           margin: "6px 0 0 0",

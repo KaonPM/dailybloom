@@ -18,7 +18,7 @@ type Subscription = {
   status: string;
   start_date: string | null;
   next_billing_date: string | null;
-  last_payment_date: string | null;
+  last_paid_at: string | null;
   schools?: School | null;
 };
 
@@ -27,9 +27,9 @@ type Payment = {
   school_id: number;
   subscription_id: number | null;
   amount: number;
-  payment_date: string;
   payment_method: string | null;
-  notes: string | null;
+  payment_notes: string | null;
+  paid_at: string;
   created_at: string;
   schools?: School | null;
 };
@@ -65,6 +65,9 @@ export default function BillingPage() {
   const [selectedPlan, setSelectedPlan] = useState("Bloom");
   const [selectedStatus, setSelectedStatus] = useState("trial");
   const [nextBillingDate, setNextBillingDate] = useState("");
+
+  const [selectedPaymentSubscription, setSelectedPaymentSubscription] =
+    useState<Subscription | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("299");
   const [paymentMethod, setPaymentMethod] = useState("EFT");
   const [paymentNotes, setPaymentNotes] = useState("");
@@ -78,7 +81,7 @@ export default function BillingPage() {
 
   const [loading, setLoading] = useState(true);
   const [savingSubscription, setSavingSubscription] = useState(false);
-  const [savingPaymentId, setSavingPaymentId] = useState<number | null>(null);
+  const [savingPayment, setSavingPayment] = useState(false);
   const [markingOverdueId, setMarkingOverdueId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -167,7 +170,7 @@ export default function BillingPage() {
         )
       `
       )
-      .order("payment_date", { ascending: false });
+      .order("paid_at", { ascending: false });
 
     if (error) {
       alert(error.message);
@@ -213,7 +216,7 @@ export default function BillingPage() {
       `
       )
       .eq("school_id", schoolId)
-      .order("payment_date", { ascending: false });
+      .order("paid_at", { ascending: false });
 
     if (error) {
       alert(error.message);
@@ -253,6 +256,13 @@ export default function BillingPage() {
     if (plan) {
       setPaymentAmount(String(plan.price));
     }
+  }
+
+  function selectSubscriptionForPayment(subscription: Subscription) {
+    setSelectedPaymentSubscription(subscription);
+    setPaymentAmount(String(subscription.monthly_price || ""));
+    setPaymentMethod("EFT");
+    setPaymentNotes("");
   }
 
   async function saveSubscription() {
@@ -307,7 +317,12 @@ export default function BillingPage() {
     alert("Subscription saved.");
   }
 
-  async function markPaymentReceived(subscription: Subscription) {
+  async function recordPayment() {
+    if (!selectedPaymentSubscription) {
+      alert("Please select a school subscription first.");
+      return;
+    }
+
     const amount = Number(paymentAmount);
 
     if (!amount || amount <= 0) {
@@ -315,32 +330,32 @@ export default function BillingPage() {
       return;
     }
 
-    setSavingPaymentId(subscription.id);
+    setSavingPayment(true);
 
     const today = new Date();
     const nextDate = new Date(today);
 
     nextDate.setMonth(nextDate.getMonth() + 1);
 
-    const paymentDate = today.toISOString().slice(0, 10);
+    const paidAt = today.toISOString();
     const nextBilling = nextDate.toISOString().slice(0, 10);
 
     const { error: paymentError } = await supabase
       .from("subscription_payments")
       .insert([
         {
-          school_id: subscription.school_id,
-          subscription_id: subscription.id,
+          school_id: selectedPaymentSubscription.school_id,
+          subscription_id: selectedPaymentSubscription.id,
           amount,
-          payment_date: paymentDate,
           payment_method: paymentMethod || "EFT",
-          notes: paymentNotes || null,
+          payment_notes: paymentNotes || null,
+          paid_at: paidAt,
         },
       ]);
 
     if (paymentError) {
       alert(paymentError.message);
-      setSavingPaymentId(null);
+      setSavingPayment(false);
       return;
     }
 
@@ -348,24 +363,26 @@ export default function BillingPage() {
       .from("school_subscriptions")
       .update({
         status: "active",
-        last_payment_date: paymentDate,
+        last_paid_at: paidAt,
         next_billing_date: nextBilling,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", subscription.id);
+      .eq("id", selectedPaymentSubscription.id);
 
     if (subscriptionError) {
       alert(subscriptionError.message);
-      setSavingPaymentId(null);
+      setSavingPayment(false);
       return;
     }
 
     await supabase
       .from("schools")
       .update({ billing_status: "active" })
-      .eq("id", subscription.school_id);
+      .eq("id", selectedPaymentSubscription.school_id);
 
-    const principalContact = await fetchPrincipalContact(subscription.school_id);
+    const principalContact = await fetchPrincipalContact(
+      selectedPaymentSubscription.school_id
+    );
 
     let emailSent = false;
 
@@ -378,26 +395,28 @@ export default function BillingPage() {
         body: JSON.stringify({
           principalEmail: principalContact.email,
           principalName: principalContact.full_name,
-          schoolName: subscription.schools?.school_name || "your school",
+          schoolName:
+            selectedPaymentSubscription.schools?.school_name || "your school",
           amount,
-          paymentDate,
+          paymentDate: paidAt.slice(0, 10),
           nextBillingDate: nextBilling,
           paymentMethod: paymentMethod || "EFT",
           paymentNotes: paymentNotes || "",
-          planName: subscription.plan_name,
+          planName: selectedPaymentSubscription.plan_name,
         }),
       });
 
       emailSent = emailResponse.ok;
     }
 
+    setSelectedPaymentSubscription(null);
     setPaymentNotes("");
     setPaymentMethod("EFT");
-    setPaymentAmount(String(subscription.monthly_price));
+    setPaymentAmount("299");
 
     await Promise.all([fetchAllSubscriptions(), fetchAllPayments()]);
 
-    setSavingPaymentId(null);
+    setSavingPayment(false);
     setSubscriptionsOpen(true);
     setPaymentsOpen(true);
 
@@ -458,7 +477,7 @@ export default function BillingPage() {
         !filterSchoolId || Number(filterSchoolId) === Number(payment.school_id);
 
       const monthMatches =
-        !filterMonth || payment.payment_date?.slice(0, 7) === filterMonth;
+        !filterMonth || payment.paid_at?.slice(0, 7) === filterMonth;
 
       return schoolMatches && monthMatches;
     });
@@ -595,6 +614,21 @@ export default function BillingPage() {
             <div className="db-card db-card-green" style={{ padding: "18px" }}>
               <h3 style={sectionTitle}>Payment Details</h3>
 
+              {selectedPaymentSubscription ? (
+                <p className="db-helper">
+                  Recording payment for{" "}
+                  <strong>
+                    {selectedPaymentSubscription.schools?.school_name ||
+                      "selected school"}
+                  </strong>
+                  .
+                </p>
+              ) : (
+                <p className="db-helper">
+                  Select a school subscription below before recording payment.
+                </p>
+              )}
+
               <input
                 className="db-input"
                 type="number"
@@ -622,9 +656,15 @@ export default function BillingPage() {
                 rows={4}
               />
 
-              <p className="db-helper">
-                Use the Mark Paid button on a school subscription below.
-              </p>
+              <button
+                type="button"
+                className="db-button-primary"
+                style={{ width: "100%" }}
+                onClick={recordPayment}
+                disabled={savingPayment || !selectedPaymentSubscription}
+              >
+                {savingPayment ? "Saving Payment..." : "Record Payment"}
+              </button>
             </div>
           </div>
         </>
@@ -723,7 +763,10 @@ export default function BillingPage() {
                         <p style={textStyle}>
                           Next billing:{" "}
                           {subscription.next_billing_date || "Not set"} · Last
-                          paid: {subscription.last_payment_date || "No payment yet"}
+                          paid:{" "}
+                          {subscription.last_paid_at
+                            ? subscription.last_paid_at.slice(0, 10)
+                            : "No payment yet"}
                         </p>
                       </div>
 
@@ -739,13 +782,12 @@ export default function BillingPage() {
                           <button
                             type="button"
                             className="db-button-primary"
-                            onClick={() => markPaymentReceived(subscription)}
-                            disabled={savingPaymentId === subscription.id}
+                            onClick={() =>
+                              selectSubscriptionForPayment(subscription)
+                            }
                             style={{ minHeight: "38px" }}
                           >
-                            {savingPaymentId === subscription.id
-                              ? "Saving..."
-                              : "Mark Paid"}
+                            Select for Payment
                           </button>
 
                           <button
@@ -833,11 +875,13 @@ export default function BillingPage() {
 
                     <p style={textStyle}>
                       R{Number(payment.amount).toFixed(2)} ·{" "}
-                      {payment.payment_date} ·{" "}
+                      {payment.paid_at?.slice(0, 10)} ·{" "}
                       {payment.payment_method || "No method"}
                     </p>
 
-                    <p style={textStyle}>Notes: {payment.notes || "None"}</p>
+                    <p style={textStyle}>
+                      Notes: {payment.payment_notes || "None"}
+                    </p>
                   </div>
                 ))}
               </div>

@@ -1,4 +1,5 @@
 import { getCurrentProfile } from "./auth";
+import { supabase } from "./supabase";
 
 export async function resolveSchoolContext(
   schoolParam: string | null
@@ -7,6 +8,7 @@ export async function resolveSchoolContext(
   isMaster: boolean;
   shouldReturnToMaster: boolean;
   error: string | null;
+  status: string | null;
 }> {
   const { profile, error } = await getCurrentProfile();
 
@@ -16,40 +18,74 @@ export async function resolveSchoolContext(
       isMaster: false,
       shouldReturnToMaster: false,
       error: "Not authenticated",
+      status: null,
     };
   }
 
+  let resolvedSchoolId: number | null = null;
+  let isMaster = false;
+
   if (profile.role === "master") {
+    isMaster = true;
+
     if (schoolParam && schoolParam !== "null" && schoolParam !== "") {
+      resolvedSchoolId = Number(schoolParam);
+    } else {
       return {
-        schoolId: Number(schoolParam),
+        schoolId: null,
         isMaster: true,
-        shouldReturnToMaster: false,
+        shouldReturnToMaster: true,
         error: null,
+        status: null,
+      };
+    }
+  } else {
+    if (!profile.school_id) {
+      return {
+        schoolId: null,
+        isMaster: false,
+        shouldReturnToMaster: false,
+        error: "No school linked to this account",
+        status: null,
       };
     }
 
+    resolvedSchoolId = Number(profile.school_id);
+  }
+
+  const { data: school, error: schoolError } = await supabase
+    .from("schools")
+    .select("id, status")
+    .eq("id", resolvedSchoolId)
+    .single();
+
+  if (schoolError || !school) {
     return {
       schoolId: null,
-      isMaster: true,
-      shouldReturnToMaster: true,
-      error: null,
+      isMaster,
+      shouldReturnToMaster: false,
+      error: "School not found",
+      status: null,
     };
   }
 
-  if (!profile.school_id) {
+  const schoolStatus = String(school.status || "active").toLowerCase();
+
+  if (schoolStatus !== "active") {
     return {
       schoolId: null,
-      isMaster: false,
+      isMaster,
       shouldReturnToMaster: false,
-      error: "No school linked to this account",
+      error: "School is not active",
+      status: schoolStatus,
     };
   }
 
   return {
-    schoolId: Number(profile.school_id),
-    isMaster: false,
+    schoolId: resolvedSchoolId,
+    isMaster,
     shouldReturnToMaster: false,
     error: null,
+    status: schoolStatus,
   };
 }

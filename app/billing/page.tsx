@@ -18,7 +18,7 @@ type Subscription = {
   status: string;
   start_date: string | null;
   next_billing_date: string | null;
-  last_paid_at: string | null;
+  last_payment_date: string | null;
   schools?: School | null;
 };
 
@@ -27,9 +27,10 @@ type Payment = {
   school_id: number;
   subscription_id: number | null;
   amount: number;
+  payment_date: string;
   payment_method: string | null;
-  payment_notes: string | null;
-  paid_at: string;
+  notes: string | null;
+  receipt_number: string | null;
   created_at: string;
   schools?: School | null;
 };
@@ -65,15 +66,11 @@ export default function BillingPage() {
   const [selectedPlan, setSelectedPlan] = useState("Bloom");
   const [selectedStatus, setSelectedStatus] = useState("trial");
   const [nextBillingDate, setNextBillingDate] = useState("");
-
-  const [selectedPaymentSubscription, setSelectedPaymentSubscription] =
-    useState<Subscription | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("299");
   const [paymentMethod, setPaymentMethod] = useState("EFT");
   const [paymentNotes, setPaymentNotes] = useState("");
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
-  const [subscriptionsOpen, setSubscriptionsOpen] = useState(true);
+  const [subscriptionsOpen, setSubscriptionsOpen] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
 
   const [filterSchoolId, setFilterSchoolId] = useState("");
@@ -82,7 +79,7 @@ export default function BillingPage() {
 
   const [loading, setLoading] = useState(true);
   const [savingSubscription, setSavingSubscription] = useState(false);
-  const [savingPayment, setSavingPayment] = useState(false);
+  const [savingPaymentId, setSavingPaymentId] = useState<number | null>(null);
   const [markingOverdueId, setMarkingOverdueId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -171,7 +168,7 @@ export default function BillingPage() {
         )
       `
       )
-      .order("paid_at", { ascending: false });
+      .order("payment_date", { ascending: false });
 
     if (error) {
       alert(error.message);
@@ -217,7 +214,7 @@ export default function BillingPage() {
       `
       )
       .eq("school_id", schoolId)
-      .order("paid_at", { ascending: false });
+      .order("payment_date", { ascending: false });
 
     if (error) {
       alert(error.message);
@@ -259,22 +256,15 @@ export default function BillingPage() {
     }
   }
 
-  function openPaymentModal(subscription: Subscription) {
-    setSelectedPaymentSubscription(subscription);
-    setPaymentAmount(String(subscription.monthly_price || ""));
-    setPaymentMethod("EFT");
-    setPaymentNotes("");
-    setPaymentModalOpen(true);
-  }
+  function generateReceiptNumber(subscriptionId: number) {
+    const now = new Date();
 
-  function closePaymentModal() {
-    if (savingPayment) return;
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const time = String(now.getTime()).slice(-6);
 
-    setPaymentModalOpen(false);
-    setSelectedPaymentSubscription(null);
-    setPaymentAmount("299");
-    setPaymentMethod("EFT");
-    setPaymentNotes("");
+    return `DB-${year}${month}${day}-${subscriptionId}-${time}`;
   }
 
   async function saveSubscription() {
@@ -329,11 +319,8 @@ export default function BillingPage() {
     alert("Subscription saved.");
   }
 
-  async function recordPayment() {
-    if (!selectedPaymentSubscription) {
-      alert("Please select a school subscription first.");
-      return;
-    }
+  async function markPaymentReceived(subscription: Subscription) {
+    if (savingPaymentId === subscription.id) return;
 
     const amount = Number(paymentAmount);
 
@@ -342,32 +329,34 @@ export default function BillingPage() {
       return;
     }
 
-    setSavingPayment(true);
+    setSavingPaymentId(subscription.id);
 
     const today = new Date();
     const nextDate = new Date(today);
 
     nextDate.setMonth(nextDate.getMonth() + 1);
 
-    const paidAt = today.toISOString();
+    const paymentDate = today.toISOString().slice(0, 10);
     const nextBilling = nextDate.toISOString().slice(0, 10);
+    const receiptNumber = generateReceiptNumber(subscription.id);
 
     const { error: paymentError } = await supabase
       .from("subscription_payments")
       .insert([
         {
-          school_id: selectedPaymentSubscription.school_id,
-          subscription_id: selectedPaymentSubscription.id,
+          school_id: subscription.school_id,
+          subscription_id: subscription.id,
           amount,
+          payment_date: paymentDate,
           payment_method: paymentMethod || "EFT",
-          payment_notes: paymentNotes || null,
-          paid_at: paidAt,
+          notes: paymentNotes || null,
+          receipt_number: receiptNumber,
         },
       ]);
 
     if (paymentError) {
       alert(paymentError.message);
-      setSavingPayment(false);
+      setSavingPaymentId(null);
       return;
     }
 
@@ -375,26 +364,24 @@ export default function BillingPage() {
       .from("school_subscriptions")
       .update({
         status: "active",
-        last_paid_at: paidAt,
+        last_payment_date: paymentDate,
         next_billing_date: nextBilling,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", selectedPaymentSubscription.id);
+      .eq("id", subscription.id);
 
     if (subscriptionError) {
       alert(subscriptionError.message);
-      setSavingPayment(false);
+      setSavingPaymentId(null);
       return;
     }
 
     await supabase
       .from("schools")
       .update({ billing_status: "active" })
-      .eq("id", selectedPaymentSubscription.school_id);
+      .eq("id", subscription.school_id);
 
-    const principalContact = await fetchPrincipalContact(
-      selectedPaymentSubscription.school_id
-    );
+    const principalContact = await fetchPrincipalContact(subscription.school_id);
 
     let emailSent = false;
 
@@ -407,37 +394,34 @@ export default function BillingPage() {
         body: JSON.stringify({
           principalEmail: principalContact.email,
           principalName: principalContact.full_name,
-          schoolName:
-            selectedPaymentSubscription.schools?.school_name || "your school",
+          schoolName: subscription.schools?.school_name || "your school",
           amount,
-          paymentDate: paidAt.slice(0, 10),
+          paymentDate,
           nextBillingDate: nextBilling,
           paymentMethod: paymentMethod || "EFT",
           paymentNotes: paymentNotes || "",
-          planName: selectedPaymentSubscription.plan_name,
+          planName: subscription.plan_name,
+          receiptNumber,
         }),
       });
 
       emailSent = emailResponse.ok;
     }
 
-    setPaymentModalOpen(false);
-    setSelectedPaymentSubscription(null);
     setPaymentNotes("");
     setPaymentMethod("EFT");
-    setPaymentAmount("299");
+    setPaymentAmount(String(subscription.monthly_price));
 
     await Promise.all([fetchAllSubscriptions(), fetchAllPayments()]);
-
-    setSavingPayment(false);
+    setSavingPaymentId(null);
     setSubscriptionsOpen(true);
     setPaymentsOpen(true);
 
     if (emailSent) {
-      alert("Payment recorded and confirmation email sent.");
+      alert(`Payment recorded and receipt sent. Receipt number: ${receiptNumber}`);
     } else {
       alert(
-        "Payment recorded, but no confirmation email was sent. Please check that the principal profile has an email address."
+        `Payment recorded. Receipt number: ${receiptNumber}. Confirmation email was not sent because no principal email was found.`
       );
     }
   }
@@ -478,7 +462,8 @@ export default function BillingPage() {
         !filterSchoolId ||
         Number(filterSchoolId) === Number(subscription.school_id);
 
-      const statusMatches = !filterStatus || subscription.status === filterStatus;
+      const statusMatches =
+        !filterStatus || subscription.status === filterStatus;
 
       return schoolMatches && statusMatches;
     });
@@ -490,7 +475,7 @@ export default function BillingPage() {
         !filterSchoolId || Number(filterSchoolId) === Number(payment.school_id);
 
       const monthMatches =
-        !filterMonth || payment.paid_at?.slice(0, 7) === filterMonth;
+        !filterMonth || payment.payment_date?.slice(0, 7) === filterMonth;
 
       return schoolMatches && monthMatches;
     });
@@ -516,8 +501,20 @@ export default function BillingPage() {
 
   return (
     <div>
-      <div className="db-soft-card" style={{ padding: "18px 20px", marginBottom: "18px" }}>
-        <h1 className="db-page-title" style={{ fontSize: "28px", marginBottom: "6px" }}>
+      <div
+        className="db-soft-card"
+        style={{
+          padding: "18px 20px",
+          marginBottom: "18px",
+        }}
+      >
+        <h1
+          className="db-page-title"
+          style={{
+            fontSize: "28px",
+            marginBottom: "6px",
+          }}
+        >
           Billing and Payments
         </h1>
 
@@ -528,19 +525,35 @@ export default function BillingPage() {
 
       {isMaster ? (
         <>
-          <div className="db-grid-3" style={{ marginBottom: "18px" }}>
+          <div
+            className="db-grid-3"
+            style={{
+              marginBottom: "18px",
+            }}
+          >
             <CompactStatCard
               title="Expected Monthly Revenue"
               value={`R${expectedMonthlyRevenue.toFixed(2)}`}
             />
-            <CompactStatCard title="Active Subscriptions" value={String(activeCount)} />
-            <CompactStatCard title="Overdue Schools" value={String(overdueCount)} />
+            <CompactStatCard
+              title="Active Subscriptions"
+              value={String(activeCount)}
+            />
+            <CompactStatCard
+              title="Overdue Schools"
+              value={String(overdueCount)}
+            />
           </div>
 
-          <div className="db-card db-card-blue" style={{ padding: "18px", marginBottom: "18px" }}>
-            <h3 style={sectionTitle}>Create or Update Subscription</h3>
+          <div
+            className="db-grid-2"
+            style={{
+              marginBottom: "18px",
+            }}
+          >
+            <div className="db-card db-card-blue" style={{ padding: "18px" }}>
+              <h3 style={sectionTitle}>Create or Update Subscription</h3>
 
-            <div style={formGrid}>
               <select
                 className="db-input"
                 value={selectedSchoolId}
@@ -584,22 +597,63 @@ export default function BillingPage() {
                 value={nextBillingDate}
                 onChange={(e) => setNextBillingDate(e.target.value)}
               />
+
+              <button
+                type="button"
+                className="db-button-primary"
+                style={{ width: "100%" }}
+                onClick={saveSubscription}
+                disabled={savingSubscription}
+              >
+                {savingSubscription ? "Saving..." : "Save Subscription"}
+              </button>
             </div>
 
-            <button
-              type="button"
-              className="db-button-primary"
-              style={{ width: "100%", marginTop: "10px" }}
-              onClick={saveSubscription}
-              disabled={savingSubscription}
-            >
-              {savingSubscription ? "Saving..." : "Save Subscription"}
-            </button>
+            <div className="db-card db-card-green" style={{ padding: "18px" }}>
+              <h3 style={sectionTitle}>Payment Details</h3>
+
+              <input
+                className="db-input"
+                type="number"
+                placeholder="Payment Amount"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+              />
+
+              <select
+                className="db-input"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+              >
+                <option value="EFT">EFT</option>
+                <option value="PayShap">PayShap</option>
+                <option value="Cash">Cash</option>
+                <option value="Card">Card</option>
+              </select>
+
+              <textarea
+                className="db-input"
+                placeholder="Payment notes"
+                value={paymentNotes}
+                onChange={(e) => setPaymentNotes(e.target.value)}
+                rows={4}
+              />
+
+              <p className="db-helper">
+                Use the Mark Paid button on a school subscription below.
+              </p>
+            </div>
           </div>
         </>
       ) : null}
 
-      <div className="db-card db-card-lavender" style={{ padding: "16px", marginBottom: "16px" }}>
+      <div
+        className="db-card db-card-lavender"
+        style={{
+          padding: "16px",
+          marginBottom: "16px",
+        }}
+      >
         <button
           type="button"
           onClick={() => setSubscriptionsOpen((prev) => !prev)}
@@ -676,19 +730,16 @@ export default function BillingPage() {
                         <strong style={{ fontSize: "16px" }}>
                           {subscription.schools?.school_name || "Unnamed school"}
                         </strong>
-
                         <p style={textStyle}>
                           {subscription.plan_name} · R
                           {Number(subscription.monthly_price).toFixed(2)} ·{" "}
                           {subscription.status}
                         </p>
-
                         <p style={textStyle}>
                           Next billing:{" "}
-                          {subscription.next_billing_date || "Not set"} · Last paid:{" "}
-                          {subscription.last_paid_at
-                            ? subscription.last_paid_at.slice(0, 10)
-                            : "No payment yet"}
+                          {subscription.next_billing_date || "Not set"} · Last
+                          paid:{" "}
+                          {subscription.last_payment_date || "No payment yet"}
                         </p>
                       </div>
 
@@ -704,10 +755,13 @@ export default function BillingPage() {
                           <button
                             type="button"
                             className="db-button-primary"
-                            onClick={() => openPaymentModal(subscription)}
+                            onClick={() => markPaymentReceived(subscription)}
+                            disabled={savingPaymentId === subscription.id}
                             style={{ minHeight: "38px" }}
                           >
-                            Record Payment
+                            {savingPaymentId === subscription.id
+                              ? "Saving..."
+                              : "Mark Paid"}
                           </button>
 
                           <button
@@ -731,7 +785,12 @@ export default function BillingPage() {
         ) : null}
       </div>
 
-      <div className="db-card db-card-yellow" style={{ padding: "16px" }}>
+      <div
+        className="db-card db-card-yellow"
+        style={{
+          padding: "16px",
+        }}
+      >
         <button
           type="button"
           onClick={() => setPaymentsOpen((prev) => !prev)}
@@ -787,16 +846,15 @@ export default function BillingPage() {
                     <strong style={{ fontSize: "16px" }}>
                       {payment.schools?.school_name || "School"}
                     </strong>
-
                     <p style={textStyle}>
                       R{Number(payment.amount).toFixed(2)} ·{" "}
-                      {payment.paid_at?.slice(0, 10)} ·{" "}
+                      {payment.payment_date} ·{" "}
                       {payment.payment_method || "No method"}
                     </p>
-
                     <p style={textStyle}>
-                      Notes: {payment.payment_notes || "None"}
+                      Receipt: {payment.receipt_number || "Not generated"}
                     </p>
+                    <p style={textStyle}>Notes: {payment.notes || "None"}</p>
                   </div>
                 ))}
               </div>
@@ -804,74 +862,6 @@ export default function BillingPage() {
           </div>
         ) : null}
       </div>
-
-      {paymentModalOpen ? (
-        <div style={modalOverlay}>
-          <div style={modalCard}>
-            <div style={modalHeader}>
-              <div>
-                <h3 style={modalTitle}>Record Payment</h3>
-                <p style={modalSubtitle}>
-                  {selectedPaymentSubscription?.schools?.school_name ||
-                    "Selected school"}
-                </p>
-              </div>
-
-              <button type="button" style={closeButton} onClick={closePaymentModal}>
-                ×
-              </button>
-            </div>
-
-            <input
-              className="db-input"
-              type="number"
-              placeholder="Payment Amount"
-              value={paymentAmount}
-              onChange={(e) => setPaymentAmount(e.target.value)}
-            />
-
-            <select
-              className="db-input"
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-            >
-              <option value="EFT">EFT</option>
-              <option value="PayShap">PayShap</option>
-              <option value="Cash">Cash</option>
-              <option value="Card">Card</option>
-            </select>
-
-            <textarea
-              className="db-input"
-              placeholder="Payment notes"
-              value={paymentNotes}
-              onChange={(e) => setPaymentNotes(e.target.value)}
-              rows={4}
-            />
-
-            <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-              <button
-                type="button"
-                className="db-button-primary"
-                style={{ flex: 1 }}
-                onClick={recordPayment}
-                disabled={savingPayment}
-              >
-                {savingPayment ? "Saving..." : "Save Payment"}
-              </button>
-
-              <button
-                type="button"
-                style={{ ...secondaryButton, flex: 1 }}
-                onClick={closePaymentModal}
-                disabled={savingPayment}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -889,7 +879,6 @@ function CompactStatCard({ title, value }: { title: string; value: string }) {
       >
         {title}
       </p>
-
       <h2
         style={{
           margin: "6px 0 0 0",
@@ -938,12 +927,6 @@ const filterGrid = {
   marginBottom: "12px",
 };
 
-const formGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: "10px",
-};
-
 const secondaryButton = {
   border: "1px solid #E3D9CD",
   background: "#FFFFFF",
@@ -952,57 +935,4 @@ const secondaryButton = {
   padding: "10px 14px",
   fontWeight: 700,
   cursor: "pointer",
-};
-
-const modalOverlay = {
-  position: "fixed" as const,
-  inset: 0,
-  background: "rgba(30, 28, 44, 0.45)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 1000,
-  padding: "18px",
-};
-
-const modalCard = {
-  width: "100%",
-  maxWidth: "420px",
-  background: "#FFFFFF",
-  borderRadius: "18px",
-  padding: "20px",
-  boxShadow: "0 20px 60px rgba(0,0,0,0.22)",
-};
-
-const modalHeader = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "12px",
-  marginBottom: "14px",
-};
-
-const modalTitle = {
-  margin: 0,
-  color: "var(--db-text)",
-  fontSize: "21px",
-  fontWeight: 800,
-};
-
-const modalSubtitle = {
-  margin: "5px 0 0 0",
-  color: "var(--db-text-soft)",
-  fontWeight: 700,
-};
-
-const closeButton = {
-  border: "none",
-  background: "#F4EFEA",
-  color: "#5B5675",
-  borderRadius: "999px",
-  width: "34px",
-  height: "34px",
-  cursor: "pointer",
-  fontSize: "22px",
-  lineHeight: "30px",
 };

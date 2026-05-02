@@ -12,13 +12,17 @@ export async function POST(request: Request) {
       principalName,
       schoolName,
       amount,
-      paymentMonth,
+      paymentDate,
+      nextBillingDate,
+      paymentMethod,
       paymentNotes,
+      planName,
+      receiptNumber,
     } = body;
 
     if (!principalEmail || !schoolName || !amount) {
       return NextResponse.json(
-        { error: "Missing required payment email details." },
+        { error: "Missing required payment confirmation details." },
         { status: 400 }
       );
     }
@@ -29,19 +33,23 @@ export async function POST(request: Request) {
       subject: `Payment Received - ${schoolName}`,
       html: `
         <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
-          <h2>Payment Received</h2>
+          <h2 style="color: #111827;">Payment Received</h2>
 
           <p>Dear ${principalName || "Principal"},</p>
 
           <p>
             Thank you so much for your payment. This email confirms that
-            DailyBloom has received your payment for <strong>${schoolName}</strong>.
+            DailyBloom has received payment for <strong>${schoolName}</strong>.
           </p>
 
           <div style="background: #f8fafc; padding: 16px; border-radius: 10px; margin: 20px 0;">
+            <p><strong>Receipt Number:</strong> ${receiptNumber || "Not generated"}</p>
             <p><strong>School:</strong> ${schoolName}</p>
-            <p><strong>Amount Received:</strong> R${amount}</p>
-            <p><strong>Payment Month:</strong> ${paymentMonth || "Not specified"}</p>
+            <p><strong>Plan:</strong> ${planName || "DailyBloom Subscription"}</p>
+            <p><strong>Amount Received:</strong> R${Number(amount).toFixed(2)}</p>
+            <p><strong>Payment Date:</strong> ${paymentDate || "Not specified"}</p>
+            <p><strong>Payment Method:</strong> ${paymentMethod || "Not specified"}</p>
+            <p><strong>Next Billing Date:</strong> ${nextBillingDate || "Not set"}</p>
             <p><strong>Payment Notes:</strong> ${paymentNotes || "No notes added"}</p>
           </div>
 
@@ -61,7 +69,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || "Could not send payment confirmation email." },
+      {
+        error: error.message || "Could not send payment confirmation email.",
+      },
       { status: 500 }
     );
   }

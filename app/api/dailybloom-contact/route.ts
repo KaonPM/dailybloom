@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     }
 
     await resend.emails.send({
-      from: "DailyBloom <onboarding@resend.dev>",
+      from: "DailyBloom <info@dailybloom.co.za>",
       to: "info@dailybloom.co.za",
       replyTo: email,
       subject: `New DailyBloom enquiry from ${name}`,

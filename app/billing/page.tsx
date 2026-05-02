@@ -70,6 +70,7 @@ export default function BillingPage() {
   const [paymentMethod, setPaymentMethod] = useState("EFT");
   const [paymentNotes, setPaymentNotes] = useState("");
 
+  const [billingFormOpen, setBillingFormOpen] = useState(false);
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
 
@@ -427,6 +428,8 @@ export default function BillingPage() {
   }
 
   async function markOverdue(subscription: Subscription) {
+    if (markingOverdueId === subscription.id) return;
+
     setMarkingOverdueId(subscription.id);
 
     const { error } = await supabase
@@ -546,103 +549,127 @@ export default function BillingPage() {
           </div>
 
           <div
-            className="db-grid-2"
+            className="db-card db-card-blue"
             style={{
-              marginBottom: "18px",
+              padding: "16px",
+              marginBottom: "16px",
             }}
           >
-            <div className="db-card db-card-blue" style={{ padding: "18px" }}>
-              <h3 style={sectionTitle}>Create or Update Subscription</h3>
+            <button
+              type="button"
+              onClick={() => setBillingFormOpen((prev) => !prev)}
+              style={collapseHeaderButton}
+            >
+              <span>Manage Subscription and Payment Details</span>
+              <span>{billingFormOpen ? "Hide" : "Show"}</span>
+            </button>
 
-              <select
-                className="db-input"
-                value={selectedSchoolId}
-                onChange={(e) => setSelectedSchoolId(e.target.value)}
+            {billingFormOpen ? (
+              <div
+                className="db-grid-2"
+                style={{
+                  marginTop: "14px",
+                }}
               >
-                <option value="">Select School</option>
-                {schools.map((school) => (
-                  <option key={school.id} value={school.id}>
-                    {school.school_name}
-                  </option>
-                ))}
-              </select>
+                <div className="db-card db-card-blue" style={{ padding: "18px" }}>
+                  <h3 style={sectionTitle}>Create or Update Subscription</h3>
 
-              <select
-                className="db-input"
-                value={selectedPlan}
-                onChange={(e) => handlePlanChange(e.target.value)}
-              >
-                {PLAN_OPTIONS.map((plan) => (
-                  <option key={plan.name} value={plan.name}>
-                    {plan.name} - R{plan.price}
-                  </option>
-                ))}
-              </select>
+                  <select
+                    className="db-input"
+                    value={selectedSchoolId}
+                    onChange={(e) => setSelectedSchoolId(e.target.value)}
+                  >
+                    <option value="">Select School</option>
+                    {schools.map((school) => (
+                      <option key={school.id} value={school.id}>
+                        {school.school_name}
+                      </option>
+                    ))}
+                  </select>
 
-              <select
-                className="db-input"
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-              >
-                {STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
+                  <select
+                    className="db-input"
+                    value={selectedPlan}
+                    onChange={(e) => handlePlanChange(e.target.value)}
+                  >
+                    {PLAN_OPTIONS.map((plan) => (
+                      <option key={plan.name} value={plan.name}>
+                        {plan.name} - R{plan.price}
+                      </option>
+                    ))}
+                  </select>
 
-              <input
-                className="db-input"
-                type="date"
-                value={nextBillingDate}
-                onChange={(e) => setNextBillingDate(e.target.value)}
-              />
+                  <select
+                    className="db-input"
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                  >
+                    {STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
 
-              <button
-                type="button"
-                className="db-button-primary"
-                style={{ width: "100%" }}
-                onClick={saveSubscription}
-                disabled={savingSubscription}
-              >
-                {savingSubscription ? "Saving..." : "Save Subscription"}
-              </button>
-            </div>
+                  <input
+                    className="db-input"
+                    type="date"
+                    value={nextBillingDate}
+                    onChange={(e) => setNextBillingDate(e.target.value)}
+                  />
 
-            <div className="db-card db-card-green" style={{ padding: "18px" }}>
-              <h3 style={sectionTitle}>Payment Details</h3>
+                  <button
+                    type="button"
+                    className="db-button-primary"
+                    style={{ width: "100%" }}
+                    onClick={saveSubscription}
+                    disabled={savingSubscription}
+                  >
+                    {savingSubscription ? "Saving..." : "Save Subscription"}
+                  </button>
+                </div>
 
-              <input
-                className="db-input"
-                type="number"
-                placeholder="Payment Amount"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-              />
+                <div className="db-card db-card-green" style={{ padding: "18px" }}>
+                  <h3 style={sectionTitle}>Payment Details</h3>
 
-              <select
-                className="db-input"
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-              >
-                <option value="EFT">EFT</option>
-                <option value="PayShap">PayShap</option>
-                <option value="Cash">Cash</option>
-                <option value="Card">Card</option>
-              </select>
+                  <input
+                    className="db-input"
+                    type="number"
+                    placeholder="Payment Amount"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                  />
 
-              <textarea
-                className="db-input"
-                placeholder="Payment notes"
-                value={paymentNotes}
-                onChange={(e) => setPaymentNotes(e.target.value)}
-                rows={4}
-              />
+                  <select
+                    className="db-input"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                  >
+                    <option value="EFT">EFT</option>
+                    <option value="PayShap">PayShap</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Card">Card</option>
+                  </select>
 
-              <p className="db-helper">
-                Use the Mark Paid button on a school subscription below.
+                  <textarea
+                    className="db-input"
+                    placeholder="Payment notes"
+                    value={paymentNotes}
+                    onChange={(e) => setPaymentNotes(e.target.value)}
+                    rows={4}
+                  />
+
+                  <p className="db-helper">
+                    Use the Mark Paid button on a school subscription below.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="db-helper" style={{ marginTop: "10px" }}>
+                Open this section only when you need to update a subscription or
+                change payment details before marking a school as paid.
               </p>
-            </div>
+            )}
           </div>
         </>
       ) : null}
@@ -730,11 +757,13 @@ export default function BillingPage() {
                         <strong style={{ fontSize: "16px" }}>
                           {subscription.schools?.school_name || "Unnamed school"}
                         </strong>
+
                         <p style={textStyle}>
                           {subscription.plan_name} · R
                           {Number(subscription.monthly_price).toFixed(2)} ·{" "}
                           {subscription.status}
                         </p>
+
                         <p style={textStyle}>
                           Next billing:{" "}
                           {subscription.next_billing_date || "Not set"} · Last
@@ -846,14 +875,17 @@ export default function BillingPage() {
                     <strong style={{ fontSize: "16px" }}>
                       {payment.schools?.school_name || "School"}
                     </strong>
+
                     <p style={textStyle}>
                       R{Number(payment.amount).toFixed(2)} ·{" "}
                       {payment.payment_date} ·{" "}
                       {payment.payment_method || "No method"}
                     </p>
+
                     <p style={textStyle}>
                       Receipt: {payment.receipt_number || "Not generated"}
                     </p>
+
                     <p style={textStyle}>Notes: {payment.notes || "None"}</p>
                   </div>
                 ))}
@@ -879,6 +911,7 @@ function CompactStatCard({ title, value }: { title: string; value: string }) {
       >
         {title}
       </p>
+
       <h2
         style={{
           margin: "6px 0 0 0",

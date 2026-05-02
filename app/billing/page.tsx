@@ -40,6 +40,11 @@ type Profile = {
   school_id: number | null;
 };
 
+type PrincipalContact = {
+  full_name: string | null;
+  email: string | null;
+};
+
 const PLAN_OPTIONS = [
   { name: "Bloom", price: 299 },
   { name: "Bloom Pro", price: 399 },
@@ -217,6 +222,28 @@ export default function BillingPage() {
     setPayments((data || []) as Payment[]);
   }
 
+  async function fetchPrincipalContact(
+    schoolId: number
+  ): Promise<PrincipalContact | null> {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("school_id", schoolId)
+      .eq("role", "principal")
+      .limit(1);
+
+    if (error) {
+      alert(error.message);
+      return null;
+    }
+
+    if (!data || data.length === 0) {
+      return null;
+    }
+
+    return data[0] as PrincipalContact;
+  }
+
   function handlePlanChange(planName: string) {
     setSelectedPlan(planName);
 
@@ -337,6 +364,32 @@ export default function BillingPage() {
       .update({ billing_status: "active" })
       .eq("id", subscription.school_id);
 
+    const principalContact = await fetchPrincipalContact(subscription.school_id);
+
+    let emailSent = false;
+
+    if (principalContact?.email) {
+      const emailResponse = await fetch("/api/payment-received", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          principalEmail: principalContact.email,
+          principalName: principalContact.full_name,
+          schoolName: subscription.schools?.school_name || "your school",
+          amount,
+          paymentDate,
+          nextBillingDate: nextBilling,
+          paymentMethod: paymentMethod || "EFT",
+          paymentNotes: paymentNotes || "",
+          planName: subscription.plan_name,
+        }),
+      });
+
+      emailSent = emailResponse.ok;
+    }
+
     setPaymentNotes("");
     setPaymentMethod("EFT");
     setPaymentAmount(String(subscription.monthly_price));
@@ -345,7 +398,14 @@ export default function BillingPage() {
     setSavingPayment(false);
     setSubscriptionsOpen(true);
     setPaymentsOpen(true);
-    alert("Payment recorded.");
+
+    if (emailSent) {
+      alert("Payment recorded and confirmation email sent.");
+    } else {
+      alert(
+        "Payment recorded, but no confirmation email was sent. Please check that the principal profile has an email address."
+      );
+    }
   }
 
   async function markOverdue(subscription: Subscription) {
@@ -377,10 +437,10 @@ export default function BillingPage() {
   const filteredSubscriptions = useMemo(() => {
     return subscriptions.filter((subscription) => {
       const schoolMatches =
-        !filterSchoolId || Number(filterSchoolId) === Number(subscription.school_id);
+        !filterSchoolId ||
+        Number(filterSchoolId) === Number(subscription.school_id);
 
-      const statusMatches =
-        !filterStatus || subscription.status === filterStatus;
+      const statusMatches = !filterStatus || subscription.status === filterStatus;
 
       return schoolMatches && statusMatches;
     });
@@ -654,8 +714,8 @@ export default function BillingPage() {
                         </p>
                         <p style={textStyle}>
                           Next billing:{" "}
-                          {subscription.next_billing_date || "Not set"} · Last paid:{" "}
-                          {subscription.last_payment_date || "No payment yet"}
+                          {subscription.next_billing_date || "Not set"} · Last
+                          paid: {subscription.last_payment_date || "No payment yet"}
                         </p>
                       </div>
 

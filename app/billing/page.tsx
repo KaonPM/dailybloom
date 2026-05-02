@@ -71,6 +71,7 @@ export default function BillingPage() {
   const [paymentAmount, setPaymentAmount] = useState("299");
   const [paymentMethod, setPaymentMethod] = useState("EFT");
   const [paymentNotes, setPaymentNotes] = useState("");
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(true);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
@@ -258,9 +259,20 @@ export default function BillingPage() {
     }
   }
 
-  function selectSubscriptionForPayment(subscription: Subscription) {
+  function openPaymentModal(subscription: Subscription) {
     setSelectedPaymentSubscription(subscription);
     setPaymentAmount(String(subscription.monthly_price || ""));
+    setPaymentMethod("EFT");
+    setPaymentNotes("");
+    setPaymentModalOpen(true);
+  }
+
+  function closePaymentModal() {
+    if (savingPayment) return;
+
+    setPaymentModalOpen(false);
+    setSelectedPaymentSubscription(null);
+    setPaymentAmount("299");
     setPaymentMethod("EFT");
     setPaymentNotes("");
   }
@@ -409,6 +421,7 @@ export default function BillingPage() {
       emailSent = emailResponse.ok;
     }
 
+    setPaymentModalOpen(false);
     setSelectedPaymentSubscription(null);
     setPaymentNotes("");
     setPaymentMethod("EFT");
@@ -503,20 +516,8 @@ export default function BillingPage() {
 
   return (
     <div>
-      <div
-        className="db-soft-card"
-        style={{
-          padding: "18px 20px",
-          marginBottom: "18px",
-        }}
-      >
-        <h1
-          className="db-page-title"
-          style={{
-            fontSize: "28px",
-            marginBottom: "6px",
-          }}
-        >
+      <div className="db-soft-card" style={{ padding: "18px 20px", marginBottom: "18px" }}>
+        <h1 className="db-page-title" style={{ fontSize: "28px", marginBottom: "6px" }}>
           Billing and Payments
         </h1>
 
@@ -527,35 +528,19 @@ export default function BillingPage() {
 
       {isMaster ? (
         <>
-          <div
-            className="db-grid-3"
-            style={{
-              marginBottom: "18px",
-            }}
-          >
+          <div className="db-grid-3" style={{ marginBottom: "18px" }}>
             <CompactStatCard
               title="Expected Monthly Revenue"
               value={`R${expectedMonthlyRevenue.toFixed(2)}`}
             />
-            <CompactStatCard
-              title="Active Subscriptions"
-              value={String(activeCount)}
-            />
-            <CompactStatCard
-              title="Overdue Schools"
-              value={String(overdueCount)}
-            />
+            <CompactStatCard title="Active Subscriptions" value={String(activeCount)} />
+            <CompactStatCard title="Overdue Schools" value={String(overdueCount)} />
           </div>
 
-          <div
-            className="db-grid-2"
-            style={{
-              marginBottom: "18px",
-            }}
-          >
-            <div className="db-card db-card-blue" style={{ padding: "18px" }}>
-              <h3 style={sectionTitle}>Create or Update Subscription</h3>
+          <div className="db-card db-card-blue" style={{ padding: "18px", marginBottom: "18px" }}>
+            <h3 style={sectionTitle}>Create or Update Subscription</h3>
 
+            <div style={formGrid}>
               <select
                 className="db-input"
                 value={selectedSchoolId}
@@ -599,84 +584,22 @@ export default function BillingPage() {
                 value={nextBillingDate}
                 onChange={(e) => setNextBillingDate(e.target.value)}
               />
-
-              <button
-                type="button"
-                className="db-button-primary"
-                style={{ width: "100%" }}
-                onClick={saveSubscription}
-                disabled={savingSubscription}
-              >
-                {savingSubscription ? "Saving..." : "Save Subscription"}
-              </button>
             </div>
 
-            <div className="db-card db-card-green" style={{ padding: "18px" }}>
-              <h3 style={sectionTitle}>Payment Details</h3>
-
-              {selectedPaymentSubscription ? (
-                <p className="db-helper">
-                  Recording payment for{" "}
-                  <strong>
-                    {selectedPaymentSubscription.schools?.school_name ||
-                      "selected school"}
-                  </strong>
-                  .
-                </p>
-              ) : (
-                <p className="db-helper">
-                  Select a school subscription below before recording payment.
-                </p>
-              )}
-
-              <input
-                className="db-input"
-                type="number"
-                placeholder="Payment Amount"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-              />
-
-              <select
-                className="db-input"
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-              >
-                <option value="EFT">EFT</option>
-                <option value="PayShap">PayShap</option>
-                <option value="Cash">Cash</option>
-                <option value="Card">Card</option>
-              </select>
-
-              <textarea
-                className="db-input"
-                placeholder="Payment notes"
-                value={paymentNotes}
-                onChange={(e) => setPaymentNotes(e.target.value)}
-                rows={4}
-              />
-
-              <button
-                type="button"
-                className="db-button-primary"
-                style={{ width: "100%" }}
-                onClick={recordPayment}
-                disabled={savingPayment || !selectedPaymentSubscription}
-              >
-                {savingPayment ? "Saving Payment..." : "Record Payment"}
-              </button>
-            </div>
+            <button
+              type="button"
+              className="db-button-primary"
+              style={{ width: "100%", marginTop: "10px" }}
+              onClick={saveSubscription}
+              disabled={savingSubscription}
+            >
+              {savingSubscription ? "Saving..." : "Save Subscription"}
+            </button>
           </div>
         </>
       ) : null}
 
-      <div
-        className="db-card db-card-lavender"
-        style={{
-          padding: "16px",
-          marginBottom: "16px",
-        }}
-      >
+      <div className="db-card db-card-lavender" style={{ padding: "16px", marginBottom: "16px" }}>
         <button
           type="button"
           onClick={() => setSubscriptionsOpen((prev) => !prev)}
@@ -762,8 +685,7 @@ export default function BillingPage() {
 
                         <p style={textStyle}>
                           Next billing:{" "}
-                          {subscription.next_billing_date || "Not set"} · Last
-                          paid:{" "}
+                          {subscription.next_billing_date || "Not set"} · Last paid:{" "}
                           {subscription.last_paid_at
                             ? subscription.last_paid_at.slice(0, 10)
                             : "No payment yet"}
@@ -782,12 +704,10 @@ export default function BillingPage() {
                           <button
                             type="button"
                             className="db-button-primary"
-                            onClick={() =>
-                              selectSubscriptionForPayment(subscription)
-                            }
+                            onClick={() => openPaymentModal(subscription)}
                             style={{ minHeight: "38px" }}
                           >
-                            Select for Payment
+                            Record Payment
                           </button>
 
                           <button
@@ -811,12 +731,7 @@ export default function BillingPage() {
         ) : null}
       </div>
 
-      <div
-        className="db-card db-card-yellow"
-        style={{
-          padding: "16px",
-        }}
-      >
+      <div className="db-card db-card-yellow" style={{ padding: "16px" }}>
         <button
           type="button"
           onClick={() => setPaymentsOpen((prev) => !prev)}
@@ -889,6 +804,74 @@ export default function BillingPage() {
           </div>
         ) : null}
       </div>
+
+      {paymentModalOpen ? (
+        <div style={modalOverlay}>
+          <div style={modalCard}>
+            <div style={modalHeader}>
+              <div>
+                <h3 style={modalTitle}>Record Payment</h3>
+                <p style={modalSubtitle}>
+                  {selectedPaymentSubscription?.schools?.school_name ||
+                    "Selected school"}
+                </p>
+              </div>
+
+              <button type="button" style={closeButton} onClick={closePaymentModal}>
+                ×
+              </button>
+            </div>
+
+            <input
+              className="db-input"
+              type="number"
+              placeholder="Payment Amount"
+              value={paymentAmount}
+              onChange={(e) => setPaymentAmount(e.target.value)}
+            />
+
+            <select
+              className="db-input"
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+            >
+              <option value="EFT">EFT</option>
+              <option value="PayShap">PayShap</option>
+              <option value="Cash">Cash</option>
+              <option value="Card">Card</option>
+            </select>
+
+            <textarea
+              className="db-input"
+              placeholder="Payment notes"
+              value={paymentNotes}
+              onChange={(e) => setPaymentNotes(e.target.value)}
+              rows={4}
+            />
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+              <button
+                type="button"
+                className="db-button-primary"
+                style={{ flex: 1 }}
+                onClick={recordPayment}
+                disabled={savingPayment}
+              >
+                {savingPayment ? "Saving..." : "Save Payment"}
+              </button>
+
+              <button
+                type="button"
+                style={{ ...secondaryButton, flex: 1 }}
+                onClick={closePaymentModal}
+                disabled={savingPayment}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -955,6 +938,12 @@ const filterGrid = {
   marginBottom: "12px",
 };
 
+const formGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "10px",
+};
+
 const secondaryButton = {
   border: "1px solid #E3D9CD",
   background: "#FFFFFF",
@@ -963,4 +952,57 @@ const secondaryButton = {
   padding: "10px 14px",
   fontWeight: 700,
   cursor: "pointer",
+};
+
+const modalOverlay = {
+  position: "fixed" as const,
+  inset: 0,
+  background: "rgba(30, 28, 44, 0.45)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 1000,
+  padding: "18px",
+};
+
+const modalCard = {
+  width: "100%",
+  maxWidth: "420px",
+  background: "#FFFFFF",
+  borderRadius: "18px",
+  padding: "20px",
+  boxShadow: "0 20px 60px rgba(0,0,0,0.22)",
+};
+
+const modalHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "12px",
+  marginBottom: "14px",
+};
+
+const modalTitle = {
+  margin: 0,
+  color: "var(--db-text)",
+  fontSize: "21px",
+  fontWeight: 800,
+};
+
+const modalSubtitle = {
+  margin: "5px 0 0 0",
+  color: "var(--db-text-soft)",
+  fontWeight: 700,
+};
+
+const closeButton = {
+  border: "none",
+  background: "#F4EFEA",
+  color: "#5B5675",
+  borderRadius: "999px",
+  width: "34px",
+  height: "34px",
+  cursor: "pointer",
+  fontSize: "22px",
+  lineHeight: "30px",
 };

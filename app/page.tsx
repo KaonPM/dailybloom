@@ -5,7 +5,18 @@ import { useEffect, useState } from "react";
 
 export default function LandingPage() {
   const [isMobile, setIsMobile] = useState(false);
-  const [openPackage, setOpenPackage] = useState<string | null>("Bloom Pro");
+  const [openPackage, setOpenPackage] = useState<string | null>(null);
+
+  const [contactName, setContactName] = useState("");
+  const [schoolName, setSchoolName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactMessage, setContactMessage] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const dailyBloomPhoneDisplay = "076 361 6044";
+  const dailyBloomPhoneCall = "+27763616044";
+  const dailyBloomWhatsApp = "27763616044";
 
   useEffect(() => {
     function handleResize() {
@@ -17,6 +28,46 @@ export default function LandingPage() {
 
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  async function handleContactSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (!contactName || !contactEmail || !contactMessage) {
+      alert("Please add your name, email address and message.");
+      return;
+    }
+
+    setSending(true);
+
+    const response = await fetch("/api/dailybloom-contact", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: contactName,
+        schoolName,
+        phone: contactPhone,
+        email: contactEmail,
+        message: contactMessage,
+      }),
+    });
+
+    if (!response.ok) {
+      alert("Could not send your message. Please try again.");
+      setSending(false);
+      return;
+    }
+
+    setContactName("");
+    setSchoolName("");
+    setContactPhone("");
+    setContactEmail("");
+    setContactMessage("");
+    setSending(false);
+
+    alert("Message sent successfully.");
+  }
 
   return (
     <main style={{ minHeight: "100vh", background: "#FFF8F2", color: "#2D2A3E" }}>
@@ -77,7 +128,7 @@ export default function LandingPage() {
 
         <SectionTitle
           title="Packages"
-          subtitle="Choose the level of support that fits your school. Click a package to view what is included."
+          subtitle="Choose the level of support that fits your school. Click view offering to see what is included."
           isMobile={isMobile}
         />
 
@@ -147,11 +198,11 @@ export default function LandingPage() {
         <div style={noticeBox(isMobile)}>
           <h3 style={smallHeading(isMobile)}>Once-off setup fee</h3>
           <p style={paragraph(isMobile)}>
-            R599 once off. This includes onboarding, school setup, administrative configuration,
+            R599 once off. This includes onboarding, school setup, administrative configuration
             and ongoing administrative assistance while your school remains subscribed.
           </p>
           <p style={paragraph(isMobile)}>
-            After the first six months from launch date, monthly package prices may increase by R100 per plan.
+            After the first six months from launch date, monthly package prices may increase per plan.
             The setup fee remains R599.
           </p>
         </div>
@@ -173,23 +224,46 @@ export default function LandingPage() {
           >
             <div style={card(isMobile)}>
               <h3 style={smallHeading(isMobile)}>Contact details</h3>
-              <p style={paragraph(isMobile)}>Phone: 076 361 6044</p>
-              <p style={paragraph(isMobile)}>WhatsApp: 076 361 6044</p>
-              <p style={paragraph(isMobile)}>Email: info@dailybloom.co.za</p>
+
+              <p style={paragraph(isMobile)}>
+                Phone:{" "}
+                <a href={`tel:${dailyBloomPhoneCall}`} style={contactLink}>
+                  {dailyBloomPhoneDisplay}
+                </a>
+              </p>
+
+              <p style={paragraph(isMobile)}>
+                WhatsApp:{" "}
+                <a
+                  href={`https://wa.me/${dailyBloomWhatsApp}?text=Hello%20DailyBloom%2C%20I%20would%20like%20to%20find%20out%20more.`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={contactLink}
+                >
+                  {dailyBloomPhoneDisplay}
+                </a>
+              </p>
+
+              <p style={paragraph(isMobile)}>
+                Email:{" "}
+                <a href="mailto:info@dailybloom.co.za" style={contactLink}>
+                  info@dailybloom.co.za
+                </a>
+              </p>
             </div>
 
-            <form style={card(isMobile)}>
+            <form style={card(isMobile)} onSubmit={handleContactSubmit}>
               <h3 style={smallHeading(isMobile)}>Contact form</h3>
 
-              <input style={inputStyle} placeholder="Your name" />
-              <input style={inputStyle} placeholder="School name" />
-              <input style={inputStyle} placeholder="Phone number" />
-              <input style={inputStyle} placeholder="Email address" />
-              <textarea style={{ ...inputStyle, minHeight: 100, resize: "vertical" }} placeholder="Tell us what you need help with" />
+              <input style={inputStyle} placeholder="Your name" value={contactName} onChange={(e) => setContactName(e.target.value)} />
+              <input style={inputStyle} placeholder="School name" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} />
+              <input style={inputStyle} placeholder="Phone number" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
+              <input style={inputStyle} placeholder="Email address" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
+              <textarea style={{ ...inputStyle, minHeight: 100, resize: "vertical" }} placeholder="Tell us what you need help with" value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} />
 
-              <a href="mailto:info@dailybloom.co.za" style={{ ...primaryButton, width: "100%", marginTop: 8 }}>
-                Email DailyBloom
-              </a>
+              <button type="submit" style={{ ...primaryButton, width: "100%", marginTop: 8, cursor: "pointer" }} disabled={sending}>
+                {sending ? "Sending..." : "Send Message"}
+              </button>
             </form>
           </div>
         </details>
@@ -250,14 +324,10 @@ function PackageCard({
   badge?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       style={{
         ...card(isMobile),
         borderTop: `8px solid ${accent}`,
-        textAlign: "left",
-        cursor: "pointer",
         transform: isOpen ? "translateY(-3px)" : "none",
         transition: "all 0.2s ease",
         outline: isOpen ? `2px solid ${accent}` : "none",
@@ -288,9 +358,9 @@ function PackageCard({
       <p style={paragraph(isMobile)}>{learners}</p>
       <p style={paragraph(isMobile)}>{summary}</p>
 
-      <p style={{ ...paragraph(isMobile), fontWeight: 800, marginTop: 12 }}>
+      <button type="button" onClick={onClick} style={offeringButton}>
         {isOpen ? "Hide offering" : "View offering"}
-      </p>
+      </button>
 
       {isOpen && (
         <ul style={{ margin: "12px 0 0 18px", padding: 0, color: "#5F6275", lineHeight: 1.7, fontSize: isMobile ? 14 : 15 }}>
@@ -299,7 +369,7 @@ function PackageCard({
           ))}
         </ul>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -338,6 +408,24 @@ const secondaryButton = {
   fontWeight: 800,
   textDecoration: "none",
   border: "1px solid #F0D98A",
+};
+
+const offeringButton = {
+  marginTop: 12,
+  padding: 0,
+  background: "transparent",
+  border: "none",
+  color: "#2D2A3E",
+  fontWeight: 800,
+  cursor: "pointer",
+  fontSize: 15,
+  textAlign: "left" as const,
+};
+
+const contactLink = {
+  color: "#2D2A3E",
+  fontWeight: 800,
+  textDecoration: "none",
 };
 
 const inputStyle = {

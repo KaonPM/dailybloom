@@ -12,6 +12,8 @@ type SchoolItem = {
   primary_color?: string | null;
   secondary_color?: string | null;
   logo_url?: string | null;
+  status?: string | null;
+  deleted_at?: string | null;
 };
 
 type PrincipalItem = {
@@ -63,6 +65,7 @@ export default function MasterPage() {
   const [savingSchool, setSavingSchool] = useState(false);
   const [savingPrincipal, setSavingPrincipal] = useState(false);
   const [approvingSignup, setApprovingSignup] = useState(false);
+  const [updatingSchoolId, setUpdatingSchoolId] = useState<number | null>(null);
 
   const [stats, setStats] = useState<MasterStats>({
     totalSchools: 0,
@@ -95,7 +98,10 @@ export default function MasterPage() {
   async function fetchSchools() {
     const { data, error } = await supabase
       .from("schools")
-      .select("id, school_name, primary_color, secondary_color, logo_url")
+      .select(
+        "id, school_name, primary_color, secondary_color, logo_url, status, deleted_at"
+      )
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -181,6 +187,7 @@ export default function MasterPage() {
         primary_color: primaryColor || "#7CCCF3",
         secondary_color: secondaryColor || "#FFD76A",
         logo_url: logoUrl.trim() || null,
+        status: "active",
       },
     ]);
 
@@ -198,6 +205,53 @@ export default function MasterPage() {
     await fetchSchools();
     setSavingSchool(false);
     alert("School created successfully.");
+  }
+
+  async function updateSchoolStatus(schoolId: number, nextStatus: string) {
+    setUpdatingSchoolId(schoolId);
+
+    const { error } = await supabase
+      .from("schools")
+      .update({ status: nextStatus })
+      .eq("id", schoolId);
+
+    if (error) {
+      alert(error.message);
+      setUpdatingSchoolId(null);
+      return;
+    }
+
+    await fetchSchools();
+    setUpdatingSchoolId(null);
+    alert(`School marked as ${nextStatus}.`);
+  }
+
+  async function softDeleteSchool(schoolId: number, schoolName?: string | null) {
+    const confirmed = window.confirm(
+      `Soft delete ${schoolName || "this school"}?\n\nThis will hide the school but keep its records.`
+    );
+
+    if (!confirmed) return;
+
+    setUpdatingSchoolId(schoolId);
+
+    const { error } = await supabase
+      .from("schools")
+      .update({
+        status: "inactive",
+        deleted_at: new Date().toISOString(),
+      })
+      .eq("id", schoolId);
+
+    if (error) {
+      alert(error.message);
+      setUpdatingSchoolId(null);
+      return;
+    }
+
+    await fetchSchools();
+    setUpdatingSchoolId(null);
+    alert("School soft deleted.");
   }
 
   async function createPrincipalLogin() {
@@ -469,6 +523,8 @@ export default function MasterPage() {
                 if (!school.secondary_color) missingItems.push("secondary colour");
                 if (!hasApprovedPrincipal) missingItems.push("approved principal");
 
+                const schoolStatus = String(school.status || "active").toLowerCase();
+
                 return (
                   <div key={school.id} style={schoolListCard}>
                     <div style={{ flex: 1, minWidth: "220px" }}>
@@ -477,13 +533,58 @@ export default function MasterPage() {
                       </strong>
 
                       <p style={helperText}>
+                        Status:{" "}
+                        <span style={statusBadge(schoolStatus)}>
+                          {schoolStatus}
+                        </span>
+                      </p>
+
+                      <p style={helperText}>
                         Missing: {missingItems.length ? missingItems.join(", ") : "none"}
                       </p>
                     </div>
 
-                    <Link href={`/master/school/${school.id}`} style={smallLinkButton}>
-                      Open School Overview
-                    </Link>
+                    <div style={buttonWrap}>
+                      <Link href={`/master/school/${school.id}`} style={smallLinkButton}>
+                        Open School Overview
+                      </Link>
+
+                      <button
+                        type="button"
+                        style={statusButton}
+                        onClick={() => updateSchoolStatus(school.id, "active")}
+                        disabled={updatingSchoolId === school.id}
+                      >
+                        Activate
+                      </button>
+
+                      <button
+                        type="button"
+                        style={statusButton}
+                        onClick={() => updateSchoolStatus(school.id, "suspended")}
+                        disabled={updatingSchoolId === school.id}
+                      >
+                        Suspend
+                      </button>
+
+                      <button
+                        type="button"
+                        style={statusButton}
+                        onClick={() => updateSchoolStatus(school.id, "inactive")}
+                        disabled={updatingSchoolId === school.id}
+                      >
+                        Inactive
+                      </button>
+
+                      <button
+                        type="button"
+                        style={dangerButton}
+                        onClick={() => softDeleteSchool(school.id, school.school_name)}
+                        disabled={updatingSchoolId === school.id}
+                      >
+                        Soft Delete
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -527,9 +628,7 @@ export default function MasterPage() {
                       <p style={helperText}>
                         Email: {request.principal_email || "Not added"}
                       </p>
-                      <p style={helperText}>
-                        Status: {request.status || "pending"}
-                      </p>
+                      <p style={helperText}>Status: {request.status || "pending"}</p>
                       <p style={helperText}>
                         Submitted:{" "}
                         {request.created_at
@@ -777,6 +876,42 @@ function SectionCard({
   );
 }
 
+function statusBadge(status: string) {
+  const base = {
+    display: "inline-block",
+    padding: "4px 10px",
+    borderRadius: "999px",
+    fontSize: "12px",
+    fontWeight: 800,
+    textTransform: "capitalize" as const,
+  };
+
+  if (status === "active") {
+    return {
+      ...base,
+      background: "#EEF9EE",
+      color: "#2E6B35",
+      border: "1px solid #D3EDD4",
+    };
+  }
+
+  if (status === "suspended") {
+    return {
+      ...base,
+      background: "#FFF7D9",
+      color: "#8A6500",
+      border: "1px solid #F3E4A3",
+    };
+  }
+
+  return {
+    ...base,
+    background: "#F8E8F0",
+    color: "#8A3F5C",
+    border: "1px solid #EBC9D8",
+  };
+}
+
 const eyebrow = {
   margin: 0,
   color: "#6D6888",
@@ -842,6 +977,13 @@ const listTitle = {
   fontWeight: 700,
 };
 
+const buttonWrap = {
+  display: "flex",
+  gap: "8px",
+  flexWrap: "wrap" as const,
+  justifyContent: "flex-end",
+};
+
 const smallLinkButton = {
   textDecoration: "none",
   background: "#7CCCF3",
@@ -852,6 +994,26 @@ const smallLinkButton = {
   border: "1px solid #CBEAF7",
   whiteSpace: "nowrap" as const,
   display: "inline-block",
+};
+
+const statusButton = {
+  border: "1px solid #E3D9CD",
+  background: "#FFFFFF",
+  color: "#5B5675",
+  borderRadius: "12px",
+  padding: "10px 12px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const dangerButton = {
+  border: "1px solid #EBC9D8",
+  background: "#F8E8F0",
+  color: "#8A3F5C",
+  borderRadius: "12px",
+  padding: "10px 12px",
+  fontWeight: 800,
+  cursor: "pointer",
 };
 
 const secondaryButton = {

@@ -67,6 +67,10 @@ export default function MasterPage() {
   const [approvingSignup, setApprovingSignup] = useState(false);
   const [updatingSchoolId, setUpdatingSchoolId] = useState<number | null>(null);
 
+  const [showManageSchools, setShowManageSchools] = useState(false);
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [visibleSchoolCount, setVisibleSchoolCount] = useState(5);
+
   const [stats, setStats] = useState<MasterStats>({
     totalSchools: 0,
     activePrincipals: 0,
@@ -361,6 +365,18 @@ export default function MasterPage() {
     });
   }, [schools, principals]);
 
+  const filteredSchools = useMemo(() => {
+    return schools.filter((school) =>
+      String(school.school_name || "")
+        .toLowerCase()
+        .includes(schoolSearch.toLowerCase())
+    );
+  }, [schools, schoolSearch]);
+
+  const visibleSchools = useMemo(() => {
+    return filteredSchools.slice(0, visibleSchoolCount);
+  }, [filteredSchools, visibleSchoolCount]);
+
   useEffect(() => {
     setStats((prev) => ({
       ...prev,
@@ -502,92 +518,160 @@ export default function MasterPage() {
 
       {currentView === "manage-schools" && (
         <SectionCard title="Manage Schools">
-          {schools.length === 0 ? (
-            <p style={helperText}>No schools created yet.</p>
-          ) : (
-            <div style={{ display: "grid", gap: "12px" }}>
-              {schools.map((school) => {
-                const linkedPrincipals = principals.filter(
-                  (principal) => Number(principal.school_id) === Number(school.id)
-                );
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "12px",
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <p style={helperText}>
+              View, search, activate, suspend, mark inactive, or soft delete schools.
+            </p>
 
-                const hasApprovedPrincipal = linkedPrincipals.some((principal) => {
-                  const status = String(principal.approval_status || "").toLowerCase();
-                  return status === "approved" || status === "";
-                });
+            <button
+              type="button"
+              onClick={() => setShowManageSchools(!showManageSchools)}
+              style={secondaryButton}
+            >
+              {showManageSchools ? "Hide Managed Schools" : "Show Managed Schools"}
+            </button>
+          </div>
 
-                const missingItems: string[] = [];
+          {showManageSchools && (
+            <div style={{ marginTop: "16px" }}>
+              <input
+                className="db-input"
+                placeholder="Search school..."
+                value={schoolSearch}
+                onChange={(e) => {
+                  setSchoolSearch(e.target.value);
+                  setVisibleSchoolCount(5);
+                }}
+              />
 
-                if (!school.logo_url) missingItems.push("logo");
-                if (!school.primary_color) missingItems.push("primary colour");
-                if (!school.secondary_color) missingItems.push("secondary colour");
-                if (!hasApprovedPrincipal) missingItems.push("approved principal");
+              <p style={helperText}>
+                Showing {visibleSchools.length} of {filteredSchools.length} schools.
+              </p>
 
-                const schoolStatus = String(school.status || "active").toLowerCase();
+              {schools.length === 0 ? (
+                <p style={helperText}>No schools created yet.</p>
+              ) : filteredSchools.length === 0 ? (
+                <p style={helperText}>No schools found.</p>
+              ) : (
+                <>
+                  <div style={{ display: "grid", gap: "12px", marginTop: "14px" }}>
+                    {visibleSchools.map((school) => {
+                      const linkedPrincipals = principals.filter(
+                        (principal) => Number(principal.school_id) === Number(school.id)
+                      );
 
-                return (
-                  <div key={school.id} style={schoolListCard}>
-                    <div style={{ flex: 1, minWidth: "220px" }}>
-                      <strong style={listTitle}>
-                        {school.school_name || "Unnamed school"}
-                      </strong>
+                      const hasApprovedPrincipal = linkedPrincipals.some((principal) => {
+                        const status = String(principal.approval_status || "").toLowerCase();
+                        return status === "approved" || status === "";
+                      });
 
-                      <p style={helperText}>
-                        Status:{" "}
-                        <span style={statusBadge(schoolStatus)}>
-                          {schoolStatus}
-                        </span>
-                      </p>
+                      const missingItems: string[] = [];
 
-                      <p style={helperText}>
-                        Missing: {missingItems.length ? missingItems.join(", ") : "none"}
-                      </p>
-                    </div>
+                      if (!school.logo_url) missingItems.push("logo");
+                      if (!school.primary_color) missingItems.push("primary colour");
+                      if (!school.secondary_color) missingItems.push("secondary colour");
+                      if (!hasApprovedPrincipal) missingItems.push("approved principal");
 
-                    <div style={buttonWrap}>
-                      <Link href={`/master/school/${school.id}`} style={smallLinkButton}>
-                        Open School Overview
-                      </Link>
+                      const schoolStatus = String(school.status || "active").toLowerCase();
 
-                      <button
-                        type="button"
-                        style={statusButton}
-                        onClick={() => updateSchoolStatus(school.id, "active")}
-                        disabled={updatingSchoolId === school.id}
-                      >
-                        Activate
-                      </button>
+                      return (
+                        <div key={school.id} style={schoolListCard}>
+                          <div style={{ flex: 1, minWidth: "220px" }}>
+                            <strong style={listTitle}>
+                              {school.school_name || "Unnamed school"}
+                            </strong>
 
-                      <button
-                        type="button"
-                        style={statusButton}
-                        onClick={() => updateSchoolStatus(school.id, "suspended")}
-                        disabled={updatingSchoolId === school.id}
-                      >
-                        Suspend
-                      </button>
+                            <p style={helperText}>
+                              Status:{" "}
+                              <span style={statusBadge(schoolStatus)}>
+                                {schoolStatus}
+                              </span>
+                            </p>
 
-                      <button
-                        type="button"
-                        style={statusButton}
-                        onClick={() => updateSchoolStatus(school.id, "inactive")}
-                        disabled={updatingSchoolId === school.id}
-                      >
-                        Inactive
-                      </button>
+                            <p style={helperText}>
+                              Missing:{" "}
+                              {missingItems.length ? missingItems.join(", ") : "none"}
+                            </p>
+                          </div>
 
-                      <button
-                        type="button"
-                        style={dangerButton}
-                        onClick={() => softDeleteSchool(school.id, school.school_name)}
-                        disabled={updatingSchoolId === school.id}
-                      >
-                        Soft Delete
-                      </button>
-                    </div>
+                          <div style={buttonWrap}>
+                            <Link
+                              href={`/master/school/${school.id}`}
+                              style={smallLinkButton}
+                            >
+                              Open School Overview
+                            </Link>
+
+                            <button
+                              type="button"
+                              style={statusButton}
+                              onClick={() => updateSchoolStatus(school.id, "active")}
+                              disabled={updatingSchoolId === school.id}
+                            >
+                              Activate
+                            </button>
+
+                            <button
+                              type="button"
+                              style={statusButton}
+                              onClick={() => updateSchoolStatus(school.id, "suspended")}
+                              disabled={updatingSchoolId === school.id}
+                            >
+                              Suspend
+                            </button>
+
+                            <button
+                              type="button"
+                              style={statusButton}
+                              onClick={() => updateSchoolStatus(school.id, "inactive")}
+                              disabled={updatingSchoolId === school.id}
+                            >
+                              Inactive
+                            </button>
+
+                            <button
+                              type="button"
+                              style={dangerButton}
+                              onClick={() => softDeleteSchool(school.id, school.school_name)}
+                              disabled={updatingSchoolId === school.id}
+                            >
+                              Soft Delete
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+
+                  {visibleSchoolCount < filteredSchools.length && (
+                    <button
+                      type="button"
+                      style={{ ...secondaryButton, marginTop: "14px" }}
+                      onClick={() => setVisibleSchoolCount((current) => current + 5)}
+                    >
+                      Show Next 5
+                    </button>
+                  )}
+
+                  {visibleSchoolCount > 5 && (
+                    <button
+                      type="button"
+                      style={{ ...secondaryButton, marginTop: "14px", marginLeft: "10px" }}
+                      onClick={() => setVisibleSchoolCount(5)}
+                    >
+                      Reset List
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           )}
         </SectionCard>

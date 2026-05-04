@@ -228,44 +228,9 @@ export default function Sidebar() {
         match: ["/dashboard"],
       },
       {
-        label: "Billing",
-        href: "/billing",
-        match: ["/billing"],
-      },
-      {
         label: "Today’s Activities",
         href: "/activities",
         match: ["/activities"],
-      },
-      {
-        label: "Reports",
-        href: "/reports",
-        match: ["/reports"],
-      },
-      {
-        label: "Communications",
-        href: "/communications",
-        match: ["/communications"],
-      },
-      {
-        label: "Learners",
-        href: "/children",
-        match: ["/children"],
-      },
-      {
-        label: "Teachers",
-        href: "/teachers",
-        match: ["/teachers"],
-      },
-      {
-        label: "Classrooms",
-        href: "/classrooms",
-        match: ["/classrooms"],
-      },
-      {
-        label: "Events",
-        href: "/events",
-        match: ["/events"],
       },
       {
         label: "Attendance",
@@ -273,9 +238,29 @@ export default function Sidebar() {
         match: ["/attendance"],
       },
       {
+        label: "Classrooms",
+        href: "/classrooms",
+        match: ["/classrooms"],
+      },
+      {
+        label: "Teachers",
+        href: "/teachers",
+        match: ["/teachers"],
+      },
+      {
+        label: "Learners",
+        href: "/children",
+        match: ["/children"],
+      },
+      {
         label: "Summaries",
         href: "/summaries",
         match: ["/summaries"],
+      },
+      {
+        label: "Events",
+        href: "/events",
+        match: ["/events"],
       },
       {
         label: "Broadcasts",
@@ -283,9 +268,24 @@ export default function Sidebar() {
         match: ["/broadcasts"],
       },
       {
+        label: "Reports",
+        href: "/reports",
+        match: ["/reports"],
+      },
+      {
         label: "Payments",
         href: "/payments",
         match: ["/payments"],
+      },
+      {
+        label: "Billing",
+        href: "/billing",
+        match: ["/billing"],
+      },
+      {
+        label: "Communications",
+        href: "/communications",
+        match: ["/communications"],
       },
     ];
   }, [profile?.role, school]);

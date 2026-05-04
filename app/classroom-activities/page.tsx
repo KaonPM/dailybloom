@@ -48,12 +48,18 @@ export default function ClassroomActivitiesPage() {
   const [learnersByClassroom, setLearnersByClassroom] = useState<Record<string, any[]>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
+  const [showAddForm, setShowAddForm] = useState(false);
   const [title, setTitle] = useState("");
   const [classroomId, setClassroomId] = useState("");
   const [activityDate, setActivityDate] = useState(today());
   const [category, setCategory] = useState("Language Development");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [filterClassroomId, setFilterClassroomId] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterDate, setFilterDate] = useState(today());
 
   const [repeatDates, setRepeatDates] = useState<Record<number, string>>({});
 
@@ -183,6 +189,7 @@ export default function ClassroomActivitiesPage() {
     setActivityDate(today());
     setCategory("Language Development");
     setDescription("");
+    setShowAddForm(false);
 
     await fetchActivities(schoolId);
     setLoading(false);
@@ -245,6 +252,20 @@ export default function ClassroomActivitiesPage() {
     alert("Activity repeated successfully");
   }
 
+  const filteredActivities = useMemo(() => {
+    return activities.filter((item) => {
+      const matchesClass = filterClassroomId
+        ? Number(item.classroom_id) === Number(filterClassroomId)
+        : true;
+
+      const matchesStatus = filterStatus ? item.status === filterStatus : true;
+      const matchesCategory = filterCategory ? item.category === filterCategory : true;
+      const matchesDate = filterDate ? item.activity_date === filterDate : true;
+
+      return matchesClass && matchesStatus && matchesCategory && matchesDate;
+    });
+  }, [activities, filterClassroomId, filterStatus, filterCategory, filterDate]);
+
   const todayActivities = useMemo(() => {
     return activities.filter((item) => item.activity_date === today());
   }, [activities]);
@@ -287,23 +308,94 @@ export default function ClassroomActivitiesPage() {
         <StatCard title="Needs Support" value={stats.weeklySupport} note="Weekly support flags" />
       </div>
 
-      <details className="db-card db-card-blue" style={{ padding: "18px", marginBottom: "20px" }} open>
-        <summary style={summaryStyle}>Add Classroom Activity</summary>
+      <div className="db-card db-card-blue" style={{ padding: "18px", marginBottom: "20px" }}>
+        <button
+          type="button"
+          className="db-button-primary"
+          style={{ width: "100%" }}
+          onClick={() => setShowAddForm(!showAddForm)}
+        >
+          {showAddForm ? "Close Add Classroom Activity" : "Add Classroom Activity"}
+        </button>
 
-        <div style={{ marginTop: "16px" }}>
+        {showAddForm && (
+          <div style={{ marginTop: "16px" }}>
+            <input
+              className="db-input"
+              placeholder="Activity title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+
+            <select
+              className="db-input"
+              value={classroomId}
+              onChange={(e) => setClassroomId(e.target.value)}
+            >
+              <option value="">Select class</option>
+              {classrooms.map((classroom) => (
+                <option key={classroom.id} value={classroom.id}>
+                  {classroom.classroom_name}
+                </option>
+              ))}
+            </select>
+
+            <input
+              className="db-input"
+              type="date"
+              value={activityDate}
+              onChange={(e) => setActivityDate(e.target.value)}
+            />
+
+            <select
+              className="db-input"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              {categories.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+
+            <textarea
+              className="db-input"
+              placeholder="Description or expected outcome"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              style={{ minHeight: "80px" }}
+            />
+
+            <button
+              className="db-button-primary"
+              style={{ width: "100%" }}
+              onClick={createActivity}
+              disabled={loading}
+            >
+              {loading ? "Saving..." : "Save Activity"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <details className="db-card db-card-lavender" style={{ padding: "18px", marginBottom: "20px" }} open>
+        <summary style={summaryStyle}>Filters & Date Selection</summary>
+
+        <div className="db-grid-2" style={{ marginTop: "16px" }}>
           <input
             className="db-input"
-            placeholder="Activity title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            type="date"
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
           />
 
           <select
             className="db-input"
-            value={classroomId}
-            onChange={(e) => setClassroomId(e.target.value)}
+            value={filterClassroomId}
+            onChange={(e) => setFilterClassroomId(e.target.value)}
           >
-            <option value="">Select class</option>
+            <option value="">All classes</option>
             {classrooms.map((classroom) => (
               <option key={classroom.id} value={classroom.id}>
                 {classroom.classroom_name}
@@ -311,46 +403,66 @@ export default function ClassroomActivitiesPage() {
             ))}
           </select>
 
-          <input
+          <select
             className="db-input"
-            type="date"
-            value={activityDate}
-            onChange={(e) => setActivityDate(e.target.value)}
-          />
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            <option value="">All statuses</option>
+            {statuses.map((status) => (
+              <option key={status.value} value={status.value}>
+                {status.label}
+              </option>
+            ))}
+          </select>
 
           <select
             className="db-input"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
           >
+            <option value="">All categories</option>
             {categories.map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
             ))}
           </select>
-
-          <textarea
-            className="db-input"
-            placeholder="Description or expected outcome"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            style={{ minHeight: "80px" }}
-          />
-
-          <button
-            className="db-button-primary"
-            style={{ width: "100%" }}
-            onClick={createActivity}
-            disabled={loading}
-          >
-            {loading ? "Saving..." : "Add Activity"}
-          </button>
         </div>
+
+        <button
+          type="button"
+          className="db-button-primary"
+          style={{ width: "100%", marginTop: "10px" }}
+          onClick={() => {
+            setFilterDate("");
+            setFilterClassroomId("");
+            setFilterStatus("");
+            setFilterCategory("");
+          }}
+        >
+          Clear Filters
+        </button>
       </details>
 
       <details className="db-card db-card-green" style={{ padding: "18px", marginBottom: "20px" }} open>
-        <summary style={summaryStyle}>Today’s Classroom Activities</summary>
+        <summary style={summaryStyle}>Selected Activities ({filteredActivities.length})</summary>
+
+        <ActivityList
+          activities={filteredActivities}
+          learnersByClassroom={learnersByClassroom}
+          expandedId={expandedId}
+          setExpandedId={setExpandedId}
+          fetchLearners={fetchLearners}
+          updateActivity={updateActivity}
+          repeatActivity={repeatActivity}
+          repeatDates={repeatDates}
+          setRepeatDates={setRepeatDates}
+        />
+      </details>
+
+      <details className="db-card db-card-yellow" style={{ padding: "18px", marginBottom: "20px" }}>
+        <summary style={summaryStyle}>Today’s Classroom Activities ({todayActivities.length})</summary>
 
         <ActivityList
           activities={todayActivities}
@@ -365,8 +477,8 @@ export default function ClassroomActivitiesPage() {
         />
       </details>
 
-      <details className="db-card db-card-lavender" style={{ padding: "18px", marginBottom: "20px" }}>
-        <summary style={summaryStyle}>Weekly Tracking</summary>
+      <details className="db-card db-card-lavender" style={{ padding: "18px" }}>
+        <summary style={summaryStyle}>Weekly Tracking ({weeklyActivities.length})</summary>
 
         <div style={{ marginTop: "16px" }}>
           <div className="db-grid-3" style={{ marginBottom: "16px" }}>
@@ -388,22 +500,6 @@ export default function ClassroomActivitiesPage() {
           />
         </div>
       </details>
-
-      <details className="db-card db-card-yellow" style={{ padding: "18px" }}>
-        <summary style={summaryStyle}>All Activities</summary>
-
-        <ActivityList
-          activities={activities}
-          learnersByClassroom={learnersByClassroom}
-          expandedId={expandedId}
-          setExpandedId={setExpandedId}
-          fetchLearners={fetchLearners}
-          updateActivity={updateActivity}
-          repeatActivity={repeatActivity}
-          repeatDates={repeatDates}
-          setRepeatDates={setRepeatDates}
-        />
-      </details>
     </div>
   );
 }
@@ -419,162 +515,191 @@ function ActivityList({
   repeatDates,
   setRepeatDates,
 }: any) {
+  const [visibleCount, setVisibleCount] = useState(5);
+  const visibleActivities = activities.slice(0, visibleCount);
+
+  useEffect(() => {
+    setVisibleCount(5);
+  }, [activities.length]);
+
   if (!activities.length) {
     return <p className="db-helper" style={{ marginTop: "14px" }}>No activities found.</p>;
   }
 
   return (
-    <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
-      {activities.map((activity: any) => {
-        const isOpen = expandedId === activity.id;
-        const learners = learnersByClassroom[String(activity.classroom_id)] || [];
+    <div style={{ marginTop: "16px" }}>
+      <div style={{ display: "grid", gap: "12px" }}>
+        {visibleActivities.map((activity: any) => {
+          const isOpen = expandedId === activity.id;
+          const learners = learnersByClassroom[String(activity.classroom_id)] || [];
 
-        return (
-          <div key={activity.id} className="db-list-card">
-            <div
-              onClick={async () => {
-                setExpandedId(isOpen ? null : activity.id);
-                if (!isOpen) await fetchLearners(activity.classroom_id);
-              }}
-              style={{ cursor: "pointer" }}
-            >
-              <strong style={{ fontSize: "17px" }}>{activity.title}</strong>
-              <p style={textStyle}>
-                {activity.classrooms?.classroom_name || "Class"} | {activity.activity_date} | {activity.category}
-              </p>
-              <p style={textStyle}>Status: {statusLabel(activity.status)}</p>
-              <p style={smallHint}>Tap card to open Learner Participation & Follow-Up</p>
-            </div>
+          return (
+            <div key={activity.id} className="db-list-card">
+              <div
+                onClick={async () => {
+                  setExpandedId(isOpen ? null : activity.id);
+                  if (!isOpen) await fetchLearners(activity.classroom_id);
+                }}
+                style={{ cursor: "pointer" }}
+              >
+                <strong style={{ fontSize: "17px" }}>{activity.title}</strong>
+                <p style={textStyle}>
+                  {activity.classrooms?.classroom_name || "Class"} | {activity.activity_date} | {activity.category}
+                </p>
+                <p style={textStyle}>Status: {statusLabel(activity.status)}</p>
+                <p style={smallHint}>Tap card to open Learner Participation & Follow-Up</p>
+              </div>
 
-            {isOpen && (
-              <div style={{ marginTop: "14px", borderTop: "1px solid #e8e8e8", paddingTop: "14px" }}>
-                <h4 style={subTitle}>Learner Participation & Follow-Up</h4>
+              <button
+                type="button"
+                className="db-button-primary"
+                style={miniButton}
+                onClick={() => updateActivity(activity.id, { status: "completed" })}
+              >
+                Mark Completed
+              </button>
 
-                {activity.description && (
-                  <p style={textStyle}>Description: {activity.description}</p>
-                )}
+              {isOpen && (
+                <div style={{ marginTop: "14px", borderTop: "1px solid #e8e8e8", paddingTop: "14px" }}>
+                  <h4 style={subTitle}>Learner Participation & Follow-Up</h4>
 
-                <label style={labelStyle}>Activity Status</label>
-                <select
-                  className="db-input"
-                  value={activity.status || "planned"}
-                  onChange={(e) => updateActivity(activity.id, { status: e.target.value })}
-                >
-                  {statuses.map((status) => (
-                    <option key={status.value} value={status.value}>
-                      {status.label}
-                    </option>
-                  ))}
-                </select>
+                  {activity.description && (
+                    <p style={textStyle}>Description: {activity.description}</p>
+                  )}
 
-                <LearnerSelect
-                  label="Outstanding learner"
-                  learners={learners}
-                  value={activity.outstanding_learner_id || ""}
-                  onChange={(value: string) =>
-                    updateActivity(activity.id, {
-                      outstanding_learner_id: value ? Number(value) : null,
-                    })
-                  }
-                />
-
-                <MultiLearnerSelect
-                  label="Participated well"
-                  learners={learners}
-                  selectedIds={activity.participated_well_ids || []}
-                  onSave={(ids: number[]) =>
-                    updateActivity(activity.id, { participated_well_ids: ids })
-                  }
-                />
-
-                <MultiLearnerSelect
-                  label="Needs support"
-                  learners={learners}
-                  selectedIds={activity.needs_support_ids || []}
-                  onSave={(ids: number[]) =>
-                    updateActivity(activity.id, { needs_support_ids: ids })
-                  }
-                />
-
-                <label style={labelStyle}>Teacher Notes</label>
-                <textarea
-                  className="db-input"
-                  placeholder="Add a short note about how the activity went"
-                  defaultValue={activity.teacher_notes || ""}
-                  onBlur={(e) =>
-                    updateActivity(activity.id, { teacher_notes: e.target.value })
-                  }
-                  style={{ minHeight: "80px" }}
-                />
-
-                <label style={labelStyle}>Follow-Up Action</label>
-                <select
-                  className="db-input"
-                  value={activity.follow_up || "none"}
-                  onChange={(e) =>
-                    updateActivity(activity.id, { follow_up: e.target.value })
-                  }
-                >
-                  {followUps.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-
-                <label style={labelStyle}>Follow-Up Date</label>
-                <input
-                  type="date"
-                  className="db-input"
-                  defaultValue={activity.follow_up_date || ""}
-                  onChange={(e) =>
-                    updateActivity(activity.id, {
-                      follow_up_date: e.target.value || null,
-                    })
-                  }
-                />
-
-                <label style={labelStyle}>Follow-Up Note</label>
-                <textarea
-                  className="db-input"
-                  placeholder="Example: Repeat using picture cards next week"
-                  defaultValue={activity.follow_up_note || ""}
-                  onBlur={(e) =>
-                    updateActivity(activity.id, { follow_up_note: e.target.value })
-                  }
-                  style={{ minHeight: "70px" }}
-                />
-
-                <div style={repeatBox}>
-                  <h4 style={subTitle}>Repeat Activity</h4>
-                  <p style={smallHint}>Choose a date to create a new copy of this activity.</p>
-
-                  <input
-                    type="date"
+                  <label style={labelStyle}>Activity Status</label>
+                  <select
                     className="db-input"
-                    value={repeatDates[activity.id] || ""}
-                    onChange={(e) =>
-                      setRepeatDates((prev: any) => ({
-                        ...prev,
-                        [activity.id]: e.target.value,
-                      }))
+                    value={activity.status || "planned"}
+                    onChange={(e) => updateActivity(activity.id, { status: e.target.value })}
+                  >
+                    {statuses.map((status) => (
+                      <option key={status.value} value={status.value}>
+                        {status.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <LearnerSelect
+                    label="Outstanding learner"
+                    learners={learners}
+                    value={activity.outstanding_learner_id || ""}
+                    onChange={(value: string) =>
+                      updateActivity(activity.id, {
+                        outstanding_learner_id: value ? Number(value) : null,
+                      })
                     }
                   />
 
-                  <button
-                    type="button"
-                    className="db-button-primary"
-                    style={{ width: "100%" }}
-                    onClick={() => repeatActivity(activity)}
+                  <MultiLearnerSelect
+                    label="Participated well"
+                    learners={learners}
+                    selectedIds={activity.participated_well_ids || []}
+                    onSave={(ids: number[]) =>
+                      updateActivity(activity.id, { participated_well_ids: ids })
+                    }
+                  />
+
+                  <MultiLearnerSelect
+                    label="Needs support"
+                    learners={learners}
+                    selectedIds={activity.needs_support_ids || []}
+                    onSave={(ids: number[]) =>
+                      updateActivity(activity.id, { needs_support_ids: ids })
+                    }
+                  />
+
+                  <label style={labelStyle}>Teacher Notes</label>
+                  <textarea
+                    className="db-input"
+                    placeholder="Add a short note about how the activity went"
+                    defaultValue={activity.teacher_notes || ""}
+                    onBlur={(e) =>
+                      updateActivity(activity.id, { teacher_notes: e.target.value })
+                    }
+                    style={{ minHeight: "80px" }}
+                  />
+
+                  <label style={labelStyle}>Follow-Up Action</label>
+                  <select
+                    className="db-input"
+                    value={activity.follow_up || "none"}
+                    onChange={(e) =>
+                      updateActivity(activity.id, { follow_up: e.target.value })
+                    }
                   >
-                    Create Repeat
-                  </button>
+                    {followUps.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label style={labelStyle}>Follow-Up Date</label>
+                  <input
+                    type="date"
+                    className="db-input"
+                    defaultValue={activity.follow_up_date || ""}
+                    onChange={(e) =>
+                      updateActivity(activity.id, {
+                        follow_up_date: e.target.value || null,
+                      })
+                    }
+                  />
+
+                  <label style={labelStyle}>Follow-Up Note</label>
+                  <textarea
+                    className="db-input"
+                    placeholder="Example: Repeat using picture cards next week"
+                    defaultValue={activity.follow_up_note || ""}
+                    onBlur={(e) =>
+                      updateActivity(activity.id, { follow_up_note: e.target.value })
+                    }
+                    style={{ minHeight: "70px" }}
+                  />
+
+                  <div style={repeatBox}>
+                    <h4 style={subTitle}>Repeat Activity</h4>
+                    <p style={smallHint}>Choose a date to create a new copy of this activity.</p>
+
+                    <input
+                      type="date"
+                      className="db-input"
+                      value={repeatDates[activity.id] || ""}
+                      onChange={(e) =>
+                        setRepeatDates((prev: any) => ({
+                          ...prev,
+                          [activity.id]: e.target.value,
+                        }))
+                      }
+                    />
+
+                    <button
+                      type="button"
+                      className="db-button-primary"
+                      style={{ width: "100%" }}
+                      onClick={() => repeatActivity(activity)}
+                    >
+                      Create Repeat
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {activities.length > visibleCount && (
+        <button
+          type="button"
+          className="db-button-primary"
+          style={{ width: "100%", marginTop: "12px" }}
+          onClick={() => setVisibleCount(visibleCount + 5)}
+        >
+          Load More Activities
+        </button>
+      )}
     </div>
   );
 }
@@ -724,6 +849,12 @@ const labelStyle = {
   margin: "12px 0 6px",
   fontWeight: 700,
   color: "var(--db-text)",
+};
+
+const miniButton = {
+  marginTop: "10px",
+  minHeight: "34px",
+  padding: "8px 12px",
 };
 
 const repeatBox = {

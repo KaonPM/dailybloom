@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
-import { useRouter, useSearchParams } from "next/navigation";
 
 const categories = [
   "Language Development",
@@ -58,10 +58,6 @@ export default function ClassroomActivitiesPage() {
     loadPage();
   }, []);
 
-  useEffect(() => {
-    if (schoolId) fetchActivities(schoolId);
-  }, [schoolId]);
-
   async function loadPage() {
     const { profile: currentProfile, error } = await getCurrentProfile();
 
@@ -86,6 +82,7 @@ export default function ClassroomActivitiesPage() {
 
     setSchoolId(context.schoolId);
     await fetchClassrooms(context.schoolId);
+    await fetchActivities(context.schoolId);
   }
 
   async function fetchClassrooms(currentSchoolId: number) {
@@ -103,7 +100,7 @@ export default function ClassroomActivitiesPage() {
     setClassrooms(data || []);
   }
 
-  async function fetchLearners(currentClassroomId: string) {
+  async function fetchLearners(currentClassroomId: string | number) {
     if (!schoolId || !currentClassroomId) {
       setLearners([]);
       return;
@@ -161,6 +158,7 @@ export default function ClassroomActivitiesPage() {
         title,
         category,
         description: description || null,
+        status: "planned",
         created_by: profile?.id || null,
         assigned_teacher_id: profile?.role === "teacher" ? profile?.id : null,
       },
@@ -201,6 +199,43 @@ export default function ClassroomActivitiesPage() {
     if (schoolId) await fetchActivities(schoolId);
   }
 
+  async function repeatActivity(activity: any, repeatType: "tomorrow" | "next_week") {
+    if (!schoolId) return;
+
+    const newDate = new Date(activity.activity_date);
+
+    if (repeatType === "tomorrow") {
+      newDate.setDate(newDate.getDate() + 1);
+    }
+
+    if (repeatType === "next_week") {
+      newDate.setDate(newDate.getDate() + 7);
+    }
+
+    const { error } = await supabase.from("classroom_activities").insert([
+      {
+        school_id: activity.school_id,
+        classroom_id: activity.classroom_id,
+        activity_date: newDate.toISOString().slice(0, 10),
+        title: activity.title,
+        category: activity.category,
+        description: activity.description || null,
+        status: "planned",
+        created_by: profile?.id || null,
+        assigned_teacher_id: activity.assigned_teacher_id || null,
+        follow_up: "none",
+      },
+    ]);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await fetchActivities(schoolId);
+    alert("Activity repeated successfully");
+  }
+
   const todayActivities = useMemo(() => {
     return activities.filter((item) => item.activity_date === today());
   }, [activities]);
@@ -233,14 +268,14 @@ export default function ClassroomActivitiesPage() {
       <div className="db-soft-card" style={{ padding: "20px 22px", marginBottom: "20px" }}>
         <h1 className="db-page-title">Classroom Activities</h1>
         <p className="db-page-subtitle">
-          Plan activities, record completion, highlight learners and track weekly classroom flow.
+          Plan activities, mark completion, highlight learners and track weekly classroom flow.
         </p>
       </div>
 
       <div className="db-grid-3" style={{ marginBottom: "20px" }}>
         <StatCard title="Today" value={stats.todayTotal} note="Activities planned" />
         <StatCard title="Completed" value={stats.todayCompleted} note="Completed today" />
-        <StatCard title="Needs Support" value={stats.weeklySupport} note="Weekly learner support flags" />
+        <StatCard title="Needs Support" value={stats.weeklySupport} note="Weekly support flags" />
       </div>
 
       <details className="db-card db-card-blue" style={{ padding: "18px", marginBottom: "20px" }} open>
@@ -294,7 +329,7 @@ export default function ClassroomActivitiesPage() {
             placeholder="Description or expected outcome"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            style={{ minHeight: "90px" }}
+            style={{ minHeight: "80px" }}
           />
 
           <button
@@ -308,53 +343,72 @@ export default function ClassroomActivitiesPage() {
         </div>
       </details>
 
-      <details className="db-card db-card-green" style={{ padding: "18px", marginBottom: "20px" }} open>
-        <summary style={summaryStyle}>Today’s Classroom Activities</summary>
+      <ActivitySection
+        title="Today’s Classroom Activities"
+        colorClass="db-card-green"
+        activities={todayActivities}
+        learners={learners}
+        expandedId={expandedId}
+        setExpandedId={setExpandedId}
+        fetchLearners={fetchLearners}
+        updateActivity={updateActivity}
+        repeatActivity={repeatActivity}
+        open
+      />
 
-        <ActivityList
-          activities={todayActivities}
-          learners={learners}
-          expandedId={expandedId}
-          setExpandedId={setExpandedId}
-          fetchLearners={fetchLearners}
-          updateActivity={updateActivity}
-        />
-      </details>
+      <ActivitySection
+        title="Weekly Tracking"
+        colorClass="db-card-lavender"
+        activities={weeklyActivities}
+        learners={learners}
+        expandedId={expandedId}
+        setExpandedId={setExpandedId}
+        fetchLearners={fetchLearners}
+        updateActivity={updateActivity}
+        repeatActivity={repeatActivity}
+      />
 
-      <details className="db-card db-card-lavender" style={{ padding: "18px", marginBottom: "20px" }}>
-        <summary style={summaryStyle}>Weekly Tracking</summary>
-
-        <div style={{ marginTop: "16px" }}>
-          <div className="db-grid-3" style={{ marginBottom: "16px" }}>
-            <StatCard title="This Week" value={stats.weeklyTotal} note="Total activities" />
-            <StatCard title="Completed" value={stats.weeklyCompleted} note="Completed this week" />
-            <StatCard title="Pending Today" value={stats.todayPending} note="Still planned today" />
-          </div>
-
-          <ActivityList
-            activities={weeklyActivities}
-            learners={learners}
-            expandedId={expandedId}
-            setExpandedId={setExpandedId}
-            fetchLearners={fetchLearners}
-            updateActivity={updateActivity}
-          />
-        </div>
-      </details>
-
-      <details className="db-card db-card-yellow" style={{ padding: "18px" }}>
-        <summary style={summaryStyle}>All Activities</summary>
-
-        <ActivityList
-          activities={activities}
-          learners={learners}
-          expandedId={expandedId}
-          setExpandedId={setExpandedId}
-          fetchLearners={fetchLearners}
-          updateActivity={updateActivity}
-        />
-      </details>
+      <ActivitySection
+        title="All Activities"
+        colorClass="db-card-yellow"
+        activities={activities}
+        learners={learners}
+        expandedId={expandedId}
+        setExpandedId={setExpandedId}
+        fetchLearners={fetchLearners}
+        updateActivity={updateActivity}
+        repeatActivity={repeatActivity}
+      />
     </div>
+  );
+}
+
+function ActivitySection({
+  title,
+  colorClass,
+  activities,
+  learners,
+  expandedId,
+  setExpandedId,
+  fetchLearners,
+  updateActivity,
+  repeatActivity,
+  open = false,
+}: any) {
+  return (
+    <details className={`db-card ${colorClass}`} style={{ padding: "18px", marginBottom: "20px" }} open={open}>
+      <summary style={summaryStyle}>{title}</summary>
+
+      <ActivityList
+        activities={activities}
+        learners={learners}
+        expandedId={expandedId}
+        setExpandedId={setExpandedId}
+        fetchLearners={fetchLearners}
+        updateActivity={updateActivity}
+        repeatActivity={repeatActivity}
+      />
+    </details>
   );
 }
 
@@ -365,6 +419,7 @@ function ActivityList({
   setExpandedId,
   fetchLearners,
   updateActivity,
+  repeatActivity,
 }: any) {
   if (!activities.length) {
     return <p className="db-helper" style={{ marginTop: "14px" }}>No activities found.</p>;
@@ -380,7 +435,7 @@ function ActivityList({
             <div
               onClick={async () => {
                 setExpandedId(isOpen ? null : activity.id);
-                if (!isOpen) await fetchLearners(String(activity.classroom_id));
+                if (!isOpen) await fetchLearners(activity.classroom_id);
               }}
               style={{ cursor: "pointer" }}
             >
@@ -389,20 +444,49 @@ function ActivityList({
                 {activity.classrooms?.classroom_name || "Class"} | {activity.activity_date} | {activity.category}
               </p>
               <p style={textStyle}>Status: {statusLabel(activity.status)}</p>
+              <p style={smallHint}>Click card to open Phase 2 details</p>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="db-button-primary"
+                style={miniButton}
+                onClick={() => updateActivity(activity.id, { status: "completed" })}
+              >
+                Mark Completed
+              </button>
+
+              <button
+                type="button"
+                className="db-button-primary"
+                style={miniButton}
+                onClick={() => repeatActivity(activity, "tomorrow")}
+              >
+                Repeat Tomorrow
+              </button>
+
+              <button
+                type="button"
+                className="db-button-primary"
+                style={miniButton}
+                onClick={() => repeatActivity(activity, "next_week")}
+              >
+                Repeat Next Week
+              </button>
             </div>
 
             {isOpen && (
-              <div style={{ marginTop: "14px" }}>
+              <div style={{ marginTop: "14px", borderTop: "1px solid #E6EDF5", paddingTop: "14px" }}>
                 {activity.description && (
                   <p style={textStyle}>Description: {activity.description}</p>
                 )}
 
+                <label style={labelStyle}>Activity Status</label>
                 <select
                   className="db-input"
-                  defaultValue={activity.status}
-                  onChange={(e) =>
-                    updateActivity(activity.id, { status: e.target.value })
-                  }
+                  value={activity.status || "planned"}
+                  onChange={(e) => updateActivity(activity.id, { status: e.target.value })}
                 >
                   {statuses.map((status) => (
                     <option key={status.value} value={status.value}>
@@ -440,9 +524,10 @@ function ActivityList({
                   }
                 />
 
+                <label style={labelStyle}>Teacher notes</label>
                 <textarea
                   className="db-input"
-                  placeholder="Teacher notes"
+                  placeholder="Short teacher note"
                   defaultValue={activity.teacher_notes || ""}
                   onBlur={(e) =>
                     updateActivity(activity.id, { teacher_notes: e.target.value })
@@ -450,12 +535,11 @@ function ActivityList({
                   style={{ minHeight: "80px" }}
                 />
 
+                <label style={labelStyle}>Follow-up</label>
                 <select
                   className="db-input"
-                  defaultValue={activity.follow_up || "none"}
-                  onChange={(e) =>
-                    updateActivity(activity.id, { follow_up: e.target.value })
-                  }
+                  value={activity.follow_up || "none"}
+                  onChange={(e) => updateActivity(activity.id, { follow_up: e.target.value })}
                 >
                   {followUps.map((item) => (
                     <option key={item.value} value={item.value}>
@@ -488,7 +572,7 @@ function LearnerSelect({ label, learners, value, onChange }: any) {
       <label style={labelStyle}>{label}</label>
       <select
         className="db-input"
-        defaultValue={value}
+        value={value}
         onChange={(e) => onChange(e.target.value)}
       >
         <option value="">Select learner</option>
@@ -505,6 +589,10 @@ function LearnerSelect({ label, learners, value, onChange }: any) {
 function MultiLearnerSelect({ label, learners, selectedIds, onSave }: any) {
   const [localIds, setLocalIds] = useState<number[]>(selectedIds || []);
 
+  useEffect(() => {
+    setLocalIds(selectedIds || []);
+  }, [selectedIds]);
+
   function toggleLearner(id: number) {
     if (localIds.includes(id)) {
       setLocalIds(localIds.filter((item) => item !== id));
@@ -517,31 +605,36 @@ function MultiLearnerSelect({ label, learners, selectedIds, onSave }: any) {
     <div style={{ marginBottom: "12px" }}>
       <label style={labelStyle}>{label}</label>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-        {learners.map((learner: any) => {
-          const active = localIds.includes(Number(learner.id));
+      {learners.length === 0 ? (
+        <p className="db-helper">No learners found for this class.</p>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          {learners.map((learner: any) => {
+            const active = localIds.includes(Number(learner.id));
 
-          return (
-            <button
-              key={learner.id}
-              type="button"
-              onClick={() => toggleLearner(Number(learner.id))}
-              style={{
-                border: "1px solid #d7dde8",
-                borderRadius: "999px",
-                padding: "8px 12px",
-                cursor: "pointer",
-                background: active ? "#102a43" : "#ffffff",
-                color: active ? "#ffffff" : "#102a43",
-              }}
-            >
-              {learner.name}
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={learner.id}
+                type="button"
+                onClick={() => toggleLearner(Number(learner.id))}
+                style={{
+                  border: "1px solid #d7dde8",
+                  borderRadius: "999px",
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                  background: active ? "#102a43" : "#ffffff",
+                  color: active ? "#ffffff" : "#102a43",
+                }}
+              >
+                {learner.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <button
+        type="button"
         className="db-button-primary"
         style={{ marginTop: "10px", minHeight: "36px", padding: "8px 12px" }}
         onClick={() => onSave(localIds)}
@@ -601,9 +694,21 @@ const textStyle = {
   color: "var(--db-text-soft)",
 };
 
+const smallHint = {
+  margin: "6px 0 0 0",
+  color: "var(--db-text-soft)",
+  fontSize: "13px",
+};
+
 const labelStyle = {
   display: "block",
   margin: "12px 0 6px",
   fontWeight: 700,
   color: "var(--db-text)",
 };
+
+const miniButton = {
+  minHeight: "34px",
+  padding: "8px 12px",
+  fontSize: "13px",
+} as const;

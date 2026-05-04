@@ -194,9 +194,9 @@ export default function Sidebar() {
           match: ["/teacher"],
         },
         {
-          label: "Today’s Activities",
-          href: "/activities",
-          match: ["/activities"],
+          label: "Classroom Activities",
+          href: "/classroom-activities",
+          match: ["/classroom-activities"],
         },
         {
           label: "Learners",
@@ -228,9 +228,9 @@ export default function Sidebar() {
         match: ["/dashboard"],
       },
       {
-        label: "Today’s Activities",
-        href: "/activities",
-        match: ["/activities"],
+        label: "Classroom Activities",
+        href: "/classroom-activities",
+        match: ["/classroom-activities"],
       },
       {
         label: "Attendance",

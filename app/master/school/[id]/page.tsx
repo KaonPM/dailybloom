@@ -19,6 +19,7 @@ type SchoolStats = {
   teachers: number;
   classrooms: number;
   events: number;
+  activities: number;
   summaries: number;
   payments: number;
 };
@@ -41,9 +42,11 @@ export default function MasterSchoolOverviewPage() {
     teachers: 0,
     classrooms: 0,
     events: 0,
+    activities: 0,
     summaries: 0,
     payments: 0,
   });
+
   const [principalCount, setPrincipalCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -101,6 +104,7 @@ export default function MasterSchoolOverviewPage() {
       teachersResult,
       classroomsResult,
       eventsResult,
+      activitiesResult,
       summariesResult,
       paymentsResult,
     ] = await Promise.all([
@@ -125,6 +129,11 @@ export default function MasterSchoolOverviewPage() {
         .eq("school_id", currentSchoolId),
 
       supabase
+        .from("classroom_activities")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
+
+      supabase
         .from("summaries")
         .select("*", { count: "exact", head: true })
         .eq("school_id", currentSchoolId),
@@ -140,6 +149,7 @@ export default function MasterSchoolOverviewPage() {
       teachers: teachersResult.count || 0,
       classrooms: classroomsResult.count || 0,
       events: eventsResult.count || 0,
+      activities: activitiesResult.count || 0,
       summaries: summariesResult.count || 0,
       payments: paymentsResult.count || 0,
     });
@@ -240,6 +250,12 @@ export default function MasterSchoolOverviewPage() {
         href: `/events?school=${school.id}`,
         helper: "School calendar should start with at least one event.",
       },
+      {
+        label: "At least one classroom activity added",
+        complete: stats.activities > 0,
+        href: `/classroom-activities?school=${school.id}`,
+        helper: "Activities help track classroom learning and teacher execution.",
+      },
     ];
   }, [school, principalCount, stats]);
 
@@ -311,45 +327,31 @@ export default function MasterSchoolOverviewPage() {
             marginTop: "16px",
           }}
         >
-          <Link
-            href="/master?view=manage-schools"
-            style={topButton}
-          >
+          <Link href="/master?view=manage-schools" style={topButton}>
             Back to Master Dashboard
           </Link>
 
-          <Link
-            href={`/children?school=${school.id}`}
-            style={topButtonBlue}
-          >
+          <Link href={`/children?school=${school.id}`} style={topButtonBlue}>
             Open Learners
           </Link>
 
-          <Link
-            href={`/events?school=${school.id}`}
-            style={topButtonBlue}
-          >
+          <Link href={`/events?school=${school.id}`} style={topButtonBlue}>
             Open Events
           </Link>
 
-          <Link
-            href={`/summaries?school=${school.id}`}
-            style={topButtonBlue}
-          >
+          <Link href={`/classroom-activities?school=${school.id}`} style={topButtonBlue}>
+            Open Classroom Activities
+          </Link>
+
+          <Link href={`/summaries?school=${school.id}`} style={topButtonBlue}>
             Open Summaries
           </Link>
 
-          <Link
-            href={`/broadcasts?school=${school.id}`}
-            style={topButtonBlue}
-          >
+          <Link href={`/broadcasts?school=${school.id}`} style={topButtonBlue}>
             Open Broadcasts
           </Link>
 
-          <Link
-            href={`/payments?school=${school.id}`}
-            style={topButtonBlue}
-          >
+          <Link href={`/payments?school=${school.id}`} style={topButtonBlue}>
             Open Payments
           </Link>
         </div>
@@ -367,6 +369,7 @@ export default function MasterSchoolOverviewPage() {
         <StatCard label="Teachers" value={stats.teachers} />
         <StatCard label="Classrooms" value={stats.classrooms} />
         <StatCard label="Events" value={stats.events} />
+        <StatCard label="Activities" value={stats.activities} />
         <StatCard label="Summaries" value={stats.summaries} />
         <StatCard label="Payments" value={stats.payments} />
         <StatCard label="Principals" value={principalCount} />
@@ -484,13 +487,7 @@ export default function MasterSchoolOverviewPage() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
+function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div
       style={{

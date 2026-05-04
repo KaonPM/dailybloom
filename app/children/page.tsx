@@ -172,6 +172,44 @@ export default function LearnersPage() {
     setSelectedLearner(null);
   }
 
+  function calculateAge(dateValue: string) {
+    const today = new Date();
+    const birthDate = new Date(dateValue);
+
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDifference = today.getMonth() - birthDate.getMonth();
+
+    if (
+      monthDifference < 0 ||
+      (monthDifference === 0 && today.getDate() < birthDate.getDate())
+    ) {
+      age--;
+    }
+
+    return age;
+  }
+
+  function getAgeGroup(age: number) {
+    if (age <= 0) return "0-1";
+    if (age === 1) return "1-2";
+    if (age === 2) return "2-3";
+    if (age === 3) return "3-4";
+    if (age === 4) return "4-5";
+    return "5-6";
+  }
+
+  function findClassroomByAgeGroup(ageGroup: string) {
+    const normalizedAgeGroup = ageGroup.replace(/\s/g, "").toLowerCase();
+
+    return classrooms.find((classroom) => {
+      const classroomName = String(classroom.classroom_name || "")
+        .replace(/\s/g, "")
+        .toLowerCase();
+
+      return classroomName.includes(normalizedAgeGroup);
+    });
+  }
+
   async function addLearner() {
     if (!schoolId) return;
 
@@ -180,19 +218,19 @@ export default function LearnersPage() {
       return;
     }
 
-    if (!selectedClassroomId) {
-      alert("Please select a classroom.");
+    if (!dateOfBirth) {
+      alert("Please enter date of birth so the learner can be assigned to the correct age group.");
       return;
     }
 
     setSaving(true);
 
-    const classroomMatch = classrooms.find(
-      (item) => String(item.id) === String(selectedClassroomId)
-    );
+    const learnerAge = calculateAge(dateOfBirth);
+    const ageGroup = getAgeGroup(learnerAge);
+    const classroomMatch = findClassroomByAgeGroup(ageGroup);
 
     if (!classroomMatch) {
-      alert("Classroom not found.");
+      alert(`No classroom found for age group ${ageGroup}. Please create a classroom with ${ageGroup} in the classroom name.`);
       setSaving(false);
       return;
     }
@@ -202,7 +240,7 @@ export default function LearnersPage() {
         name: name.trim(),
         class: classroomMatch.classroom_name || "Unassigned",
         classroom_id: classroomMatch.id,
-        date_of_birth: dateOfBirth || null,
+        date_of_birth: dateOfBirth,
         parent_phone: parentPhone || null,
         school_id: schoolId,
       },
@@ -219,7 +257,7 @@ export default function LearnersPage() {
     await fetchLearners(schoolId);
 
     setSaving(false);
-    alert("Learner added.");
+    alert(`Learner added and assigned to ${classroomMatch.classroom_name}.`);
   }
 
   if (loading) {
@@ -283,24 +321,6 @@ export default function LearnersPage() {
             </div>
 
             <div>
-              <p style={labelText}>Classroom</p>
-              <select
-                className="db-input"
-                value={selectedClassroomId}
-                onChange={(e) => setSelectedClassroomId(e.target.value)}
-              >
-                <option value="">Select classroom</option>
-                {classrooms.map((classroom) => (
-                  <option key={classroom.id} value={classroom.id}>
-                    {classroom.classroom_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div style={grid2}>
-            <div>
               <p style={labelText}>Date of Birth</p>
               <input
                 className="db-input"
@@ -309,7 +329,9 @@ export default function LearnersPage() {
                 onChange={(e) => setDateOfBirth(e.target.value)}
               />
             </div>
+          </div>
 
+          <div style={grid2}>
             <div>
               <p style={labelText}>Parent Phone</p>
               <input
@@ -318,6 +340,23 @@ export default function LearnersPage() {
                 value={parentPhone}
                 onChange={(e) => setParentPhone(e.target.value)}
               />
+            </div>
+
+            <div>
+              <p style={labelText}>Classroom Assignment</p>
+              <div
+                style={{
+                  background: "#FFFDFB",
+                  border: "1px solid #F0E3D8",
+                  borderRadius: 14,
+                  padding: "12px 14px",
+                  color: "#6D6888",
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                Automatically assigned from date of birth
+              </div>
             </div>
           </div>
 

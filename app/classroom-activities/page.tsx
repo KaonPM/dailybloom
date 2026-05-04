@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const categories = [
   "Language Development",
@@ -29,10 +29,11 @@ const statuses = [
 
 const followUps = [
   { value: "none", label: "No follow-up needed" },
-  { value: "repeat_next_week", label: "Repeat next week" },
-  { value: "try_different_method", label: "Try different method" },
+  { value: "repeat_activity", label: "Repeat activity" },
+  { value: "different_method", label: "Try different method" },
   { value: "monitor_learner", label: "Monitor learner" },
-  { value: "rescheduled", label: "Moved to another day" },
+  { value: "discuss_with_parent", label: "Discuss with parent" },
+  { value: "escalate_to_principal", label: "Escalate to principal" },
 ];
 
 export default function ClassroomActivitiesPage() {
@@ -43,8 +44,8 @@ export default function ClassroomActivitiesPage() {
   const [profile, setProfile] = useState<any>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [classrooms, setClassrooms] = useState<any[]>([]);
-  const [learners, setLearners] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [learnersByClassroom, setLearnersByClassroom] = useState<Record<string, any[]>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const [title, setTitle] = useState("");
@@ -53,6 +54,8 @@ export default function ClassroomActivitiesPage() {
   const [category, setCategory] = useState("Language Development");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [repeatDates, setRepeatDates] = useState<Record<number, string>>({});
 
   useEffect(() => {
     loadPage();
@@ -100,11 +103,12 @@ export default function ClassroomActivitiesPage() {
     setClassrooms(data || []);
   }
 
-  async function fetchLearners(currentClassroomId: string | number) {
-    if (!schoolId || !currentClassroomId) {
-      setLearners([]);
-      return;
-    }
+  async function fetchLearners(currentClassroomId: number | string) {
+    if (!schoolId || !currentClassroomId) return;
+
+    const key = String(currentClassroomId);
+
+    if (learnersByClassroom[key]) return;
 
     const { data, error } = await supabase
       .from("learners")
@@ -118,7 +122,10 @@ export default function ClassroomActivitiesPage() {
       return;
     }
 
-    setLearners(data || []);
+    setLearnersByClassroom((prev) => ({
+      ...prev,
+      [key]: data || [],
+    }));
   }
 
   async function fetchActivities(currentSchoolId: number) {
@@ -143,7 +150,7 @@ export default function ClassroomActivitiesPage() {
   }
 
   async function createActivity() {
-    if (!schoolId || !title || !classroomId || !activityDate || !category) {
+    if (!schoolId || !title.trim() || !classroomId || !activityDate || !category) {
       alert("Please complete activity title, class, date and category.");
       return;
     }
@@ -155,12 +162,13 @@ export default function ClassroomActivitiesPage() {
         school_id: schoolId,
         classroom_id: Number(classroomId),
         activity_date: activityDate,
-        title,
+        title: title.trim(),
         category,
-        description: description || null,
+        description: description.trim() || null,
         status: "planned",
         created_by: profile?.id || null,
         assigned_teacher_id: profile?.role === "teacher" ? profile?.id : null,
+        follow_up: "none",
       },
     ]);
 
@@ -175,7 +183,6 @@ export default function ClassroomActivitiesPage() {
     setActivityDate(today());
     setCategory("Language Development");
     setDescription("");
-    setLearners([]);
 
     await fetchActivities(schoolId);
     setLoading(false);
@@ -199,24 +206,21 @@ export default function ClassroomActivitiesPage() {
     if (schoolId) await fetchActivities(schoolId);
   }
 
-  async function repeatActivity(activity: any, repeatType: "tomorrow" | "next_week") {
+  async function repeatActivity(activity: any) {
     if (!schoolId) return;
 
-    const newDate = new Date(activity.activity_date);
+    const selectedDate = repeatDates[activity.id];
 
-    if (repeatType === "tomorrow") {
-      newDate.setDate(newDate.getDate() + 1);
-    }
-
-    if (repeatType === "next_week") {
-      newDate.setDate(newDate.getDate() + 7);
+    if (!selectedDate) {
+      alert("Please select a repeat date.");
+      return;
     }
 
     const { error } = await supabase.from("classroom_activities").insert([
       {
         school_id: activity.school_id,
         classroom_id: activity.classroom_id,
-        activity_date: newDate.toISOString().slice(0, 10),
+        activity_date: selectedDate,
         title: activity.title,
         category: activity.category,
         description: activity.description || null,
@@ -232,6 +236,11 @@ export default function ClassroomActivitiesPage() {
       return;
     }
 
+    setRepeatDates((prev) => ({
+      ...prev,
+      [activity.id]: "",
+    }));
+
     await fetchActivities(schoolId);
     alert("Activity repeated successfully");
   }
@@ -245,20 +254,20 @@ export default function ClassroomActivitiesPage() {
     const end = endOfWeek(new Date());
 
     return activities.filter((item) => {
-      const d = new Date(item.activity_date);
-      return d >= start && d <= end;
+      const date = new Date(item.activity_date);
+      return date >= start && date <= end;
     });
   }, [activities]);
 
   const stats = useMemo(() => {
     return {
       todayTotal: todayActivities.length,
-      todayCompleted: todayActivities.filter((a) => a.status === "completed").length,
-      todayPending: todayActivities.filter((a) => a.status === "planned").length,
+      todayCompleted: todayActivities.filter((item) => item.status === "completed").length,
+      todayPending: todayActivities.filter((item) => item.status === "planned").length,
       weeklyTotal: weeklyActivities.length,
-      weeklyCompleted: weeklyActivities.filter((a) => a.status === "completed").length,
+      weeklyCompleted: weeklyActivities.filter((item) => item.status === "completed").length,
       weeklySupport: weeklyActivities.filter(
-        (a) => Array.isArray(a.needs_support_ids) && a.needs_support_ids.length > 0
+        (item) => Array.isArray(item.needs_support_ids) && item.needs_support_ids.length > 0
       ).length,
     };
   }, [todayActivities, weeklyActivities]);
@@ -268,7 +277,7 @@ export default function ClassroomActivitiesPage() {
       <div className="db-soft-card" style={{ padding: "20px 22px", marginBottom: "20px" }}>
         <h1 className="db-page-title">Classroom Activities</h1>
         <p className="db-page-subtitle">
-          Plan activities, mark completion, highlight learners and track weekly classroom flow.
+          Plan activities, mark completion, track learner participation and manage follow-ups.
         </p>
       </div>
 
@@ -292,10 +301,7 @@ export default function ClassroomActivitiesPage() {
           <select
             className="db-input"
             value={classroomId}
-            onChange={(e) => {
-              setClassroomId(e.target.value);
-              fetchLearners(e.target.value);
-            }}
+            onChange={(e) => setClassroomId(e.target.value)}
           >
             <option value="">Select class</option>
             {classrooms.map((classroom) => (
@@ -343,83 +349,75 @@ export default function ClassroomActivitiesPage() {
         </div>
       </details>
 
-      <ActivitySection
-        title="Today’s Classroom Activities"
-        colorClass="db-card-green"
-        activities={todayActivities}
-        learners={learners}
-        expandedId={expandedId}
-        setExpandedId={setExpandedId}
-        fetchLearners={fetchLearners}
-        updateActivity={updateActivity}
-        repeatActivity={repeatActivity}
-        open
-      />
+      <details className="db-card db-card-green" style={{ padding: "18px", marginBottom: "20px" }} open>
+        <summary style={summaryStyle}>Today’s Classroom Activities</summary>
 
-      <ActivitySection
-        title="Weekly Tracking"
-        colorClass="db-card-lavender"
-        activities={weeklyActivities}
-        learners={learners}
-        expandedId={expandedId}
-        setExpandedId={setExpandedId}
-        fetchLearners={fetchLearners}
-        updateActivity={updateActivity}
-        repeatActivity={repeatActivity}
-      />
+        <ActivityList
+          activities={todayActivities}
+          learnersByClassroom={learnersByClassroom}
+          expandedId={expandedId}
+          setExpandedId={setExpandedId}
+          fetchLearners={fetchLearners}
+          updateActivity={updateActivity}
+          repeatActivity={repeatActivity}
+          repeatDates={repeatDates}
+          setRepeatDates={setRepeatDates}
+        />
+      </details>
 
-      <ActivitySection
-        title="All Activities"
-        colorClass="db-card-yellow"
-        activities={activities}
-        learners={learners}
-        expandedId={expandedId}
-        setExpandedId={setExpandedId}
-        fetchLearners={fetchLearners}
-        updateActivity={updateActivity}
-        repeatActivity={repeatActivity}
-      />
+      <details className="db-card db-card-lavender" style={{ padding: "18px", marginBottom: "20px" }}>
+        <summary style={summaryStyle}>Weekly Tracking</summary>
+
+        <div style={{ marginTop: "16px" }}>
+          <div className="db-grid-3" style={{ marginBottom: "16px" }}>
+            <StatCard title="This Week" value={stats.weeklyTotal} note="Total activities" />
+            <StatCard title="Completed" value={stats.weeklyCompleted} note="Completed this week" />
+            <StatCard title="Pending Today" value={stats.todayPending} note="Still planned today" />
+          </div>
+
+          <ActivityList
+            activities={weeklyActivities}
+            learnersByClassroom={learnersByClassroom}
+            expandedId={expandedId}
+            setExpandedId={setExpandedId}
+            fetchLearners={fetchLearners}
+            updateActivity={updateActivity}
+            repeatActivity={repeatActivity}
+            repeatDates={repeatDates}
+            setRepeatDates={setRepeatDates}
+          />
+        </div>
+      </details>
+
+      <details className="db-card db-card-yellow" style={{ padding: "18px" }}>
+        <summary style={summaryStyle}>All Activities</summary>
+
+        <ActivityList
+          activities={activities}
+          learnersByClassroom={learnersByClassroom}
+          expandedId={expandedId}
+          setExpandedId={setExpandedId}
+          fetchLearners={fetchLearners}
+          updateActivity={updateActivity}
+          repeatActivity={repeatActivity}
+          repeatDates={repeatDates}
+          setRepeatDates={setRepeatDates}
+        />
+      </details>
     </div>
-  );
-}
-
-function ActivitySection({
-  title,
-  colorClass,
-  activities,
-  learners,
-  expandedId,
-  setExpandedId,
-  fetchLearners,
-  updateActivity,
-  repeatActivity,
-  open = false,
-}: any) {
-  return (
-    <details className={`db-card ${colorClass}`} style={{ padding: "18px", marginBottom: "20px" }} open={open}>
-      <summary style={summaryStyle}>{title}</summary>
-
-      <ActivityList
-        activities={activities}
-        learners={learners}
-        expandedId={expandedId}
-        setExpandedId={setExpandedId}
-        fetchLearners={fetchLearners}
-        updateActivity={updateActivity}
-        repeatActivity={repeatActivity}
-      />
-    </details>
   );
 }
 
 function ActivityList({
   activities,
-  learners,
+  learnersByClassroom,
   expandedId,
   setExpandedId,
   fetchLearners,
   updateActivity,
   repeatActivity,
+  repeatDates,
+  setRepeatDates,
 }: any) {
   if (!activities.length) {
     return <p className="db-helper" style={{ marginTop: "14px" }}>No activities found.</p>;
@@ -429,6 +427,7 @@ function ActivityList({
     <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
       {activities.map((activity: any) => {
         const isOpen = expandedId === activity.id;
+        const learners = learnersByClassroom[String(activity.classroom_id)] || [];
 
         return (
           <div key={activity.id} className="db-list-card">
@@ -444,40 +443,13 @@ function ActivityList({
                 {activity.classrooms?.classroom_name || "Class"} | {activity.activity_date} | {activity.category}
               </p>
               <p style={textStyle}>Status: {statusLabel(activity.status)}</p>
-              <p style={smallHint}>Click card to open Phase 2 details</p>
-            </div>
-
-            <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
-              <button
-                type="button"
-                className="db-button-primary"
-                style={miniButton}
-                onClick={() => updateActivity(activity.id, { status: "completed" })}
-              >
-                Mark Completed
-              </button>
-
-              <button
-                type="button"
-                className="db-button-primary"
-                style={miniButton}
-                onClick={() => repeatActivity(activity, "tomorrow")}
-              >
-                Repeat Tomorrow
-              </button>
-
-              <button
-                type="button"
-                className="db-button-primary"
-                style={miniButton}
-                onClick={() => repeatActivity(activity, "next_week")}
-              >
-                Repeat Next Week
-              </button>
+              <p style={smallHint}>Tap card to open Learner Participation & Follow-Up</p>
             </div>
 
             {isOpen && (
-              <div style={{ marginTop: "14px", borderTop: "1px solid #E6EDF5", paddingTop: "14px" }}>
+              <div style={{ marginTop: "14px", borderTop: "1px solid #e8e8e8", paddingTop: "14px" }}>
+                <h4 style={subTitle}>Learner Participation & Follow-Up</h4>
+
                 {activity.description && (
                   <p style={textStyle}>Description: {activity.description}</p>
                 )}
@@ -524,10 +496,10 @@ function ActivityList({
                   }
                 />
 
-                <label style={labelStyle}>Teacher notes</label>
+                <label style={labelStyle}>Teacher Notes</label>
                 <textarea
                   className="db-input"
-                  placeholder="Short teacher note"
+                  placeholder="Add a short note about how the activity went"
                   defaultValue={activity.teacher_notes || ""}
                   onBlur={(e) =>
                     updateActivity(activity.id, { teacher_notes: e.target.value })
@@ -535,11 +507,13 @@ function ActivityList({
                   style={{ minHeight: "80px" }}
                 />
 
-                <label style={labelStyle}>Follow-up</label>
+                <label style={labelStyle}>Follow-Up Action</label>
                 <select
                   className="db-input"
                   value={activity.follow_up || "none"}
-                  onChange={(e) => updateActivity(activity.id, { follow_up: e.target.value })}
+                  onChange={(e) =>
+                    updateActivity(activity.id, { follow_up: e.target.value })
+                  }
                 >
                   {followUps.map((item) => (
                     <option key={item.value} value={item.value}>
@@ -548,15 +522,54 @@ function ActivityList({
                   ))}
                 </select>
 
+                <label style={labelStyle}>Follow-Up Date</label>
+                <input
+                  type="date"
+                  className="db-input"
+                  defaultValue={activity.follow_up_date || ""}
+                  onChange={(e) =>
+                    updateActivity(activity.id, {
+                      follow_up_date: e.target.value || null,
+                    })
+                  }
+                />
+
+                <label style={labelStyle}>Follow-Up Note</label>
                 <textarea
                   className="db-input"
-                  placeholder="Follow-up note"
+                  placeholder="Example: Repeat using picture cards next week"
                   defaultValue={activity.follow_up_note || ""}
                   onBlur={(e) =>
                     updateActivity(activity.id, { follow_up_note: e.target.value })
                   }
                   style={{ minHeight: "70px" }}
                 />
+
+                <div style={repeatBox}>
+                  <h4 style={subTitle}>Repeat Activity</h4>
+                  <p style={smallHint}>Choose a date to create a new copy of this activity.</p>
+
+                  <input
+                    type="date"
+                    className="db-input"
+                    value={repeatDates[activity.id] || ""}
+                    onChange={(e) =>
+                      setRepeatDates((prev: any) => ({
+                        ...prev,
+                        [activity.id]: e.target.value,
+                      }))
+                    }
+                  />
+
+                  <button
+                    type="button"
+                    className="db-button-primary"
+                    style={{ width: "100%" }}
+                    onClick={() => repeatActivity(activity)}
+                  >
+                    Create Repeat
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -634,7 +647,6 @@ function MultiLearnerSelect({ label, learners, selectedIds, onSave }: any) {
       )}
 
       <button
-        type="button"
         className="db-button-primary"
         style={{ marginTop: "10px", minHeight: "36px", padding: "8px 12px" }}
         onClick={() => onSave(localIds)}
@@ -689,6 +701,13 @@ const summaryStyle = {
   color: "var(--db-text)",
 };
 
+const subTitle = {
+  margin: "0 0 10px 0",
+  color: "var(--db-text)",
+  fontSize: "16px",
+  fontWeight: 800,
+};
+
 const textStyle = {
   margin: "6px 0 0 0",
   color: "var(--db-text-soft)",
@@ -707,8 +726,10 @@ const labelStyle = {
   color: "var(--db-text)",
 };
 
-const miniButton = {
-  minHeight: "34px",
-  padding: "8px 12px",
-  fontSize: "13px",
-} as const;
+const repeatBox = {
+  marginTop: "16px",
+  padding: "14px",
+  borderRadius: "16px",
+  border: "1px solid #e8e8e8",
+  background: "#ffffff",
+};

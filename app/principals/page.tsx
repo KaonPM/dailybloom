@@ -372,6 +372,23 @@ export default function PrincipalsPage() {
                       <p style={textStyle}>
                         Effective Access: {effectiveActive ? "Active" : "Blocked"}
                       </p>
+
+                      {hasWageFlow && effectiveActive ? (
+                        <a
+                          href="https://wageflow.lesedismartsolutions.co.za/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="db-button-primary"
+                          style={{
+                            ...smallButton,
+                            display: "inline-block",
+                            textDecoration: "none",
+                            marginTop: "12px",
+                          }}
+                        >
+                          Open WageFlow
+                        </a>
+                      ) : null}
                     </div>
 
                     <div

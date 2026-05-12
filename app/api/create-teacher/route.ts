@@ -11,9 +11,22 @@ export async function POST(request: Request) {
     const password = String(body.password || "").trim();
     const classroomName = String(body.classroom_name || "").trim();
 
+    const strongPasswordRegex =
+      /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
     if (!schoolId || !fullName || !email || !password) {
       return NextResponse.json(
         { error: "Please complete teacher name, email, password, and school." },
+        { status: 400 }
+      );
+    }
+
+    if (!strongPasswordRegex.test(password)) {
+      return NextResponse.json(
+        {
+          error:
+            "Password must be at least 8 characters and include letters, numbers, and a special character.",
+        },
         { status: 400 }
       );
     }
@@ -77,6 +90,7 @@ export async function POST(request: Request) {
         role: "teacher",
         classroom_name: classroomName || null,
         is_active: true,
+        must_change_password: true,
       },
     ]);
 

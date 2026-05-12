@@ -4,6 +4,10 @@ export default function TermsPage() {
   return (
     <main style={pageStyle}>
       <section style={cardStyle}>
+        <Link href="/" style={backLinkStyle}>
+          ← Back to Home
+        </Link>
+
         <h1 style={titleStyle}>DailyBloom Service Agreement and Terms of Use</h1>
         <p style={dateStyle}>Last updated: 28 April 2026</p>
 
@@ -181,6 +185,17 @@ const cardStyle = {
   borderRadius: "24px",
   padding: "28px",
   boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
+};
+
+const backLinkStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "8px",
+  marginBottom: "24px",
+  color: "#2D2A3E",
+  textDecoration: "none",
+  fontWeight: 700,
+  fontSize: "14px",
 };
 
 const titleStyle = {

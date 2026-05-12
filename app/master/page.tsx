@@ -15,6 +15,7 @@ type SchoolItem = {
   status?: string | null;
   deleted_at?: string | null;
   package_name?: string | null;
+  wageflow_enabled?: boolean | null;
 };
 
 type PrincipalItem = {
@@ -55,6 +56,7 @@ export default function MasterPage() {
   const [secondaryColor, setSecondaryColor] = useState("#FFD76A");
   const [logoUrl, setLogoUrl] = useState("");
   const [packageName, setPackageName] = useState("Bloom");
+  const [wageflowEnabled, setWageflowEnabled] = useState(false);
 
   const [principalFullName, setPrincipalFullName] = useState("");
   const [principalEmail, setPrincipalEmail] = useState("");
@@ -105,7 +107,7 @@ export default function MasterPage() {
     const { data, error } = await supabase
       .from("schools")
       .select(
-        "id, school_name, primary_color, secondary_color, logo_url, status, deleted_at, package_name"
+        "id, school_name, primary_color, secondary_color, logo_url, status, deleted_at, package_name, wageflow_enabled"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -195,6 +197,8 @@ export default function MasterPage() {
         logo_url: logoUrl.trim() || null,
         status: "active",
         package_name: packageName,
+        wageflow_enabled:
+          packageName === "Bloom Elite" ? true : wageflowEnabled,
       },
     ]);
 
@@ -209,6 +213,7 @@ export default function MasterPage() {
     setSecondaryColor("#FFD76A");
     setLogoUrl("");
     setPackageName("Bloom");
+    setWageflowEnabled(false);
 
     await fetchSchools();
     setSavingSchool(false);
@@ -598,6 +603,14 @@ export default function MasterPage() {
                             </p>
 
                             <p style={helperText}>
+                              WageFlow:{" "}
+                              {school.package_name === "Bloom Elite" ||
+                              school.wageflow_enabled
+                                ? "Enabled"
+                                : "Disabled"}
+                            </p>
+
+                            <p style={helperText}>
                               Status:{" "}
                               <span style={statusBadge(schoolStatus)}>
                                 {schoolStatus}
@@ -810,6 +823,14 @@ export default function MasterPage() {
                     Package: {school.package_name || "Bloom"}
                   </p>
 
+                  <p style={helperText}>
+                    WageFlow:{" "}
+                    {school.package_name === "Bloom Elite" ||
+                    school.wageflow_enabled
+                      ? "Enabled"
+                      : "Disabled"}
+                  </p>
+
                   <div style={{ marginTop: "10px" }}>
                     <Link
                       href={`/master/school/${school.id}`}
@@ -867,12 +888,38 @@ export default function MasterPage() {
           <select
             className="db-input"
             value={packageName}
-            onChange={(e) => setPackageName(e.target.value)}
+            onChange={(e) => {
+              const nextPackage = e.target.value;
+              setPackageName(nextPackage);
+
+              if (nextPackage === "Bloom Elite") {
+                setWageflowEnabled(true);
+              }
+            }}
           >
             <option value="Bloom">Bloom</option>
             <option value="Bloom Pro">Bloom Pro</option>
             <option value="Bloom Elite">Bloom Elite</option>
           </select>
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "18px",
+              color: "#5B5675",
+              fontWeight: 600,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={packageName === "Bloom Elite" ? true : wageflowEnabled}
+              onChange={(e) => setWageflowEnabled(e.target.checked)}
+              disabled={packageName === "Bloom Elite"}
+            />
+            Enable WageFlow Add-on
+          </label>
 
           <button
             type="button"

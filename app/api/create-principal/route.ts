@@ -4,11 +4,42 @@ import { supabaseAdmin } from "../../lib/supabase-admin";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { schoolId, fullName, email, password, requestId } = body;
+
+    const schoolId = Number(body.schoolId);
+    const fullName = String(body.fullName || "").trim();
+    const email = String(body.email || "").trim().toLowerCase();
+    const password = String(body.password || "").trim();
+    const requestId = body.requestId;
+
+    const strongPasswordRegex =
+      /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
     if (!schoolId || !fullName || !email || !password) {
       return NextResponse.json(
         { error: "Missing required fields." },
+        { status: 400 }
+      );
+    }
+
+    if (!strongPasswordRegex.test(password)) {
+      return NextResponse.json(
+        {
+          error:
+            "Password must be at least 8 characters and include letters, numbers, and a special character.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (existingProfile) {
+      return NextResponse.json(
+        { error: "A user with this email already exists." },
         { status: 400 }
       );
     }
@@ -20,6 +51,7 @@ export async function POST(req: Request) {
         email_confirm: true,
         user_metadata: {
           full_name: fullName,
+          role: "owner",
         },
       });
 
@@ -39,17 +71,22 @@ export async function POST(req: Request) {
       );
     }
 
-    const { error: profileError } = await supabaseAdmin.from("profiles").insert([
-      {
-        id: userId,
-        email,
-        full_name: fullName,
-        school_id: Number(schoolId),
-        role: "owner",
-      },
-    ]);
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .insert([
+        {
+          id: userId,
+          email,
+          full_name: fullName,
+          school_id: Number(schoolId),
+          role: "owner",
+          must_change_password: true,
+        },
+      ]);
 
     if (profileError) {
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+
       return NextResponse.json(
         { error: profileError.message },
         { status: 400 }

@@ -262,6 +262,41 @@ export default function MasterPage() {
     alert(`School marked as ${nextStatus}. Principal email sent.`);
   }
 
+  async function toggleWageFlowAddOn(
+    schoolId: number,
+    currentValue: boolean,
+    packageName?: string | null
+  ) {
+    if (packageName === "Bloom Elite") {
+      alert("Bloom Elite already includes WageFlow.");
+      return;
+    }
+
+    setUpdatingSchoolId(schoolId);
+
+    const { error } = await supabase
+      .from("schools")
+      .update({
+        wageflow_enabled: !currentValue,
+      })
+      .eq("id", schoolId);
+
+    if (error) {
+      alert(error.message);
+      setUpdatingSchoolId(null);
+      return;
+    }
+
+    await fetchSchools();
+    setUpdatingSchoolId(null);
+
+    alert(
+      !currentValue
+        ? "WageFlow add-on enabled."
+        : "WageFlow add-on disabled."
+    );
+  }
+
   async function softDeleteSchool(schoolId: number, schoolName?: string | null) {
     const confirmed = window.confirm(
       `Soft delete ${schoolName || "this school"}?\n\nThis will hide the school but keep its records.`
@@ -478,6 +513,7 @@ export default function MasterPage() {
           background="#EAF7FD"
           border="#CBEAF7"
         />
+
         <StatLinkCard
           label="Active Principals"
           value={stats.activePrincipals}
@@ -485,6 +521,7 @@ export default function MasterPage() {
           background="#EEF9EE"
           border="#D3EDD4"
         />
+
         <StatLinkCard
           label="Schools Needing Setup"
           value={stats.schoolsNeedingSetup}
@@ -492,6 +529,7 @@ export default function MasterPage() {
           background="#FFF7D9"
           border="#F3E4A3"
         />
+
         <StatLinkCard
           label="Pending Signups"
           value={stats.pendingSignupRequests}
@@ -521,6 +559,7 @@ export default function MasterPage() {
             >
               Billing
             </p>
+
             <h2
               style={{
                 margin: "6px 0 0 0",
@@ -531,6 +570,7 @@ export default function MasterPage() {
             >
               Subscriptions
             </h2>
+
             <p
               style={{
                 margin: "6px 0 0 0",
@@ -609,6 +649,30 @@ export default function MasterPage() {
                                 ? "Enabled"
                                 : "Disabled"}
                             </p>
+
+                            <div style={{ marginTop: "12px" }}>
+                              <button
+                                type="button"
+                                style={statusButton}
+                                onClick={() =>
+                                  toggleWageFlowAddOn(
+                                    school.id,
+                                    Boolean(school.wageflow_enabled),
+                                    school.package_name
+                                  )
+                                }
+                                disabled={
+                                  updatingSchoolId === school.id ||
+                                  school.package_name === "Bloom Elite"
+                                }
+                              >
+                                {school.package_name === "Bloom Elite"
+                                  ? "Included in Elite"
+                                  : school.wageflow_enabled
+                                    ? "Disable WageFlow"
+                                    : "Enable WageFlow"}
+                              </button>
+                            </div>
 
                             <p style={helperText}>
                               Status:{" "}
@@ -721,13 +785,17 @@ export default function MasterPage() {
                       <strong style={listTitle}>
                         {request.school_name || "Unnamed school"}
                       </strong>
+
                       <p style={helperText}>
                         Principal: {request.principal_full_name || "Not added"}
                       </p>
+
                       <p style={helperText}>
                         Email: {request.principal_email || "Not added"}
                       </p>
+
                       <p style={helperText}>Status: {request.status || "pending"}</p>
+
                       <p style={helperText}>
                         Submitted:{" "}
                         {request.created_at
@@ -746,9 +814,11 @@ export default function MasterPage() {
               <p style={helperText}>
                 School: {selectedSignupRequest.school_name || "Not added"}
               </p>
+
               <p style={helperText}>
                 Principal: {selectedSignupRequest.principal_full_name || "Not added"}
               </p>
+
               <p style={helperText}>
                 Email: {selectedSignupRequest.principal_email || "Not added"}
               </p>
@@ -796,7 +866,9 @@ export default function MasterPage() {
                   <strong style={listTitle}>
                     {principal.full_name || "Unnamed principal"}
                   </strong>
+
                   <p style={helperText}>Email: {principal.email || "Not added"}</p>
+
                   <p style={helperText}>
                     School ID: {principal.school_id || "Not linked"}
                   </p>

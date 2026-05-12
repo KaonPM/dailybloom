@@ -11,14 +11,14 @@ export async function sendLoginEmail({
   temporaryPassword,
   roleLabel,
 }: SendLoginEmailParams) {
-  const apiKey = process.env.BREVO_API_KEY;
+  const apiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.DAILYBLOOM_FROM_EMAIL || "noreply@dailybloom.co.za";
 
   if (!apiKey) {
-    throw new Error("Missing BREVO_API_KEY.");
+    throw new Error("Missing RESEND_API_KEY.");
   }
 
-  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+  const response = await fetch("https://api.resend.com/v3/smtp/email", {
     method: "POST",
     headers: {
       accept: "application/json",

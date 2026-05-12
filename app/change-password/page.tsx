@@ -18,10 +18,15 @@ export default function ChangePasswordPage() {
       return;
     }
 
-    if (newPassword.length < 8) {
-      alert("Password must be at least 8 characters.");
-      return;
-    }
+    const strongPasswordRegex =
+  /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
+if (!strongPasswordRegex.test(newPassword)) {
+  alert(
+    "Password must be at least 8 characters and include letters, numbers, and a special character."
+  );
+  return;
+}
 
     if (newPassword !== confirmPassword) {
       alert("Passwords do not match.");

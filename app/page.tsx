@@ -126,86 +126,90 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <SectionTitle
-          title="Packages"
-          subtitle="Choose the level of support that fits your school. Click view offering to see what is included."
-          isMobile={isMobile}
-        />
+        <details style={contactDetailsBox(isMobile)}>
+          <summary style={contactSummary(isMobile)}>Packages</summary>
 
-        <div style={packageGrid(isMobile)}>
-          <PackageCard
-            name="Bloom"
-            price="R299/month"
-            learners="0 to 30 learners"
-            summary="For small preschools ready to replace paper registers with a simple daily system."
-            accent="#7CCCF3"
-            isMobile={isMobile}
-            isOpen={openPackage === "Bloom"}
-            onClick={() => setOpenPackage(openPackage === "Bloom" ? null : "Bloom")}
-            items={[
-              "Learner profiles and parent contact records",
-              "Daily attendance tracking",
-              "Birthdays and school events",
-              "Daily learner summaries",
-              "Basic broadcasts",
-              "Simple payment reminders",
-              "Standard setup support",
-            ]}
-          />
-
-          <PackageCard
-            name="Bloom Pro"
-            price="R399/month"
-            learners="31 to 60 learners"
-            summary="For growing schools that need better structure, smoother admin, and clearer oversight."
-            accent="#FFD166"
-            isMobile={isMobile}
-            isOpen={openPackage === "Bloom Pro"}
-            onClick={() => setOpenPackage(openPackage === "Bloom Pro" ? null : "Bloom Pro")}
-            badge="Popular"
-            items={[
-              "Everything in Bloom",
-              "Classroom-based organisation",
-              "Principal overview dashboard",
-              "Teacher daily workflows",
-              "Export-ready school records",
-              "Stronger parent communication tools",
-              "Priority setup support",
-            ]}
-          />
-
-          <PackageCard
-            name="Bloom Elite"
-            price="R499/month"
-            learners="60+ learners"
-            summary="For schools that want fuller operational support across school admin, staff, and payroll records."
-            accent="#57C785"
-            isMobile={isMobile}
-            isOpen={openPackage === "Bloom Elite"}
-            onClick={() => setOpenPackage(openPackage === "Bloom Elite" ? null : "Bloom Elite")}
-            items={[
-              "Everything in Bloom Pro",
-              "WageFlow payroll support",
-              "Staff records",
-              "HR notes and staff admin support",
-              "Payslip-ready payroll records",
-              "Premium onboarding",
-              "Priority admin assistance",
-            ]}
-          />
-        </div>
-
-        <div style={noticeBox(isMobile)}>
-          <h3 style={smallHeading(isMobile)}>Once-off setup fee</h3>
           <p style={paragraph(isMobile)}>
-            R599 once off. This includes onboarding, school setup, administrative configuration
-            and ongoing administrative assistance while your school remains subscribed.
+            Choose the level of support that fits your school. Click view offering to see what is included.
           </p>
-          <p style={paragraph(isMobile)}>
-            After the first six months from launch date, monthly package prices may increase per plan.
-            The setup fee remains R599.
-          </p>
-        </div>
+
+          <div style={{ marginTop: 18 }}>
+            <div style={packageGrid(isMobile)}>
+              <PackageCard
+                name="Bloom"
+                price="R299/month"
+                learners="0 to 30 learners"
+                summary="For small preschools ready to replace paper registers with a simple daily system."
+                accent="#7CCCF3"
+                isMobile={isMobile}
+                isOpen={openPackage === "Bloom"}
+                onClick={() => setOpenPackage(openPackage === "Bloom" ? null : "Bloom")}
+                items={[
+                  "Learner profiles and parent contact records",
+                  "Daily attendance tracking",
+                  "Birthdays and school events",
+                  "Daily learner summaries",
+                  "Basic broadcasts",
+                  "Simple payment reminders",
+                  "Standard setup support",
+                ]}
+              />
+
+              <PackageCard
+                name="Bloom Pro"
+                price="R399/month"
+                learners="31 to 60 learners"
+                summary="For growing schools that need better structure, smoother admin, and clearer oversight."
+                accent="#FFD166"
+                isMobile={isMobile}
+                isOpen={openPackage === "Bloom Pro"}
+                onClick={() => setOpenPackage(openPackage === "Bloom Pro" ? null : "Bloom Pro")}
+                badge="Popular"
+                items={[
+                  "Everything in Bloom",
+                  "Classroom-based organisation",
+                  "Principal overview dashboard",
+                  "Teacher daily workflows",
+                  "Export-ready school records",
+                  "Stronger parent communication tools",
+                  "Priority setup support",
+                ]}
+              />
+
+              <PackageCard
+                name="Bloom Elite"
+                price="R499/month"
+                learners="60+ learners"
+                summary="For schools that want fuller operational support across school admin, staff, and payroll records."
+                accent="#57C785"
+                isMobile={isMobile}
+                isOpen={openPackage === "Bloom Elite"}
+                onClick={() => setOpenPackage(openPackage === "Bloom Elite" ? null : "Bloom Elite")}
+                items={[
+                  "Everything in Bloom Pro",
+                  "WageFlow payroll support",
+                  "Staff records",
+                  "HR notes and staff admin support",
+                  "Payslip-ready payroll records",
+                  "Premium onboarding",
+                  "Priority admin assistance",
+                ]}
+              />
+            </div>
+
+            <div style={noticeBox(isMobile)}>
+              <h3 style={smallHeading(isMobile)}>Once-off setup fee</h3>
+              <p style={paragraph(isMobile)}>
+                R599 once off. This includes onboarding, school setup, administrative configuration
+                and ongoing administrative assistance while your school remains subscribed.
+              </p>
+              <p style={paragraph(isMobile)}>
+                After the first six months from launch date, monthly package prices may increase per plan.
+                The setup fee remains R599.
+              </p>
+            </div>
+          </div>
+        </details>
 
         <details style={contactDetailsBox(isMobile)}>
           <summary style={contactSummary(isMobile)}>Contact DailyBloom</summary>
@@ -281,9 +285,25 @@ export default function LandingPage() {
             <p style={footerText}>
               <Link href="/privacy" style={footerLink}>Privacy Policy</Link>
               <span style={{ margin: "0 8px" }}>|</span>
-              <Link href="/terms" style={footerLink}>Terms of Use</Link>
+              <Link href="/terms" style={footerLink}>Terms & Conditions</Link>
             </p>
             <p style={footerText}>© 2026 DailyBloom. All rights reserved.</p>
+            <p style={footerText}>
+              DailyBloom is a preschool management and parent communication platform for learner records,
+              attendance, classroom activities, daily summaries, announcements and payment reminders.
+            </p>
+            <p style={footerText}>
+              DailyBloom may help schools communicate with parents or guardians by WhatsApp, SMS, email
+              or other approved communication channels.
+            </p>
+            <p style={footerText}>
+              Schools remain responsible for obtaining parent or guardian consent and for ensuring that
+              learner, parent and guardian information submitted to DailyBloom is accurate and lawfully collected.
+            </p>
+            <p style={footerText}>
+              DailyBloom does not replace professional legal, financial, educational, medical, accounting
+              or regulatory advice.
+            </p>
           </div>
         </footer>
       </section>
@@ -369,15 +389,6 @@ function PackageCard({
           ))}
         </ul>
       )}
-    </div>
-  );
-}
-
-function SectionTitle({ title, subtitle, isMobile }: { title: string; subtitle: string; isMobile: boolean }) {
-  return (
-    <div style={{ marginTop: isMobile ? 24 : 42, marginBottom: 16 }}>
-      <h2 style={{ margin: 0, fontSize: isMobile ? 26 : 34, color: "#2D2A3E" }}>{title}</h2>
-      <p style={paragraph(isMobile)}>{subtitle}</p>
     </div>
   );
 }

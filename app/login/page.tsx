@@ -116,9 +116,9 @@ export default function LoginPage() {
       email.trim().toLowerCase(),
       {
         redirectTo:
-          typeof window !== "undefined"
-            ? `${window.location.origin}/login`
-            : undefined,
+        typeof window !== "undefined"
+        ? `${window.location.origin}/reset-password`
+        : undefined,
       }
     );
 

@@ -9,6 +9,8 @@ type School = {
   id: number;
   school_name: string;
   is_active?: boolean | null;
+  package_name?: string | null;
+  wageflow_enabled?: boolean | null;
 };
 
 type PrincipalProfile = {
@@ -22,6 +24,8 @@ type PrincipalProfile = {
   schools?: {
     school_name?: string | null;
     is_active?: boolean | null;
+    package_name?: string | null;
+    wageflow_enabled?: boolean | null;
   } | null;
 };
 
@@ -64,7 +68,7 @@ export default function PrincipalsPage() {
   async function fetchSchools() {
     const { data, error } = await supabase
       .from("schools")
-      .select("id, school_name, is_active")
+      .select("id, school_name, is_active, package_name, wageflow_enabled")
       .order("school_name", { ascending: true });
 
     if (error) {
@@ -88,7 +92,9 @@ export default function PrincipalsPage() {
         created_at,
         schools (
           school_name,
-          is_active
+          is_active,
+          package_name,
+          wageflow_enabled
         )
       `)
       .eq("role", "principal")
@@ -329,6 +335,11 @@ export default function PrincipalsPage() {
               const effectiveActive = schoolIsActive && principalIsActive;
               const isBusy = actionLoadingId === principal.id;
 
+              const schoolPackage = principal.schools?.package_name || "Bloom";
+              const hasWageFlow =
+                schoolPackage === "Bloom Elite" ||
+                principal.schools?.wageflow_enabled === true;
+
               return (
                 <div key={principal.id} className="db-list-card">
                   <div
@@ -347,6 +358,10 @@ export default function PrincipalsPage() {
                       <p style={textStyle}>Email: {principal.email || "No email"}</p>
                       <p style={textStyle}>
                         School: {principal.schools?.school_name || "Not linked"}
+                      </p>
+                      <p style={textStyle}>Package: {schoolPackage}</p>
+                      <p style={textStyle}>
+                        WageFlow: {hasWageFlow ? "Enabled" : "Disabled"}
                       </p>
                       <p style={textStyle}>
                         Principal Status: {principalIsActive ? "Active" : "Inactive"}

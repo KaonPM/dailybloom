@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../lib/supabase-admin";
+import { sendLoginEmail } from "../../lib/send-login-email";
 
 export async function POST(req: Request) {
   try {
@@ -15,6 +16,12 @@ export async function POST(req: Request) {
       /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
     if (!schoolId || !fullName || !email || !password) {
+      await sendLoginEmail({
+      toEmail: email,
+      fullName,
+      temporaryPassword: password,
+      roleLabel: "owner",
+      });
       return NextResponse.json(
         { error: "Missing required fields." },
         { status: 400 }

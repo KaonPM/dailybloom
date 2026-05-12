@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sendLoginEmail } from "../../lib/send-login-email";
 
 export async function POST(request: Request) {
   try {
@@ -15,6 +16,12 @@ export async function POST(request: Request) {
       /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
     if (!schoolId || !fullName || !email || !password) {
+      await sendLoginEmail({
+      toEmail: email,
+      fullName,
+      temporaryPassword: password,
+      roleLabel: "teacher",
+      });
       return NextResponse.json(
         { error: "Please complete teacher name, email, password, and school." },
         { status: 400 }

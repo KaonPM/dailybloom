@@ -14,6 +14,7 @@ type SchoolItem = {
   logo_url?: string | null;
   status?: string | null;
   deleted_at?: string | null;
+  package_name?: string | null;
 };
 
 type PrincipalItem = {
@@ -53,6 +54,7 @@ export default function MasterPage() {
   const [primaryColor, setPrimaryColor] = useState("#7CCCF3");
   const [secondaryColor, setSecondaryColor] = useState("#FFD76A");
   const [logoUrl, setLogoUrl] = useState("");
+  const [packageName, setPackageName] = useState("Bloom");
 
   const [principalFullName, setPrincipalFullName] = useState("");
   const [principalEmail, setPrincipalEmail] = useState("");
@@ -103,7 +105,7 @@ export default function MasterPage() {
     const { data, error } = await supabase
       .from("schools")
       .select(
-        "id, school_name, primary_color, secondary_color, logo_url, status, deleted_at"
+        "id, school_name, primary_color, secondary_color, logo_url, status, deleted_at, package_name"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -192,6 +194,7 @@ export default function MasterPage() {
         secondary_color: secondaryColor || "#FFD76A",
         logo_url: logoUrl.trim() || null,
         status: "active",
+        package_name: packageName,
       },
     ]);
 
@@ -205,6 +208,7 @@ export default function MasterPage() {
     setPrimaryColor("#7CCCF3");
     setSecondaryColor("#FFD76A");
     setLogoUrl("");
+    setPackageName("Bloom");
 
     await fetchSchools();
     setSavingSchool(false);
@@ -590,6 +594,10 @@ export default function MasterPage() {
                             </strong>
 
                             <p style={helperText}>
+                              Package: {school.package_name || "Bloom"}
+                            </p>
+
+                            <p style={helperText}>
                               Status:{" "}
                               <span style={statusBadge(schoolStatus)}>
                                 {schoolStatus}
@@ -798,6 +806,10 @@ export default function MasterPage() {
                     {school.school_name || "Unnamed school"}
                   </strong>
 
+                  <p style={helperText}>
+                    Package: {school.package_name || "Bloom"}
+                  </p>
+
                   <div style={{ marginTop: "10px" }}>
                     <Link
                       href={`/master/school/${school.id}`}
@@ -851,6 +863,16 @@ export default function MasterPage() {
             value={logoUrl}
             onChange={(e) => setLogoUrl(e.target.value)}
           />
+
+          <select
+            className="db-input"
+            value={packageName}
+            onChange={(e) => setPackageName(e.target.value)}
+          >
+            <option value="Bloom">Bloom</option>
+            <option value="Bloom Pro">Bloom Pro</option>
+            <option value="Bloom Elite">Bloom Elite</option>
+          </select>
 
           <button
             type="button"

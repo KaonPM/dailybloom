@@ -10,6 +10,8 @@ export default function ResetPasswordPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   async function resetPassword() {
     const strongPasswordRegex =
@@ -68,7 +70,7 @@ export default function ResetPasswordPage() {
 
         <input
           className="db-input"
-          type="password"
+          type={showConfirmPassword ? "text" : "password"}
           placeholder="New Password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
@@ -76,7 +78,7 @@ export default function ResetPasswordPage() {
 
         <input
           className="db-input"
-          type="password"
+          type={showConfirmPassword ? "text" : "password"}
           placeholder="Confirm New Password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
@@ -86,7 +88,7 @@ export default function ResetPasswordPage() {
           type="button"
           className="db-button-primary"
           style={{ width: "100%" }}
-          onClick={resetPassword}
+          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
           disabled={saving}
         >
           {saving ? "Saving..." : "Reset Password"}

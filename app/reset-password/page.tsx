@@ -52,10 +52,12 @@ export default function ResetPasswordPage() {
         .eq("id", user.id);
     }
 
+    await supabase.auth.signOut();
+
     setSaving(false);
 
     alert("Password reset successfully. Please log in with your new password.");
-    await supabase.auth.signOut();
+
     router.push("/login");
   }
 
@@ -70,7 +72,7 @@ export default function ResetPasswordPage() {
 
         <input
           className="db-input"
-          type={showConfirmPassword ? "text" : "password"}
+          type={showPassword ? "text" : "password"}
           placeholder="New Password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
@@ -87,11 +89,24 @@ export default function ResetPasswordPage() {
         <button
           type="button"
           className="db-button-primary"
-          style={{ width: "100%" }}
-          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+          style={{ width: "100%", marginBottom: "10px" }}
+          onClick={resetPassword}
           disabled={saving}
         >
           {saving ? "Saving..." : "Reset Password"}
+        </button>
+
+        <button
+          type="button"
+          className="db-button-secondary"
+          style={{ width: "100%" }}
+          onClick={() => {
+            setShowPassword(!showPassword);
+            setShowConfirmPassword(!showConfirmPassword);
+          }}
+          disabled={saving}
+        >
+          {showPassword ? "Hide Passwords" : "Show Passwords"}
         </button>
       </div>
     </div>

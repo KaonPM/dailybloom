@@ -15,11 +15,11 @@ export default function ResetPasswordPage() {
 
   async function resetPassword() {
     const strongPasswordRegex =
-      /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
     if (!strongPasswordRegex.test(newPassword)) {
       alert(
-        "Password must be at least 8 characters and include letters, numbers, and a special character."
+        "Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character."
       );
       return;
     }
@@ -64,10 +64,10 @@ export default function ResetPasswordPage() {
   return (
     <div className="db-auth-page">
       <div className="db-auth-card">
-        <h1 className="db-auth-title">Create New Password</h1>
+        <h1 className="db-auth-title">Create a new password</h1>
 
         <p className="db-auth-subtitle">
-          Please enter your new password below.
+          Your new password must include uppercase, lowercase, a number, and a special character.
         </p>
 
         <input
@@ -77,6 +77,16 @@ export default function ResetPasswordPage() {
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
         />
+
+        <button
+          type="button"
+          className="db-button-secondary"
+          style={{ width: "100%", marginBottom: "12px" }}
+          onClick={() => setShowPassword(!showPassword)}
+          disabled={saving}
+        >
+          {showPassword ? "Hide" : "Show"}
+        </button>
 
         <input
           className="db-input"
@@ -88,26 +98,27 @@ export default function ResetPasswordPage() {
 
         <button
           type="button"
-          className="db-button-primary"
-          style={{ width: "100%", marginBottom: "10px" }}
-          onClick={resetPassword}
+          className="db-button-secondary"
+          style={{ width: "100%", marginBottom: "12px" }}
+          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
           disabled={saving}
         >
-          {saving ? "Saving..." : "Reset Password"}
+          {showConfirmPassword ? "Hide" : "Show"}
         </button>
 
         <button
           type="button"
-          className="db-button-secondary"
-          style={{ width: "100%" }}
-          onClick={() => {
-            setShowPassword(!showPassword);
-            setShowConfirmPassword(!showConfirmPassword);
-          }}
+          className="db-button-primary"
+          style={{ width: "100%", marginBottom: "14px" }}
+          onClick={resetPassword}
           disabled={saving}
         >
-          {showPassword ? "Hide Passwords" : "Show Passwords"}
+          {saving ? "Saving..." : "Update Password"}
         </button>
+
+        <p className="db-auth-subtitle">
+          Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.
+        </p>
       </div>
     </div>
   );

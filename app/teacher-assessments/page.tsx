@@ -135,7 +135,7 @@ export default function TeacherAssessmentsPage() {
     const { data, error } = await supabase
       .from("learner_assessments")
       .select("*")
-      .eq("learner_id", Number(learnerId))
+      .eq("learner_id", learnerId)
       .eq("report_period_id", Number(periodId));
 
     if (error) {
@@ -191,10 +191,10 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
-    if (!isValidNumber(selectedLearnerId)) {
-      alert("Please select learner.");
-      return;
-    }
+    if (!selectedLearnerId) {
+  alert("Please select learner.");
+  return;
+}
 
     if (!isValidNumber(selectedPeriodId)) {
       alert("Please select report period.");
@@ -212,7 +212,7 @@ export default function TeacherAssessmentsPage() {
 
     const parsedSchoolId = Number(schoolId);
     const parsedClassroomId = Number(selectedClassroomId);
-    const parsedLearnerId = Number(selectedLearnerId);
+    const parsedLearnerId = selectedLearnerId;
     const parsedPeriodId = Number(selectedPeriodId);
 
     setSaving(true);

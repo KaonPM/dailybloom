@@ -133,6 +133,13 @@ export default function TeacherAssessmentsPage() {
     setAssessmentValues(nextValues);
   }
 
+  function formatPeriodType(type: string) {
+    if (type === "quarterly") return "Quarterly Report";
+    if (type === "biannual") return "Biannual Report";
+    if (type === "annual") return "Annual Report";
+    return type;
+  }
+
   function updateCategory(categoryKey: string, field: string, value: string) {
     setAssessmentValues((current: any) => ({
       ...current,
@@ -162,6 +169,7 @@ export default function TeacherAssessmentsPage() {
 
     const rows = reportCategories.map((category) => ({
       school_id: schoolId,
+      classroom_id: Number(selectedClassroomId),
       learner_id: Number(selectedLearnerId),
       report_period_id: Number(selectedPeriodId),
       category: category.key,
@@ -188,15 +196,7 @@ export default function TeacherAssessmentsPage() {
     alert(status === "draft" ? "Assessment draft saved." : "Assessment submitted to principal.");
   }
 
-  const teacherName =
-    profile?.full_name ||
-    profile?.name ||
-    profile?.email ||
-    "Teacher";
-
-  const selectedClassroom = classrooms.find(
-    (classroom) => String(classroom.id) === String(selectedClassroomId)
-  );
+  const teacherName = profile?.full_name || profile?.name || profile?.email || "Teacher";
 
   if (loading) {
     return <p>Loading...</p>;
@@ -219,7 +219,6 @@ export default function TeacherAssessmentsPage() {
           value={selectedClassroomId}
           onChange={async (e) => {
             const classroomId = e.target.value;
-
             setSelectedClassroomId(classroomId);
             setSelectedLearnerId("");
             setAssessmentValues({});
@@ -271,16 +270,10 @@ export default function TeacherAssessmentsPage() {
           <option value="">Select Report Period</option>
           {periods.map((period) => (
             <option key={period.id} value={period.id}>
-              {period.title} ({period.report_type})
+              {period.title} ({formatPeriodType(period.report_type)})
             </option>
           ))}
         </select>
-
-        {selectedClassroom && (
-          <p className="db-helper">
-            Selected class: {selectedClassroom.classroom_name}
-          </p>
-        )}
       </div>
 
       {selectedClassroomId && selectedLearnerId && selectedPeriodId && (
@@ -296,9 +289,7 @@ export default function TeacherAssessmentsPage() {
                 <select
                   className="db-input"
                   value={assessmentValues[category.key]?.level || ""}
-                  onChange={(e) =>
-                    updateCategory(category.key, "level", e.target.value)
-                  }
+                  onChange={(e) => updateCategory(category.key, "level", e.target.value)}
                 >
                   <option value="">Select Level</option>
                   {reportLevels.map((level) => (
@@ -322,19 +313,11 @@ export default function TeacherAssessmentsPage() {
           </div>
 
           <div style={{ display: "flex", gap: "12px", marginTop: "20px", flexWrap: "wrap" }}>
-            <button
-              className="db-button-primary"
-              onClick={() => saveAssessment("draft")}
-              disabled={saving}
-            >
+            <button className="db-button-primary" onClick={() => saveAssessment("draft")} disabled={saving}>
               {saving ? "Saving..." : "Save Draft"}
             </button>
 
-            <button
-              className="db-button-primary"
-              onClick={() => saveAssessment("submitted")}
-              disabled={saving}
-            >
+            <button className="db-button-primary" onClick={() => saveAssessment("submitted")} disabled={saving}>
               {saving ? "Submitting..." : "Submit to Principal"}
             </button>
           </div>

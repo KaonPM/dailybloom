@@ -254,9 +254,9 @@ export default function TeacherAssessmentsPage() {
     profile?.full_name || profile?.name || profile?.email || "Teacher";
 
   const canShowAssessmentForm =
-    isValidNumber(selectedClassroomId) &&
-    isValidNumber(selectedLearnerId) &&
-    isValidNumber(selectedPeriodId);
+  selectedClassroomId !== "" &&
+  selectedLearnerId !== "" &&
+  selectedPeriodId !== "";
 
   if (loading) {
     return <p>Loading...</p>;
@@ -347,18 +347,7 @@ export default function TeacherAssessmentsPage() {
           ))}
         </select>
       </div>
-
-      {!canShowAssessmentForm && (
-        <div
-          className="db-card db-card-yellow"
-          style={{ padding: "20px", marginBottom: "24px" }}
-        >
-          <p className="db-helper" style={{ margin: 0 }}>
-            Please select a class, learner and report period to open the
-            development areas.
-          </p>
-        </div>
-      )}
+      
 
       {canShowAssessmentForm && (
         <div className="db-card db-card-lavender" style={{ padding: "20px" }}>

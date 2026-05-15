@@ -306,7 +306,7 @@ export default function ProgressReportsPage() {
     const { data, error } = await supabase
       .from("learner_assessments")
       .select("*")
-      .eq("learner_id", Number(item.learner_id))
+      .eq("learner_id", (item.learner_id))
       .eq("report_period_id", Number(item.report_period_id))
       .eq("teacher_id", item.teacher_id);
 
@@ -320,7 +320,7 @@ export default function ProgressReportsPage() {
     const { data: reportData, error: reportError } = await supabase
       .from("generated_reports")
       .select("*")
-      .eq("learner_id", Number(item.learner_id))
+      .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
       .maybeSingle();
 
@@ -343,7 +343,7 @@ export default function ProgressReportsPage() {
     const { data, error } = await supabase
       .from("learner_assessments")
       .select("*")
-      .eq("learner_id", Number(item.learner_id))
+      .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
       .in("status", ["locked", "generated", "reviewed", "submitted"]);
 
@@ -426,7 +426,7 @@ export default function ProgressReportsPage() {
           {
             school_id: schoolId,
             classroom_id: Number(selectedClassroomId),
-            learner_id: Number(selectedLearnerId),
+            learner_id: selectedLearnerId,
             report_period_id: Number(selectedPeriodId),
             principal_id: profile.id,
             principal_comment: principalComment || null,

@@ -21,6 +21,8 @@ export default function TeacherAssessmentsPage() {
   const [selectedPeriodId, setSelectedPeriodId] = useState("");
 
   const [assessmentValues, setAssessmentValues] = useState<any>({});
+  const [overallComment, setOverallComment] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -130,7 +132,7 @@ export default function TeacherAssessmentsPage() {
   }
 
   async function loadExistingAssessment(learnerId: string, periodId: string) {
-    if (!isValidNumber(learnerId) || !isValidNumber(periodId)) return;
+    if (!learnerId || !isValidNumber(periodId)) return;
 
     const { data, error } = await supabase
       .from("learner_assessments")
@@ -150,12 +152,15 @@ export default function TeacherAssessmentsPage() {
 
       nextValues[category.key] = {
         level: existing?.level || "",
-        teacher_comment: existing?.teacher_comment || "",
         status: existing?.status || "draft",
       };
     });
 
+    const existingComment =
+      data?.find((item) => item.teacher_comment)?.teacher_comment || "";
+
     setAssessmentValues(nextValues);
+    setOverallComment(existingComment);
   }
 
   function formatPeriodType(type: string) {
@@ -192,9 +197,9 @@ export default function TeacherAssessmentsPage() {
     }
 
     if (!selectedLearnerId) {
-  alert("Please select learner.");
-  return;
-}
+      alert("Please select learner.");
+      return;
+    }
 
     if (!isValidNumber(selectedPeriodId)) {
       alert("Please select report period.");
@@ -224,17 +229,15 @@ export default function TeacherAssessmentsPage() {
       report_period_id: parsedPeriodId,
       category: category.key,
       level: assessmentValues[category.key]?.level,
-      teacher_comment: assessmentValues[category.key]?.teacher_comment || null,
+      teacher_comment: overallComment || null,
       teacher_id: profile.id,
       status,
       updated_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase
-      .from("learner_assessments")
-      .upsert(rows, {
-        onConflict: "learner_id,report_period_id,category",
-      });
+    const { error } = await supabase.from("learner_assessments").upsert(rows, {
+      onConflict: "learner_id,report_period_id,category",
+    });
 
     if (error) {
       alert(error.message);
@@ -254,9 +257,9 @@ export default function TeacherAssessmentsPage() {
     profile?.full_name || profile?.name || profile?.email || "Teacher";
 
   const canShowAssessmentForm =
-  selectedClassroomId !== "" &&
-  selectedLearnerId !== "" &&
-  selectedPeriodId !== "";
+    selectedClassroomId !== "" &&
+    selectedLearnerId !== "" &&
+    selectedPeriodId !== "";
 
   if (loading) {
     return <p>Loading...</p>;
@@ -290,6 +293,7 @@ export default function TeacherAssessmentsPage() {
             setSelectedClassroomId(classroomId);
             setSelectedLearnerId("");
             setAssessmentValues({});
+            setOverallComment("");
 
             if (schoolId && isValidNumber(classroomId)) {
               await fetchLearnersByClassroom(schoolId, classroomId);
@@ -347,7 +351,6 @@ export default function TeacherAssessmentsPage() {
           ))}
         </select>
       </div>
-      
 
       {canShowAssessmentForm && (
         <div className="db-card db-card-lavender" style={{ padding: "20px" }}>
@@ -373,22 +376,20 @@ export default function TeacherAssessmentsPage() {
                     </option>
                   ))}
                 </select>
-
-                <textarea
-                  className="db-input"
-                  rows={3}
-                  placeholder="Teacher observation"
-                  value={assessmentValues[category.key]?.teacher_comment || ""}
-                  onChange={(e) =>
-                    updateCategory(
-                      category.key,
-                      "teacher_comment",
-                      e.target.value
-                    )
-                  }
-                />
               </div>
             ))}
+          </div>
+
+          <div className="db-list-card" style={{ marginTop: "20px" }}>
+            <strong>Teacher Observation</strong>
+
+            <textarea
+              className="db-input"
+              rows={3}
+              placeholder="Teacher observation"
+              value={overallComment}
+              onChange={(e) => setOverallComment(e.target.value)}
+            />
           </div>
 
           <div

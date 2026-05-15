@@ -88,11 +88,14 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
+    const selectedClassroom = classrooms.find(
+      (classroom) => String(classroom.id) === String(classroomId)
+    );
+
     const { data, error } = await supabase
       .from("learners")
       .select("*")
       .eq("school_id", currentSchoolId)
-      .eq("classroom_id", Number(classroomId))
       .order("name", { ascending: true });
 
     if (error) {
@@ -100,7 +103,14 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
-    setLearners(data || []);
+    const filteredLearners = (data || []).filter((learner) => {
+      return (
+        String(learner.classroom_id) === String(classroomId) ||
+        learner.class === selectedClassroom?.classroom_name
+      );
+    });
+
+    setLearners(filteredLearners);
   }
 
   async function fetchPeriods(currentSchoolId: number) {
@@ -166,12 +176,7 @@ export default function TeacherAssessmentsPage() {
   }
 
   async function saveAssessment(status: "draft" | "submitted") {
-    const parsedSchoolId = Number(schoolId);
-    const parsedClassroomId = Number(selectedClassroomId);
-    const parsedLearnerId = Number(selectedLearnerId);
-    const parsedPeriodId = Number(selectedPeriodId);
-
-    if (!isValidNumber(parsedSchoolId)) {
+    if (!isValidNumber(schoolId)) {
       alert("School is not linked correctly.");
       return;
     }
@@ -204,6 +209,11 @@ export default function TeacherAssessmentsPage() {
       alert("Please select a level for every development area.");
       return;
     }
+
+    const parsedSchoolId = Number(schoolId);
+    const parsedClassroomId = Number(selectedClassroomId);
+    const parsedLearnerId = Number(selectedLearnerId);
+    const parsedPeriodId = Number(selectedPeriodId);
 
     setSaving(true);
 
@@ -337,6 +347,18 @@ export default function TeacherAssessmentsPage() {
           ))}
         </select>
       </div>
+
+      {!canShowAssessmentForm && (
+        <div
+          className="db-card db-card-yellow"
+          style={{ padding: "20px", marginBottom: "24px" }}
+        >
+          <p className="db-helper" style={{ margin: 0 }}>
+            Please select a class, learner and report period to open the
+            development areas.
+          </p>
+        </div>
+      )}
 
       {canShowAssessmentForm && (
         <div className="db-card db-card-lavender" style={{ padding: "20px" }}>

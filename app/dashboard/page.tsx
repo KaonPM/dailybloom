@@ -111,6 +111,11 @@ export default function PrincipalDashboardPage() {
     flaggedIncidentsToday: 0,
   });
 
+  const [dailyHighlightsOpen, setDailyHighlightsOpen] = useState(false);
+  const [schoolRecordsOpen, setSchoolRecordsOpen] = useState(false);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const [schoolManagementOpen, setSchoolManagementOpen] = useState(false);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -502,7 +507,7 @@ export default function PrincipalDashboardPage() {
                 lineHeight: 1.6,
               }}
             >
-              Run the school day smoothly, keep track of classes and teachers, and stay on top of daily activity.
+              Run the school day smoothly, keep track of classes and teachers and stay on top of daily activity.
             </p>
           </div>
         </div>
@@ -609,40 +614,12 @@ export default function PrincipalDashboardPage() {
         </CompactHighlightCard>
       </div>
 
-      <div
-        style={{
-          background: "#FFFFFF",
-          border: "1px solid #F0E3D8",
-          borderRadius: "24px",
-          padding: "20px",
-          boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-          marginBottom: "24px",
-        }}
+      <CollapsibleSection
+        title="Daily Highlights"
+        description="A whole-school view for today and this month, so you can monitor operations without going into each class."
+        isOpen={dailyHighlightsOpen}
+        onToggle={() => setDailyHighlightsOpen((current) => !current)}
       >
-        <h3
-          style={{
-            marginTop: 0,
-            marginBottom: "8px",
-            color: "#2D2A3E",
-            fontSize: "22px",
-            fontWeight: 700,
-          }}
-        >
-          Consolidated School Overview
-        </h3>
-
-        <p
-          style={{
-            marginTop: 0,
-            marginBottom: "16px",
-            color: "#6D6888",
-            fontSize: "14px",
-            lineHeight: 1.6,
-          }}
-        >
-          A whole-school view for today and this month, so you can monitor operations without going into each class.
-        </p>
-
         <div
           style={{
             display: "grid",
@@ -672,27 +649,6 @@ export default function PrincipalDashboardPage() {
             border="#D3EDD4"
           />
           <OverviewCard
-            label="Missing Summaries"
-            value={consolidated.missingSummariesToday}
-            helper="Learners still needing summaries"
-            background="#FFF7D9"
-            border="#F3E4A3"
-          />
-          <OverviewCard
-            label="Events Today"
-            value={consolidated.eventsToday}
-            helper="School-wide events today"
-            background="#FFF7D9"
-            border="#F3E4A3"
-          />
-          <OverviewCard
-            label="Birthdays Today"
-            value={consolidated.birthdaysToday}
-            helper="School-wide birthdays today"
-            background="#F8E8F0"
-            border="#EBC9D8"
-          />
-          <OverviewCard
             label="Payments This Month"
             value={consolidated.paymentsThisMonth}
             helper="Paid records this month"
@@ -714,94 +670,72 @@ export default function PrincipalDashboardPage() {
             border="#EBC9D8"
           />
         </div>
-      </div>
+      </CollapsibleSection>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "14px",
-          marginBottom: "24px",
-        }}
+      <CollapsibleSection
+        title="School Records"
+        description="View the main records currently saved for this school."
+        isOpen={schoolRecordsOpen}
+        onToggle={() => setSchoolRecordsOpen((current) => !current)}
       >
-        <StatLinkCard
-          label="Learners"
-          value={stats.learners}
-          href="/children"
-          background="#EAF7FD"
-          border="#CBEAF7"
-        />
-        <StatLinkCard
-          label="Teachers"
-          value={stats.teachers}
-          href="/teachers"
-          background="#EEF9EE"
-          border="#D3EDD4"
-        />
-        <StatLinkCard
-          label="Classrooms"
-          value={stats.classrooms}
-          href="/classrooms"
-          background="#F8E8F0"
-          border="#EBC9D8"
-        />
-        <StatLinkCard
-          label="Events"
-          value={stats.events}
-          href="/events"
-          background="#FFF7D9"
-          border="#F3E4A3"
-        />
-        <StatLinkCard
-          label="Summaries"
-          value={stats.summaries}
-          href="/summaries"
-          background="#EAF7FD"
-          border="#CBEAF7"
-        />
-        <StatLinkCard
-          label="Payments"
-          value={stats.payments}
-          href="/payments"
-          background="#EEF9EE"
-          border="#D3EDD4"
-        />
-      </div>
-
-      <div
-        style={{
-          background: "#FFFFFF",
-          border: "1px solid #F0E3D8",
-          borderRadius: "24px",
-          padding: "20px",
-          boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-          marginBottom: "24px",
-        }}
-      >
-        <h3
+        <div
           style={{
-            marginTop: 0,
-            marginBottom: "8px",
-            color: "#2D2A3E",
-            fontSize: "22px",
-            fontWeight: 700,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: "14px",
           }}
         >
-          Quick Actions
-        </h3>
+          <StatLinkCard
+            label="Learners"
+            value={stats.learners}
+            href="/children"
+            background="#EAF7FD"
+            border="#CBEAF7"
+          />
+          <StatLinkCard
+            label="Teachers"
+            value={stats.teachers}
+            href="/teachers"
+            background="#EEF9EE"
+            border="#D3EDD4"
+          />
+          <StatLinkCard
+            label="Classrooms"
+            value={stats.classrooms}
+            href="/classrooms"
+            background="#F8E8F0"
+            border="#EBC9D8"
+          />
+          <StatLinkCard
+            label="Events"
+            value={stats.events}
+            href="/events"
+            background="#FFF7D9"
+            border="#F3E4A3"
+          />
+          <StatLinkCard
+            label="Summaries"
+            value={stats.summaries}
+            href="/summaries"
+            background="#EAF7FD"
+            border="#CBEAF7"
+          />
+          <StatLinkCard
+            label="Payments"
+            value={stats.payments}
+            href="/payments"
+            background="#EEF9EE"
+            border="#D3EDD4"
+          />
+        </div>
+      </CollapsibleSection>
 
-        <p
-          style={{
-            marginTop: 0,
-            marginBottom: "16px",
-            color: "#6D6888",
-            fontSize: "14px",
-            lineHeight: 1.6,
-          }}
-        >
-          Jump straight into the main workflows for this school.
-        </p>
-
+      <CollapsibleSection
+        title="Quick Actions"
+        description="Jump straight into the main workflows for this school."
+        isOpen={quickActionsOpen}
+        onToggle={() => setQuickActionsOpen((current) => !current)}
+      >
         <div
           style={{
             display: "grid",
@@ -841,41 +775,14 @@ export default function PrincipalDashboardPage() {
             border="#D3EDD4"
           />
         </div>
-      </div>
+      </CollapsibleSection>
 
-      <div
-        style={{
-          background: "#FFFFFF",
-          border: "1px solid #F0E3D8",
-          borderRadius: "24px",
-          padding: "22px",
-          boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-        }}
+      <CollapsibleSection
+        title="School Management"
+        description="Open the areas you need for school operations."
+        isOpen={schoolManagementOpen}
+        onToggle={() => setSchoolManagementOpen((current) => !current)}
       >
-        <h3
-          style={{
-            marginTop: 0,
-            marginBottom: "8px",
-            color: "#2D2A3E",
-            fontSize: "24px",
-            fontWeight: 700,
-          }}
-        >
-          School Management
-        </h3>
-
-        <p
-          style={{
-            marginTop: 0,
-            marginBottom: "16px",
-            color: "#6D6888",
-            fontSize: "14px",
-            lineHeight: 1.6,
-          }}
-        >
-          Open the areas you need for school operations.
-        </p>
-
         <div
           style={{
             display: "flex",
@@ -923,7 +830,94 @@ export default function PrincipalDashboardPage() {
             Progress Reports
           </Link>
         </div>
-      </div>
+      </CollapsibleSection>
+    </div>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  description,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  title: string;
+  description: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        background: "#FFFFFF",
+        border: "1px solid #F0E3D8",
+        borderRadius: "24px",
+        padding: "20px",
+        boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
+        marginBottom: "24px",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "12px",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <div>
+          <h3
+            style={{
+              marginTop: 0,
+              marginBottom: "8px",
+              color: "#2D2A3E",
+              fontSize: "22px",
+              fontWeight: 700,
+            }}
+          >
+            {title}
+          </h3>
+
+          <p
+            style={{
+              marginTop: 0,
+              marginBottom: 0,
+              color: "#6D6888",
+              fontSize: "14px",
+              lineHeight: 1.6,
+            }}
+          >
+            {description}
+          </p>
+        </div>
+
+        <span
+          style={{
+            background: "#FFF7D9",
+            border: "1px solid #F3E4A3",
+            borderRadius: "999px",
+            padding: "8px 12px",
+            color: "#2D2A3E",
+            fontSize: "13px",
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {isOpen ? "Hide" : "Open"}
+        </span>
+      </button>
+
+      {isOpen && <div style={{ marginTop: "16px" }}>{children}</div>}
     </div>
   );
 }

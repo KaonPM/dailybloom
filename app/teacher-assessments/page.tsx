@@ -23,6 +23,8 @@ export default function TeacherAssessmentsPage() {
   const [assessmentValues, setAssessmentValues] = useState<any>({});
   const [overallComment, setOverallComment] = useState("");
 
+  const [existingAssessments, setExistingAssessments] = useState<any[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -32,7 +34,9 @@ export default function TeacherAssessmentsPage() {
 
   function isValidNumber(value: any) {
     if (value === "" || value === null || value === undefined) return false;
+
     const parsedValue = Number(value);
+
     return Number.isFinite(parsedValue) && !Number.isNaN(parsedValue);
   }
 
@@ -85,13 +89,13 @@ export default function TeacherAssessmentsPage() {
     currentSchoolId: number,
     classroomId: string
   ) {
-    if (!isValidNumber(classroomId)) {
+    if (!classroomId) {
       setLearners([]);
       return;
     }
 
     const selectedClassroom = classrooms.find(
-      (classroom) => String(classroom.id) === String(classroomId)
+      (item) => String(item.id) === String(classroomId)
     );
 
     const { data, error } = await supabase
@@ -131,8 +135,11 @@ export default function TeacherAssessmentsPage() {
     setPeriods(data || []);
   }
 
-  async function loadExistingAssessment(learnerId: string, periodId: string) {
-    if (!learnerId || !isValidNumber(periodId)) return;
+  async function loadExistingAssessment(
+    learnerId: string,
+    periodId: string
+  ) {
+    if (!learnerId || !periodId) return;
 
     const { data, error } = await supabase
       .from("learner_assessments")
@@ -145,10 +152,14 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
+    setExistingAssessments(data || []);
+
     const nextValues: any = {};
 
     reportCategories.forEach((category) => {
-      const existing = data?.find((item) => item.category === category.key);
+      const existing = data?.find(
+        (item) => item.category === category.key
+      );
 
       nextValues[category.key] = {
         level: existing?.level || "",
@@ -157,7 +168,7 @@ export default function TeacherAssessmentsPage() {
     });
 
     const existingComment =
-      data?.find((item) => item.teacher_comment)?.teacher_comment || "";
+      data?.[0]?.teacher_comment || "";
 
     setAssessmentValues(nextValues);
     setOverallComment(existingComment);
@@ -167,10 +178,15 @@ export default function TeacherAssessmentsPage() {
     if (type === "quarterly") return "Quarterly Report";
     if (type === "biannual") return "Biannual Report";
     if (type === "annual") return "Annual Report";
+
     return type || "Report";
   }
 
-  function updateCategory(categoryKey: string, field: string, value: string) {
+  function updateCategory(
+    categoryKey: string,
+    field: string,
+    value: string
+  ) {
     setAssessmentValues((current: any) => ({
       ...current,
       [categoryKey]: {
@@ -181,7 +197,7 @@ export default function TeacherAssessmentsPage() {
   }
 
   async function saveAssessment(status: "draft" | "submitted") {
-    if (!isValidNumber(schoolId)) {
+    if (!schoolId) {
       alert("School is not linked correctly.");
       return;
     }
@@ -191,7 +207,7 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
-    if (!isValidNumber(selectedClassroomId)) {
+    if (!selectedClassroomId) {
       alert("Please select class.");
       return;
     }
@@ -201,7 +217,7 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
-    if (!isValidNumber(selectedPeriodId)) {
+    if (!selectedPeriodId) {
       alert("Please select report period.");
       return;
     }
@@ -215,18 +231,13 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
-    const parsedSchoolId = Number(schoolId);
-    const parsedClassroomId = Number(selectedClassroomId);
-    const parsedLearnerId = selectedLearnerId;
-    const parsedPeriodId = Number(selectedPeriodId);
-
     setSaving(true);
 
     const rows = reportCategories.map((category) => ({
-      school_id: parsedSchoolId,
-      classroom_id: parsedClassroomId,
-      learner_id: parsedLearnerId,
-      report_period_id: parsedPeriodId,
+      school_id: Number(schoolId),
+      classroom_id: Number(selectedClassroomId),
+      learner_id: selectedLearnerId,
+      report_period_id: Number(selectedPeriodId),
       category: category.key,
       level: assessmentValues[category.key]?.level,
       teacher_comment: overallComment || null,
@@ -235,17 +246,52 @@ export default function TeacherAssessmentsPage() {
       updated_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase.from("learner_assessments").upsert(rows, {
-      onConflict: "learner_id,report_period_id,category",
-    });
+    for (const row of rows) {
+      const existing = existingAssessments.find(
+        (item) =>
+          item.category === row.category &&
+          String(item.learner_id) === String(row.learner_id) &&
+          String(item.report_period_id) ===
+            String(row.report_period_id)
+      );
 
-    if (error) {
-      alert(error.message);
-      setSaving(false);
-      return;
+      if (existing) {
+        const { error } = await supabase
+          .from("learner_assessments")
+          .update({
+            level: row.level,
+            teacher_comment: row.teacher_comment,
+            teacher_id: row.teacher_id,
+            status: row.status,
+            updated_at: row.updated_at,
+          })
+          .eq("id", existing.id);
+
+        if (error) {
+          alert(error.message);
+          setSaving(false);
+          return;
+        }
+      } else {
+        const { error } = await supabase
+          .from("learner_assessments")
+          .insert(row);
+
+        if (error) {
+          alert(error.message);
+          setSaving(false);
+          return;
+        }
+      }
     }
 
+    await loadExistingAssessment(
+      selectedLearnerId,
+      selectedPeriodId
+    );
+
     setSaving(false);
+
     alert(
       status === "draft"
         ? "Assessment draft saved."
@@ -254,12 +300,18 @@ export default function TeacherAssessmentsPage() {
   }
 
   const teacherName =
-    profile?.full_name || profile?.name || profile?.email || "Teacher";
+    profile?.full_name ||
+    profile?.name ||
+    profile?.email ||
+    "Teacher";
 
   const canShowAssessmentForm =
     selectedClassroomId !== "" &&
     selectedLearnerId !== "" &&
     selectedPeriodId !== "";
+
+  const currentStatus =
+    existingAssessments?.[0]?.status || null;
 
   if (loading) {
     return <p>Loading...</p>;
@@ -269,20 +321,66 @@ export default function TeacherAssessmentsPage() {
     <div>
       <div
         className="db-soft-card"
-        style={{ padding: "20px 22px", marginBottom: "24px" }}
+        style={{
+          padding: "20px 22px",
+          marginBottom: "24px",
+        }}
       >
-        <h1 className="db-page-title">Learner Progress Assessments</h1>
+        <h1 className="db-page-title">
+          Learner Progress Assessments
+        </h1>
+
         <p className="db-page-subtitle">
-          Complete learner development assessments and submit them to the
-          principal.
+          Complete learner development assessments and
+          submit them to the principal.
         </p>
       </div>
 
       <div
         className="db-card db-card-blue"
-        style={{ padding: "20px", marginBottom: "24px" }}
+        style={{
+          padding: "20px",
+          marginBottom: "24px",
+        }}
       >
-        <h3 style={sectionTitle}>Class, Teacher and Learner</h3>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "14px",
+            gap: "10px",
+            flexWrap: "wrap",
+          }}
+        >
+          <h3 style={sectionTitle}>
+            Class, Teacher and Learner
+          </h3>
+
+          {currentStatus && (
+            <div
+              style={{
+                padding: "3px 8px",
+                borderRadius: "999px",
+                fontSize: "11px",
+                fontWeight: 700,
+                background:
+                  currentStatus === "submitted"
+                    ? "#dcfce7"
+                    : "#fef3c7",
+                color:
+                  currentStatus === "submitted"
+                    ? "#166534"
+                    : "#92400e",
+                lineHeight: 1.1,
+              }}
+            >
+              {currentStatus === "submitted"
+                ? "Submitted"
+                : "Draft"}
+            </div>
+          )}
+        </div>
 
         <select
           className="db-input"
@@ -291,27 +389,42 @@ export default function TeacherAssessmentsPage() {
             const classroomId = e.target.value;
 
             setSelectedClassroomId(classroomId);
+
             setSelectedLearnerId("");
+            setSelectedPeriodId("");
+
             setAssessmentValues({});
             setOverallComment("");
+            setExistingAssessments([]);
 
-            if (schoolId && isValidNumber(classroomId)) {
-              await fetchLearnersByClassroom(schoolId, classroomId);
+            if (schoolId && classroomId) {
+              await fetchLearnersByClassroom(
+                schoolId,
+                classroomId
+              );
             } else {
               setLearners([]);
             }
           }}
         >
           <option value="">Select Class</option>
+
           {classrooms.map((classroom) => (
-            <option key={classroom.id} value={String(classroom.id)}>
+            <option
+              key={classroom.id}
+              value={String(classroom.id)}
+            >
               {classroom.classroom_name}
             </option>
           ))}
         </select>
 
-        <div className="db-list-card" style={{ marginBottom: "14px" }}>
+        <div
+          className="db-list-card"
+          style={{ marginBottom: "14px" }}
+        >
           <strong>Teacher</strong>
+
           <p style={textStyle}>{teacherName}</p>
         </div>
 
@@ -322,12 +435,22 @@ export default function TeacherAssessmentsPage() {
             const learnerId = e.target.value;
 
             setSelectedLearnerId(learnerId);
-            await loadExistingAssessment(learnerId, selectedPeriodId);
+
+            if (learnerId && selectedPeriodId) {
+              await loadExistingAssessment(
+                learnerId,
+                selectedPeriodId
+              );
+            }
           }}
         >
           <option value="">Select Learner</option>
+
           {learners.map((learner) => (
-            <option key={learner.id} value={String(learner.id)}>
+            <option
+              key={learner.id}
+              value={String(learner.id)}
+            >
               {learner.name}
             </option>
           ))}
@@ -340,47 +463,89 @@ export default function TeacherAssessmentsPage() {
             const periodId = e.target.value;
 
             setSelectedPeriodId(periodId);
-            await loadExistingAssessment(selectedLearnerId, periodId);
+
+            if (selectedLearnerId && periodId) {
+              await loadExistingAssessment(
+                selectedLearnerId,
+                periodId
+              );
+            }
           }}
         >
           <option value="">Select Report Period</option>
+
           {periods.map((period) => (
-            <option key={period.id} value={String(period.id)}>
-              {period.title} ({formatPeriodType(period.report_type)})
+            <option
+              key={period.id}
+              value={String(period.id)}
+            >
+              {period.title} (
+              {formatPeriodType(period.report_type)})
             </option>
           ))}
         </select>
       </div>
 
       {canShowAssessmentForm && (
-        <div className="db-card db-card-lavender" style={{ padding: "20px" }}>
+        <div
+          className="db-card db-card-lavender"
+          style={{ padding: "20px" }}
+        >
           <h3 style={sectionTitle}>Development Areas</h3>
 
-          <div style={{ display: "grid", gap: "16px" }}>
-            {reportCategories.map((category) => (
-              <div key={category.key} className="db-list-card">
-                <strong>{category.label}</strong>
-                <p style={textStyle}>({category.description})</p>
-
-                <select
-                  className="db-input"
-                  value={assessmentValues[category.key]?.level || ""}
-                  onChange={(e) =>
-                    updateCategory(category.key, "level", e.target.value)
-                  }
+          <div
+            style={{
+              display: "grid",
+              gap: "16px",
+            }}
+          >
+            {reportCategories
+              .map((category) => (
+                <div
+                  key={category.key}
+                  className="db-list-card"
                 >
-                  <option value="">Select Level</option>
-                  {reportLevels.map((level) => (
-                    <option key={level.value} value={level.value}>
-                      {level.label}
+                  <strong>{category.label}</strong>
+
+                  <p style={textStyle}>
+                    ({category.description})
+                  </p>
+
+                  <select
+                    className="db-input"
+                    value={
+                      assessmentValues[category.key]
+                        ?.level || ""
+                    }
+                    onChange={(e) =>
+                      updateCategory(
+                        category.key,
+                        "level",
+                        e.target.value
+                      )
+                    }
+                  >
+                    <option value="">
+                      Select Level
                     </option>
-                  ))}
-                </select>
-              </div>
-            ))}
+
+                    {reportLevels.map((level) => (
+                      <option
+                        key={level.value}
+                        value={level.value}
+                      >
+                        {level.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
           </div>
 
-          <div className="db-list-card" style={{ marginTop: "20px" }}>
+          <div
+            className="db-list-card"
+            style={{ marginTop: "20px" }}
+          >
             <strong>Teacher Observation</strong>
 
             <textarea
@@ -388,7 +553,9 @@ export default function TeacherAssessmentsPage() {
               rows={3}
               placeholder="Teacher observation"
               value={overallComment}
-              onChange={(e) => setOverallComment(e.target.value)}
+              onChange={(e) =>
+                setOverallComment(e.target.value)
+              }
             />
           </div>
 
@@ -410,10 +577,14 @@ export default function TeacherAssessmentsPage() {
 
             <button
               className="db-button-primary"
-              onClick={() => saveAssessment("submitted")}
+              onClick={() =>
+                saveAssessment("submitted")
+              }
               disabled={saving}
             >
-              {saving ? "Submitting..." : "Submit to Principal"}
+              {saving
+                ? "Submitting..."
+                : "Submit to Principal"}
             </button>
           </div>
         </div>
@@ -424,7 +595,7 @@ export default function TeacherAssessmentsPage() {
 
 const sectionTitle = {
   marginTop: 0,
-  marginBottom: "14px",
+  marginBottom: "0",
   color: "var(--db-text)",
   fontSize: "22px",
   fontWeight: 800 as const,

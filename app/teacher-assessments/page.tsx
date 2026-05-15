@@ -28,6 +28,10 @@ export default function TeacherAssessmentsPage() {
     loadPage();
   }, []);
 
+  function isValidNumber(value: any) {
+    return value !== "" && value !== null && value !== undefined && !Number.isNaN(Number(value));
+  }
+
   async function loadPage() {
     const { profile, error } = await getCurrentProfile();
 
@@ -41,7 +45,7 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
-    if (!profile.school_id) {
+    if (!profile.school_id || !isValidNumber(profile.school_id)) {
       alert("No school linked to this account.");
       return;
     }
@@ -73,6 +77,11 @@ export default function TeacherAssessmentsPage() {
   }
 
   async function fetchLearnersByClassroom(currentSchoolId: number, classroomId: string) {
+    if (!isValidNumber(classroomId)) {
+      setLearners([]);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("learners")
       .select("*")
@@ -105,7 +114,7 @@ export default function TeacherAssessmentsPage() {
   }
 
   async function loadExistingAssessment(learnerId: string, periodId: string) {
-    if (!learnerId || !periodId) return;
+    if (!isValidNumber(learnerId) || !isValidNumber(periodId)) return;
 
     const { data, error } = await supabase
       .from("learner_assessments")
@@ -151,7 +160,13 @@ export default function TeacherAssessmentsPage() {
   }
 
   async function saveAssessment(status: "draft" | "submitted") {
-    if (!schoolId || !profile?.id || !selectedClassroomId || !selectedLearnerId || !selectedPeriodId) {
+    if (
+      !schoolId ||
+      !profile?.id ||
+      !isValidNumber(selectedClassroomId) ||
+      !isValidNumber(selectedLearnerId) ||
+      !isValidNumber(selectedPeriodId)
+    ) {
       alert("Please select class, learner and report period.");
       return;
     }
@@ -165,13 +180,17 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
+    const classroomId = Number(selectedClassroomId);
+    const learnerId = Number(selectedLearnerId);
+    const periodId = Number(selectedPeriodId);
+
     setSaving(true);
 
     const rows = reportCategories.map((category) => ({
       school_id: schoolId,
-      classroom_id: Number(selectedClassroomId),
-      learner_id: Number(selectedLearnerId),
-      report_period_id: Number(selectedPeriodId),
+      classroom_id: classroomId,
+      learner_id: learnerId,
+      report_period_id: periodId,
       category: category.key,
       level: assessmentValues[category.key]?.level,
       teacher_comment: assessmentValues[category.key]?.teacher_comment || null,
@@ -223,7 +242,7 @@ export default function TeacherAssessmentsPage() {
             setSelectedLearnerId("");
             setAssessmentValues({});
 
-            if (schoolId && classroomId) {
+            if (schoolId && isValidNumber(classroomId)) {
               await fetchLearnersByClassroom(schoolId, classroomId);
             } else {
               setLearners([]);

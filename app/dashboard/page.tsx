@@ -918,6 +918,10 @@ export default function PrincipalDashboardPage() {
           <Link href="/activities" style={secondaryButton}>
             Activities
           </Link>
+
+          <Link href="/progress-reports" className="db-button-primary">
+            Progress Reports
+          </Link>
         </div>
       </div>
     </div>

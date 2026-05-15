@@ -671,6 +671,13 @@ export default function TeacherDashboardPage() {
             background="#EEF9EE"
             border="#D3EDD4"
           />
+
+          <Link
+            href="/teacher-assessments"
+            className="db-button-primary"
+          >
+            Learner Progress Assessments
+          </Link>
         </div>
       </div>
     </div>

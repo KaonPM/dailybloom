@@ -29,7 +29,9 @@ export default function TeacherAssessmentsPage() {
   }, []);
 
   function isValidNumber(value: any) {
-    return value !== "" && value !== null && value !== undefined && !Number.isNaN(Number(value));
+    if (value === "" || value === null || value === undefined) return false;
+    const parsedValue = Number(value);
+    return Number.isFinite(parsedValue) && !Number.isNaN(parsedValue);
   }
 
   async function loadPage() {
@@ -45,8 +47,9 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
-    if (!profile.school_id || !isValidNumber(profile.school_id)) {
+    if (!isValidNumber(profile.school_id)) {
       alert("No school linked to this account.");
+      router.push("/dashboard");
       return;
     }
 
@@ -76,7 +79,10 @@ export default function TeacherAssessmentsPage() {
     setClassrooms(data || []);
   }
 
-  async function fetchLearnersByClassroom(currentSchoolId: number, classroomId: string) {
+  async function fetchLearnersByClassroom(
+    currentSchoolId: number,
+    classroomId: string
+  ) {
     if (!isValidNumber(classroomId)) {
       setLearners([]);
       return;
@@ -146,7 +152,7 @@ export default function TeacherAssessmentsPage() {
     if (type === "quarterly") return "Quarterly Report";
     if (type === "biannual") return "Biannual Report";
     if (type === "annual") return "Annual Report";
-    return type;
+    return type || "Report";
   }
 
   function updateCategory(categoryKey: string, field: string, value: string) {
@@ -160,14 +166,33 @@ export default function TeacherAssessmentsPage() {
   }
 
   async function saveAssessment(status: "draft" | "submitted") {
-    if (
-      !schoolId ||
-      !profile?.id ||
-      !isValidNumber(selectedClassroomId) ||
-      !isValidNumber(selectedLearnerId) ||
-      !isValidNumber(selectedPeriodId)
-    ) {
-      alert("Please select class, learner and report period.");
+    const parsedSchoolId = Number(schoolId);
+    const parsedClassroomId = Number(selectedClassroomId);
+    const parsedLearnerId = Number(selectedLearnerId);
+    const parsedPeriodId = Number(selectedPeriodId);
+
+    if (!isValidNumber(parsedSchoolId)) {
+      alert("School is not linked correctly.");
+      return;
+    }
+
+    if (!profile?.id) {
+      alert("Teacher profile is not loaded.");
+      return;
+    }
+
+    if (!isValidNumber(selectedClassroomId)) {
+      alert("Please select class.");
+      return;
+    }
+
+    if (!isValidNumber(selectedLearnerId)) {
+      alert("Please select learner.");
+      return;
+    }
+
+    if (!isValidNumber(selectedPeriodId)) {
+      alert("Please select report period.");
       return;
     }
 
@@ -180,17 +205,13 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
-    const classroomId = Number(selectedClassroomId);
-    const learnerId = Number(selectedLearnerId);
-    const periodId = Number(selectedPeriodId);
-
     setSaving(true);
 
     const rows = reportCategories.map((category) => ({
-      school_id: schoolId,
-      classroom_id: classroomId,
-      learner_id: learnerId,
-      report_period_id: periodId,
+      school_id: parsedSchoolId,
+      classroom_id: parsedClassroomId,
+      learner_id: parsedLearnerId,
+      report_period_id: parsedPeriodId,
       category: category.key,
       level: assessmentValues[category.key]?.level,
       teacher_comment: assessmentValues[category.key]?.teacher_comment || null,
@@ -212,10 +233,20 @@ export default function TeacherAssessmentsPage() {
     }
 
     setSaving(false);
-    alert(status === "draft" ? "Assessment draft saved." : "Assessment submitted to principal.");
+    alert(
+      status === "draft"
+        ? "Assessment draft saved."
+        : "Assessment submitted to principal."
+    );
   }
 
-  const teacherName = profile?.full_name || profile?.name || profile?.email || "Teacher";
+  const teacherName =
+    profile?.full_name || profile?.name || profile?.email || "Teacher";
+
+  const canShowAssessmentForm =
+    isValidNumber(selectedClassroomId) &&
+    isValidNumber(selectedLearnerId) &&
+    isValidNumber(selectedPeriodId);
 
   if (loading) {
     return <p>Loading...</p>;
@@ -223,14 +254,21 @@ export default function TeacherAssessmentsPage() {
 
   return (
     <div>
-      <div className="db-soft-card" style={{ padding: "20px 22px", marginBottom: "24px" }}>
+      <div
+        className="db-soft-card"
+        style={{ padding: "20px 22px", marginBottom: "24px" }}
+      >
         <h1 className="db-page-title">Learner Progress Assessments</h1>
         <p className="db-page-subtitle">
-          Complete learner development assessments and submit them to the principal.
+          Complete learner development assessments and submit them to the
+          principal.
         </p>
       </div>
 
-      <div className="db-card db-card-blue" style={{ padding: "20px", marginBottom: "24px" }}>
+      <div
+        className="db-card db-card-blue"
+        style={{ padding: "20px", marginBottom: "24px" }}
+      >
         <h3 style={sectionTitle}>Class, Teacher and Learner</h3>
 
         <select
@@ -238,6 +276,7 @@ export default function TeacherAssessmentsPage() {
           value={selectedClassroomId}
           onChange={async (e) => {
             const classroomId = e.target.value;
+
             setSelectedClassroomId(classroomId);
             setSelectedLearnerId("");
             setAssessmentValues({});
@@ -251,7 +290,7 @@ export default function TeacherAssessmentsPage() {
         >
           <option value="">Select Class</option>
           {classrooms.map((classroom) => (
-            <option key={classroom.id} value={classroom.id}>
+            <option key={classroom.id} value={String(classroom.id)}>
               {classroom.classroom_name}
             </option>
           ))}
@@ -266,13 +305,15 @@ export default function TeacherAssessmentsPage() {
           className="db-input"
           value={selectedLearnerId}
           onChange={async (e) => {
-            setSelectedLearnerId(e.target.value);
-            await loadExistingAssessment(e.target.value, selectedPeriodId);
+            const learnerId = e.target.value;
+
+            setSelectedLearnerId(learnerId);
+            await loadExistingAssessment(learnerId, selectedPeriodId);
           }}
         >
           <option value="">Select Learner</option>
           {learners.map((learner) => (
-            <option key={learner.id} value={learner.id}>
+            <option key={learner.id} value={String(learner.id)}>
               {learner.name}
             </option>
           ))}
@@ -282,20 +323,22 @@ export default function TeacherAssessmentsPage() {
           className="db-input"
           value={selectedPeriodId}
           onChange={async (e) => {
-            setSelectedPeriodId(e.target.value);
-            await loadExistingAssessment(selectedLearnerId, e.target.value);
+            const periodId = e.target.value;
+
+            setSelectedPeriodId(periodId);
+            await loadExistingAssessment(selectedLearnerId, periodId);
           }}
         >
           <option value="">Select Report Period</option>
           {periods.map((period) => (
-            <option key={period.id} value={period.id}>
+            <option key={period.id} value={String(period.id)}>
               {period.title} ({formatPeriodType(period.report_type)})
             </option>
           ))}
         </select>
       </div>
 
-      {selectedClassroomId && selectedLearnerId && selectedPeriodId && (
+      {canShowAssessmentForm && (
         <div className="db-card db-card-lavender" style={{ padding: "20px" }}>
           <h3 style={sectionTitle}>Development Areas</h3>
 
@@ -308,7 +351,9 @@ export default function TeacherAssessmentsPage() {
                 <select
                   className="db-input"
                   value={assessmentValues[category.key]?.level || ""}
-                  onChange={(e) => updateCategory(category.key, "level", e.target.value)}
+                  onChange={(e) =>
+                    updateCategory(category.key, "level", e.target.value)
+                  }
                 >
                   <option value="">Select Level</option>
                   {reportLevels.map((level) => (
@@ -324,19 +369,38 @@ export default function TeacherAssessmentsPage() {
                   placeholder="Teacher observation"
                   value={assessmentValues[category.key]?.teacher_comment || ""}
                   onChange={(e) =>
-                    updateCategory(category.key, "teacher_comment", e.target.value)
+                    updateCategory(
+                      category.key,
+                      "teacher_comment",
+                      e.target.value
+                    )
                   }
                 />
               </div>
             ))}
           </div>
 
-          <div style={{ display: "flex", gap: "12px", marginTop: "20px", flexWrap: "wrap" }}>
-            <button className="db-button-primary" onClick={() => saveAssessment("draft")} disabled={saving}>
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              marginTop: "20px",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              className="db-button-primary"
+              onClick={() => saveAssessment("draft")}
+              disabled={saving}
+            >
               {saving ? "Saving..." : "Save Draft"}
             </button>
 
-            <button className="db-button-primary" onClick={() => saveAssessment("submitted")} disabled={saving}>
+            <button
+              className="db-button-primary"
+              onClick={() => saveAssessment("submitted")}
+              disabled={saving}
+            >
               {saving ? "Submitting..." : "Submit to Principal"}
             </button>
           </div>

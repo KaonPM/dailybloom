@@ -524,6 +524,7 @@ export default function ProgressReportsPage() {
 
   async function downloadPDF() {
   const reportElement = document.querySelector(".report-print-area") as HTMLElement;
+  const pdfButtons = document.querySelector(".pdf-hide") as HTMLElement;
 
   if (!reportElement) {
     alert("Report not found.");
@@ -531,11 +532,21 @@ export default function ProgressReportsPage() {
   }
 
   try {
+    // Hide buttons before capture
+    if (pdfButtons) {
+      pdfButtons.style.display = "none";
+    }
+
     const canvas = await html2canvas(reportElement, {
       scale: 2,
       useCORS: true,
       backgroundColor: "#ffffff",
     });
+
+    // Restore buttons
+    if (pdfButtons) {
+      pdfButtons.style.display = "flex";
+    }
 
     const imgData = canvas.toDataURL("image/png");
 
@@ -550,21 +561,20 @@ export default function ProgressReportsPage() {
     const pageHeight = pdf.internal.pageSize.getHeight();
 
     if (pdfHeight > pageHeight) {
-    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pageHeight);
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pageHeight);
     } else {
-    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-   }
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+    }
 
-  const learnerName =
-  selectedLearner?.name?.replace(/\s+/g, "_") || "Learner";
+    const learnerName =
+      selectedLearner?.name?.replace(/\s+/g, "_") || "Learner";
 
-  pdf.save(`${learnerName}_Progress_Report.pdf`);
+    pdf.save(`${learnerName}_Progress_Report.pdf`);
   } catch (error) {
     console.error(error);
     alert("Failed to generate PDF.");
   }
 }
-
   const selectedClassroom = classrooms.find((c) => String(c.id) === String(selectedClassroomId));
   const selectedLearner = learners.find((l) => String(l.id) === String(selectedLearnerId));
   const selectedPeriod = periods.find((p) => String(p.id) === String(selectedPeriodId));
@@ -888,7 +898,7 @@ export default function ProgressReportsPage() {
       }}
     />
   )}
-  
+
           <div style={reportHeader}>
             <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
               {school?.logo_url ? (
@@ -1066,7 +1076,7 @@ export default function ProgressReportsPage() {
 </p>
 
 <div
-  className="no-print"
+  className="no-print pdf-hide"
   style={{
     display: "flex",
     gap: "12px",

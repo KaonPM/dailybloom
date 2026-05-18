@@ -888,6 +888,7 @@ export default function ProgressReportsPage() {
       }}
     />
   )}
+  
           <div style={reportHeader}>
             <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
               {school?.logo_url ? (

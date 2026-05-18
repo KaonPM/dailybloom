@@ -198,7 +198,7 @@ export default function LandingPage() {
             </div>
 
             <div style={noticeBox(isMobile)}>
-              <h3 style={smallHeading(isMobile)}>Once-off setup fee</h3>
+              <h3 style={smallHeading(isMobile)}>Setup Fee</h3>
               <p style={paragraph(isMobile)}>
                 R599 once off. This includes onboarding, school setup, administrative configuration
                 and ongoing administrative assistance while your school remains subscribed.

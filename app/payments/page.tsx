@@ -45,6 +45,7 @@ export default function PaymentsPage() {
   const [learnerName, setLearnerName] = useState("");
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(todayDate);
+  const [scheduledReminderDate, setScheduledReminderDate] = useState(todayDate);
   const [status, setStatus] = useState("paid");
   const [paymentMonth, setPaymentMonth] = useState(String(today.getMonth() + 1));
   const [paymentYear, setPaymentYear] = useState(String(today.getFullYear()));
@@ -303,29 +304,48 @@ export default function PaymentsPage() {
       return;
     }
 
-    const reminderRows = unpaidLearners.map((learner) => ({
-      school_id: Number(schoolId),
-      learner_name: learner.name || "",
-      parent_phone: learner.parent_phone || null,
-      payment_month: Number(selectedReminderMonth),
-      payment_year: Number(selectedReminderYear),
-      status: "pending",
-      message: buildPaymentReminderMessage(learner),
-    }));
+    const {
+    data: reminderCampaign,
+    error: reminderError,
+  } = await supabase
+    .from("payment_reminders")
+    .insert([
+      {
+        school_id: Number(schoolId),
+        scheduled_date: scheduledReminderDate,
+        status: "scheduled",
+      },
+    ])
+    .select()
+    .single();
 
-    const { error } = await supabase.from("payment_reminders").insert(reminderRows);
-
-    if (error) {
-      alert(
-        "Could not save monthly reminders. Make sure payment_reminders table exists. " +
-          error.message
-      );
-      return;
-    }
-
-    alert("Monthly reminders prepared for unpaid learners.");
+  if (reminderError || !reminderCampaign) {
+    alert("Could not create reminder campaign.");
+    return;
   }
 
+  const reminderRows = unpaidLearners.map((learner) => ({
+    reminder_id: reminderCampaign.id,
+    school_id: Number(schoolId),
+    learner_id: learner.id,
+    parent_phone: learner.parent_phone || "",
+    message: buildPaymentReminderMessage(learner),
+    status: "pending",
+  }));
+
+  const { error: logError } = await supabase
+    .from("message_logs")
+    .insert(reminderRows);
+
+  if (logError) {
+    alert(logError.message);
+    return;
+  }
+
+  alert(
+    `${reminderRows.length} reminder records prepared successfully.`
+  );
+}
   function sanitizePhone(phone?: string | null) {
     if (!phone) return "";
     return phone.replace(/[^\d]/g, "");
@@ -376,52 +396,6 @@ Thank you.`;
     ]);
   }
 
-  async function sendPaymentReminderWhatsApp(learner: LearnerItem) {
-    const phone = sanitizePhone(learner.parent_phone);
-
-    if (!phone) {
-      alert("This learner does not have a parent phone number yet.");
-      return;
-    }
-
-    const rawMessage = buildPaymentReminderMessage(learner);
-
-    await logCommunication({
-      learnerName: learner.name || null,
-      parentPhone: learner.parent_phone || null,
-      communicationType: "payment_reminder",
-      messagePreview: rawMessage,
-    });
-
-    const message = encodeURIComponent(rawMessage);
-    const whatsappUrl = `https://wa.me/${phone}?text=${message}`;
-    window.open(whatsappUrl, "_blank");
-  }
-
-  function sendAllWhatsAppReminders() {
-    if (unpaidLearners.length === 0) {
-      alert("No unpaid learners found for the selected month.");
-      return;
-    }
-
-    const learnersWithPhones = unpaidLearners.filter((learner) =>
-      Boolean(sanitizePhone(learner.parent_phone))
-    );
-
-    if (learnersWithPhones.length === 0) {
-      alert("No unpaid learners have parent phone numbers saved.");
-      return;
-    }
-
-    learnersWithPhones.forEach((learner, index) => {
-      const delay = index * 500;
-
-      window.setTimeout(() => {
-        sendPaymentReminderWhatsApp(learner);
-      }, delay);
-    });
-  }
-
   return (
     <div>
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
@@ -437,7 +411,7 @@ Thank you.`;
           <div>
             <h2 className="db-page-title">Payments</h2>
             <p className="db-page-subtitle">
-              Record payments and prepare WhatsApp reminders for unpaid learners.
+              Record payments and prepare payment reminders for unpaid learners.
             </p>
           </div>
 
@@ -669,6 +643,19 @@ Thank you.`;
             </p>
           </div>
 
+          <div style={{ marginTop: 12, marginBottom: 12 }}>
+          <p style={labelText}>Reminder Send Date</p>
+
+          <input
+             className="db-input"
+             type="date"
+             value={scheduledReminderDate}
+             min={todayDate}
+             onChange={(e) => setScheduledReminderDate(e.target.value)}
+             style={{ maxWidth: 240 }}
+          />
+          </div>
+
           <button
             type="button"
             className="db-button-secondary"
@@ -683,8 +670,11 @@ Thank you.`;
             Save Reminder Records
           </button>
 
-          <button className="db-button-primary" onClick={sendAllWhatsAppReminders}>
-            Send All via WhatsApp
+          <button
+            className="db-button-primary"
+            onClick={saveMonthlyReminderRecords}
+          >
+            Schedule Reminder Messages
           </button>
         </div>
 
@@ -706,9 +696,8 @@ Thank you.`;
                     <button
                       type="button"
                       className="db-button-secondary"
-                      onClick={() => sendPaymentReminderWhatsApp(learner)}
                     >
-                      WhatsApp
+                      Generate Message
                     </button>
                   </div>
                 ))}

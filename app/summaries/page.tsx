@@ -620,7 +620,21 @@ Thank you.`;
 
   }
 
+async function markSavedSummaryAsSent(summaryId: number) {
+  if (!schoolId) return;
 
+  const { error } = await supabase
+    .from("summaries")
+    .update({ whatsapp_sent: true })
+    .eq("id", summaryId);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await fetchSummaries(schoolId);
+}
 
   async function markSummaryAsSent() {
 
@@ -1160,58 +1174,72 @@ if (loading) {
                     </p>
 
                     <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: 10,
-                        flexWrap: "wrap",
-                        marginTop: 8,
-                      }}
-                    >
-                      <p
-                        style={{
-                          margin: 0,
-                          color: summary.whatsapp_sent ? "#2E8B57" : "#B26A00",
-                          fontSize: 13,
-                          fontWeight: 700,
-                        }}
-                      >
-                        {summary.whatsapp_sent ? "WhatsApp Sent" : "Not Sent"}
-                      </p>
-
-                 <button
-                   type="button"
-                   className="db-button-secondary"
-                   onClick={() => openSavedSummary(summary)}
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+    marginTop: 14,
+  }}
 >
-                  {summary.whatsapp_sent ? "View" : "Edit"}
-                  </button>
+  <p
+    style={{
+      margin: 0,
+      color: summary.whatsapp_sent ? "#2E8B57" : "#B26A00",
+      fontSize: 13,
+      fontWeight: 700,
+    }}
+  >
+    {summary.whatsapp_sent ? "WhatsApp Sent" : "Not Sent"}
+  </p>
 
-                      {getSavedSummaryPhone(summary) ? (
-                        <button
-                          type="button"
-                          className="db-button-secondary"
-                          onClick={() => {
-                            const message = encodeURIComponent(
-                              `Hello Parent. Here is ${summary.learner_name}'s daily summary.\n\nMood: ${summary.mood || "Not added"}\nMeals: ${summary.meals || "Not added"}\nRest: ${summary.rest || "Not added"}\nHealth and Safety: ${summary.health_safety || "Not added"}\nToday's Highlight: ${summary.today_highlight || "Not added"}\nTeacher Notes: ${summary.teacher_notes || "None"}`
-                            );
+  <div
+    style={{
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap",
+      marginLeft: "auto",
+    }}
+  >
+    <button
+      type="button"
+      className="db-button-secondary"
+      onClick={() => openSavedSummary(summary)}
+    >
+      {summary.whatsapp_sent ? "View" : "Edit"}
+    </button>
 
-                            const phone = getSavedSummaryPhone(summary).replace(
-                              /\D/g,
-                              ""
-                            );
+    {!summary.whatsapp_sent ? (
+      getSavedSummaryPhone(summary) ? (
+        <button
+          type="button"
+          className="db-button-secondary"
+          onClick={() => {
+            const message = encodeURIComponent(
+              `Hello Parent. Here is ${summary.learner_name}'s daily summary.\n\nMood: ${summary.mood || "Not added"}\nMeals: ${summary.meals || "Not added"}\nRest: ${summary.rest || "Not added"}\nHealth and Safety: ${summary.health_safety || "Not added"}\nToday's Highlight: ${summary.today_highlight || "Not added"}\nTeacher Notes: ${summary.teacher_notes || "None"}`
+            );
 
-                            window.open(
-                              `https://wa.me/${phone}?text=${message}`,
-                              "_blank"
-                            );
-                          }}
-                        >
-                          Send via WhatsApp
-                        </button>
-                      ) : null}
-                    </div>
+            const phone = getSavedSummaryPhone(summary).replace(/\D/g, "");
+
+            window.open(
+              `https://wa.me/${phone}?text=${message}`,
+              "_blank"
+            );
+
+            markSavedSummaryAsSent(summary.id);
+          }}
+        >
+          Send via WhatsApp
+        </button>
+      ) : (
+        <button type="button" className="db-button-secondary" disabled>
+          Parent phone missing
+        </button>
+      )
+    ) : null}
+  </div>
+</div>
                   </div>
                 ))}
               </div>

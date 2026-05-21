@@ -19,7 +19,7 @@ type PaymentItem = {
 };
 
 type LearnerItem = {
-  id: number;
+  id: string;
   name?: string | null;
   parent_phone?: string | null;
   school_id?: number | null;
@@ -68,6 +68,7 @@ export default function PaymentsPage() {
   const [highlightRecordForm, setHighlightRecordForm] = useState(false);
   const [lastSavedSuccess, setLastSavedSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
 
   const formRef = useRef<HTMLDivElement | null>(null);
   const learnerInputRef = useRef<HTMLInputElement | null>(null);
@@ -289,6 +290,12 @@ export default function PaymentsPage() {
     });
   }, [learners, paidLearnersForSelectedMonth]);
 
+  const unpaidLearnersWithPhones = useMemo(() => {
+    return unpaidLearners.filter((learner) =>
+      Boolean(String(learner.parent_phone || "").trim())
+    );
+  }, [unpaidLearners]);
+
   const filteredPaymentHistory = useMemo(() => {
     return payments.filter((payment) => {
       const date = payment.payment_date || "";
@@ -296,7 +303,7 @@ export default function PaymentsPage() {
     });
   }, [payments, historyFromDate, historyToDate]);
 
-  async function saveMonthlyReminderRecords() {
+  async function scheduleReminderMessages() {
     if (!schoolId) return;
 
     if (unpaidLearners.length === 0) {
@@ -304,51 +311,67 @@ export default function PaymentsPage() {
       return;
     }
 
-    const {
-    data: reminderCampaign,
-    error: reminderError,
-  } = await supabase
-    .from("payment_reminders")
-    .insert([
-      {
-        school_id: Number(schoolId),
-        scheduled_date: scheduledReminderDate,
-        status: "scheduled",
-      },
-    ])
-    .select()
-    .single();
+    if (unpaidLearnersWithPhones.length === 0) {
+      alert("No unpaid learners have parent phone numbers saved.");
+      return;
+    }
 
-  if (reminderError || !reminderCampaign) {
-    alert("Could not create reminder campaign.");
-    return;
-  }
+    const confirmSchedule = window.confirm(
+      `Schedule ${unpaidLearnersWithPhones.length} SMS reminder message(s) for ${scheduledReminderDate}?`
+    );
 
-  const reminderRows = unpaidLearners.map((learner) => ({
-    reminder_id: reminderCampaign.id,
-    school_id: Number(schoolId),
-    learner_id: learner.id,
-    parent_phone: learner.parent_phone || "",
-    message: buildPaymentReminderMessage(learner),
-    status: "pending",
-  }));
+    if (!confirmSchedule) return;
 
-  const { error: logError } = await supabase
-    .from("message_logs")
-    .insert(reminderRows);
+    setScheduling(true);
 
-  if (logError) {
-    alert(logError.message);
-    return;
-  }
+    const { data: reminderCampaign, error: reminderError } = await supabase
+      .from("payment_reminders")
+      .insert([
+        {
+          school_id: Number(schoolId),
+          scheduled_date: scheduledReminderDate,
+          status: "scheduled",
+        },
+      ])
+      .select()
+      .single();
 
-  alert(
-    `${reminderRows.length} reminder records prepared successfully.`
-  );
-}
-  function sanitizePhone(phone?: string | null) {
-    if (!phone) return "";
-    return phone.replace(/[^\d]/g, "");
+    if (reminderError || !reminderCampaign) {
+      alert(
+        "Could not create reminder campaign. " +
+          (reminderError?.message || "")
+      );
+      setScheduling(false);
+      return;
+    }
+
+    const reminderRows = unpaidLearnersWithPhones.map((learner) => ({
+      reminder_id: reminderCampaign.id,
+      school_id: Number(schoolId),
+      learner_id: learner.id,
+      parent_phone: learner.parent_phone || "",
+      message: buildPaymentReminderMessage(learner),
+      status: "pending",
+      retry_count: 0,
+    }));
+
+    const { error: logError } = await supabase
+      .from("message_logs")
+      .insert(reminderRows);
+
+    if (logError) {
+      await supabase
+        .from("payment_reminders")
+        .update({ status: "failed" })
+        .eq("id", reminderCampaign.id);
+
+      alert("Could not create reminder messages. " + logError.message);
+      setScheduling(false);
+      return;
+    }
+
+    setScheduling(false);
+    alert(`${reminderRows.length} SMS reminder message(s) scheduled.`);
   }
 
   function buildPaymentReminderMessage(learner: LearnerItem) {
@@ -359,41 +382,9 @@ export default function PaymentsPage() {
       1
     ).toLocaleString("en-US", { month: "long" });
 
-    return `Hello Parent,
-
-This is a friendly payment reminder from ${schoolName}.
-
-Our records show that ${learner.name || "your child"} does not yet have a paid fee recorded for ${monthName} ${selectedReminderYear}.
-
-Please make payment at your earliest convenience. Kindly ignore if payment has already been made.
-
-Thank you.`;
-  }
-
-  async function logCommunication(params: {
-    learnerName?: string | null;
-    parentPhone?: string | null;
-    communicationType: string;
-    messagePreview: string;
-  }) {
-    if (!schoolId) return;
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    await supabase.from("communication_logs").insert([
-      {
-        school_id: Number(schoolId),
-        learner_name: params.learnerName || null,
-        parent_phone: params.parentPhone || null,
-        communication_type: params.communicationType,
-        channel: "whatsapp",
-        message_preview: params.messagePreview.slice(0, 250),
-        sent_by_user_id: session?.user?.id || null,
-        status: "sent",
-      },
-    ]);
+    return `Dear Parent, ${schoolName} reminds you that fees for ${
+      learner.name || "your child"
+    } for ${monthName} ${selectedReminderYear} are still outstanding. Please ignore if already paid.`;
   }
 
   return (
@@ -411,7 +402,7 @@ Thank you.`;
           <div>
             <h2 className="db-page-title">Payments</h2>
             <p className="db-page-subtitle">
-              Record payments and prepare payment reminders for unpaid learners.
+              Record payments and schedule SMS reminders for unpaid learners.
             </p>
           </div>
 
@@ -639,21 +630,21 @@ Thank you.`;
           <div>
             <h3 style={sectionTitle}>Monthly Payment Reminders</h3>
             <p style={smallText}>
-              Send reminders to parents of unpaid learners for the selected month.
+              Schedule SMS reminders to parents of unpaid learners for the selected month.
             </p>
           </div>
 
           <div style={{ marginTop: 12, marginBottom: 12 }}>
-          <p style={labelText}>Reminder Send Date</p>
+            <p style={labelText}>Reminder Send Date</p>
 
-          <input
-             className="db-input"
-             type="date"
-             value={scheduledReminderDate}
-             min={todayDate}
-             onChange={(e) => setScheduledReminderDate(e.target.value)}
-             style={{ maxWidth: 240 }}
-          />
+            <input
+              className="db-input"
+              type="date"
+              value={scheduledReminderDate}
+              min={todayDate}
+              onChange={(e) => setScheduledReminderDate(e.target.value)}
+              style={{ maxWidth: 240 }}
+            />
           </div>
 
           <button
@@ -666,15 +657,14 @@ Thank you.`;
         </div>
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-          <button className="db-button-secondary" onClick={saveMonthlyReminderRecords}>
-            Save Reminder Records
-          </button>
-
           <button
             className="db-button-primary"
-            onClick={saveMonthlyReminderRecords}
+            onClick={scheduleReminderMessages}
+            disabled={scheduling}
           >
-            Schedule Reminder Messages
+            {scheduling
+              ? "Scheduling..."
+              : `Schedule Reminder Messages (${unpaidLearnersWithPhones.length})`}
           </button>
         </div>
 
@@ -692,13 +682,6 @@ Thank you.`;
                         Parent Phone: {learner.parent_phone || "Not added"}
                       </p>
                     </div>
-
-                    <button
-                      type="button"
-                      className="db-button-secondary"
-                    >
-                      Generate Message
-                    </button>
                   </div>
                 ))}
               </div>

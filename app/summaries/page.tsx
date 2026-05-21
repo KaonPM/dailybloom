@@ -166,6 +166,8 @@ export default function SummariesPage() {
 
   const [selectedMonth, setSelectedMonth] = useState("");
   const [savedSummaryLimit, setSavedSummaryLimit] = useState(10);
+  const [editingSummaryId, setEditingSummaryId] = useState<number | null>(null);
+  const [editingSummarySent, setEditingSummarySent] = useState(false);
 
 
   const [loading, setLoading] = useState(true);
@@ -443,6 +445,8 @@ export default function SummariesPage() {
     setGeneratedMessage("");
 
     setGeneratedWhatsAppLink("");
+    setEditingSummaryId(null);
+    setEditingSummarySent(false);
 
   }
 
@@ -459,75 +463,40 @@ export default function SummariesPage() {
 
 
   async function saveSummary() {
+  if (!schoolId || !selectedLearner) return;
 
-    if (!schoolId || !selectedLearner) return;
-
-
-
-    if (!healthSafety || !meals || !rest || !mood || !todayHighlight) {
-
-      alert("Please complete all summary selections.");
-
-      return;
-
-    }
-
-
-
-    setSaving(true);
-
-
-
-    const { error } = await supabase.from("summaries").insert([
-
-      {
-
-        school_id: schoolId,
-
-        learner_name: selectedLearner.name,
-
-        health_safety: healthSafety,
-
-        meals,
-
-        rest,
-
-        mood,
-
-        today_highlight: todayHighlight,
-
-        teacher_notes: teacherNotes.trim() || null,
-
-        whatsapp_sent: false,
-
-      },
-
-    ]);
-
-
-
-    if (error) {
-
-      alert(error.message);
-
-      setSaving(false);
-
-      return;
-
-    }
-
-
-
-    await fetchSummaries(schoolId);
-
-
-
-    setSaving(false);
-
-    alert("Summary saved.");
-
+  if (!healthSafety || !meals || !rest || !mood || !todayHighlight) {
+    alert("Please complete all summary selections.");
+    return;
   }
 
+  setSaving(true);
+
+  const { error } = await supabase.from("summaries").insert([
+    {
+      school_id: schoolId,
+      learner_name: selectedLearner.name,
+      health_safety: healthSafety,
+      meals,
+      rest,
+      mood,
+      today_highlight: todayHighlight,
+      teacher_notes: teacherNotes.trim() || null,
+      whatsapp_sent: false,
+    },
+  ]);
+
+  if (error) {
+    alert(error.message);
+    setSaving(false);
+    return;
+  }
+
+  await fetchSummaries(schoolId);
+
+  setSaving(false);
+  alert("Summary saved.");
+}
 
 
   function formatWhatsAppPhone(phone: string | null | undefined) {
@@ -730,6 +699,33 @@ function getSavedSummaryPhone(summary: SummaryRow) {
   return learner?.parent_phone || "";
 }
 
+function openSavedSummary(summary: SummaryRow) {
+  const learner = learners.find((item) => item.name === summary.learner_name);
+
+  if (!learner) {
+    alert("This learner could not be found in the current learner list.");
+    return;
+  }
+
+  if (role !== "teacher" && learner.classroom_id) {
+    setSelectedClassroomId(String(learner.classroom_id));
+  }
+
+  setSelectedLearnerId(learner.id);
+  setHealthSafety(summary.health_safety || "");
+  setMeals(summary.meals || "");
+  setRest(summary.rest || "");
+  setMood(summary.mood || "");
+  setTodayHighlight(summary.today_highlight || "");
+  setTeacherNotes(summary.teacher_notes || "");
+  setGeneratedMessage("");
+  setGeneratedWhatsAppLink("");
+  setEditingSummaryId(summary.id);
+  setEditingSummarySent(Boolean(summary.whatsapp_sent));
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 if (loading) {
   return <p>Loading summaries...</p>;
 }
@@ -888,7 +884,13 @@ if (loading) {
 
         <div className="db-card db-card-green" style={{ padding: 16, marginBottom: 18 }}>
 
-          <h3 style={sectionTitle}>Summary for {selectedLearner.name}</h3>
+          <h3 style={sectionTitle}>
+           {editingSummaryId
+           ? editingSummarySent
+           ? `Viewing summary for ${selectedLearner.name}`
+           : `Editing summary for ${selectedLearner.name}`
+           : `Summary for ${selectedLearner.name}`}
+          </h3>
 
 
 
@@ -923,11 +925,18 @@ if (loading) {
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
 
-            <button type="button" className="db-button-primary" onClick={saveSummary} disabled={saving}>
-
-              {saving ? "Saving..." : "Save Summary"}
-
-            </button>
+            <button
+             type="button"
+             className="db-button-primary"
+             onClick={saveSummary}
+             disabled={saving}
+          >
+          {saving
+          ? "Saving..."
+          : editingSummaryId
+          ? "Save Changes"
+          : "Save Summary"}
+          </button>
 
 
 

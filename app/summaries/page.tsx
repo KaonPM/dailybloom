@@ -173,6 +173,7 @@ export default function SummariesPage() {
   const [loading, setLoading] = useState(true);
 
   const [saving, setSaving] = useState(false);
+  const [generatingAiMessage, setGeneratingAiMessage] = useState(false);
 
 
 
@@ -533,79 +534,79 @@ export default function SummariesPage() {
 
 
 
-  function generateWhatsAppMessage() {
+  async function generateWhatsAppMessage() {
+  if (!selectedLearner) return;
 
-    if (!selectedLearner) return;
+  if (!healthSafety || !meals || !rest || !mood || !todayHighlight) {
+    alert("Please complete the summary first.");
+    return;
+  }
 
+  setGeneratingAiMessage(true);
 
+  const fallbackMessage = `Good day parent/guardian.
 
-    if (!healthSafety || !meals || !rest || !mood || !todayHighlight) {
-
-      alert("Please complete the summary first.");
-
-      return;
-
-    }
-
-
-
-    const notesLine = teacherNotes.trim()
-
-      ? `\n\nTeacher note:\n${teacherNotes.trim()}`
-
-      : "";
-
-
-
-    const message = `Good day parent/guardian.
-
-Here is today’s DailyBloom summary for ${selectedLearner.name}.
-
-Mood:
-${mood}
-
-Meals:
-${meals}
-
-Rest:
-${rest}
-
-Health and Safety:
-${healthSafety}
-
-Today’s Highlight:
-${todayHighlight}${notesLine}
+${selectedLearner.name} had a positive day at school today. ${selectedLearner.name} was ${mood.toLowerCase()} during the day. For meals, ${selectedLearner.name} ${meals.toLowerCase()}. Rest time was noted as: ${rest.toLowerCase()}. Today’s highlight was: ${todayHighlight.toLowerCase()}.${
+  teacherNotes.trim() ? ` Teacher note: ${teacherNotes.trim()}` : ""
+}
 
 Thank you.`;
 
+  try {
+    const response = await fetch("/api/polish-summary", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        learnerName: selectedLearner.name,
+        mood,
+        meals,
+        rest,
+        healthSafety,
+        todayHighlight,
+        teacherNotes,
+      }),
+    });
 
+    const data = await response.json();
+
+  if (!response.ok) {
+  console.error("AI message error:", data);
+  alert(data?.error || "AI message could not be generated. Fallback message used.");
+  }
+
+   const message = response.ok && data.message ? data.message : fallbackMessage;
 
     setGeneratedMessage(message);
 
+    const phone = formatWhatsAppPhone(selectedLearner.parent_phone);
 
+    if (!phone) {
+      setGeneratedWhatsAppLink("");
+      return;
+    }
+
+    setGeneratedWhatsAppLink(
+      `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+    );
+  } catch (error) {
+    setGeneratedMessage(fallbackMessage);
 
     const phone = formatWhatsAppPhone(selectedLearner.parent_phone);
 
-
-
     if (!phone) {
-
       setGeneratedWhatsAppLink("");
-
       return;
-
     }
 
-
-
     setGeneratedWhatsAppLink(
-
-      `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
-
+      `https://wa.me/${phone}?text=${encodeURIComponent(fallbackMessage)}`
     );
-
+  } finally {
+    setGeneratingAiMessage(false);
   }
-
+  }
 
 
   function copyMessage() {
@@ -954,11 +955,14 @@ if (loading) {
 
 
 
-            <button type="button" className="db-button-secondary" onClick={generateWhatsAppMessage}>
-
-              Generate WhatsApp Message
-
-            </button>
+            <button
+            type="button"
+            className="db-button-secondary"
+            onClick={generateWhatsAppMessage}
+            disabled={generatingAiMessage}
+          >
+          {generatingAiMessage ? "Generating..." : "Generate AI Message"}
+          </button>
 
           </div>
 
@@ -986,25 +990,30 @@ if (loading) {
 
               <p style={labelText}>WhatsApp Message Preview</p>
 
-              <p
+              <textarea
+  className="db-input"
+  value={generatedMessage}
+  onChange={(e) => {
+    const updatedMessage = e.target.value;
+    setGeneratedMessage(updatedMessage);
 
-                style={{
-
-                  margin: "8px 0",
-
-                  color: "#2D2A3E",
-
-                  lineHeight: 1.7,
-
-                  whiteSpace: "pre-line",
-
-                }}
-
-              >
-
-                {generatedMessage}
-
-              </p>
+    if (selectedLearner?.parent_phone) {
+      const phone = formatWhatsAppPhone(selectedLearner.parent_phone);
+      setGeneratedWhatsAppLink(
+        phone
+          ? `https://wa.me/${phone}?text=${encodeURIComponent(updatedMessage)}`
+          : ""
+      );
+    }
+  }}
+  rows={8}
+  style={{
+    width: "100%",
+    resize: "vertical",
+    lineHeight: 1.7,
+    marginTop: 8,
+  }}
+></textarea>
 
 
 

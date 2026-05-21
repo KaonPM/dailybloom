@@ -58,6 +58,8 @@ type SummaryRow = {
 
   teacher_notes?: string | null;
 
+  whatsapp_sent?: boolean | null;
+
   created_at?: string | null;
 
 };
@@ -158,8 +160,12 @@ export default function SummariesPage() {
 
   const [generatedMessage, setGeneratedMessage] = useState("");
 
+  const [generatedWhatsAppLink, setGeneratedWhatsAppLink] = useState("");
+
   const [showSavedSummaries, setShowSavedSummaries] = useState(false);
 
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [savedSummaryLimit, setSavedSummaryLimit] = useState(10);
 
 
   const [loading, setLoading] = useState(true);
@@ -318,17 +324,13 @@ export default function SummariesPage() {
 
       .select(
 
-        "id, learner_name, mood, meals, rest, health_safety, today_highlight, teacher_notes, created_at"
+        "id, learner_name, mood, meals, rest, health_safety, today_highlight, teacher_notes, whatsapp_sent, created_at"
 
       )
 
       .eq("school_id", currentSchoolId)
 
-      .order("created_at", { ascending: false })
-
-      .limit(20);
-
-
+      .order("created_at", { ascending: false });
 
     if (error) {
 
@@ -440,6 +442,8 @@ export default function SummariesPage() {
 
     setGeneratedMessage("");
 
+    setGeneratedWhatsAppLink("");
+
   }
 
 
@@ -494,6 +498,8 @@ export default function SummariesPage() {
 
         teacher_notes: teacherNotes.trim() || null,
 
+        whatsapp_sent: false,
+
       },
 
     ]);
@@ -524,21 +530,110 @@ export default function SummariesPage() {
 
 
 
+  function formatWhatsAppPhone(phone: string | null | undefined) {
+
+    const cleaned = String(phone || "")
+
+      .replace(/\s/g, "")
+
+      .replace(/-/g, "")
+
+      .replace(/\(/g, "")
+
+      .replace(/\)/g, "")
+
+      .replace("+", "");
+
+
+
+    if (!cleaned) return "";
+
+
+
+    if (cleaned.startsWith("0")) {
+
+      return `27${cleaned.slice(1)}`;
+
+    }
+
+
+
+    return cleaned;
+
+  }
+
+
+
   function generateWhatsAppMessage() {
 
     if (!selectedLearner) return;
 
 
 
-    const notesLine = teacherNotes.trim() ? ` ${teacherNotes.trim()}` : "";
+    if (!healthSafety || !meals || !rest || !mood || !todayHighlight) {
+
+      alert("Please complete the summary first.");
+
+      return;
+
+    }
 
 
 
-    const message = `Good day. DailyBloom update for ${selectedLearner.name}: ${mood.toLowerCase()} mood today. Meals: ${meals.toLowerCase()}. Rest: ${rest.toLowerCase()}. Health and safety: ${healthSafety.toLowerCase()}. Highlight: ${todayHighlight.toLowerCase()}.${notesLine}`;
+    const notesLine = teacherNotes.trim()
+
+      ? `\n\nTeacher note:\n${teacherNotes.trim()}`
+
+      : "";
+
+
+
+    const message = `Good day parent/guardian.
+
+Here is today’s DailyBloom summary for ${selectedLearner.name}.
+
+Mood:
+${mood}
+
+Meals:
+${meals}
+
+Rest:
+${rest}
+
+Health and Safety:
+${healthSafety}
+
+Today’s Highlight:
+${todayHighlight}${notesLine}
+
+Thank you.`;
 
 
 
     setGeneratedMessage(message);
+
+
+
+    const phone = formatWhatsAppPhone(selectedLearner.parent_phone);
+
+
+
+    if (!phone) {
+
+      setGeneratedWhatsAppLink("");
+
+      return;
+
+    }
+
+
+
+    setGeneratedWhatsAppLink(
+
+      `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+
+    );
 
   }
 
@@ -558,13 +653,86 @@ export default function SummariesPage() {
 
 
 
-  if (loading) {
+  async function markSummaryAsSent() {
 
-    return <p>Loading summaries...</p>;
+    if (!schoolId || !selectedLearner) return;
+
+
+
+    const latestSummary = summaries.find(
+
+      (summary) => summary.learner_name === selectedLearner.name
+
+    );
+
+
+
+    if (!latestSummary) {
+
+      alert("Please save the summary first before marking it as sent.");
+
+      return;
+
+    }
+
+
+
+    const { error } = await supabase
+
+      .from("summaries")
+
+      .update({ whatsapp_sent: true })
+
+      .eq("id", latestSummary.id);
+
+
+
+    if (error) {
+
+      alert(error.message);
+
+      return;
+
+    }
+
+
+
+    await fetchSummaries(schoolId);
 
   }
 
 
+  const filteredSummaries = useMemo(() => {
+  let filtered = [...summaries];
+
+  if (selectedMonth) {
+    filtered = filtered.filter((summary) => {
+      if (!summary.created_at) return false;
+
+      const summaryMonth = new Date(summary.created_at)
+        .toISOString()
+        .slice(0, 7);
+
+      return summaryMonth === selectedMonth;
+    });
+  }
+
+  return filtered;
+}, [summaries, selectedMonth]);
+
+const visibleSummaries = filteredSummaries.slice(0, savedSummaryLimit);
+
+function getSavedSummaryPhone(summary: SummaryRow) {
+  const learner = learners.find(
+    (item) => item.name === summary.learner_name
+  );
+
+  return learner?.parent_phone || "";
+}
+
+if (loading) {
+  return <p>Loading summaries...</p>;
+}
 
   return (
 
@@ -741,20 +909,13 @@ export default function SummariesPage() {
             <p style={labelText}>Teacher Notes Optional</p>
 
             <textarea
-
               className="db-input"
-
               value={teacherNotes}
-
               onChange={(e) => setTeacherNotes(e.target.value)}
-
               rows={3}
-
               placeholder="Write a short note if needed."
-
               style={{ width: "100%", resize: "vertical" }}
-
-            />
+            ></textarea>
 
           </div>
 
@@ -802,7 +963,21 @@ export default function SummariesPage() {
 
               <p style={labelText}>WhatsApp Message Preview</p>
 
-              <p style={{ margin: "8px 0", color: "#2D2A3E", lineHeight: 1.6 }}>
+              <p
+
+                style={{
+
+                  margin: "8px 0",
+
+                  color: "#2D2A3E",
+
+                  lineHeight: 1.7,
+
+                  whiteSpace: "pre-line",
+
+                }}
+
+              >
 
                 {generatedMessage}
 
@@ -810,11 +985,73 @@ export default function SummariesPage() {
 
 
 
-              <button type="button" className="db-button-secondary" onClick={copyMessage}>
+              <div
 
-                Copy WhatsApp Message
+                style={{
 
-              </button>
+                  display: "flex",
+
+                  gap: 10,
+
+                  flexWrap: "wrap",
+
+                  marginTop: 12,
+
+                }}
+
+              >
+
+                <button type="button" className="db-button-secondary" onClick={copyMessage}>
+
+                  Copy WhatsApp Message
+
+                </button>
+
+
+
+                {generatedWhatsAppLink ? (
+
+                  <a
+
+                    href={generatedWhatsAppLink}
+
+                    target="_blank"
+
+                    rel="noopener noreferrer"
+
+                    className="db-button-primary"
+
+                    style={{
+
+                      textDecoration: "none",
+
+                      display: "inline-flex",
+
+                      alignItems: "center",
+
+                      justifyContent: "center",
+
+                    }}
+
+                    onClick={markSummaryAsSent}
+
+                  >
+
+                    Send via WhatsApp
+
+                  </a>
+
+                ) : (
+
+                  <button type="button" className="db-button-secondary" disabled>
+
+                    Parent phone missing
+
+                  </button>
+
+                )}
+
+              </div>
 
             </div>
 
@@ -848,7 +1085,9 @@ export default function SummariesPage() {
 
           <div>
 
-            <h3 style={sectionTitle}>Saved Summaries ({summaries.length})</h3>
+            <h3 style={sectionTitle}>
+                Saved Summaries ({filteredSummaries.length})
+            </h3>
 
             <p style={smallText}>Open only when you need to review saved records.</p>
 
@@ -872,196 +1111,183 @@ export default function SummariesPage() {
 
         </div>
 
+<div style={{ marginTop: 12 }}>
+  <label style={labelText}>Filter by month</label>
 
+  <input
+    type="month"
+    value={selectedMonth}
+    onChange={(e) => {
+      setSelectedMonth(e.target.value);
+      setSavedSummaryLimit(10);
+    }}
+    style={{
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid #E0D8CF",
+    fontSize: 14,
+    }}
+  />
+</div>
 
-        {showSavedSummaries ? (
-
-          summaries.length === 0 ? (
-
+                          {showSavedSummaries ? (
+          filteredSummaries.length === 0 ? (
             <p className="db-helper">No saved summaries yet.</p>
-
           ) : (
+            <>
+              <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                {visibleSummaries.map((summary) => (
+                  <div key={summary.id} style={summaryRow}>
+                    <strong>{summary.learner_name || "Unnamed learner"}</strong>
 
-            <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                    <p style={smallText}>
+                      Mood: {summary.mood || "Not added"} | Meals:{" "}
+                      {summary.meals || "Not added"}
+                    </p>
 
-              {summaries.map((summary) => (
+                    <p style={smallText}>
+                      {summary.created_at ? summary.created_at.split("T")[0] : ""}
+                    </p>
 
-                <div key={summary.id} style={summaryRow}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 10,
+                        flexWrap: "wrap",
+                        marginTop: 8,
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: 0,
+                          color: summary.whatsapp_sent ? "#2E8B57" : "#B26A00",
+                          fontSize: 13,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {summary.whatsapp_sent ? "WhatsApp Sent" : "Not Sent"}
+                      </p>
 
-                  <strong>{summary.learner_name || "Unnamed learner"}</strong>
+                      {getSavedSummaryPhone(summary) ? (
+                        <button
+                          type="button"
+                          className="db-button-secondary"
+                          onClick={() => {
+                            const message = encodeURIComponent(
+                              `Hello Parent. Here is ${summary.learner_name}'s daily summary.\n\nMood: ${summary.mood || "Not added"}\nMeals: ${summary.meals || "Not added"}\nRest: ${summary.rest || "Not added"}\nHealth and Safety: ${summary.health_safety || "Not added"}\nToday's Highlight: ${summary.today_highlight || "Not added"}\nTeacher Notes: ${summary.teacher_notes || "None"}`
+                            );
 
-                  <p style={smallText}>
+                            const phone = getSavedSummaryPhone(summary).replace(
+                              /\D/g,
+                              ""
+                            );
 
-                    Mood: {summary.mood || "Not added"} | Meals:{" "}
+                            window.open(
+                              `https://wa.me/${phone}?text=${message}`,
+                              "_blank"
+                            );
+                          }}
+                        >
+                          Send via WhatsApp
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-                    {summary.meals || "Not added"}
-
-                  </p>
-
-                  <p style={smallText}>
-
-                    {summary.created_at ? summary.created_at.split("T")[0] : ""}
-
-                  </p>
-
+              {savedSummaryLimit < filteredSummaries.length ? (
+                <div style={{ marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="db-button-secondary"
+                    onClick={() => setSavedSummaryLimit((prev) => prev + 10)}
+                  >
+                    Load Next 10
+                  </button>
                 </div>
-
-              ))}
-
-            </div>
-
+              ) : null}
+            </>
           )
-
         ) : null}
-
       </div>
-
     </div>
-
   );
-
 }
-
-
 
 function OptionGroup({
-
   label,
-
   options,
-
   value,
-
   setValue,
-
 }: {
-
   label: string;
-
   options: string[];
-
   value: string;
-
   setValue: (value: string) => void;
-
 }) {
-
   return (
-
     <div style={{ marginTop: 14 }}>
-
       <p style={labelText}>{label}</p>
 
-
-
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-
         {options.map((option) => {
-
           const active = value === option;
 
-
-
           return (
-
             <button
-
               key={option}
-
               type="button"
-
               onClick={() => setValue(active ? "" : option)}
-
               style={{
-
                 background: active ? "#EAF7FD" : "#FFFDFB",
-
-                border: active ? "1px solid #7CCCF3" : "1px solid #F0E3D8",
-
+                border: active
+                  ? "1px solid #7CCCF3"
+                  : "1px solid #F0E3D8",
                 borderRadius: 999,
-
                 padding: "8px 12px",
-
                 color: "#2D2A3E",
-
                 cursor: "pointer",
-
                 fontSize: 13,
-
                 fontWeight: active ? 700 : 500,
-
               }}
-
             >
-
               {option}
-
             </button>
-
           );
-
         })}
-
       </div>
-
     </div>
-
   );
-
 }
 
-
-
 const sectionTitle = {
-
   margin: "0 0 10px 0",
-
   color: "#2D2A3E",
-
   fontSize: 20,
-
   fontWeight: 700 as const,
-
 };
-
-
 
 const labelText = {
-
   margin: "0 0 8px 0",
-
   color: "#6D6888",
-
   fontSize: 13,
-
   fontWeight: 800,
-
 };
-
-
 
 const smallText = {
-
   margin: "4px 0 0 0",
-
   color: "#6D6888",
-
   fontSize: 13,
-
 };
 
-
-
 const summaryRow = {
-
   background: "#FFFDFB",
-
   border: "1px solid #F0E3D8",
-
   borderRadius: 12,
-
   padding: "10px 12px",
-
   color: "#2D2A3E",
-
 };

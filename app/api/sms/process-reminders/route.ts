@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/app/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error("Missing Supabase environment variables");
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function GET() {
   const today = new Date().toISOString().split("T")[0];
@@ -18,35 +27,113 @@ export async function GET() {
     return NextResponse.json({ message: "No due reminders" });
   }
 
+  const results = [];
+
   for (const campaign of campaigns) {
-    await processCampaign(campaign.id);
+    const result = await processCampaign(campaign.id);
+    results.push({
+      reminder_id: campaign.id,
+      ...result,
+    });
   }
 
-  return NextResponse.json({ success: true, processed: campaigns.length });
+  return NextResponse.json({
+    success: true,
+    processed: campaigns.length,
+    results,
+  });
 }
 
 async function processCampaign(reminderId: number) {
-  const { data: messages } = await supabase
+  const { data: messages, error } = await supabase
     .from("message_logs")
     .select("*")
     .eq("reminder_id", reminderId)
-    .eq("status", "pending");
+    .in("status", ["pending", "retry"]);
 
-  if (!messages || messages.length === 0) return;
+  if (error) {
+    return {
+      status: "failed",
+      sent: 0,
+      failed: 0,
+      error: error.message,
+    };
+  }
+
+  if (!messages || messages.length === 0) {
+    return {
+      status: "no_messages",
+      sent: 0,
+      failed: 0,
+    };
+  }
+
+  let sentCount = 0;
+  let failedCount = 0;
+  let skippedCount = 0;
 
   for (const msg of messages) {
-    await sendSMS(msg.id, msg.parent_phone, msg.message);
+    if (msg.sent_at) {
+      skippedCount++;
+      continue;
+    }
+
+    if ((msg.retry_count || 0) >= 3) {
+      skippedCount++;
+      continue;
+    }
+
+    const sent = await sendSMS(msg);
+
+    if (sent) {
+      sentCount++;
+    } else {
+      failedCount++;
+    }
   }
+
+  const nextStatus =
+    failedCount === 0 && sentCount > 0
+      ? "completed"
+      : sentCount > 0 && failedCount > 0
+      ? "processing"
+      : "failed";
 
   await supabase
     .from("payment_reminders")
-    .update({ status: "completed" })
+    .update({
+      status: nextStatus,
+    })
     .eq("id", reminderId);
+
+  return {
+    status: nextStatus,
+    sent: sentCount,
+    failed: failedCount,
+    skipped: skippedCount,
+  };
 }
 
-async function sendSMS(logId: string, phone: string, message: string) {
+function sanitizePhone(phone?: string | null) {
+  if (!phone) return "";
+
+  let cleaned = phone.replace(/[^\d]/g, "");
+
+  if (cleaned.startsWith("0")) {
+    cleaned = "27" + cleaned.slice(1);
+  }
+
+  return cleaned;
+}
+
+async function sendSMS(msg: any): Promise<boolean> {
   try {
     const token = await getSmsPortalToken();
+    const phone = sanitizePhone(msg.parent_phone);
+
+    if (!phone || phone.length < 10) {
+      throw new Error("Invalid phone number");
+    }
 
     const res = await fetch("https://rest.smsportal.com/v1/bulkmessages", {
       method: "POST",
@@ -57,7 +144,7 @@ async function sendSMS(logId: string, phone: string, message: string) {
       body: JSON.stringify({
         messages: [
           {
-            content: message,
+            content: msg.message,
             destination: phone,
           },
         ],
@@ -67,7 +154,7 @@ async function sendSMS(logId: string, phone: string, message: string) {
     const result = await res.json();
 
     if (!res.ok) {
-      throw new Error(result?.message || "SMS failed");
+      throw new Error(result?.message || "SMS sending failed");
     }
 
     await supabase
@@ -75,35 +162,50 @@ async function sendSMS(logId: string, phone: string, message: string) {
       .update({
         status: "sent",
         sent_at: new Date().toISOString(),
+        provider_message_id: result?.batchId || result?.id || null,
+        error_message: null,
       })
-      .eq("id", logId);
+      .eq("id", msg.id);
+
+    return true;
   } catch (err: any) {
     await supabase
       .from("message_logs")
       .update({
-        status: "failed",
-        error_message: err.message,
+        status: "retry",
+        retry_count: (msg.retry_count || 0) + 1,
+        error_message: err?.message || "Unknown SMS error",
       })
-      .eq("id", logId);
+      .eq("id", msg.id);
+
+    return false;
+  }
+}
+
+async function getSmsPortalToken() {
+  const clientId = process.env.SMSPORTAL_CLIENT_ID;
+  const clientSecret = process.env.SMSPORTAL_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error("Missing SMSPortal environment variables");
   }
 
-  async function getSmsPortalToken() {
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString(
+    "base64"
+  );
+
   const res = await fetch("https://rest.smsportal.com/v1/authentication", {
-    method: "POST",
+    method: "GET",
     headers: {
-      "Content-Type": "application/json",
+      Authorization: `Basic ${credentials}`,
     },
-    body: JSON.stringify({
-      clientId: process.env.SMSPORTAL_CLIENT_ID,
-      clientSecret: process.env.SMSPORTAL_CLIENT_SECRET,
-    }),
   });
 
+  const data = await res.json();
+
   if (!res.ok) {
-    throw new Error("Failed to authenticate SMSPortal");
+    throw new Error(data?.message || "Failed to authenticate SMSPortal");
   }
 
-  const data = await res.json();
   return data.token;
-}
 }

@@ -1180,6 +1180,14 @@ if (loading) {
                         {summary.whatsapp_sent ? "WhatsApp Sent" : "Not Sent"}
                       </p>
 
+                 <button
+                   type="button"
+                   className="db-button-secondary"
+                   onClick={() => openSavedSummary(summary)}
+>
+                  {summary.whatsapp_sent ? "View" : "Edit"}
+                  </button>
+
                       {getSavedSummaryPhone(summary) ? (
                         <button
                           type="button"

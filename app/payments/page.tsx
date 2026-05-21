@@ -60,6 +60,8 @@ export default function PaymentsPage() {
 
   const [historyFromDate, setHistoryFromDate] = useState(todayDate);
   const [historyToDate, setHistoryToDate] = useState(todayDate);
+  const [paymentHistoryPage, setPaymentHistoryPage] = useState(1);
+  const paymentHistoryPageSize = 10;
 
   const [showRecordForm, setShowRecordForm] = useState(false);
   const [showUnpaidLearners, setShowUnpaidLearners] = useState(false);
@@ -84,6 +86,10 @@ export default function PaymentsPage() {
   useEffect(() => {
     loadPage();
   }, []);
+
+  useEffect(() => {
+    setPaymentHistoryPage(1);
+  }, [historyFromDate, historyToDate]);
 
   useEffect(() => {
     if (action === "record") {
@@ -302,6 +308,16 @@ export default function PaymentsPage() {
       return date >= historyFromDate && date <= historyToDate;
     });
   }, [payments, historyFromDate, historyToDate]);
+
+  const totalPaymentHistoryPages = Math.max(
+    1,
+    Math.ceil(filteredPaymentHistory.length / paymentHistoryPageSize)
+  );
+
+  const paginatedPaymentHistory = filteredPaymentHistory.slice(
+    (paymentHistoryPage - 1) * paymentHistoryPageSize,
+    paymentHistoryPage * paymentHistoryPageSize
+  );
 
   async function scheduleReminderMessages() {
     if (!schoolId) return;
@@ -733,27 +749,68 @@ export default function PaymentsPage() {
             {filteredPaymentHistory.length === 0 ? (
               <p className="db-helper">No payments found for this period.</p>
             ) : (
-              <div style={{ display: "grid", gap: 8 }}>
-                {filteredPaymentHistory.map((payment) => (
-                  <div key={payment.id} style={historyRow}>
-                    <div>
-                      <strong>{payment.learner_name || "Unnamed learner"}</strong>
-                      <p style={smallText}>
-                        {payment.payment_date || "No date"} | Month{" "}
-                        {payment.payment_month || "-"} / {payment.payment_year || "-"}
-                      </p>
+              <>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {paginatedPaymentHistory.map((payment) => (
+                    <div key={payment.id} style={historyRow}>
+                      <div>
+                        <strong>{payment.learner_name || "Unnamed learner"}</strong>
+                        <p style={smallText}>
+                          {payment.payment_date || "No date"} | Month{" "}
+                          {payment.payment_month || "-"} / {payment.payment_year || "-"}
+                        </p>
+                      </div>
+
+                      <span style={pillBlue}>
+                        {payment.amount !== null && payment.amount !== undefined
+                          ? `R${Number(payment.amount).toFixed(2)}`
+                          : "No amount"}
+                      </span>
+
+                      <span style={pillNeutral}>{payment.status || "Not set"}</span>
                     </div>
+                  ))}
+                </div>
 
-                    <span style={pillBlue}>
-                      {payment.amount !== null && payment.amount !== undefined
-                        ? `R${Number(payment.amount).toFixed(2)}`
-                        : "No amount"}
-                    </span>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginTop: 12,
+                    alignItems: "center",
+                    gap: 10,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="db-button-secondary"
+                    disabled={paymentHistoryPage === 1}
+                    onClick={() =>
+                      setPaymentHistoryPage((prev) => Math.max(1, prev - 1))
+                    }
+                  >
+                    Previous
+                  </button>
 
-                    <span style={pillNeutral}>{payment.status || "Not set"}</span>
-                  </div>
-                ))}
-              </div>
+                  <p style={smallText}>
+                    Page {paymentHistoryPage} of {totalPaymentHistoryPages}
+                  </p>
+
+                  <button
+                    type="button"
+                    className="db-button-secondary"
+                    disabled={paymentHistoryPage === totalPaymentHistoryPages}
+                    onClick={() =>
+                      setPaymentHistoryPage((prev) =>
+                        Math.min(totalPaymentHistoryPages, prev + 1)
+                      )
+                    }
+                  >
+                    Next
+                  </button>
+                </div>
+              </>
             )}
           </div>
         ) : null}

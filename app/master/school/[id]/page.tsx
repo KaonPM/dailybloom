@@ -226,10 +226,10 @@ export default function MasterSchoolOverviewPage() {
         href: "/master?view=active-principals",
         helper: "A school should have at least one principal account.",
       },
-      {
+     {
         label: "At least one classroom created",
         complete: stats.classrooms > 0,
-        href: `/children?school=${school.id}`,
+        href: `/classrooms?school=${school.id}`,
         helper: "Classroom setup supports learner grouping.",
       },
       {
@@ -329,6 +329,10 @@ export default function MasterSchoolOverviewPage() {
         >
           <Link href="/master?view=manage-schools" style={topButton}>
             Back to Master Dashboard
+          </Link>
+
+          <Link href={`/classrooms?school=${school.id}`} style={topButtonBlue}>
+           Open Classrooms
           </Link>
 
           <Link href={`/children?school=${school.id}`} style={topButtonBlue}>

@@ -201,8 +201,15 @@ async function sendPrincipalOnboardingEmail({
             <li>Teacher list</li>
             <li>Classroom names</li>
             <li>Events or year planner</li>
-            <li>Preferred contact number for parent communication</li>
-          </ul>
+            <li>
+            Send the requested information to{" "}
+            <a
+            href="mailto:support@dailybloom.co.za"
+            style={{ color: "#6C63FF", fontWeight: 600 }}
+            >
+            support@dailybloom.co.za
+            </a>
+            </li>
 
           <p style="color:#5B5675; line-height:1.6;">
             Warm regards,<br/>

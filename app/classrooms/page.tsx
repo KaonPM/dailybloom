@@ -29,13 +29,8 @@ type TeacherRow = {
 };
 
 const ageGroupOptions = [
-  "Babies",
-  "Toddlers",
-  "2 - 3 years",
-  "3 - 4 years",
-  "4 - 5 years",
-  "Grade R",
-  "Mixed age group",
+  "0 - 3 years",
+  "3 - 6 years",
 ];
 
 export default function ClassroomsPage() {

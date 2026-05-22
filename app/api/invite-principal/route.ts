@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     }
 
     const inviteResult = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/login`,
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.dailybloom.co.za/"}/login`,
       data: {
         full_name,
         role: "principal",

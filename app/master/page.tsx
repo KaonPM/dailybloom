@@ -220,6 +220,31 @@ export default function MasterPage() {
     alert("School created successfully.");
   }
 
+ async function handleLogoUpload(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    const fileName = `school-logo-${Date.now()}-${file.name}`;
+
+    const { error } = await supabase.storage
+      .from("school-logos")
+      .upload(fileName, file);
+
+    if (error) {
+      alert("Logo upload failed.");
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("school-logos")
+      .getPublicUrl(fileName);
+
+    setLogoUrl(data.publicUrl);
+  }
+
   async function updateSchoolStatus(schoolId: number, nextStatus: string) {
     setUpdatingSchoolId(schoolId);
 
@@ -950,12 +975,45 @@ export default function MasterPage() {
             onChange={(e) => setSecondaryColor(e.target.value)}
           />
 
-          <input
-            className="db-input"
-            placeholder="School Logo URL"
-            value={logoUrl}
-            onChange={(e) => setLogoUrl(e.target.value)}
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+  <label
+    style={{
+      fontSize: 14,
+      fontWeight: 500,
+      color: "#5B5675",
+    }}
+  >
+    School Logo
+  </label>
+
+  <input
+    type="file"
+    accept="image/*"
+    className="db-input"
+    onChange={handleLogoUpload}
+    style={{
+      paddingTop: 12,
+      paddingBottom: 12,
+      background: "#fff",
+      cursor: "pointer",
+    }}
+  />
+
+  {logoUrl && (
+    <img
+      src={logoUrl}
+      alt="School Logo Preview"
+      style={{
+        width: 80,
+        height: 80,
+        objectFit: "cover",
+        borderRadius: 12,
+        border: "1px solid #E5E7EB",
+        marginTop: 6,
+      }}
+    />
+  )}
+</div>
 
           <select
             className="db-input"
@@ -1062,6 +1120,7 @@ function StatLinkCard({
   background: string;
   border: string;
 }) {
+
   return (
     <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
       <div

@@ -11,7 +11,16 @@ export default function AppChrome({
 }) {
   const pathname = usePathname();
 
-  const publicRoutes = ["/", "/login", "/signup", "/reset-password", "/legal", "/privacy", "/terms"];
+  const publicRoutes = [
+  "/",
+  "/login",
+  "/signup",
+  "/reset-password",
+  "/change-password",
+  "/legal",
+  "/privacy",
+  "/terms",
+];
 
   const isPublicRoute =
     publicRoutes.includes(pathname) ||

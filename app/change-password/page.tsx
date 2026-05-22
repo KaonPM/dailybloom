@@ -10,7 +10,14 @@ export default function ChangePasswordPage() {
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  async function logout() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
   async function updatePassword() {
     if (!newPassword || !confirmPassword) {
@@ -19,14 +26,14 @@ export default function ChangePasswordPage() {
     }
 
     const strongPasswordRegex =
-  /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+      /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
-if (!strongPasswordRegex.test(newPassword)) {
-  alert(
-    "Password must be at least 8 characters and include letters, numbers, and a special character."
-  );
-  return;
-}
+    if (!strongPasswordRegex.test(newPassword)) {
+      alert(
+        "Password must be at least 8 characters and include letters, numbers, and a special character."
+      );
+      return;
+    }
 
     if (newPassword !== confirmPassword) {
       alert("Passwords do not match.");
@@ -56,9 +63,7 @@ if (!strongPasswordRegex.test(newPassword)) {
 
     const { error: updateProfileError } = await supabase
       .from("profiles")
-      .update({
-        must_change_password: false,
-      })
+      .update({ must_change_password: false })
       .eq("id", profile.id);
 
     if (updateProfileError) {
@@ -79,40 +84,150 @@ if (!strongPasswordRegex.test(newPassword)) {
   }
 
   return (
-    <div className="db-auth-page">
-      <div className="db-auth-card">
-        <h1 className="db-auth-title">Create Your New Password</h1>
+    <main style={pageStyle}>
+      <header style={topBarStyle}>
+        <strong>DailyBloom</strong>
 
-        <p className="db-auth-subtitle">
+        <div style={{ display: "flex", gap: 10 }}>
+          <button type="button" style={smallButton} onClick={() => router.push("/")}>
+            Homepage
+          </button>
+
+          <button type="button" style={smallButton} onClick={logout}>
+            Logout
+          </button>
+        </div>
+      </header>
+
+      <section style={formWrapStyle}>
+        <h1 style={titleStyle}>Create Your New Password</h1>
+
+        <p style={subtitleStyle}>
           For security, please replace your temporary password before continuing.
         </p>
 
-        <input
-          className="db-input"
-          type="password"
-          placeholder="New Password"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-        />
+        <div style={passwordWrapStyle}>
+          <input
+            style={inputStyle}
+            type={showNewPassword ? "text" : "password"}
+            placeholder="New Password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
 
-        <input
-          className="db-input"
-          type="password"
-          placeholder="Confirm New Password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-        />
+          <button
+            type="button"
+            style={viewButtonStyle}
+            onClick={() => setShowNewPassword((prev) => !prev)}
+          >
+            {showNewPassword ? "Hide" : "View"}
+          </button>
+        </div>
+
+        <div style={passwordWrapStyle}>
+          <input
+            style={inputStyle}
+            type={showConfirmPassword ? "text" : "password"}
+            placeholder="Confirm New Password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+
+          <button
+            type="button"
+            style={viewButtonStyle}
+            onClick={() => setShowConfirmPassword((prev) => !prev)}
+          >
+            {showConfirmPassword ? "Hide" : "View"}
+          </button>
+        </div>
 
         <button
           type="button"
-          className="db-button-primary"
-          style={{ width: "100%" }}
+          style={updateButtonStyle}
           onClick={updatePassword}
           disabled={saving}
         >
           {saving ? "Updating..." : "Update Password"}
         </button>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
+
+const pageStyle: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "#FBF8F4",
+  color: "#2F2440",
+};
+
+const topBarStyle: React.CSSProperties = {
+  height: 64,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  padding: "0 32px",
+  borderBottom: "1px solid #E8DED4",
+  background: "#FBF8F4",
+};
+
+const formWrapStyle: React.CSSProperties = {
+  maxWidth: 960,
+  margin: "48px auto",
+  padding: "0 24px",
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: 28,
+  marginBottom: 12,
+};
+
+const subtitleStyle: React.CSSProperties = {
+  marginBottom: 18,
+  color: "#5B5675",
+};
+
+const passwordWrapStyle: React.CSSProperties = {
+  position: "relative",
+  marginBottom: 14,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "14px 70px 14px 16px",
+  borderRadius: 12,
+  border: "1px solid #D8D0C8",
+  fontSize: 14,
+};
+
+const viewButtonStyle: React.CSSProperties = {
+  position: "absolute",
+  right: 10,
+  top: "50%",
+  transform: "translateY(-50%)",
+  border: "none",
+  background: "transparent",
+  color: "#2F80A8",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const updateButtonStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "14px 16px",
+  borderRadius: 12,
+  border: "none",
+  background: "#26AEE4",
+  color: "white",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const smallButton: React.CSSProperties = {
+  border: "1px solid #E0C7B8",
+  borderRadius: 12,
+  padding: "8px 14px",
+  background: "#F7E5D6",
+  color: "#5A3B2E",
+  cursor: "pointer",
+};

@@ -9,10 +9,23 @@ import { getCurrentProfile } from "../lib/auth";
 type LearnerRow = {
   id: number;
   name?: string | null;
+  legal_name?: string | null;
   class?: string | null;
   classroom_id?: number | null;
   date_of_birth?: string | null;
+  birth_certificate_number?: string | null;
+  sa_id_number?: string | null;
+  gender?: string | null;
+  nationality?: string | null;
+  home_language?: string | null;
+  support_needs?: string | null;
+  guardian_name?: string | null;
+  guardian_relationship?: string | null;
+  guardian_id_number?: string | null;
   parent_phone?: string | null;
+  parent_email?: string | null;
+  receiving_school?: string | null;
+  ulin?: string | null;
   school_id?: number | null;
 };
 
@@ -41,9 +54,22 @@ export default function LearnersPage() {
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
 
   const [name, setName] = useState("");
-  const [selectedClassroomId, setSelectedClassroomId] = useState("");
+  const [legalName, setLegalName] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
+  const [birthCertificateNumber, setBirthCertificateNumber] = useState("");
+  const [saIdNumber, setSaIdNumber] = useState("");
+  const [gender, setGender] = useState("");
+  const [nationality, setNationality] = useState("South African");
+  const [homeLanguage, setHomeLanguage] = useState("");
+  const [supportNeeds, setSupportNeeds] = useState("");
+
+  const [guardianName, setGuardianName] = useState("");
+  const [guardianRelationship, setGuardianRelationship] = useState("");
+  const [guardianIdNumber, setGuardianIdNumber] = useState("");
   const [parentPhone, setParentPhone] = useState("");
+  const [parentEmail, setParentEmail] = useState("");
+
+  const [receivingSchool, setReceivingSchool] = useState("");
 
   const [selectedLearner, setSelectedLearner] = useState<LearnerRow | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -106,7 +132,28 @@ export default function LearnersPage() {
   async function fetchLearners(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("learners")
-      .select("id, name, class, classroom_id, date_of_birth, parent_phone, school_id")
+      .select(`
+        id,
+        name,
+        legal_name,
+        class,
+        classroom_id,
+        date_of_birth,
+        birth_certificate_number,
+        sa_id_number,
+        gender,
+        nationality,
+        home_language,
+        support_needs,
+        guardian_name,
+        guardian_relationship,
+        guardian_id_number,
+        parent_phone,
+        parent_email,
+        receiving_school,
+        ulin,
+        school_id
+      `)
       .eq("school_id", currentSchoolId)
       .order("name", { ascending: true });
 
@@ -166,9 +213,20 @@ export default function LearnersPage() {
 
   function resetForm() {
     setName("");
-    setSelectedClassroomId("");
+    setLegalName("");
     setDateOfBirth("");
+    setBirthCertificateNumber("");
+    setSaIdNumber("");
+    setGender("");
+    setNationality("South African");
+    setHomeLanguage("");
+    setSupportNeeds("");
+    setGuardianName("");
+    setGuardianRelationship("");
+    setGuardianIdNumber("");
     setParentPhone("");
+    setParentEmail("");
+    setReceivingSchool("");
     setSelectedLearner(null);
   }
 
@@ -214,12 +272,37 @@ export default function LearnersPage() {
     if (!schoolId) return;
 
     if (!name.trim()) {
-      alert("Please enter learner name.");
+      alert("Please enter the learner's preferred name.");
+      return;
+    }
+
+    if (!legalName.trim()) {
+      alert("Please enter the learner's full legal name.");
       return;
     }
 
     if (!dateOfBirth) {
       alert("Please enter date of birth so the learner can be assigned to the correct age group.");
+      return;
+    }
+
+    if (!gender) {
+      alert("Please select gender.");
+      return;
+    }
+
+    if (!homeLanguage) {
+      alert("Please select home language.");
+      return;
+    }
+
+    if (!guardianName.trim()) {
+      alert("Please enter parent or guardian name.");
+      return;
+    }
+
+    if (!parentPhone.trim()) {
+      alert("Please enter parent or guardian phone number.");
       return;
     }
 
@@ -230,7 +313,9 @@ export default function LearnersPage() {
     const classroomMatch = findClassroomByAgeGroup(ageGroup);
 
     if (!classroomMatch) {
-      alert(`No classroom found for age group ${ageGroup}. Please create a classroom with ${ageGroup} in the classroom name.`);
+      alert(
+        `No classroom found for age group ${ageGroup}. Please create a classroom with ${ageGroup} in the classroom name.`
+      );
       setSaving(false);
       return;
     }
@@ -238,10 +323,23 @@ export default function LearnersPage() {
     const { error } = await supabase.from("learners").insert([
       {
         name: name.trim(),
+        legal_name: legalName.trim(),
         class: classroomMatch.classroom_name || "Unassigned",
         classroom_id: classroomMatch.id,
         date_of_birth: dateOfBirth,
-        parent_phone: parentPhone || null,
+        birth_certificate_number: birthCertificateNumber.trim() || null,
+        sa_id_number: saIdNumber.trim() || null,
+        gender,
+        nationality: nationality || null,
+        home_language: homeLanguage,
+        support_needs: supportNeeds.trim() || null,
+        guardian_name: guardianName.trim(),
+        guardian_relationship: guardianRelationship || null,
+        guardian_id_number: guardianIdNumber.trim() || null,
+        parent_phone: parentPhone.trim(),
+        parent_email: parentEmail.trim() || null,
+        receiving_school: receivingSchool.trim() || null,
+        ulin: null,
         school_id: schoolId,
       },
     ]);
@@ -286,7 +384,7 @@ export default function LearnersPage() {
             <p className="db-page-subtitle">
               {profile?.role === "teacher"
                 ? `Viewing learners for ${teacherClassroom || "assigned classroom"}.`
-                : "View learners first. Add a learner only when needed."}
+                : "Manage learner records using DBE-ready identity, guardian and transition fields."}
             </p>
           </div>
 
@@ -309,17 +407,35 @@ export default function LearnersPage() {
         <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
           <h3 style={sectionTitle}>Add Learner</h3>
 
+          <p style={helperText}>
+            Capture the learner’s legal identity, guardian details and Grade R transition information in a structured format.
+          </p>
+
+          <h4 style={subSectionTitle}>Learner Identity</h4>
+
           <div style={grid2}>
             <div>
-              <p style={labelText}>Learner Name</p>
+              <p style={labelText}>Preferred Name</p>
               <input
                 className="db-input"
-                placeholder="Learner name"
+                placeholder="Name commonly used at school"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
 
+            <div>
+              <p style={labelText}>Full Legal Name</p>
+              <input
+                className="db-input"
+                placeholder="As per birth certificate"
+                value={legalName}
+                onChange={(e) => setLegalName(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={grid2}>
             <div>
               <p style={labelText}>Date of Birth</p>
               <input
@@ -329,35 +445,186 @@ export default function LearnersPage() {
                 onChange={(e) => setDateOfBirth(e.target.value)}
               />
             </div>
+
+            <div>
+              <p style={labelText}>Gender</p>
+              <select
+                className="db-input"
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+              >
+                <option value="">Select gender</option>
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+                <option value="Other">Other</option>
+                <option value="Not specified">Not specified</option>
+              </select>
+            </div>
           </div>
 
           <div style={grid2}>
             <div>
-              <p style={labelText}>Parent Phone</p>
+              <p style={labelText}>Birth Certificate Number</p>
               <input
                 className="db-input"
-                placeholder="Parent phone number"
-                value={parentPhone}
-                onChange={(e) => setParentPhone(e.target.value)}
+                placeholder="Birth certificate number"
+                value={birthCertificateNumber}
+                onChange={(e) => setBirthCertificateNumber(e.target.value)}
               />
             </div>
 
             <div>
-              <p style={labelText}>Classroom Assignment</p>
-              <div
-                style={{
-                  background: "#FFFDFB",
-                  border: "1px solid #F0E3D8",
-                  borderRadius: 14,
-                  padding: "12px 14px",
-                  color: "#6D6888",
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                Automatically assigned from date of birth
-              </div>
+              <p style={labelText}>SA ID Number</p>
+              <input
+                className="db-input"
+                placeholder="If available"
+                value={saIdNumber}
+                onChange={(e) => setSaIdNumber(e.target.value)}
+              />
             </div>
+          </div>
+
+          <div style={grid2}>
+            <div>
+              <p style={labelText}>Nationality</p>
+              <select
+                className="db-input"
+                value={nationality}
+                onChange={(e) => setNationality(e.target.value)}
+              >
+                <option value="">Select nationality</option>
+                <option value="South African">South African</option>
+                <option value="Non-South African">Non-South African</option>
+                <option value="Permanent resident">Permanent resident</option>
+                <option value="Refugee/asylum seeker">Refugee/asylum seeker</option>
+                <option value="Unknown">Unknown</option>
+              </select>
+            </div>
+
+            <div>
+              <p style={labelText}>Home Language</p>
+              <select
+                className="db-input"
+                value={homeLanguage}
+                onChange={(e) => setHomeLanguage(e.target.value)}
+              >
+                <option value="">Select home language</option>
+                <option value="Afrikaans">Afrikaans</option>
+                <option value="English">English</option>
+                <option value="isiNdebele">isiNdebele</option>
+                <option value="isiXhosa">isiXhosa</option>
+                <option value="isiZulu">isiZulu</option>
+                <option value="Sepedi">Sepedi</option>
+                <option value="Sesotho">Sesotho</option>
+                <option value="Setswana">Setswana</option>
+                <option value="SiSwati">SiSwati</option>
+                <option value="Tshivenda">Tshivenda</option>
+                <option value="Xitsonga">Xitsonga</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <p style={labelText}>Support Needs / Disability Status</p>
+            <textarea
+              className="db-input"
+              placeholder="Example: None, speech support, mobility support, learning support"
+              value={supportNeeds}
+              onChange={(e) => setSupportNeeds(e.target.value)}
+              style={{ minHeight: 80, resize: "vertical" }}
+            />
+          </div>
+
+          <h4 style={subSectionTitle}>Parent / Guardian Details</h4>
+
+          <div style={grid2}>
+            <div>
+              <p style={labelText}>Guardian Full Name</p>
+              <input
+                className="db-input"
+                placeholder="Parent or guardian name"
+                value={guardianName}
+                onChange={(e) => setGuardianName(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Relationship to Learner</p>
+              <select
+                className="db-input"
+                value={guardianRelationship}
+                onChange={(e) => setGuardianRelationship(e.target.value)}
+              >
+                <option value="">Select relationship</option>
+                <option value="Mother">Mother</option>
+                <option value="Father">Father</option>
+                <option value="Guardian">Guardian</option>
+                <option value="Grandparent">Grandparent</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={grid2}>
+            <div>
+              <p style={labelText}>Guardian ID Number</p>
+              <input
+                className="db-input"
+                placeholder="ID or passport number"
+                value={guardianIdNumber}
+                onChange={(e) => setGuardianIdNumber(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Parent / Guardian Phone</p>
+              <input
+                className="db-input"
+                placeholder="Phone number"
+                value={parentPhone}
+                onChange={(e) => setParentPhone(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={grid2}>
+            <div>
+              <p style={labelText}>Parent / Guardian Email</p>
+              <input
+                className="db-input"
+                type="email"
+                placeholder="Email address"
+                value={parentEmail}
+                onChange={(e) => setParentEmail(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Receiving School</p>
+              <input
+                className="db-input"
+                placeholder="Future Grade R or Grade 1 school"
+                value={receivingSchool}
+                onChange={(e) => setReceivingSchool(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <h4 style={subSectionTitle}>Classroom Assignment</h4>
+
+          <div
+            style={{
+              background: "#FFFDFB",
+              border: "1px solid #F0E3D8",
+              borderRadius: 14,
+              padding: "12px 14px",
+              color: "#6D6888",
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            Classroom is automatically assigned from date of birth.
           </div>
 
           <button
@@ -422,10 +689,49 @@ export default function LearnersPage() {
                   {active ? (
                     <div style={{ marginTop: 10 }}>
                       <p style={smallText}>
+                        Legal Name: {learner.legal_name || "Not added"}
+                      </p>
+                      <p style={smallText}>
                         Date of Birth: {learner.date_of_birth || "Not added"}
                       </p>
                       <p style={smallText}>
-                        Parent Phone: {learner.parent_phone || "Not added"}
+                        Gender: {learner.gender || "Not added"}
+                      </p>
+                      <p style={smallText}>
+                        Home Language: {learner.home_language || "Not added"}
+                      </p>
+                      <p style={smallText}>
+                        Nationality: {learner.nationality || "Not added"}
+                      </p>
+                      <p style={smallText}>
+                        Birth Certificate: {learner.birth_certificate_number || "Not added"}
+                      </p>
+                      <p style={smallText}>
+                        SA ID: {learner.sa_id_number || "Not added"}
+                      </p>
+                      <p style={smallText}>
+                        Support Needs: {learner.support_needs || "None recorded"}
+                      </p>
+                      <p style={smallText}>
+                        Guardian: {learner.guardian_name || "Not added"}
+                      </p>
+                      <p style={smallText}>
+                        Relationship: {learner.guardian_relationship || "Not added"}
+                      </p>
+                      <p style={smallText}>
+                        Guardian ID: {learner.guardian_id_number || "Not added"}
+                      </p>
+                      <p style={smallText}>
+                        Phone: {learner.parent_phone || "Not added"}
+                      </p>
+                      <p style={smallText}>
+                        Email: {learner.parent_email || "Not added"}
+                      </p>
+                      <p style={smallText}>
+                        Receiving School: {learner.receiving_school || "Not added"}
+                      </p>
+                      <p style={smallText}>
+                        ULIN / LURITS Ref: {learner.ulin || "Not assigned yet"}
                       </p>
                     </div>
                   ) : null}
@@ -446,11 +752,25 @@ const sectionTitle = {
   fontWeight: 700 as const,
 };
 
+const subSectionTitle = {
+  margin: "18px 0 10px 0",
+  color: "#2D2A3E",
+  fontSize: 16,
+  fontWeight: 800 as const,
+};
+
 const labelText = {
   margin: "0 0 8px 0",
   color: "#6D6888",
   fontSize: 13,
   fontWeight: 800,
+};
+
+const helperText = {
+  margin: "0 0 14px 0",
+  color: "#6D6888",
+  fontSize: 13,
+  lineHeight: 1.5,
 };
 
 const smallText = {

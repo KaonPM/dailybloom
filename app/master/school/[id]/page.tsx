@@ -99,86 +99,73 @@ export default function MasterSchoolOverviewPage() {
   }
 
   async function fetchSchoolStats(currentSchoolId: number) {
-    const [
-      learnersResult,
-      directTeachersResult,
-      allTeachersResult,
-      classroomsResult,
-      classroomsDataResult,
-      eventsResult,
-      activitiesResult,
-      summariesResult,
-      paymentsResult,
-    ] = await Promise.all([
-      supabase
-        .from("learners")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
+  const [
+    learnersResult,
+    teachersTableResult,
+    teacherProfilesResult,
+    classroomsResult,
+    eventsResult,
+    activitiesResult,
+    summariesResult,
+    paymentsResult,
+  ] = await Promise.all([
+    supabase
+      .from("learners")
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", currentSchoolId),
 
-      supabase
-        .from("teachers")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
+    supabase
+      .from("teachers")
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", currentSchoolId),
 
-      supabase
-        .from("teachers")
-        .select("id, classroom_id, school_id"),
+    supabase
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", currentSchoolId)
+      .eq("role", "teacher"),
 
-      supabase
-        .from("classrooms")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
+    supabase
+      .from("classrooms")
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", currentSchoolId),
 
-      supabase
-        .from("classrooms")
-        .select("id")
-        .eq("school_id", currentSchoolId),
+    supabase
+      .from("events")
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", currentSchoolId),
 
-      supabase
-        .from("events")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
+    supabase
+      .from("classroom_activities")
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", currentSchoolId),
 
-      supabase
-        .from("classroom_activities")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
+    supabase
+      .from("summaries")
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", currentSchoolId),
 
-      supabase
-        .from("summaries")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
+    supabase
+      .from("payments")
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", currentSchoolId),
+  ]);
 
-      supabase
-        .from("payments")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
-    ]);
+  const teacherCount = Math.max(
+    teachersTableResult.count || 0,
+    teacherProfilesResult.count || 0
+  );
 
-    const classroomIds =
-      classroomsDataResult.data?.map((classroom: any) => Number(classroom.id)) ||
-      [];
-
-    const teachersLinkedByClassroom =
-      allTeachersResult.data?.filter((teacher: any) =>
-        classroomIds.includes(Number(teacher.classroom_id))
-      ).length || 0;
-
-    const teacherCount = Math.max(
-      directTeachersResult.count || 0,
-      teachersLinkedByClassroom
-    );
-
-    setStats({
-      learners: learnersResult.count || 0,
-      teachers: teacherCount,
-      classrooms: classroomsResult.count || 0,
-      events: eventsResult.count || 0,
-      activities: activitiesResult.count || 0,
-      summaries: summariesResult.count || 0,
-      payments: paymentsResult.count || 0,
-    });
-  }
+  setStats({
+    learners: learnersResult.count || 0,
+    teachers: teacherCount,
+    classrooms: classroomsResult.count || 0,
+    events: eventsResult.count || 0,
+    activities: activitiesResult.count || 0,
+    summaries: summariesResult.count || 0,
+    payments: paymentsResult.count || 0,
+  });
+}
 
   async function fetchPrincipalCount(currentSchoolId: number) {
     const { count } = await supabase

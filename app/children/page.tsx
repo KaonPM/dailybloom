@@ -70,8 +70,11 @@ export default function LearnersPage() {
   const [parentEmail, setParentEmail] = useState("");
 
   const [receivingSchool, setReceivingSchool] = useState("");
+  const [manualClassroomId, setManualClassroomId] = useState("");
 
-  const [selectedLearner, setSelectedLearner] = useState<LearnerRow | null>(null);
+  const [selectedLearner, setSelectedLearner] = useState<LearnerRow | null>(
+    null
+  );
   const [showForm, setShowForm] = useState(false);
 
   const [loading, setLoading] = useState(true);
@@ -132,7 +135,8 @@ export default function LearnersPage() {
   async function fetchLearners(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("learners")
-      .select(`
+      .select(
+        `
         id,
         name,
         legal_name,
@@ -153,7 +157,8 @@ export default function LearnersPage() {
         receiving_school,
         ulin,
         school_id
-      `)
+      `
+      )
       .eq("school_id", currentSchoolId)
       .order("name", { ascending: true });
 
@@ -227,6 +232,7 @@ export default function LearnersPage() {
     setParentPhone("");
     setParentEmail("");
     setReceivingSchool("");
+    setManualClassroomId("");
     setSelectedLearner(null);
   }
 
@@ -348,7 +354,9 @@ export default function LearnersPage() {
     }
 
     if (!dateOfBirth) {
-      alert("Please enter date of birth so the learner can be assigned to the correct age group.");
+      alert(
+        "Please enter date of birth so the learner can be assigned to the correct age group."
+      );
       return;
     }
 
@@ -376,11 +384,21 @@ export default function LearnersPage() {
 
     const learnerAge = calculateAge(dateOfBirth);
     const ageGroup = getAgeGroup(learnerAge);
-    const classroomMatch = findClassroomByAgeGroup(ageGroup);
+
+    let classroomMatch: ClassroomRow | null = null;
+
+    if (manualClassroomId) {
+      classroomMatch =
+        classrooms.find(
+          (classroom) => String(classroom.id) === manualClassroomId
+        ) || null;
+    } else {
+      classroomMatch = findClassroomByAgeGroup(ageGroup) || null;
+    }
 
     if (!classroomMatch) {
       alert(
-        `No classroom found for age group ${ageGroup}. Please create a classroom with ${ageGroup} in the classroom name.`
+        `No classroom found for age group ${ageGroup}. Please select a classroom manually.`
       );
       setSaving(false);
       return;
@@ -444,12 +462,16 @@ export default function LearnersPage() {
         >
           <div>
             <h2 className="db-page-title">
-              {activeFilter === "birthdays-today" ? "Today’s Birthdays" : "Learners"}
+              {activeFilter === "birthdays-today"
+                ? "Today’s Birthdays"
+                : "Learners"}
             </h2>
 
             <p className="db-page-subtitle">
               {profile?.role === "teacher"
-                ? `Viewing learners for ${teacherClassroom || "assigned classroom"}.`
+                ? `Viewing learners for ${
+                    teacherClassroom || "assigned classroom"
+                  }.`
                 : "Manage learner records using DBE-ready identity, guardian and transition fields."}
             </p>
           </div>
@@ -470,11 +492,15 @@ export default function LearnersPage() {
       </div>
 
       {showForm && canAddLearner ? (
-        <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
+        <div
+          className="db-card db-card-blue"
+          style={{ padding: 16, marginBottom: 18 }}
+        >
           <h3 style={sectionTitle}>Add Learner</h3>
 
           <p style={helperText}>
-            Capture the learner’s legal identity, guardian details and Grade R transition information in a structured format.
+            Capture the learner’s legal identity, guardian details and Grade R
+            transition information in a structured format.
           </p>
 
           <h4 style={subSectionTitle}>Learner Identity</h4>
@@ -562,7 +588,9 @@ export default function LearnersPage() {
                 <option value="South African">South African</option>
                 <option value="Non-South African">Non-South African</option>
                 <option value="Permanent resident">Permanent resident</option>
-                <option value="Refugee/asylum seeker">Refugee/asylum seeker</option>
+                <option value="Refugee/asylum seeker">
+                  Refugee/asylum seeker
+                </option>
                 <option value="Unknown">Unknown</option>
               </select>
             </div>
@@ -679,6 +707,24 @@ export default function LearnersPage() {
 
           <h4 style={subSectionTitle}>Classroom Assignment</h4>
 
+          <div style={grid2}>
+            <div>
+              <p style={labelText}>Classroom</p>
+              <select
+                className="db-input"
+                value={manualClassroomId}
+                onChange={(e) => setManualClassroomId(e.target.value)}
+              >
+                <option value="">Auto-assign from date of birth</option>
+                {classrooms.map((classroom) => (
+                  <option key={classroom.id} value={classroom.id}>
+                    {classroom.classroom_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div
             style={{
               background: "#FFFDFB",
@@ -688,9 +734,10 @@ export default function LearnersPage() {
               color: "#6D6888",
               fontSize: 13,
               fontWeight: 700,
+              marginTop: 10,
             }}
           >
-            Classroom is automatically assigned from date of birth.
+            Leave blank to auto-assign by age, or choose a classroom manually.
           </div>
 
           <button
@@ -770,22 +817,26 @@ export default function LearnersPage() {
                         Nationality: {learner.nationality || "Not added"}
                       </p>
                       <p style={smallText}>
-                        Birth Certificate: {learner.birth_certificate_number || "Not added"}
+                        Birth Certificate:{" "}
+                        {learner.birth_certificate_number || "Not added"}
                       </p>
                       <p style={smallText}>
                         SA ID: {learner.sa_id_number || "Not added"}
                       </p>
                       <p style={smallText}>
-                        Support Needs: {learner.support_needs || "None recorded"}
+                        Support Needs:{" "}
+                        {learner.support_needs || "None recorded"}
                       </p>
                       <p style={smallText}>
                         Guardian: {learner.guardian_name || "Not added"}
                       </p>
                       <p style={smallText}>
-                        Relationship: {learner.guardian_relationship || "Not added"}
+                        Relationship:{" "}
+                        {learner.guardian_relationship || "Not added"}
                       </p>
                       <p style={smallText}>
-                        Guardian ID: {learner.guardian_id_number || "Not added"}
+                        Guardian ID:{" "}
+                        {learner.guardian_id_number || "Not added"}
                       </p>
                       <p style={smallText}>
                         Phone: {learner.parent_phone || "Not added"}
@@ -794,10 +845,12 @@ export default function LearnersPage() {
                         Email: {learner.parent_email || "Not added"}
                       </p>
                       <p style={smallText}>
-                        Receiving School: {learner.receiving_school || "Not added"}
+                        Receiving School:{" "}
+                        {learner.receiving_school || "Not added"}
                       </p>
                       <p style={smallText}>
-                        ULIN / LURITS Ref: {learner.ulin || "Not assigned yet"}
+                        ULIN / LURITS Ref:{" "}
+                        {learner.ulin || "Not assigned yet"}
                       </p>
                     </div>
                   ) : null}

@@ -13,6 +13,7 @@ type School = {
   secondary_color?: string | null;
   logo_url?: string | null;
   emis_number?: string | null;
+  npo_number?: string | null;
   province?: string | null;
   district?: string | null;
   centre_type?: string | null;
@@ -566,7 +567,10 @@ export default function PrincipalDashboardPage() {
             marginTop: "12px",
           }}
         >
-          <InfoTile label="EMIS Number" value={school.emis_number || "Not added"} />
+          <InfoTile
+          label="EMIS / NPO Number"
+          value={school.emis_number || school.npo_number || "Not added"}
+        />
           <InfoTile label="Province" value={school.province || "Not added"} />
           <InfoTile label="District" value={school.district || "Not added"} />
           <InfoTile label="Centre Type" value={school.centre_type || "Not added"} />

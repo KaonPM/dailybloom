@@ -101,8 +101,10 @@ export default function MasterSchoolOverviewPage() {
   async function fetchSchoolStats(currentSchoolId: number) {
     const [
       learnersResult,
-      teachersResult,
+      directTeachersResult,
+      allTeachersResult,
       classroomsResult,
+      classroomsDataResult,
       eventsResult,
       activitiesResult,
       summariesResult,
@@ -119,8 +121,17 @@ export default function MasterSchoolOverviewPage() {
         .eq("school_id", currentSchoolId),
 
       supabase
+        .from("teachers")
+        .select("id, classroom_id, school_id"),
+
+      supabase
         .from("classrooms")
         .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
+
+      supabase
+        .from("classrooms")
+        .select("id")
         .eq("school_id", currentSchoolId),
 
       supabase
@@ -144,9 +155,23 @@ export default function MasterSchoolOverviewPage() {
         .eq("school_id", currentSchoolId),
     ]);
 
+    const classroomIds =
+      classroomsDataResult.data?.map((classroom: any) => Number(classroom.id)) ||
+      [];
+
+    const teachersLinkedByClassroom =
+      allTeachersResult.data?.filter((teacher: any) =>
+        classroomIds.includes(Number(teacher.classroom_id))
+      ).length || 0;
+
+    const teacherCount = Math.max(
+      directTeachersResult.count || 0,
+      teachersLinkedByClassroom
+    );
+
     setStats({
       learners: learnersResult.count || 0,
-      teachers: teachersResult.count || 0,
+      teachers: teacherCount,
       classrooms: classroomsResult.count || 0,
       events: eventsResult.count || 0,
       activities: activitiesResult.count || 0,
@@ -226,7 +251,7 @@ export default function MasterSchoolOverviewPage() {
         href: "/master?view=active-principals",
         helper: "A school should have at least one principal account.",
       },
-     {
+      {
         label: "At least one classroom created",
         complete: stats.classrooms > 0,
         href: `/classrooms?school=${school.id}`,
@@ -332,7 +357,7 @@ export default function MasterSchoolOverviewPage() {
           </Link>
 
           <Link href={`/classrooms?school=${school.id}`} style={topButtonBlue}>
-           Open Classrooms
+            Open Classrooms
           </Link>
 
           <Link href={`/children?school=${school.id}`} style={topButtonBlue}>
@@ -343,7 +368,10 @@ export default function MasterSchoolOverviewPage() {
             Open Events
           </Link>
 
-          <Link href={`/classroom-activities?school=${school.id}`} style={topButtonBlue}>
+          <Link
+            href={`/classroom-activities?school=${school.id}`}
+            style={topButtonBlue}
+          >
             Open Classroom Activities
           </Link>
 

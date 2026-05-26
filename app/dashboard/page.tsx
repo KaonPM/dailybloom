@@ -12,6 +12,11 @@ type School = {
   primary_color?: string | null;
   secondary_color?: string | null;
   logo_url?: string | null;
+  emis_number?: string | null;
+  province?: string | null;
+  district?: string | null;
+  centre_type?: string | null;
+  registration_status?: string | null;
 };
 
 type DashboardStats = {
@@ -274,15 +279,31 @@ export default function PrincipalDashboardPage() {
       .filter((learner) => Boolean(learner.date_of_birth))
       .map((learner) => {
         const dob = new Date(String(learner.date_of_birth));
-        const birthdayThisYear = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+        const birthdayThisYear = new Date(
+          today.getFullYear(),
+          dob.getMonth(),
+          dob.getDate()
+        );
 
         let nextBirthday = birthdayThisYear;
-        if (birthdayThisYear < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-          nextBirthday = new Date(today.getFullYear() + 1, dob.getMonth(), dob.getDate());
+
+        if (
+          birthdayThisYear <
+          new Date(today.getFullYear(), today.getMonth(), today.getDate())
+        ) {
+          nextBirthday = new Date(
+            today.getFullYear() + 1,
+            dob.getMonth(),
+            dob.getDate()
+          );
         }
 
         const diffMs =
-          new Date(nextBirthday.getFullYear(), nextBirthday.getMonth(), nextBirthday.getDate()).getTime() -
+          new Date(
+            nextBirthday.getFullYear(),
+            nextBirthday.getMonth(),
+            nextBirthday.getDate()
+          ).getTime() -
           new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
 
         const daysUntil = Math.round(diffMs / (1000 * 60 * 60 * 24));
@@ -383,7 +404,10 @@ export default function PrincipalDashboardPage() {
     const birthdaysTodayCount = learners.filter((learner) => {
       if (!learner.date_of_birth) return false;
       const dob = new Date(learner.date_of_birth);
-      return dob.getMonth() + 1 === today.getMonth() + 1 && dob.getDate() === today.getDate();
+      return (
+        dob.getMonth() + 1 === today.getMonth() + 1 &&
+        dob.getDate() === today.getDate()
+      );
     }).length;
 
     const flaggedIncidentsToday = summaries.filter((item) => {
@@ -514,6 +538,46 @@ export default function PrincipalDashboardPage() {
       </div>
 
       <div
+        style={{
+          background: "#FFFFFF",
+          border: "1px solid #F0E3D8",
+          borderRadius: "24px",
+          padding: "18px",
+          marginBottom: "20px",
+          boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            color: "#6D6888",
+            fontSize: "13px",
+            fontWeight: 700,
+          }}
+        >
+          DBE / Registration Information
+        </p>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: "12px",
+            marginTop: "12px",
+          }}
+        >
+          <InfoTile label="EMIS Number" value={school.emis_number || "Not added"} />
+          <InfoTile label="Province" value={school.province || "Not added"} />
+          <InfoTile label="District" value={school.district || "Not added"} />
+          <InfoTile label="Centre Type" value={school.centre_type || "Not added"} />
+          <InfoTile
+            label="Registration Status"
+            value={school.registration_status || "Not added"}
+          />
+        </div>
+      </div>
+
+      <div
         id="today-activities"
         style={{
           display: "grid",
@@ -535,7 +599,9 @@ export default function PrincipalDashboardPage() {
             {todayEvents.length > 0 ? (
               todayEvents.slice(0, 2).map((event) => (
                 <div key={`today-${event.id}`} style={compactMiniCard}>
-                  <strong style={compactMiniTitle}>{event.title || "Untitled event"}</strong>
+                  <strong style={compactMiniTitle}>
+                    {event.title || "Untitled event"}
+                  </strong>
                 </div>
               ))
             ) : (
@@ -547,7 +613,9 @@ export default function PrincipalDashboardPage() {
                 <p style={compactSectionLabel}>Upcoming Events</p>
                 {upcomingEvents.map((event) => (
                   <div key={`upcoming-${event.id}`} style={compactMiniCard}>
-                    <strong style={compactMiniTitle}>{event.title || "Untitled event"}</strong>
+                    <strong style={compactMiniTitle}>
+                      {event.title || "Untitled event"}
+                    </strong>
                     <p style={compactMiniMeta}>{event.event_date || "No date"}</p>
                   </div>
                 ))}
@@ -568,7 +636,9 @@ export default function PrincipalDashboardPage() {
             {birthdaysToday.length > 0 ? (
               birthdaysToday.slice(0, 2).map((learner) => (
                 <div key={`today-birthday-${learner.id}`} style={compactMiniCard}>
-                  <strong style={compactMiniTitle}>{learner.name || "Unnamed learner"}</strong>
+                  <strong style={compactMiniTitle}>
+                    {learner.name || "Unnamed learner"}
+                  </strong>
                 </div>
               ))
             ) : (
@@ -580,7 +650,9 @@ export default function PrincipalDashboardPage() {
                 <p style={compactSectionLabel}>Upcoming Birthdays</p>
                 {upcomingBirthdays.map((learner) => (
                   <div key={`upcoming-birthday-${learner.id}`} style={compactMiniCard}>
-                    <strong style={compactMiniTitle}>{learner.name || "Unnamed learner"}</strong>
+                    <strong style={compactMiniTitle}>
+                      {learner.name || "Unnamed learner"}
+                    </strong>
                     <p style={compactMiniMeta}>{learner.nextBirthdayLabel}</p>
                   </div>
                 ))}
@@ -601,9 +673,12 @@ export default function PrincipalDashboardPage() {
             {todayActivities.length > 0 ? (
               todayActivities.map((activity) => (
                 <div key={activity.id} style={compactMiniCard}>
-                  <strong style={compactMiniTitle}>{activity.subject || "No subject"}</strong>
+                  <strong style={compactMiniTitle}>
+                    {activity.subject || "No subject"}
+                  </strong>
                   <p style={compactMiniText}>
-                    {activity.classroom || "No class"}: {activity.activity_note || "No activity note"}
+                    {activity.classroom || "No class"}:{" "}
+                    {activity.activity_note || "No activity note"}
                   </p>
                 </div>
               ))
@@ -634,6 +709,7 @@ export default function PrincipalDashboardPage() {
             background="#EAF7FD"
             border="#CBEAF7"
           />
+
           <OverviewCard
             label="Absent Today"
             value={consolidated.absentToday}
@@ -641,6 +717,7 @@ export default function PrincipalDashboardPage() {
             background="#F8E8F0"
             border="#EBC9D8"
           />
+
           <OverviewCard
             label="Summaries Today"
             value={consolidated.summariesToday}
@@ -648,6 +725,7 @@ export default function PrincipalDashboardPage() {
             background="#EEF9EE"
             border="#D3EDD4"
           />
+
           <OverviewCard
             label="Payments This Month"
             value={consolidated.paymentsThisMonth}
@@ -655,6 +733,7 @@ export default function PrincipalDashboardPage() {
             background="#EEF9EE"
             border="#D3EDD4"
           />
+
           <OverviewCard
             label="Unpaid This Month"
             value={consolidated.unpaidThisMonth}
@@ -662,6 +741,7 @@ export default function PrincipalDashboardPage() {
             background="#EAF7FD"
             border="#CBEAF7"
           />
+
           <OverviewCard
             label="Health & Safety Flags"
             value={consolidated.flaggedIncidentsToday}
@@ -692,6 +772,7 @@ export default function PrincipalDashboardPage() {
             background="#EAF7FD"
             border="#CBEAF7"
           />
+
           <StatLinkCard
             label="Teachers"
             value={stats.teachers}
@@ -699,6 +780,7 @@ export default function PrincipalDashboardPage() {
             background="#EEF9EE"
             border="#D3EDD4"
           />
+
           <StatLinkCard
             label="Classrooms"
             value={stats.classrooms}
@@ -706,6 +788,7 @@ export default function PrincipalDashboardPage() {
             background="#F8E8F0"
             border="#EBC9D8"
           />
+
           <StatLinkCard
             label="Events"
             value={stats.events}
@@ -713,6 +796,7 @@ export default function PrincipalDashboardPage() {
             background="#FFF7D9"
             border="#F3E4A3"
           />
+
           <StatLinkCard
             label="Summaries"
             value={stats.summaries}
@@ -720,6 +804,7 @@ export default function PrincipalDashboardPage() {
             background="#EAF7FD"
             border="#CBEAF7"
           />
+
           <StatLinkCard
             label="Payments"
             value={stats.payments}
@@ -922,6 +1007,42 @@ function CollapsibleSection({
   );
 }
 
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        background: "#FFFDFB",
+        border: "1px solid #F0E3D8",
+        borderRadius: "18px",
+        padding: "14px",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          color: "#6D6888",
+          fontSize: "12px",
+          fontWeight: 700,
+        }}
+      >
+        {label}
+      </p>
+
+      <p
+        style={{
+          margin: "6px 0 0 0",
+          color: "#2D2A3E",
+          fontSize: "15px",
+          fontWeight: 700,
+          lineHeight: 1.4,
+        }}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
 function QuickActionCard({
   title,
   description,
@@ -1024,6 +1145,7 @@ function OverviewCard({
       >
         {label}
       </p>
+
       <h2
         style={{
           margin: "8px 0 0 0",
@@ -1034,6 +1156,7 @@ function OverviewCard({
       >
         {value}
       </h2>
+
       <p
         style={{
           margin: "8px 0 0 0",
@@ -1089,6 +1212,7 @@ function StatLinkCard({
         >
           {label}
         </p>
+
         <h2
           style={{
             margin: "8px 0 0 0",
@@ -1099,6 +1223,7 @@ function StatLinkCard({
         >
           {value}
         </h2>
+
         <p
           style={{
             margin: "8px 0 0 0",
@@ -1170,6 +1295,7 @@ function CompactHighlightCard({
           >
             {title}
           </h3>
+
           <p
             style={{
               margin: "4px 0 0 0",

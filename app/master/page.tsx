@@ -16,6 +16,11 @@ type SchoolItem = {
   deleted_at?: string | null;
   package_name?: string | null;
   wageflow_enabled?: boolean | null;
+  emis_number?: string | null;
+  province?: string | null;
+  district?: string | null;
+  centre_type?: string | null;
+  registration_status?: string | null;
 };
 
 type PrincipalItem = {
@@ -43,6 +48,97 @@ type MasterStats = {
   pendingSignupRequests: number;
 };
 
+const provinces = [
+  "Eastern Cape",
+  "Free State",
+  "Gauteng",
+  "KwaZulu-Natal",
+  "Limpopo",
+  "Mpumalanga",
+  "North West",
+  "Northern Cape",
+  "Western Cape",
+];
+
+const districtsByProvince: Record<string, string[]> = {
+  "Eastern Cape": [
+    "Alfred Nzo",
+    "Amathole",
+    "Buffalo City",
+    "Chris Hani",
+    "Joe Gqabi",
+    "Nelson Mandela Bay",
+    "OR Tambo",
+    "Sarah Baartman",
+  ],
+  "Free State": [
+    "Fezile Dabi",
+    "Lejweleputswa",
+    "Mangaung",
+    "Thabo Mofutsanyana",
+    "Xhariep",
+  ],
+  Gauteng: [
+    "City of Johannesburg",
+    "City of Tshwane",
+    "Ekurhuleni",
+    "Sedibeng",
+    "West Rand",
+  ],
+  "KwaZulu-Natal": [
+    "Amajuba",
+    "eThekwini",
+    "Harry Gwala",
+    "iLembe",
+    "King Cetshwayo",
+    "Ugu",
+    "uMgungundlovu",
+    "uMkhanyakude",
+    "uMzinyathi",
+    "uThukela",
+    "Zululand",
+  ],
+  Limpopo: ["Capricorn", "Mopani", "Sekhukhune", "Vhembe", "Waterberg"],
+  Mpumalanga: ["Ehlanzeni", "Gert Sibande", "Nkangala"],
+  "North West": [
+    "Bojanala Platinum",
+    "Dr Kenneth Kaunda",
+    "Dr Ruth Segomotsi Mompati",
+    "Ngaka Modiri Molema",
+  ],
+  "Northern Cape": [
+    "Frances Baard",
+    "John Taolo Gaetsewe",
+    "Namakwa",
+    "Pixley ka Seme",
+    "ZF Mgcawu",
+  ],
+  "Western Cape": [
+    "Cape Town",
+    "Cape Winelands",
+    "Central Karoo",
+    "Garden Route",
+    "Overberg",
+    "West Coast",
+  ],
+};
+
+const centreTypes = [
+  "Independent ECD Centre",
+  "Community-Based Centre",
+  "School-Based ECD Centre",
+  "Home-Based ECD",
+  "Partial Care Facility",
+  "Grade R Centre",
+];
+
+const registrationStatuses = [
+  "Registered",
+  "Conditionally Registered",
+  "Registration In Progress",
+  "Unregistered",
+];
+
 export default function MasterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -57,6 +153,11 @@ export default function MasterPage() {
   const [logoUrl, setLogoUrl] = useState("");
   const [packageName, setPackageName] = useState("Bloom");
   const [wageflowEnabled, setWageflowEnabled] = useState(false);
+  const [emisNumber, setEmisNumber] = useState("");
+  const [province, setProvince] = useState("");
+  const [district, setDistrict] = useState("");
+  const [centreType, setCentreType] = useState("");
+  const [registrationStatus, setRegistrationStatus] = useState("");
 
   const [principalFullName, setPrincipalFullName] = useState("");
   const [principalEmail, setPrincipalEmail] = useState("");
@@ -107,7 +208,7 @@ export default function MasterPage() {
     const { data, error } = await supabase
       .from("schools")
       .select(
-        "id, school_name, primary_color, secondary_color, logo_url, status, deleted_at, package_name, wageflow_enabled"
+        "id, school_name, primary_color, secondary_color, logo_url, status, deleted_at, package_name, wageflow_enabled, emis_number, province, district, centre_type, registration_status"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -195,6 +296,11 @@ export default function MasterPage() {
         primary_color: primaryColor || "#7CCCF3",
         secondary_color: secondaryColor || "#FFD76A",
         logo_url: logoUrl.trim() || null,
+        emis_number: emisNumber.trim() || null,
+        province: province || null,
+        district: district || null,
+        centre_type: centreType || null,
+        registration_status: registrationStatus || null,
         status: "active",
         package_name: packageName,
         wageflow_enabled:
@@ -214,15 +320,18 @@ export default function MasterPage() {
     setLogoUrl("");
     setPackageName("Bloom");
     setWageflowEnabled(false);
+    setEmisNumber("");
+    setProvince("");
+    setDistrict("");
+    setCentreType("");
+    setRegistrationStatus("");
 
     await fetchSchools();
     setSavingSchool(false);
     alert("School created successfully.");
   }
 
- async function handleLogoUpload(
-    e: React.ChangeEvent<HTMLInputElement>
-  ) {
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
 
     if (!file) return;
@@ -652,6 +761,11 @@ export default function MasterPage() {
                       if (!school.logo_url) missingItems.push("logo");
                       if (!school.primary_color) missingItems.push("primary colour");
                       if (!school.secondary_color) missingItems.push("secondary colour");
+                      if (!school.emis_number) missingItems.push("EMIS number");
+                      if (!school.province) missingItems.push("province");
+                      if (!school.district) missingItems.push("district");
+                      if (!school.centre_type) missingItems.push("centre type");
+                      if (!school.registration_status) missingItems.push("registration status");
                       if (!hasApprovedPrincipal) missingItems.push("approved principal");
 
                       const schoolStatus = String(school.status || "active").toLowerCase();
@@ -665,6 +779,23 @@ export default function MasterPage() {
 
                             <p style={helperText}>
                               Package: {school.package_name || "Bloom"}
+                            </p>
+
+                            <p style={helperText}>
+                              EMIS: {school.emis_number || "Not added"}
+                            </p>
+
+                            <p style={helperText}>
+                              Province / District: {school.province || "Not added"}{" "}
+                              {school.district ? `- ${school.district}` : ""}
+                            </p>
+
+                            <p style={helperText}>
+                              Centre Type: {school.centre_type || "Not added"}
+                            </p>
+
+                            <p style={helperText}>
+                              Registration: {school.registration_status || "Not added"}
                             </p>
 
                             <p style={helperText}>
@@ -921,6 +1052,23 @@ export default function MasterPage() {
                   </p>
 
                   <p style={helperText}>
+                    EMIS: {school.emis_number || "Not added"}
+                  </p>
+
+                  <p style={helperText}>
+                    Province / District: {school.province || "Not added"}{" "}
+                    {school.district ? `- ${school.district}` : ""}
+                  </p>
+
+                  <p style={helperText}>
+                    Centre Type: {school.centre_type || "Not added"}
+                  </p>
+
+                  <p style={helperText}>
+                    Registration: {school.registration_status || "Not added"}
+                  </p>
+
+                  <p style={helperText}>
                     WageFlow:{" "}
                     {school.package_name === "Bloom Elite" ||
                     school.wageflow_enabled
@@ -963,6 +1111,72 @@ export default function MasterPage() {
 
           <input
             className="db-input"
+            placeholder="EMIS Number"
+            value={emisNumber}
+            onChange={(e) => setEmisNumber(e.target.value)}
+          />
+
+          <select
+            className="db-input"
+            value={province}
+            onChange={(e) => {
+              const selectedProvince = e.target.value;
+              setProvince(selectedProvince);
+              setDistrict("");
+            }}
+          >
+            <option value="">Select Province</option>
+            {provinces.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="db-input"
+            value={district}
+            onChange={(e) => setDistrict(e.target.value)}
+            disabled={!province}
+          >
+            <option value="">
+              {province ? "Select District" : "Select Province First"}
+            </option>
+            {(districtsByProvince[province] || []).map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="db-input"
+            value={centreType}
+            onChange={(e) => setCentreType(e.target.value)}
+          >
+            <option value="">Select Centre Type</option>
+            {centreTypes.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="db-input"
+            value={registrationStatus}
+            onChange={(e) => setRegistrationStatus(e.target.value)}
+          >
+            <option value="">Select Registration Status</option>
+            {registrationStatuses.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+
+          <input
+            className="db-input"
             placeholder="Primary Colour"
             value={primaryColor}
             onChange={(e) => setPrimaryColor(e.target.value)}
@@ -976,44 +1190,44 @@ export default function MasterPage() {
           />
 
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-  <label
-    style={{
-      fontSize: 14,
-      fontWeight: 500,
-      color: "#5B5675",
-    }}
-  >
-    School Logo
-  </label>
+            <label
+              style={{
+                fontSize: 14,
+                fontWeight: 500,
+                color: "#5B5675",
+              }}
+            >
+              School Logo
+            </label>
 
-  <input
-    type="file"
-    accept="image/*"
-    className="db-input"
-    onChange={handleLogoUpload}
-    style={{
-      paddingTop: 12,
-      paddingBottom: 12,
-      background: "#fff",
-      cursor: "pointer",
-    }}
-  />
+            <input
+              type="file"
+              accept="image/*"
+              className="db-input"
+              onChange={handleLogoUpload}
+              style={{
+                paddingTop: 12,
+                paddingBottom: 12,
+                background: "#fff",
+                cursor: "pointer",
+              }}
+            />
 
-  {logoUrl && (
-    <img
-      src={logoUrl}
-      alt="School Logo Preview"
-      style={{
-        width: 80,
-        height: 80,
-        objectFit: "cover",
-        borderRadius: 12,
-        border: "1px solid #E5E7EB",
-        marginTop: 6,
-      }}
-    />
-  )}
-</div>
+            {logoUrl && (
+              <img
+                src={logoUrl}
+                alt="School Logo Preview"
+                style={{
+                  width: 80,
+                  height: 80,
+                  objectFit: "cover",
+                  borderRadius: 12,
+                  border: "1px solid #E5E7EB",
+                  marginTop: 6,
+                }}
+              />
+            )}
+          </div>
 
           <select
             className="db-input"
@@ -1120,7 +1334,6 @@ function StatLinkCard({
   background: string;
   border: string;
 }) {
-
   return (
     <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
       <div

@@ -1221,7 +1221,12 @@ export default function ProgressReportsPage() {
                   (item) => item.category === category.key
                 );
 
-                if (!assessment) return null;
+                const displayLevel = assessment?.level || "not_assessed";
+
+                const displayComment =
+                assessment?.comment ||
+                assessment?.teacher_comment ||
+                "No observation recorded for this domain yet.";
 
                 return (
                   <div key={category.key} className="db-list-card">
@@ -1246,7 +1251,7 @@ export default function ProgressReportsPage() {
 
                     <p>
                       <strong>Development Level:</strong>{" "}
-                      {formatReportLevel(assessment.level)}
+                      {assessment ? formatReportLevel(displayLevel) : "Not Assessed"}
                     </p>
                   </div>
                 );

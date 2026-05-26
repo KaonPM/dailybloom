@@ -1,15 +1,29 @@
 import "./globals.css";
 import AppChrome from "./components/AppChrome";
+import RegisterServiceWorker from "./components/RegisterServiceWorker";
 import { Suspense } from "react";
 
 export const metadata = {
   title: "DailyBloom",
   description: "Preschool Management App",
+  manifest: "/manifest.json",
+  themeColor: "#6B4EFF",
+
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "DailyBloom",
+  },
+
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
+  },
 
   openGraph: {
     title: "DailyBloom",
     description:
-      "Preschool management platform for schools, teachers, and parents.",
+      "Preschool management platform for schools, teachers and parents.",
     url: "https://dailybloom.co.za",
     siteName: "DailyBloom",
     images: [
@@ -28,7 +42,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "DailyBloom",
     description:
-      "Preschool management platform for schools, teachers, and parents.",
+      "Preschool management platform for schools, teachers and parents.",
     images: ["https://dailybloom.co.za/thumbnail.png"],
   },
 };
@@ -46,7 +60,11 @@ export default function RootLayout({
           background: "#FFF8F2",
         }}
       >
-        <Suspense fallback={<div style={{ padding: "24px" }}>Loading...</div>}>
+        <RegisterServiceWorker />
+
+        <Suspense
+          fallback={<div style={{ padding: "24px" }}>Loading...</div>}
+        >
           <AppChrome>{children}</AppChrome>
         </Suspense>
       </body>

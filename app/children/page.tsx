@@ -230,6 +230,72 @@ export default function LearnersPage() {
     setSelectedLearner(null);
   }
 
+  function parseSAIDNumber(idNumber: string) {
+    if (idNumber.length !== 13) {
+      return {
+        dateOfBirth: "",
+        gender: "",
+        nationality: "",
+      };
+    }
+
+    const year = idNumber.substring(0, 2);
+    const month = idNumber.substring(2, 4);
+    const day = idNumber.substring(4, 6);
+
+    const currentYear = Number(new Date().getFullYear().toString().slice(2));
+    const fullYear = Number(year) <= currentYear ? `20${year}` : `19${year}`;
+
+    const parsedDate = `${fullYear}-${month}-${day}`;
+    const dateCheck = new Date(parsedDate);
+
+    const isValidDate =
+      dateCheck instanceof Date &&
+      !Number.isNaN(dateCheck.getTime()) &&
+      dateCheck.getFullYear() === Number(fullYear) &&
+      dateCheck.getMonth() + 1 === Number(month) &&
+      dateCheck.getDate() === Number(day);
+
+    const genderDigits = Number(idNumber.substring(6, 10));
+    const parsedGender = genderDigits >= 5000 ? "Male" : "Female";
+
+    const citizenshipDigit = idNumber.substring(10, 11);
+    const parsedNationality =
+      citizenshipDigit === "0"
+        ? "South African"
+        : citizenshipDigit === "1"
+        ? "Permanent resident"
+        : "";
+
+    return {
+      dateOfBirth: isValidDate ? parsedDate : "",
+      gender: parsedGender,
+      nationality: parsedNationality,
+    };
+  }
+
+  function handleSAIDNumberChange(value: string) {
+    const cleanedValue = value.replace(/\D/g, "").slice(0, 13);
+
+    setSaIdNumber(cleanedValue);
+
+    if (cleanedValue.length === 13) {
+      const parsed = parseSAIDNumber(cleanedValue);
+
+      if (parsed.dateOfBirth) {
+        setDateOfBirth(parsed.dateOfBirth);
+      }
+
+      if (parsed.gender) {
+        setGender(parsed.gender);
+      }
+
+      if (parsed.nationality) {
+        setNationality(parsed.nationality);
+      }
+    }
+  }
+
   function calculateAge(dateValue: string) {
     const today = new Date();
     const birthDate = new Date(dateValue);
@@ -479,7 +545,7 @@ export default function LearnersPage() {
                 className="db-input"
                 placeholder="If available"
                 value={saIdNumber}
-                onChange={(e) => setSaIdNumber(e.target.value)}
+                onChange={(e) => handleSAIDNumberChange(e.target.value)}
               />
             </div>
           </div>
@@ -519,7 +585,7 @@ export default function LearnersPage() {
                 <option value="Setswana">Setswana</option>
                 <option value="SiSwati">SiSwati</option>
                 <option value="Tshivenda">Tshivenda</option>
-                <option value="Xitsonga">Xitsonga</option>
+                <option value="itsonga">itsonga</option>
                 <option value="Other">Other</option>
               </select>
             </div>

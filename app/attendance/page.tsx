@@ -21,6 +21,7 @@ type AttendanceRow = {
   school_id?: number;
   learner_name?: string;
   status?: string;
+  absence_reason?: string | null;
   attendance_date?: string;
   created_at?: string;
 };
@@ -37,6 +38,7 @@ export default function AttendancePage() {
   const [openClassroom, setOpenClassroom] = useState("");
 
   const [attendance, setAttendance] = useState<Record<string, string>>({});
+  const [absenceReasons, setAbsenceReasons] = useState<Record<string, string>>({});
 
   const [selectedLearnerName, setSelectedLearnerName] = useState("");
   const [learnerHistoryRows, setLearnerHistoryRows] = useState<AttendanceRow[]>([]);
@@ -136,14 +138,17 @@ export default function AttendancePage() {
     }
 
     const map: Record<string, string> = {};
+    const reasonMap: Record<string, string> = {};
 
     (data || []).forEach((row: AttendanceRow) => {
       if (row.learner_name && row.status) {
         map[row.learner_name] = row.status;
+        reasonMap[row.learner_name] = row.absence_reason || "";
       }
     });
 
     setAttendance(map);
+    setAbsenceReasons(reasonMap);
   }
 
   function getLearnersForClassroom(classroomName: string) {
@@ -191,6 +196,20 @@ export default function AttendancePage() {
       ...prev,
       [name]: prev[name] === status ? "" : status,
     }));
+
+    if (status === "present") {
+      setAbsenceReasons((prev) => ({
+        ...prev,
+        [name]: "",
+      }));
+    }
+  }
+
+  function updateAbsenceReason(name: string, reason: string) {
+    setAbsenceReasons((prev) => ({
+      ...prev,
+      [name]: reason,
+    }));
   }
 
   function markAllForClassroom(classroomName: string, status: "present" | "absent") {
@@ -205,6 +224,18 @@ export default function AttendancePage() {
 
       return updated;
     });
+
+    if (status === "present") {
+      setAbsenceReasons((prev) => {
+        const updated = { ...prev };
+
+        learners.forEach((learner) => {
+          updated[learner.name] = "";
+        });
+
+        return updated;
+      });
+    }
   }
 
   function clearClassroom(classroomName: string) {
@@ -219,28 +250,41 @@ export default function AttendancePage() {
 
       return updated;
     });
+
+    setAbsenceReasons((prev) => {
+      const updated = { ...prev };
+
+      learners.forEach((learner) => {
+        updated[learner.name] = "";
+      });
+
+      return updated;
+    });
   }
+
   function markAllVisible(status: "present" | "absent") {
+    setAttendance((prev) => {
+      const updated = { ...prev };
 
-  setAttendance((prev) => {
+      visibleLearners.forEach((learner) => {
+        updated[learner.name] = status;
+      });
 
-    const updated = { ...prev };
-
-
-
-    visibleLearners.forEach((learner) => {
-
-      updated[learner.name] = status;
-
+      return updated;
     });
 
+    if (status === "present") {
+      setAbsenceReasons((prev) => {
+        const updated = { ...prev };
 
+        visibleLearners.forEach((learner) => {
+          updated[learner.name] = "";
+        });
 
-    return updated;
-
-  });
-
-}
+        return updated;
+      });
+    }
+  }
 
   async function saveAttendance(learnersToSave = visibleLearners) {
     if (!schoolId) return;
@@ -251,6 +295,10 @@ export default function AttendancePage() {
         school_id: schoolId,
         learner_name: learner.name,
         status: attendance[learner.name],
+        absence_reason:
+          attendance[learner.name] === "absent"
+            ? absenceReasons[learner.name] || ""
+            : "",
         attendance_date: today,
       }));
 
@@ -346,7 +394,7 @@ export default function AttendancePage() {
       return;
     }
 
-    const headers = ["learner_name", "status", "attendance_date"];
+    const headers = ["learner_name", "status", "absence_reason", "attendance_date"];
 
     const csvRows = [
       headers.join(","),
@@ -505,7 +553,9 @@ export default function AttendancePage() {
                         <AttendanceList
                           learners={item.learners}
                           attendance={attendance}
+                          absenceReasons={absenceReasons}
                           mark={mark}
+                          updateAbsenceReason={updateAbsenceReason}
                           viewLearnerHistory={viewLearnerHistory}
                         />
 
@@ -527,74 +577,42 @@ export default function AttendancePage() {
           )}
         </div>
       ) : (
+        <div className="db-card db-card-lavender" style={{ padding: 16 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              marginBottom: 10,
+            }}
+          >
+            <button
+              type="button"
+              className="db-button-secondary"
+              onClick={() => markAllVisible("present")}
+            >
+              Select All Present
+            </button>
 
-  <div className="db-card db-card-lavender" style={{ padding: 16 }}>
+            <button
+              type="button"
+              className="db-button-secondary"
+              onClick={() => markAllVisible("absent")}
+            >
+              Select All Absent
+            </button>
+          </div>
 
-    <div
+          <AttendanceList
+            learners={visibleLearners}
+            attendance={attendance}
+            absenceReasons={absenceReasons}
+            mark={mark}
+            updateAbsenceReason={updateAbsenceReason}
+            viewLearnerHistory={viewLearnerHistory}
+          />
 
-      style={{
-
-        display: "flex",
-
-        gap: 10,
-
-        flexWrap: "wrap",
-
-        marginBottom: 10,
-
-      }}
-
-    >
-
-      <button
-
-        type="button"
-
-        className="db-button-secondary"
-
-        onClick={() => markAllVisible("present")}
-
-      >
-
-        Select All Present
-
-      </button>
-
-
-
-      <button
-
-        type="button"
-
-        className="db-button-secondary"
-
-        onClick={() => markAllVisible("absent")}
-
-      >
-
-        Select All Absent
-
-      </button>
-
-    </div>
-
-
-
-    <AttendanceList
-
-      learners={visibleLearners}
-
-      attendance={attendance}
-
-      mark={mark}
-
-      viewLearnerHistory={viewLearnerHistory}
-
-    />
-
-
-
-    <button
+          <button
             type="button"
             onClick={() => saveAttendance(visibleLearners)}
             disabled={saving}
@@ -672,7 +690,10 @@ export default function AttendancePage() {
               {learnerHistoryRows.map((row) => (
                 <div key={row.id} style={recordRow}>
                   <strong>{row.attendance_date}</strong>
-                  <span>{row.status}</span>
+                  <span>
+                    {row.status}
+                    {row.absence_reason ? ` - ${row.absence_reason}` : ""}
+                  </span>
                 </div>
               ))}
             </div>
@@ -732,6 +753,7 @@ export default function AttendancePage() {
                 <strong>{row.learner_name}</strong>
                 <span>
                   {row.attendance_date} - {row.status}
+                  {row.absence_reason ? ` - ${row.absence_reason}` : ""}
                 </span>
               </div>
             ))}
@@ -745,12 +767,16 @@ export default function AttendancePage() {
 function AttendanceList({
   learners,
   attendance,
+  absenceReasons,
   mark,
+  updateAbsenceReason,
   viewLearnerHistory,
 }: {
   learners: Learner[];
   attendance: Record<string, string>;
+  absenceReasons: Record<string, string>;
   mark: (name: string, status: "present" | "absent") => void;
+  updateAbsenceReason: (name: string, reason: string) => void;
   viewLearnerHistory: (name: string) => void;
 }) {
   return (
@@ -822,6 +848,24 @@ function AttendanceList({
             >
               View
             </button>
+
+            {attendance[learner.name] === "absent" ? (
+              <div style={{ gridColumn: "1 / -1", marginTop: 6 }}>
+                <select
+                  className="db-input"
+                  value={absenceReasons[learner.name] || ""}
+                  onChange={(e) => updateAbsenceReason(learner.name, e.target.value)}
+                >
+                  <option value="">Select absence reason</option>
+                  <option value="Sick">Sick</option>
+                  <option value="Family responsibility">Family responsibility</option>
+                  <option value="Transport issue">Transport issue</option>
+                  <option value="Weather">Weather</option>
+                  <option value="No reason provided">No reason provided</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            ) : null}
           </div>
         ))
       )}

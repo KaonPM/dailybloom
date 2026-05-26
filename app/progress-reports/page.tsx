@@ -1175,6 +1175,19 @@ export default function ProgressReportsPage() {
                   <h1 style={{ margin: 0 }}>
                     {school?.school_name || "School Name"}
                   </h1>
+                  <p style={textStyle}>
+                  <strong>EMIS / NPO Number:</strong>{" "}
+                  {school?.emis_number || "Not added"}
+                </p>
+
+                <p style={textStyle}>
+                <strong>Province:</strong> {school?.province || "Not added"}
+                </p>
+
+                <p style={textStyle}>
+                <strong>District:</strong> {school?.district || "Not added"}
+                </p>
+
                   <p style={textStyle}>NCF Learner Progress Report</p>
                   <p style={textStyle}>
                     {selectedPeriod?.title || "Report Period"}

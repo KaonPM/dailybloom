@@ -213,7 +213,7 @@ export default function ProgressReportsPage() {
 
   async function createReportPeriod() {
     if (!schoolId || !newPeriodTitle.trim()) {
-      alert("Please enter an NCF progress report period title.");
+      alert("Please enter a developmental progress report period title.");
       return;
     }
 
@@ -236,7 +236,7 @@ export default function ProgressReportsPage() {
     setShowCreateModal(false);
     await fetchPeriods(schoolId);
 
-    alert("NCF progress report period created.");
+    alert("Developmental progress report period created.");
   }
 
   function getClassroomName(classroomId: any) {
@@ -662,7 +662,7 @@ export default function ProgressReportsPage() {
     }
 
     setSaving(false);
-    alert("Official NCF progress report generated and locked.");
+    alert("Official developmental progress report generated and locked.");
   }
 
   async function downloadPDF() {
@@ -712,7 +712,7 @@ export default function ProgressReportsPage() {
       const learnerName =
         selectedLearner?.name?.replace(/\s+/g, "_") || "Learner";
 
-      pdf.save(`${learnerName}_NCF_Progress_Report.pdf`);
+      pdf.save(`${learnerName}_Developmental_Progress_Report.pdf`);
     } catch (error) {
       console.error(error);
       alert("Failed to generate PDF.");
@@ -732,6 +732,25 @@ export default function ProgressReportsPage() {
   const principalName =
     profile?.full_name || profile?.name || profile?.email || "Principal";
 
+    function calculateAge(dateOfBirth?: string) {
+  if (!dateOfBirth) return "Not added";
+
+  const birthDate = new Date(dateOfBirth);
+  const today = new Date();
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDifference = today.getMonth() - birthDate.getMonth();
+
+  if (
+    monthDifference < 0 ||
+    (monthDifference === 0 && today.getDate() < birthDate.getDate())
+  ) {
+    age--;
+  }
+
+  return `${age} years`;
+  }
+
   if (loading) return <p>Loading...</p>;
 
   return (
@@ -742,7 +761,7 @@ export default function ProgressReportsPage() {
           padding: "24px",
         }}
       >
-        <h1 className="db-page-title">NCF Progress Reports</h1>
+        <h1 className="db-page-title">Developmental Progress Reports</h1>
         <p className="db-page-subtitle">
           Review practitioner developmental observations and generate
           NCF-aligned learner progress reports for ECD and Grade R transition
@@ -756,7 +775,7 @@ export default function ProgressReportsPage() {
           className="db-button-primary"
           onClick={() => setShowCreateModal(true)}
         >
-          + Create NCF Progress Report Period
+          + Create Developmental Progress Report Period
         </button>
       </div>
 
@@ -764,12 +783,12 @@ export default function ProgressReportsPage() {
         <div style={modalOverlay} className="no-print">
           <div style={modalBox}>
             <h3 style={{ ...sectionTitle, marginBottom: "18px" }}>
-              New NCF Progress Report Period
+              New Developmental Progress Report Period
             </h3>
 
             <input
               className="db-input"
-              placeholder="Example: Term 1 NCF Progress Report 2026"
+              placeholder="Example: Term 1 Developmental Progress Report 2026"
               value={newPeriodTitle}
               onChange={(e) => setNewPeriodTitle(e.target.value)}
             />
@@ -806,7 +825,7 @@ export default function ProgressReportsPage() {
         style={{ padding: "20px", marginBottom: "24px" }}
       >
         <div onClick={() => setShowFilter(!showFilter)} style={collapsibleHeader}>
-          <h3 style={{ ...sectionTitle, margin: 0 }}>Filter NCF Reports</h3>
+          <h3 style={{ ...sectionTitle, margin: 0 }}>Filter Developmental Reports</h3>
           <span style={chevron}>{showFilter ? "−" : "+"}</span>
         </div>
 
@@ -995,7 +1014,7 @@ export default function ProgressReportsPage() {
           style={collapsibleHeader}
         >
           <h3 style={{ ...sectionTitle, margin: 0 }}>
-            Generated NCF Progress Reports
+            Generated Developmental Progress Reports
           </h3>
           <span style={chevron}>{showGeneratedReports ? "−" : "+"}</span>
         </div>
@@ -1004,7 +1023,7 @@ export default function ProgressReportsPage() {
           <>
             {visibleReports.length === 0 ? (
               <p className="db-helper" style={{ marginTop: "14px" }}>
-                No generated NCF progress reports yet.
+                No generated developmental progress reports yet.
               </p>
             ) : (
               <div style={{ display: "grid", gap: "10px", marginTop: "14px" }}>
@@ -1175,9 +1194,28 @@ export default function ProgressReportsPage() {
                   <h1 style={{ margin: 0 }}>
                     {school?.school_name || "School Name"}
                   </h1>
-                  <p style={textStyle}>
-                  <strong>EMIS / NPO Number:</strong>{" "}
-                  {school?.emis_number || "Not added"}
+                <p style={textStyle}>
+                <strong>EMIS / NPO / Registration Number:</strong>{" "}
+                {school?.emis_number ||
+                school?.npo_number ||
+                school?.registration_number ||
+                "Not added"}
+                </p>
+
+                <p style={textStyle}>
+                <strong>Address:</strong>{" "}
+                {school?.address ||
+                school?.school_address ||
+                school?.physical_address ||
+                "Not added"}
+                </p>
+
+                <p style={textStyle}>
+                <strong>Contact Number:</strong>{" "}
+                {school?.contact_number ||
+                school?.phone_number ||
+                school?.telephone ||
+                "Not added"}
                 </p>
 
                 <p style={textStyle}>
@@ -1188,7 +1226,7 @@ export default function ProgressReportsPage() {
                 <strong>District:</strong> {school?.district || "Not added"}
                 </p>
 
-                  <p style={textStyle}>NCF Learner Progress Report</p>
+                  <p style={textStyle}>Developmental Progress Report</p>
                   <p style={textStyle}>
                     {selectedPeriod?.title || "Report Period"}
                   </p>
@@ -1224,6 +1262,11 @@ export default function ProgressReportsPage() {
               </p>
 
               <p style={textStyle}>
+              <strong>Age:</strong>{" "}
+              {selectedLearner.age || calculateAge(selectedLearner.date_of_birth)}
+              </p>
+
+              <p style={textStyle}>
                 <strong>Principal:</strong> {principalName}
               </p>
             </div>
@@ -1246,6 +1289,16 @@ export default function ProgressReportsPage() {
                     <strong>{category.label}</strong>
                     <p style={textStyle}>({category.description})</p>
 
+                    {category.mappedAreas && (
+                <ul style={{ marginTop: "8px", paddingLeft: "20px" }}>
+                {category.mappedAreas.map((area: string) => (
+                <li key={area} style={textStyle}>
+                {area}
+                </li>
+                ))}
+                </ul>
+                )}
+
                     {!generatedReport && (
                       <select
                         className="db-input no-print"
@@ -1263,7 +1316,7 @@ export default function ProgressReportsPage() {
                     )}
 
                     <p>
-                      <strong>Development Level:</strong>{" "}
+                      <strong>Progress Level:</strong>{" "}
                       {assessment ? formatReportLevel(displayLevel) : "Not Assessed"}
                     </p>
                   </div>
@@ -1391,7 +1444,7 @@ export default function ProgressReportsPage() {
                     onClick={generateReport}
                     disabled={saving}
                   >
-                    Generate Official NCF Progress Report
+                    Generate Official Developmental Progress Report
                   </button>
                 </>
               )}
@@ -1407,7 +1460,7 @@ export default function ProgressReportsPage() {
               )}
 
               <button className="db-button-primary" onClick={downloadPDF}>
-                Download / Print NCF Report
+                Download / Print Developmental Report
               </button>
             </div>
           </div>

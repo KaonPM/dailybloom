@@ -1,38 +1,44 @@
 export const reportCategories = [
   {
-    key: "early_literacy",
-    label: "Early Literacy",
-    description: "Letter recognition, listening skills, vocabulary, story participation",
+    key: "wellbeing",
+    label: "Well-being",
+    description:
+      "Physical development, emotional well-being, self-care and healthy participation in daily activities",
   },
+
   {
-    key: "numeracy",
-    label: "Numeracy",
-    description: "Number recognition, counting, shapes, basic patterns",
+    key: "identity_belonging",
+    label: "Identity and Belonging",
+    description:
+      "Self-awareness, confidence, social identity, independence and sense of belonging",
   },
-  {
-    key: "motor_skills",
-    label: "Motor Skills",
-    description: "Pencil grip, cutting, coordination, physical movement",
-  },
-  {
-    key: "social_development",
-    label: "Social Development",
-    description: "Sharing, team participation, confidence, emotional expression",
-  },
+
   {
     key: "communication",
     label: "Communication",
-    description: "Speaking clearly, following instructions, participation",
+    description:
+      "Language, listening, speaking and early literacy foundations",
   },
-  {
-    key: "personal_development",
-    label: "Personal Development",
-    description: "Independence, hygiene habits, responsibility, classroom behavior",
-  },
+
   {
     key: "creativity",
     label: "Creativity",
-    description: "Drawing, music participation, imagination, art engagement",
+    description:
+      "Creative expression through art, music, movement and imaginative play",
+  },
+
+  {
+    key: "knowledge_world",
+    label: "Knowledge and Understanding of the World",
+    description:
+      "Awareness of the environment, community, nature and everyday experiences",
+  },
+
+  {
+    key: "mathematical_literacy",
+    label: "Mathematical Literacy Foundations",
+    description:
+      "Early numeracy, patterns, counting, sorting and problem-solving foundations",
   },
 ];
 
@@ -41,24 +47,31 @@ export const reportLevels = [
     value: "needs_support",
     label: "Needs Support",
   },
+
   {
-    value: "progressing",
-    label: "Progressing",
+    value: "emerging",
+    label: "Emerging",
   },
+
   {
-    value: "meeting_expectations",
-    label: "Meeting Expectations",
+    value: "developing",
+    label: "Developing",
   },
+
   {
-    value: "exceeding_expectations",
-    label: "Exceeding Expectations",
+    value: "achieved",
+    label: "Achieved",
   },
 ];
 
 export function formatReportLevel(value: string) {
-  return reportLevels.find((level) => level.value === value)?.label || value;
+  return (
+    reportLevels.find((level) => level.value === value)?.label || value
+  );
 }
 
 export function formatReportCategory(value: string) {
-  return reportCategories.find((category) => category.key === value)?.label || value;
+  return (
+    reportCategories.find((category) => category.key === value)?.label || value
+  );
 }

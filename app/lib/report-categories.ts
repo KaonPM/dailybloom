@@ -9,7 +9,10 @@ export const reportCategories = [
       { key: "gross_motor_abilities", label: "Gross motor abilities" },
       { key: "fine_motor_abilities", label: "Fine motor abilities" },
       { key: "movement_and_coordination", label: "Movement and coordination" },
-      { key: "self_care_and_independence", label: "Self-care and independence" },
+      {
+        key: "self_care_and_independence",
+        label: "Self-care and independence",
+      },
       {
         key: "healthy_participation_in_activities",
         label: "Healthy participation in activities",
@@ -32,10 +35,16 @@ export const reportCategories = [
       "Self-awareness, confidence, social identity, independence and sense of belonging",
 
     indicators: [
-      { key: "confidence_and_independence", label: "Confidence and independence" },
+      {
+        key: "confidence_and_independence",
+        label: "Confidence and independence",
+      },
       { key: "social_interaction", label: "Social interaction" },
       { key: "respect_for_others", label: "Respect for others" },
-      { key: "classroom_participation", label: "Classroom participation" },
+      {
+        key: "classroom_participation",
+        label: "Classroom participation",
+      },
       { key: "emotional_development", label: "Emotional development" },
     ],
 
@@ -56,9 +65,18 @@ export const reportCategories = [
 
     indicators: [
       { key: "listening_skills", label: "Listening skills" },
-      { key: "speaking_and_pronunciation", label: "Speaking and pronunciation" },
-      { key: "storytelling_and_discussion", label: "Storytelling and discussion" },
-      { key: "following_instructions", label: "Following instructions" },
+      {
+        key: "speaking_and_pronunciation",
+        label: "Speaking and pronunciation",
+      },
+      {
+        key: "storytelling_and_discussion",
+        label: "Storytelling and discussion",
+      },
+      {
+        key: "following_instructions",
+        label: "Following instructions",
+      },
       { key: "emergent_literacy", label: "Emergent literacy" },
     ],
 
@@ -82,7 +100,10 @@ export const reportCategories = [
       { key: "music_and_rhythm", label: "Music and rhythm" },
       { key: "creative_play", label: "Creative play" },
       { key: "art_expression", label: "Art expression" },
-      { key: "imaginative_participation", label: "Imaginative participation" },
+      {
+        key: "imaginative_participation",
+        label: "Imaginative participation",
+      },
     ],
 
     mappedAreas: [
@@ -102,10 +123,19 @@ export const reportCategories = [
 
     indicators: [
       { key: "shapes_and_colours", label: "Shapes and colours" },
-      { key: "patterns_and_sequencing", label: "Patterns and sequencing" },
+      {
+        key: "patterns_and_sequencing",
+        label: "Patterns and sequencing",
+      },
       { key: "observation_skills", label: "Observation skills" },
-      { key: "environmental_awareness", label: "Environmental awareness" },
-      { key: "perceptual_development", label: "Perceptual development" },
+      {
+        key: "environmental_awareness",
+        label: "Environmental awareness",
+      },
+      {
+        key: "perceptual_development",
+        label: "Perceptual development",
+      },
     ],
 
     mappedAreas: [
@@ -125,10 +155,22 @@ export const reportCategories = [
 
     indicators: [
       { key: "counting", label: "Counting" },
-      { key: "number_recognition", label: "Number recognition" },
-      { key: "sorting_and_matching", label: "Sorting and matching" },
-      { key: "patterns_and_sequencing", label: "Patterns and sequencing" },
-      { key: "early_problem_solving", label: "Early problem-solving" },
+      {
+        key: "number_recognition",
+        label: "Number recognition",
+      },
+      {
+        key: "sorting_and_matching",
+        label: "Sorting and matching",
+      },
+      {
+        key: "patterns_and_sequencing_math",
+        label: "Patterns and sequencing",
+      },
+      {
+        key: "early_problem_solving",
+        label: "Early problem-solving",
+      },
     ],
 
     mappedAreas: [
@@ -143,27 +185,27 @@ export const reportCategories = [
 
 export const reportLevels = [
   {
-    value: "needs_practice",
+    value: "NP",
     label: "NP - Needs Practice",
   },
 
   {
-    value: "partially_achieved",
+    value: "PA",
     label: "PA - Partially Achieved",
   },
 
   {
-    value: "achieved",
+    value: "A",
     label: "A - Achieved",
   },
 
   {
-    value: "good",
+    value: "G",
     label: "G - Good",
   },
 
   {
-    value: "very_good",
+    value: "VG",
     label: "VG - Very Good",
   },
 ];
@@ -175,6 +217,13 @@ export function formatReportLevel(value: string) {
 
   if (formatted) return formatted;
 
+  if (value === "needs_practice") return "NP - Needs Practice";
+  if (value === "partially_achieved")
+    return "PA - Partially Achieved";
+  if (value === "achieved") return "A - Achieved";
+  if (value === "good") return "G - Good";
+  if (value === "very_good") return "VG - Very Good";
+
   return value
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -182,17 +231,22 @@ export function formatReportLevel(value: string) {
 
 export function formatReportCategory(value: string) {
   return (
-    reportCategories.find((category) => category.key === value)?.label || value
+    reportCategories.find((category) => category.key === value)?.label ||
+    value
   );
 }
 
-export function formatReportIndicator(categoryKey: string, indicatorKey: string) {
+export function formatReportIndicator(
+  categoryKey: string,
+  indicatorKey: string
+) {
   const category = reportCategories.find(
     (item) => item.key === categoryKey
   );
 
   return (
-    category?.indicators.find((indicator) => indicator.key === indicatorKey)
-      ?.label || indicatorKey
+    category?.indicators.find(
+      (indicator) => indicator.key === indicatorKey
+    )?.label || indicatorKey
   );
 }

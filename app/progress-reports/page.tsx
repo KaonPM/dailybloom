@@ -3,10 +3,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
-import {
-  reportCategories,
-  formatReportLevel,
-} from "../lib/report-categories";
 import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -41,17 +37,14 @@ export default function ProgressReportsPage() {
   const [showFilter, setShowFilter] = useState(false);
   const [showAssessments, setShowAssessments] = useState(true);
   const [showGeneratedReports, setShowGeneratedReports] = useState(true);
-  const [expandedAssessmentKey, setExpandedAssessmentKey] = useState<
-    string | null
-  >(null);
-  const [expandedReportKey, setExpandedReportKey] = useState<string | null>(
-    null
-  );
+  const [expandedAssessmentKey, setExpandedAssessmentKey] = useState<string | null>(null);
+  const [expandedReportKey, setExpandedReportKey] = useState<string | null>(null);
 
   const [assessmentPage, setAssessmentPage] = useState(1);
   const [reportPage, setReportPage] = useState(1);
 
   const [teacherObservation, setTeacherObservation] = useState("");
+  const [pendingDownload, setPendingDownload] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,6 +54,19 @@ export default function ProgressReportsPage() {
   useEffect(() => {
     loadPage();
   }, []);
+
+  useEffect(() => {
+    if (!pendingDownload || !generatedReport || reviewAssessments.length === 0) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(async () => {
+      await downloadPDF();
+      setPendingDownload(false);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [pendingDownload, generatedReport, reviewAssessments.length]);
 
   async function loadPage() {
     const { profile, error } = await getCurrentProfile();
@@ -75,12 +81,24 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    if (!profile.school_id && profile.role !== "master") {
+    if (profile.role === "master" && !profile.school_id) {
+      router.push("/master?view=manage-schools");
+      return;
+    }
+
+    if (!profile.school_id) {
       alert("No school linked to this account.");
+      router.push("/dashboard");
       return;
     }
 
     const currentSchoolId = Number(profile.school_id);
+
+    if (!Number.isFinite(currentSchoolId) || currentSchoolId <= 0) {
+      alert("Invalid school linked to this account.");
+      router.push("/dashboard");
+      return;
+    }
 
     setProfile(profile);
     setSchoolId(currentSchoolId);
@@ -207,7 +225,7 @@ export default function ProgressReportsPage() {
     if (type === "quarterly") return "Term Report";
     if (type === "biannual") return "Semester Report";
     if (type === "annual") return "Annual Report";
-    return type;
+    return type || "Report";
   }
 
   async function createReportPeriod() {
@@ -254,6 +272,7 @@ export default function ProgressReportsPage() {
 
   function getTeacherName(teacherId: any) {
     const teacher = teachers.find((t) => String(t.id) === String(teacherId));
+
     return (
       teacher?.full_name ||
       teacher?.name ||
@@ -295,59 +314,17 @@ export default function ProgressReportsPage() {
   }, [allAssessments]);
 
   const filteredAssessments = groupedAssessments.filter((item) => {
-    if (
-      selectedClassroomId &&
-      String(item.classroom_id) !== String(selectedClassroomId)
-    ) {
-      return false;
-    }
-
-    if (
-      selectedTeacherId &&
-      String(item.teacher_id) !== String(selectedTeacherId)
-    ) {
-      return false;
-    }
-
-    if (
-      selectedLearnerId &&
-      String(item.learner_id) !== String(selectedLearnerId)
-    ) {
-      return false;
-    }
-
-    if (
-      selectedPeriodId &&
-      String(item.report_period_id) !== String(selectedPeriodId)
-    ) {
-      return false;
-    }
-
+    if (selectedClassroomId && String(item.classroom_id) !== String(selectedClassroomId)) return false;
+    if (selectedTeacherId && String(item.teacher_id) !== String(selectedTeacherId)) return false;
+    if (selectedLearnerId && String(item.learner_id) !== String(selectedLearnerId)) return false;
+    if (selectedPeriodId && String(item.report_period_id) !== String(selectedPeriodId)) return false;
     return true;
   });
 
   const filteredReports = generatedReports.filter((item) => {
-    if (
-      selectedClassroomId &&
-      String(item.classroom_id) !== String(selectedClassroomId)
-    ) {
-      return false;
-    }
-
-    if (
-      selectedLearnerId &&
-      String(item.learner_id) !== String(selectedLearnerId)
-    ) {
-      return false;
-    }
-
-    if (
-      selectedPeriodId &&
-      String(item.report_period_id) !== String(selectedPeriodId)
-    ) {
-      return false;
-    }
-
+    if (selectedClassroomId && String(item.classroom_id) !== String(selectedClassroomId)) return false;
+    if (selectedLearnerId && String(item.learner_id) !== String(selectedLearnerId)) return false;
+    if (selectedPeriodId && String(item.report_period_id) !== String(selectedPeriodId)) return false;
     return true;
   });
 
@@ -402,9 +379,11 @@ export default function ProgressReportsPage() {
     setGeneratedReport(reportData);
     setPrincipalComment(reportData?.principal_comment || "");
 
-    document
-      .querySelector(".report-print-area")
-      ?.scrollIntoView({ behavior: "smooth" });
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector(".report-print-area")
+        ?.scrollIntoView({ behavior: "smooth" });
+    });
   }
 
   async function openGeneratedReport(item: any) {
@@ -438,9 +417,11 @@ export default function ProgressReportsPage() {
       setSelectedTeacherId(String(data[0].teacher_id || ""));
     }
 
-    document
-      .querySelector(".report-print-area")
-      ?.scrollIntoView({ behavior: "smooth" });
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector(".report-print-area")
+        ?.scrollIntoView({ behavior: "smooth" });
+    });
   }
 
   async function savePrincipalReview() {
@@ -497,13 +478,19 @@ export default function ProgressReportsPage() {
     }
 
     for (const item of reviewAssessments) {
-      await supabase
+      const { error: assessmentError } = await supabase
         .from("learner_assessments")
         .update({
           teacher_comment: teacherObservation,
           updated_at: new Date().toISOString(),
         })
         .eq("id", item.id);
+
+      if (assessmentError) {
+        alert(assessmentError.message);
+        setSaving(false);
+        return;
+      }
     }
 
     if (schoolId) {
@@ -532,6 +519,19 @@ export default function ProgressReportsPage() {
 
     if (!confirmed) return;
 
+    try {
+      await supabase.from("report_deletion_logs").insert([
+        {
+          report_id: reportId,
+          deleted_by: profile?.id,
+          reason: reason.trim(),
+          deleted_at: new Date().toISOString(),
+        },
+      ]);
+    } catch (err) {
+      console.warn("Deletion log table missing or insert failed.");
+    }
+
     const { error } = await supabase
       .from("generated_reports")
       .delete()
@@ -540,19 +540,6 @@ export default function ProgressReportsPage() {
     if (error) {
       alert(error.message);
       return;
-    }
-
-    try {
-      await supabase.from("report_deletion_logs").insert([
-        {
-          report_id: reportId,
-          deleted_by: profile?.id,
-          reason,
-          deleted_at: new Date().toISOString(),
-        },
-      ]);
-    } catch (err) {
-      console.warn("Deletion log table missing or insert failed.");
     }
 
     if (schoolId) {
@@ -732,7 +719,7 @@ export default function ProgressReportsPage() {
     }
   }
 
-    const selectedClassroom = classrooms.find(
+  const selectedClassroom = classrooms.find(
     (c) => String(c.id) === String(selectedClassroomId)
   );
   const selectedLearner = learners.find(
@@ -743,23 +730,23 @@ export default function ProgressReportsPage() {
   );
   const teacherName = getTeacherName(selectedTeacherId);
 
-    function calculateAge(dateOfBirth?: string | null) {
-  if (!dateOfBirth) return "Not added";
+  function calculateAge(dateOfBirth?: string | null) {
+    if (!dateOfBirth) return "Not added";
 
-  const birthDate = new Date(dateOfBirth);
-  const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
 
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDifference = today.getMonth() - birthDate.getMonth();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDifference = today.getMonth() - birthDate.getMonth();
 
-  if (
-    monthDifference < 0 ||
-    (monthDifference === 0 && today.getDate() < birthDate.getDate())
-  ) {
-    age--;
-  }
+    if (
+      monthDifference < 0 ||
+      (monthDifference === 0 && today.getDate() < birthDate.getDate())
+    ) {
+      age--;
+    }
 
-  return `${age} ${age === 1 ? "year" : "years"}`;
+    return `${age} ${age === 1 ? "year" : "years"}`;
   }
 
   if (loading) return <p>Loading...</p>;
@@ -768,9 +755,7 @@ export default function ProgressReportsPage() {
     <div>
       <div
         className="db-card db-card-lavender no-print"
-        style={{
-          padding: "24px",
-        }}
+        style={{ padding: "24px" }}
       >
         <h1 className="db-page-title">Developmental Progress Reports</h1>
         <p className="db-page-subtitle">
@@ -778,7 +763,6 @@ export default function ProgressReportsPage() {
           NCF-aligned learner progress reports for ECD and Grade R transition
           readiness.
         </p>
-        <div style={{ position: "relative", zIndex: 1 }}></div>
       </div>
 
       <div className="no-print" style={{ marginBottom: "24px" }}>
@@ -836,8 +820,10 @@ export default function ProgressReportsPage() {
         style={{ padding: "20px", marginBottom: "24px" }}
       >
         <div onClick={() => setShowFilter(!showFilter)} style={collapsibleHeader}>
-          <h3 style={{ ...sectionTitle, margin: 0 }}>Filter Developmental Reports</h3>
-          <span style={chevron}>{showFilter ? "−" : "+"}</span>
+          <h3 style={{ ...sectionTitle, margin: 0 }}>
+            Filter Developmental Reports
+          </h3>
+          <span style={chevron}>{showFilter ? "-" : "+"}</span>
         </div>
 
         {showFilter && (
@@ -923,7 +909,7 @@ export default function ProgressReportsPage() {
           <h3 style={{ ...sectionTitle, margin: 0 }}>
             Practitioner Submitted Developmental Observations
           </h3>
-          <span style={chevron}>{showAssessments ? "−" : "+"}</span>
+          <span style={chevron}>{showAssessments ? "-" : "+"}</span>
         </div>
 
         {showAssessments && (
@@ -962,7 +948,7 @@ export default function ProgressReportsPage() {
                             fontSize: "18px",
                           }}
                         >
-                          {isExpanded ? "−" : "+"}
+                          {isExpanded ? "-" : "+"}
                         </span>
                       </div>
 
@@ -1027,7 +1013,7 @@ export default function ProgressReportsPage() {
           <h3 style={{ ...sectionTitle, margin: 0 }}>
             Generated Developmental Progress Reports
           </h3>
-          <span style={chevron}>{showGeneratedReports ? "−" : "+"}</span>
+          <span style={chevron}>{showGeneratedReports ? "-" : "+"}</span>
         </div>
 
         {showGeneratedReports && (
@@ -1066,7 +1052,7 @@ export default function ProgressReportsPage() {
                             fontSize: "18px",
                           }}
                         >
-                          {isExpanded ? "−" : "+"}
+                          {isExpanded ? "-" : "+"}
                         </span>
                       </div>
 
@@ -1111,8 +1097,8 @@ export default function ProgressReportsPage() {
                             <button
                               className="db-button-primary"
                               onClick={async () => {
+                                setPendingDownload(true);
                                 await openGeneratedReport(item);
-                                setTimeout(() => downloadPDF(), 300);
                               }}
                             >
                               Download / Print
@@ -1167,64 +1153,48 @@ export default function ProgressReportsPage() {
                   Knowledge and Understanding of the World
                 </h3>
                 <p style={bookletSmallText}>
-                  Mapped from perceptual skills, observation, shapes and
-                  patterns, visual perception and auditory perception.
+                  Mapped from awareness of the environment, community, nature,
+                  observation, shapes and everyday experiences.
                 </p>
 
                 <ReportSkillTable
-                  categoryKey="mathematical_literacy"
+                  categoryKey="knowledge_world"
                   reviewAssessments={reviewAssessments}
                 />
 
                 <h3 style={bookletSectionTitle}>Practitioner Remarks</h3>
 
-                {!generatedReport ? (
-                  <>
-                    <textarea
-                      className="db-input no-print compact-textarea"
-                      rows={3}
-                      placeholder="Type practitioner remarks for this learner"
-                      value={teacherObservation}
-                      onChange={(e) => setTeacherObservation(e.target.value)}
-                      style={{ width: "100%", boxSizing: "border-box" }}
-                    />
-                    <p className="print-only" style={remarksBox}>
-                      {teacherObservation || "No practitioner remarks added."}
-                    </p>
-                  </>
-                ) : (
-                  <p style={remarksBox}>
-                    {teacherObservation || "No practitioner remarks added."}
-                  </p>
-                )}
+                <textarea
+                  className="db-input no-print compact-textarea"
+                  rows={3}
+                  placeholder="Type practitioner remarks for this learner"
+                  value={teacherObservation}
+                  onChange={(e) => setTeacherObservation(e.target.value)}
+                  style={{ width: "100%", boxSizing: "border-box" }}
+                />
+                <p className="print-only" style={remarksBox}>
+                  {teacherObservation || "No practitioner remarks added."}
+                </p>
 
                 <h3 style={bookletSectionTitle}>Principal Comments</h3>
 
-                {!generatedReport ? (
-                  <>
-                    <textarea
-                      className="db-input no-print compact-textarea"
-                      rows={3}
-                      placeholder="Type principal comments"
-                      value={principalComment}
-                      onChange={(e) => setPrincipalComment(e.target.value)}
-                      style={{ width: "100%", boxSizing: "border-box" }}
-                    />
-                    <p className="print-only" style={remarksBox}>
-                      {principalComment || "No principal comments added."}
-                    </p>
-                  </>
-                ) : (
-                  <p style={remarksBox}>
-                    {principalComment || "No principal comments added."}
-                  </p>
-                )}
+                <textarea
+                  className="db-input no-print compact-textarea"
+                  rows={3}
+                  placeholder="Type principal comments"
+                  value={principalComment}
+                  onChange={(e) => setPrincipalComment(e.target.value)}
+                  style={{ width: "100%", boxSizing: "border-box" }}
+                />
+                <p className="print-only" style={remarksBox}>
+                  {principalComment || "No principal comments added."}
+                </p>
 
                 <div style={signatureGrid}>
-                  <p style={bookletLine}>Teacher’s Name: {teacherName}</p>
+                  <p style={bookletLine}>Teacher's Name: {teacherName}</p>
                   <p style={bookletLine}>Opening Date: __________________</p>
-                  <p style={bookletLine}>Teacher’s Signature: ___________</p>
-                  <p style={bookletLine}>Principal’s Signature: __________</p>
+                  <p style={bookletLine}>Teacher's Signature: ___________</p>
+                  <p style={bookletLine}>Principal's Signature: __________</p>
                 </div>
               </div>
 
@@ -1272,7 +1242,7 @@ export default function ProgressReportsPage() {
                 </p>
 
                 <p style={{ ...coverText, marginTop: "30px" }}>
-                {selectedPeriod.title}
+                  {selectedPeriod.title}
                 </p>
               </div>
             </div>
@@ -1312,59 +1282,57 @@ export default function ProgressReportsPage() {
                 <h3 style={bookletSectionTitle}>Well-being</h3>
                 <p style={bookletSmallText}>
                   Mapped from gross motor abilities, fine motor abilities,
-                  physical coordination and self-care activities.
+                  physical coordination, self-care and healthy participation.
                 </p>
 
-                <h4 style={bookletSubTitle}>Gross Motor Abilities</h4>
                 <ReportSkillTable
                   categoryKey="wellbeing"
                   reviewAssessments={reviewAssessments}
                 />
 
-                <h4 style={bookletSubTitle}>Fine Motor Abilities</h4>
-                <ReportSkillTable
-                  categoryKey="identity_belonging"
-                  reviewAssessments={reviewAssessments}
-                />
-              </div>
-
-              <div style={bookletPanel}>
                 <h3 style={bookletSectionTitle}>Communication</h3>
                 <p style={bookletSmallText}>
-                  Mapped from literacy, language development, listening and
-                  speaking.
+                  Mapped from language development, listening, speaking and early
+                  literacy foundations.
                 </p>
 
                 <ReportSkillTable
                   categoryKey="communication"
                   reviewAssessments={reviewAssessments}
                 />
+              </div>
 
+              <div style={bookletPanel}>
                 <h3 style={bookletSectionTitle}>Identity and Belonging</h3>
                 <p style={bookletSmallText}>
-                  Mapped from life skills, social development, independence and
-                  classroom participation.
-                </p>
-
-                <h3 style={bookletSectionTitle}>Exploring Mathematics</h3>
-                <p style={bookletSmallText}>
-                  Mapped from numeracy, number awareness, counting and
-                  comparison.
+                  Mapped from self-awareness, confidence, social interaction,
+                  independence and classroom participation.
                 </p>
 
                 <ReportSkillTable
-                  categoryKey="creativity"
+                  categoryKey="identity_belonging"
+                  reviewAssessments={reviewAssessments}
+                />
+
+                <h3 style={bookletSectionTitle}>Exploring Mathematics</h3>
+                <p style={bookletSmallText}>
+                  Mapped from early numeracy, number awareness, counting,
+                  sorting, matching and comparison.
+                </p>
+
+                <ReportSkillTable
+                  categoryKey="mathematical_literacy"
                   reviewAssessments={reviewAssessments}
                 />
 
                 <h3 style={bookletSectionTitle}>Creativity</h3>
                 <p style={bookletSmallText}>
-                  Mapped from drawing, music participation, colouring and
-                  imaginative activities.
+                  Mapped from drawing, music, rhythm, art expression and
+                  imaginative play.
                 </p>
 
                 <ReportSkillTable
-                  categoryKey="knowledge_world"
+                  categoryKey="creativity"
                   reviewAssessments={reviewAssessments}
                 />
               </div>
@@ -1436,23 +1404,22 @@ export default function ProgressReportsPage() {
               )}
 
               <button className="db-button-primary" onClick={downloadPDF}>
-               Download / Print Developmental Report
+                Download / Print Developmental Report
               </button>
 
               <p
-              className="no-print"
-              style={{
-              fontSize: "12px",
-              color: "#666",
-              marginTop: "12px",
-              lineHeight: 1.5,
-              }}
+                className="no-print"
+                style={{
+                  fontSize: "12px",
+                  color: "#666",
+                  marginTop: "12px",
+                  lineHeight: 1.5,
+                }}
               >
-              Recommended print settings:
-              Landscape • Double-sided • Flip on short edge • A4
+                Recommended print settings: Landscape | Double-sided | Flip on
+                short edge | A4
               </p>
-
-          </div>
+            </div>
           </div>
         )}
 
@@ -1601,13 +1568,6 @@ function ReportSkillTable({
   );
 }
 
-function makeIndicatorKey(label: string) {
-  return label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
-
 const sectionTitle = {
   marginTop: 0,
   marginBottom: "14px",
@@ -1655,38 +1615,6 @@ const modalBox: React.CSSProperties = {
   boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
 };
 
-
-const reportCard: React.CSSProperties = {
-  padding: "16px",
-  borderRadius: "16px",
-  background: "#fff",
-  marginBottom: "12px",
-  border: "1px solid rgba(0,0,0,0.06)",
-};
-
-const smallReviewRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "12px",
-  padding: "8px 0",
-  borderBottom: "1px solid #eee",
-};
-
-const paginationRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-  marginTop: "16px",
-};
-
-
-
-
-
-
-
-
 const bookletPanel: React.CSSProperties = {
   background: "#fff",
   border: "1px solid #d8d8d8",
@@ -1713,19 +1641,11 @@ const bookletSectionTitle: React.CSSProperties = {
   border: "1px solid #ddd",
 };
 
-const bookletSubTitle: React.CSSProperties = {
-  fontSize: "9.5px",
-  fontWeight: 800,
-  margin: "6px 0 3px",
-  color: "#333",
-};
-
 const bookletText: React.CSSProperties = {
   fontSize: "9.5px",
   margin: "3px 0",
   color: "#333",
 };
-
 
 const remarksBox: React.CSSProperties = {
   minHeight: "34px",

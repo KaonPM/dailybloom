@@ -1172,22 +1172,7 @@ export default function ProgressReportsPage() {
                 </p>
 
                 <ReportSkillTable
-                  categoryKey="knowledge_world"
-                  rows={[
-                    "I can recognise and name colours",
-                    "I can copy simple colour patterns",
-                    "I can name and identify shapes",
-                    "I can draw basic shapes",
-                    "I can copy a shape pattern",
-                    "I can put pictures in order to make a story",
-                    "I can identify sounds and listen carefully",
-                    "I can point out a picture from a background",
-                    "I can name the sound my name begins with",
-                    "I can build a puzzle",
-                    "I can point out similarities and differences",
-                    "I can complete a pegboard pattern",
-                    "I can work from left to right",
-                  ]}
+                  categoryKey="mathematical_literacy"
                   reviewAssessments={reviewAssessments}
                 />
 
@@ -1333,31 +1318,12 @@ export default function ProgressReportsPage() {
                 <h4 style={bookletSubTitle}>Gross Motor Abilities</h4>
                 <ReportSkillTable
                   categoryKey="wellbeing"
-                  rows={[
-                    "I can balance on one foot for 5 seconds",
-                    "I can catch and throw a beanbag",
-                    "I can skip with a skipping rope",
-                    "I can jump with feet together",
-                    "I can climb on the climbing apparatus",
-                  ]}
                   reviewAssessments={reviewAssessments}
                 />
 
                 <h4 style={bookletSubTitle}>Fine Motor Abilities</h4>
                 <ReportSkillTable
-                  categoryKey="wellbeing"
-                  rows={[
-                    "I can handle a crayon or pencil correctly",
-                    "I can handle a paintbrush correctly",
-                    "I can cut on a straight line",
-                    "I can cut on a curved line",
-                    "I can paste",
-                    "I can write my name correctly",
-                    "I can colour in neatly",
-                    "I can colour in one direction",
-                    "I can trace a picture",
-                    "I can draw a picture of myself",
-                  ]}
+                  categoryKey="identity_belonging"
                   reviewAssessments={reviewAssessments}
                 />
               </div>
@@ -1371,16 +1337,6 @@ export default function ProgressReportsPage() {
 
                 <ReportSkillTable
                   categoryKey="communication"
-                  rows={[
-                    "My pronunciation is clear",
-                    "I can concentrate in class",
-                    "I can follow instructions given in class",
-                    "I can tell the class my news",
-                    "I can draw my news",
-                    "I am attentive and listen to stories",
-                    "I participate during class discussions",
-                    "My speech is clear",
-                  ]}
                   reviewAssessments={reviewAssessments}
                 />
 
@@ -1390,19 +1346,6 @@ export default function ProgressReportsPage() {
                   classroom participation.
                 </p>
 
-                <ReportSkillTable
-                  categoryKey="identity_belonging"
-                  rows={[
-                    "I recognise the role of the teacher in class",
-                    "I look after my belongings",
-                    "I understand that goods have value",
-                    "I persevere and complete given tasks",
-                    "I participate with confidence",
-                    "I interact positively with others",
-                  ]}
-                  reviewAssessments={reviewAssessments}
-                />
-
                 <h3 style={bookletSectionTitle}>Exploring Mathematics</h3>
                 <p style={bookletSmallText}>
                   Mapped from numeracy, number awareness, counting and
@@ -1410,17 +1353,7 @@ export default function ProgressReportsPage() {
                 </p>
 
                 <ReportSkillTable
-                  categoryKey="mathematical_literacy"
-                  rows={[
-                    "I can count up to 20",
-                    "I can count 20 objects",
-                    "I can recognise and name numbers 1 to 10",
-                    "I can write numbers 1 to 15",
-                    "I understand more and less",
-                    "I know my name and surname",
-                    "I know my date of birth",
-                    "I know my age",
-                  ]}
+                  categoryKey="creativity"
                   reviewAssessments={reviewAssessments}
                 />
 
@@ -1431,14 +1364,7 @@ export default function ProgressReportsPage() {
                 </p>
 
                 <ReportSkillTable
-                  categoryKey="creativity"
-                  rows={[
-                    "I participate in music rings",
-                    "I enjoy drawing activities",
-                    "I colour neatly",
-                    "I use imagination during creative activities",
-                    "I take part in art activities",
-                  ]}
+                  categoryKey="knowledge_world"
                   reviewAssessments={reviewAssessments}
                 />
               </div>
@@ -1617,58 +1543,31 @@ export default function ProgressReportsPage() {
 
 function ReportSkillTable({
   categoryKey,
-  rows,
   reviewAssessments,
 }: {
   categoryKey: string;
-  rows: string[];
   reviewAssessments: any[];
 }) {
-  const levels = [
-    { value: "NP", label: "NP" },
-    { value: "PA", label: "PA" },
-    { value: "A", label: "A" },
-    { value: "G", label: "G" },
-    { value: "VG", label: "VG" },
-  ];
+  const levels = ["NP", "PA", "A", "G", "VG"];
 
-  function normalizeLevel(value: string) {
-    if (!value) return "";
+  const rows = reviewAssessments.filter(
+    (item) => item.category === categoryKey
+  );
 
-    const cleaned = value.trim();
-
-    if (["NP", "PA", "A", "G", "VG"].includes(cleaned)) return cleaned;
-
-    if (cleaned === "needs_practice") return "NP";
-    if (cleaned === "partially_achieved") return "PA";
-    if (cleaned === "achieved") return "A";
-    if (cleaned === "good") return "G";
-    if (cleaned === "very_good") return "VG";
-
-    return "";
-  }
-
-  function getRowLevel(row: string) {
-    const indicatorKey = makeIndicatorKey(row);
-
-    const indicatorAssessment = reviewAssessments.find(
-      (item) =>
-        item.category === categoryKey &&
-        (item.indicator_key === indicatorKey || item.indicator_label === row)
+  if (rows.length === 0) {
+    return (
+      <div
+        style={{
+          padding: "8px",
+          border: "1px solid #ddd",
+          fontSize: "8px",
+          color: "#555",
+          marginBottom: "4px",
+        }}
+      >
+        No assessment data available.
+      </div>
     );
-
-    if (indicatorAssessment?.level) {
-      return normalizeLevel(indicatorAssessment.level);
-    }
-
-    const categoryAssessment = reviewAssessments.find(
-      (item) =>
-        item.category === categoryKey &&
-        !item.indicator_key &&
-        !item.indicator_label
-    );
-
-    return normalizeLevel(categoryAssessment?.level || "");
   }
 
   return (
@@ -1676,30 +1575,27 @@ function ReportSkillTable({
       <thead>
         <tr>
           <th style={skillHeader}>Developmental Indicator</th>
+
           {levels.map((level) => (
-            <th key={level.value} style={levelHeader}>
-              {level.label}
+            <th key={level} style={levelHeader}>
+              {level}
             </th>
           ))}
         </tr>
       </thead>
 
       <tbody>
-        {rows.map((row) => {
-          const selectedLevel = getRowLevel(row);
+        {rows.map((row) => (
+          <tr key={`${row.category}-${row.indicator_key}`}>
+            <td style={skillCell}>{row.indicator_label}</td>
 
-          return (
-            <tr key={row}>
-              <td style={skillCell}>{row}</td>
-
-              {levels.map((level) => (
-                <td key={level.value} style={tickCell}>
-                  {selectedLevel === level.value ? "✓" : ""}
-                </td>
-              ))}
-            </tr>
-          );
-        })}
+            {levels.map((level) => (
+              <td key={level} style={tickCell}>
+                {row.level === level ? "✓" : ""}
+              </td>
+            ))}
+          </tr>
+        ))}
       </tbody>
     </table>
   );

@@ -135,10 +135,7 @@ export default function TeacherAssessmentsPage() {
     setPeriods(data || []);
   }
 
-  async function loadExistingAssessment(
-    learnerId: string,
-    periodId: string
-  ) {
+  async function loadExistingAssessment(learnerId: string, periodId: string) {
     if (!learnerId || !periodId) return;
 
     const { data, error } = await supabase
@@ -157,18 +154,23 @@ export default function TeacherAssessmentsPage() {
     const nextValues: any = {};
 
     reportCategories.forEach((category) => {
-      const existing = data?.find(
-        (item) => item.category === category.key
-      );
+      nextValues[category.key] = {};
 
-      nextValues[category.key] = {
-        level: existing?.level || "",
-        status: existing?.status || "draft",
-      };
+      category.indicators.forEach((indicator) => {
+        const existing = data?.find(
+          (item) =>
+            item.category === category.key &&
+            item.indicator_key === indicator.key
+        );
+
+        nextValues[category.key][indicator.key] = {
+          level: existing?.level || "",
+          status: existing?.status || "draft",
+        };
+      });
     });
 
-    const existingComment =
-      data?.[0]?.teacher_comment || "";
+    const existingComment = data?.[0]?.teacher_comment || "";
 
     setAssessmentValues(nextValues);
     setOverallComment(existingComment);
@@ -184,6 +186,7 @@ export default function TeacherAssessmentsPage() {
 
   function updateCategory(
     categoryKey: string,
+    indicatorKey: string,
     field: string,
     value: string
   ) {
@@ -191,7 +194,10 @@ export default function TeacherAssessmentsPage() {
       ...current,
       [categoryKey]: {
         ...current[categoryKey],
-        [field]: value,
+        [indicatorKey]: {
+          ...current[categoryKey]?.[indicatorKey],
+          [field]: value,
+        },
       },
     }));
   }
@@ -222,43 +228,56 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
-    const missingLevel = reportCategories.some((category) => {
-      return !assessmentValues[category.key]?.level;
-    });
+    const missingLevel = reportCategories.some((category) =>
+      category.indicators.some(
+        (indicator) =>
+          !assessmentValues?.[category.key]?.[indicator.key]?.level
+      )
+    );
 
     if (missingLevel) {
-      alert("Please select a level for every development area.");
+      alert("Please select a level for every development indicator.");
       return;
     }
 
     setSaving(true);
 
-    const rows = reportCategories.map((category) => ({
-      school_id: Number(schoolId),
-      classroom_id: Number(selectedClassroomId),
-      learner_id: selectedLearnerId,
-      report_period_id: Number(selectedPeriodId),
-      category: category.key,
-      level: assessmentValues[category.key]?.level,
-      teacher_comment: overallComment || null,
-      teacher_id: profile.id,
-      status,
-      updated_at: new Date().toISOString(),
-    }));
+    const rows = reportCategories.flatMap((category) =>
+      category.indicators.map((indicator) => ({
+        school_id: Number(schoolId),
+        classroom_id: Number(selectedClassroomId),
+        learner_id: selectedLearnerId,
+        report_period_id: Number(selectedPeriodId),
+
+        category: category.key,
+
+        indicator_key: indicator.key,
+        indicator_label: indicator.label,
+
+        level: assessmentValues?.[category.key]?.[indicator.key]?.level || "",
+
+        teacher_comment: overallComment || null,
+        teacher_id: profile.id,
+        status,
+        updated_at: new Date().toISOString(),
+      }))
+    );
 
     for (const row of rows) {
       const existing = existingAssessments.find(
         (item) =>
           item.category === row.category &&
+          item.indicator_key === row.indicator_key &&
           String(item.learner_id) === String(row.learner_id) &&
-          String(item.report_period_id) ===
-            String(row.report_period_id)
+          String(item.report_period_id) === String(row.report_period_id)
       );
 
       if (existing) {
         const { error } = await supabase
           .from("learner_assessments")
           .update({
+            indicator_key: row.indicator_key,
+            indicator_label: row.indicator_label,
             level: row.level,
             teacher_comment: row.teacher_comment,
             teacher_id: row.teacher_id,
@@ -273,9 +292,7 @@ export default function TeacherAssessmentsPage() {
           return;
         }
       } else {
-        const { error } = await supabase
-          .from("learner_assessments")
-          .insert(row);
+        const { error } = await supabase.from("learner_assessments").insert(row);
 
         if (error) {
           alert(error.message);
@@ -285,10 +302,7 @@ export default function TeacherAssessmentsPage() {
       }
     }
 
-    await loadExistingAssessment(
-      selectedLearnerId,
-      selectedPeriodId
-    );
+    await loadExistingAssessment(selectedLearnerId, selectedPeriodId);
 
     setSaving(false);
 
@@ -300,18 +314,14 @@ export default function TeacherAssessmentsPage() {
   }
 
   const teacherName =
-    profile?.full_name ||
-    profile?.name ||
-    profile?.email ||
-    "Teacher";
+    profile?.full_name || profile?.name || profile?.email || "Teacher";
 
   const canShowAssessmentForm =
     selectedClassroomId !== "" &&
     selectedLearnerId !== "" &&
     selectedPeriodId !== "";
 
-  const currentStatus =
-    existingAssessments?.[0]?.status || null;
+  const currentStatus = existingAssessments?.[0]?.status || null;
 
   if (loading) {
     return <p>Loading...</p>;
@@ -326,13 +336,11 @@ export default function TeacherAssessmentsPage() {
           marginBottom: "24px",
         }}
       >
-        <h1 className="db-page-title">
-          Learner Progress Assessments
-        </h1>
+        <h1 className="db-page-title">Learner Progress Assessments</h1>
 
         <p className="db-page-subtitle">
-          Complete learner development assessments and
-          submit them to the principal.
+          Complete learner development assessments and submit them to the
+          principal.
         </p>
       </div>
 
@@ -353,9 +361,7 @@ export default function TeacherAssessmentsPage() {
             flexWrap: "wrap",
           }}
         >
-          <h3 style={sectionTitle}>
-            Class, Teacher and Learner
-          </h3>
+          <h3 style={sectionTitle}>Class, Teacher and Learner</h3>
 
           {currentStatus && (
             <div
@@ -365,19 +371,12 @@ export default function TeacherAssessmentsPage() {
                 fontSize: "11px",
                 fontWeight: 700,
                 background:
-                  currentStatus === "submitted"
-                    ? "#dcfce7"
-                    : "#fef3c7",
-                color:
-                  currentStatus === "submitted"
-                    ? "#166534"
-                    : "#92400e",
+                  currentStatus === "submitted" ? "#dcfce7" : "#fef3c7",
+                color: currentStatus === "submitted" ? "#166534" : "#92400e",
                 lineHeight: 1.1,
               }}
             >
-              {currentStatus === "submitted"
-                ? "Submitted"
-                : "Draft"}
+              {currentStatus === "submitted" ? "Submitted" : "Draft"}
             </div>
           )}
         </div>
@@ -398,10 +397,7 @@ export default function TeacherAssessmentsPage() {
             setExistingAssessments([]);
 
             if (schoolId && classroomId) {
-              await fetchLearnersByClassroom(
-                schoolId,
-                classroomId
-              );
+              await fetchLearnersByClassroom(schoolId, classroomId);
             } else {
               setLearners([]);
             }
@@ -410,19 +406,13 @@ export default function TeacherAssessmentsPage() {
           <option value="">Select Class</option>
 
           {classrooms.map((classroom) => (
-            <option
-              key={classroom.id}
-              value={String(classroom.id)}
-            >
+            <option key={classroom.id} value={String(classroom.id)}>
               {classroom.classroom_name}
             </option>
           ))}
         </select>
 
-        <div
-          className="db-list-card"
-          style={{ marginBottom: "14px" }}
-        >
+        <div className="db-list-card" style={{ marginBottom: "14px" }}>
           <strong>Teacher</strong>
 
           <p style={textStyle}>{teacherName}</p>
@@ -437,20 +427,14 @@ export default function TeacherAssessmentsPage() {
             setSelectedLearnerId(learnerId);
 
             if (learnerId && selectedPeriodId) {
-              await loadExistingAssessment(
-                learnerId,
-                selectedPeriodId
-              );
+              await loadExistingAssessment(learnerId, selectedPeriodId);
             }
           }}
         >
           <option value="">Select Learner</option>
 
           {learners.map((learner) => (
-            <option
-              key={learner.id}
-              value={String(learner.id)}
-            >
+            <option key={learner.id} value={String(learner.id)}>
               {learner.name}
             </option>
           ))}
@@ -465,22 +449,15 @@ export default function TeacherAssessmentsPage() {
             setSelectedPeriodId(periodId);
 
             if (selectedLearnerId && periodId) {
-              await loadExistingAssessment(
-                selectedLearnerId,
-                periodId
-              );
+              await loadExistingAssessment(selectedLearnerId, periodId);
             }
           }}
         >
           <option value="">Select Report Period</option>
 
           {periods.map((period) => (
-            <option
-              key={period.id}
-              value={String(period.id)}
-            >
-              {period.title} (
-              {formatPeriodType(period.report_type)})
+            <option key={period.id} value={String(period.id)}>
+              {period.title} ({formatPeriodType(period.report_type)})
             </option>
           ))}
         </select>
@@ -491,7 +468,7 @@ export default function TeacherAssessmentsPage() {
           className="db-card db-card-lavender"
           style={{ padding: "20px" }}
         >
-          <h3 style={sectionTitle}>Development Areas</h3>
+          <h3 style={sectionTitle}>Development Indicators</h3>
 
           <div
             style={{
@@ -499,53 +476,68 @@ export default function TeacherAssessmentsPage() {
               gap: "16px",
             }}
           >
-            {reportCategories
-              .map((category) => (
+            {reportCategories.map((category) => (
+              <div key={category.key} className="db-list-card">
+                <strong>{category.label}</strong>
+
+                <p style={textStyle}>({category.description})</p>
+
                 <div
-                  key={category.key}
-                  className="db-list-card"
+                  style={{
+                    display: "grid",
+                    gap: "12px",
+                    marginTop: "12px",
+                  }}
                 >
-                  <strong>{category.label}</strong>
-
-                  <p style={textStyle}>
-                    ({category.description})
-                  </p>
-
-                  <select
-                    className="db-input"
-                    value={
-                      assessmentValues[category.key]
-                        ?.level || ""
-                    }
-                    onChange={(e) =>
-                      updateCategory(
-                        category.key,
-                        "level",
-                        e.target.value
-                      )
-                    }
-                  >
-                    <option value="">
-                      Select Level
-                    </option>
-
-                    {reportLevels.map((level) => (
-                      <option
-                        key={level.value}
-                        value={level.value}
+                  {category.indicators.map((indicator) => (
+                    <div
+                      key={indicator.key}
+                      style={{
+                        display: "grid",
+                        gap: "6px",
+                      }}
+                    >
+                      <label
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 700,
+                          color: "var(--db-text)",
+                        }}
                       >
-                        {level.label}
-                      </option>
-                    ))}
-                  </select>
+                        {indicator.label}
+                      </label>
+
+                      <select
+                        className="db-input"
+                        value={
+                          assessmentValues?.[category.key]?.[indicator.key]
+                            ?.level || ""
+                        }
+                        onChange={(e) =>
+                          updateCategory(
+                            category.key,
+                            indicator.key,
+                            "level",
+                            e.target.value
+                          )
+                        }
+                      >
+                        <option value="">Select Level</option>
+
+                        {reportLevels.map((level) => (
+                          <option key={level.value} value={level.value}>
+                            {level.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+            ))}
           </div>
 
-          <div
-            className="db-list-card"
-            style={{ marginTop: "20px" }}
-          >
+          <div className="db-list-card" style={{ marginTop: "20px" }}>
             <strong>Teacher Observation</strong>
 
             <textarea
@@ -553,9 +545,7 @@ export default function TeacherAssessmentsPage() {
               rows={3}
               placeholder="Teacher observation"
               value={overallComment}
-              onChange={(e) =>
-                setOverallComment(e.target.value)
-              }
+              onChange={(e) => setOverallComment(e.target.value)}
             />
           </div>
 
@@ -577,14 +567,10 @@ export default function TeacherAssessmentsPage() {
 
             <button
               className="db-button-primary"
-              onClick={() =>
-                saveAssessment("submitted")
-              }
+              onClick={() => saveAssessment("submitted")}
               disabled={saving}
             >
-              {saving
-                ? "Submitting..."
-                : "Submit to Principal"}
+              {saving ? "Submitting..." : "Submit to Principal"}
             </button>
           </div>
         </div>

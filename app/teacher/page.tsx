@@ -17,6 +17,7 @@ type TeacherProfile = {
   full_name?: string | null;
   role?: string | null;
   school_id?: number | null;
+  classroom_id?: number | null;
   classroom_name?: string | null;
 };
 
@@ -80,11 +81,14 @@ export default function TeacherDashboardPage() {
 
   const [profile, setProfile] = useState<TeacherProfile | null>(null);
   const [school, setSchool] = useState<School | null>(null);
+  const [classroomLabel, setClassroomLabel] = useState("No classroom assigned");
 
   const [todayEvents, setTodayEvents] = useState<EventItem[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<EventItem[]>([]);
   const [birthdaysToday, setBirthdaysToday] = useState<LearnerItem[]>([]);
-  const [upcomingBirthdays, setUpcomingBirthdays] = useState<UpcomingBirthdayItem[]>([]);
+  const [upcomingBirthdays, setUpcomingBirthdays] = useState<
+    UpcomingBirthdayItem[]
+  >([]);
   const [todayActivities, setTodayActivities] = useState<ActivityItem[]>([]);
 
   const [overview, setOverview] = useState<TeacherOverview>({
@@ -113,6 +117,10 @@ export default function TeacherDashboardPage() {
     const mm = String(date.getMonth() + 1).padStart(2, "0");
     const dd = String(date.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function normalizeText(value: string | null | undefined) {
+    return String(value || "").trim().toLowerCase();
   }
 
   async function loadTeacherDashboard() {
@@ -160,36 +168,70 @@ export default function TeacherDashboardPage() {
 
     setSchool(schoolData);
 
+    const resolvedClassroom = await resolveTeacherClassroom(
+      currentSchoolId,
+      currentProfile
+    );
+
+    setClassroomLabel(
+      resolvedClassroom?.classroom_name ||
+        currentProfile.classroom_name ||
+        "No classroom assigned"
+    );
+
     await fetchTeacherDashboardData(
       currentSchoolId,
-      currentProfile.classroom_name || null
+      resolvedClassroom?.id || null,
+      resolvedClassroom?.classroom_name || currentProfile.classroom_name || null
     );
 
     setLoading(false);
   }
 
+  async function resolveTeacherClassroom(
+    schoolId: number,
+    currentProfile: TeacherProfile
+  ) {
+    const { data, error } = await supabase
+      .from("classrooms")
+      .select("id, classroom_name")
+      .eq("school_id", schoolId)
+      .order("classroom_name", { ascending: true });
+
+    if (error) {
+      alert(error.message);
+      return null;
+    }
+
+    const classrooms = (data || []) as ClassroomItem[];
+
+    const classroomById = classrooms.find(
+      (classroom) =>
+        String(classroom.id) === String(currentProfile.classroom_id)
+    );
+
+    if (classroomById) return classroomById;
+
+    const classroomByName = classrooms.find(
+      (classroom) =>
+        normalizeText(classroom.classroom_name) ===
+        normalizeText(currentProfile.classroom_name)
+    );
+
+    if (classroomByName) return classroomByName;
+
+    return null;
+  }
+
   async function fetchTeacherDashboardData(
     schoolId: number,
+    classroomId: number | null,
     classroomName: string | null
   ) {
     const today = new Date();
     const todayDate = getTodayString();
     const todayMonth = today.getMonth() + 1;
     const todayDay = today.getDate();
-
-    let classroomId: number | null = null;
-
-    if (classroomName) {
-      const { data: classroomData } = await supabase
-        .from("classrooms")
-        .select("id, classroom_name")
-        .eq("school_id", schoolId)
-        .eq("classroom_name", classroomName)
-        .maybeSingle();
-
-      const classroom = classroomData as ClassroomItem | null;
-      classroomId = classroom?.id || null;
-    }
 
     const [
       learnersRes,
@@ -264,42 +306,35 @@ export default function TeacherDashboardPage() {
     const summaries = (summariesRes.data || []) as SummaryItem[];
     const attendance = (attendanceRes.data || []) as AttendanceItem[];
 
-    const learners = classroomName
-      ? allLearners.filter((learner) => {
-          const learnerClass = String(learner.class || "").trim().toLowerCase();
-          const teacherClass = String(classroomName || "").trim().toLowerCase();
-
-          return (
-            learnerClass === teacherClass ||
-            (classroomId !== null && Number(learner.classroom_id) === classroomId)
-          );
-        })
-      : [];
+    const learners =
+      classroomId || classroomName
+        ? allLearners.filter((learner) => {
+            return (
+              Number(learner.classroom_id) === Number(classroomId) ||
+              normalizeText(learner.class) === normalizeText(classroomName)
+            );
+          })
+        : [];
 
     const activities = classroomName
       ? allActivities.filter(
           (activity) =>
-            String(activity.class_name || "").trim().toLowerCase() ===
-            String(classroomName).trim().toLowerCase()
+            normalizeText(activity.class_name) === normalizeText(classroomName)
         )
       : [];
 
     const classroomLearnerNames = new Set(
       learners
-        .map((learner) => String(learner.name || "").trim().toLowerCase())
+        .map((learner) => normalizeText(learner.name))
         .filter(Boolean)
     );
 
     const filteredSummaries = summaries.filter((summary) =>
-      classroomLearnerNames.has(
-        String(summary.learner_name || "").trim().toLowerCase()
-      )
+      classroomLearnerNames.has(normalizeText(summary.learner_name))
     );
 
     const filteredAttendance = attendance.filter((item) =>
-      classroomLearnerNames.has(
-        String(item.learner_name || "").trim().toLowerCase()
-      )
+      classroomLearnerNames.has(normalizeText(item.learner_name))
     );
 
     const todaysEvents = events.filter(
@@ -312,7 +347,9 @@ export default function TeacherDashboardPage() {
 
     const todaysBirthdays = learners.filter((learner) => {
       if (!learner.date_of_birth) return false;
+
       const dob = new Date(learner.date_of_birth);
+
       return dob.getMonth() + 1 === todayMonth && dob.getDate() === todayDay;
     });
 
@@ -384,8 +421,6 @@ export default function TeacherDashboardPage() {
   if (!profile || !school) {
     return <p>Teacher dashboard unavailable.</p>;
   }
-
-  const classroomLabel = profile.classroom_name || "No classroom assigned";
 
   return (
     <div
@@ -472,12 +507,19 @@ export default function TeacherDashboardPage() {
             {upcomingEvents.length > 0 ? (
               <>
                 <p style={compactSectionLabel}>Upcoming Events</p>
+
                 {upcomingEvents.map((event) => (
-                  <div key={`upcoming-event-${event.id}`} style={compactMiniCard}>
+                  <div
+                    key={`upcoming-event-${event.id}`}
+                    style={compactMiniCard}
+                  >
                     <strong style={compactMiniTitle}>
                       {event.title || "Untitled event"}
                     </strong>
-                    <p style={compactMiniMeta}>{event.event_date || "No date"}</p>
+
+                    <p style={compactMiniMeta}>
+                      {event.event_date || "No date"}
+                    </p>
                   </div>
                 ))}
               </>
@@ -496,7 +538,10 @@ export default function TeacherDashboardPage() {
           <div style={{ display: "grid", gap: "8px" }}>
             {birthdaysToday.length > 0 ? (
               birthdaysToday.slice(0, 2).map((learner) => (
-                <div key={`today-birthday-${learner.id}`} style={compactMiniCard}>
+                <div
+                  key={`today-birthday-${learner.id}`}
+                  style={compactMiniCard}
+                >
                   <strong style={compactMiniTitle}>
                     {learner.name || "Unnamed learner"}
                   </strong>
@@ -509,6 +554,7 @@ export default function TeacherDashboardPage() {
             {upcomingBirthdays.length > 0 ? (
               <>
                 <p style={compactSectionLabel}>Upcoming Birthdays</p>
+
                 {upcomingBirthdays.map((learner) => (
                   <div
                     key={`upcoming-birthday-${learner.id}`}
@@ -517,7 +563,10 @@ export default function TeacherDashboardPage() {
                     <strong style={compactMiniTitle}>
                       {learner.name || "Unnamed learner"}
                     </strong>
-                    <p style={compactMiniMeta}>{learner.nextBirthdayLabel}</p>
+
+                    <p style={compactMiniMeta}>
+                      {learner.nextBirthdayLabel}
+                    </p>
                   </div>
                 ))}
               </>
@@ -540,9 +589,9 @@ export default function TeacherDashboardPage() {
                   <strong style={compactMiniTitle}>
                     {activity.subject || "No subject"}
                   </strong>
-                  <p style={compactMiniText}>
-                    {activity.title || "No title"}
-                  </p>
+
+                  <p style={compactMiniText}>{activity.title || "No title"}</p>
+
                   <p style={compactMiniMeta}>
                     {activity.description || "No description"}
                   </p>
@@ -672,10 +721,7 @@ export default function TeacherDashboardPage() {
             border="#D3EDD4"
           />
 
-          <Link
-            href="/teacher-assessments"
-            className="db-button-primary"
-          >
+          <Link href="/teacher-assessments" className="db-button-primary">
             Learner Progress Assessments
           </Link>
         </div>
@@ -734,6 +780,7 @@ function CompactHighlightCard({
           >
             {title}
           </h3>
+
           <p
             style={{
               margin: "4px 0 0 0",

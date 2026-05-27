@@ -1625,12 +1625,28 @@ function ReportSkillTable({
   reviewAssessments: any[];
 }) {
   const levels = [
-    { value: "needs_practice", label: "NP" },
-    { value: "partially_achieved", label: "PA" },
-    { value: "achieved", label: "A" },
-    { value: "good", label: "G" },
-    { value: "very_good", label: "VG" },
+    { value: "NP", label: "NP" },
+    { value: "PA", label: "PA" },
+    { value: "A", label: "A" },
+    { value: "G", label: "G" },
+    { value: "VG", label: "VG" },
   ];
+
+  function normalizeLevel(value: string) {
+    if (!value) return "";
+
+    const cleaned = value.trim();
+
+    if (["NP", "PA", "A", "G", "VG"].includes(cleaned)) return cleaned;
+
+    if (cleaned === "needs_practice") return "NP";
+    if (cleaned === "partially_achieved") return "PA";
+    if (cleaned === "achieved") return "A";
+    if (cleaned === "good") return "G";
+    if (cleaned === "very_good") return "VG";
+
+    return "";
+  }
 
   function getRowLevel(row: string) {
     const indicatorKey = makeIndicatorKey(row);
@@ -1642,7 +1658,7 @@ function ReportSkillTable({
     );
 
     if (indicatorAssessment?.level) {
-      return indicatorAssessment.level;
+      return normalizeLevel(indicatorAssessment.level);
     }
 
     const categoryAssessment = reviewAssessments.find(
@@ -1652,7 +1668,7 @@ function ReportSkillTable({
         !item.indicator_label
     );
 
-    return categoryAssessment?.level || "";
+    return normalizeLevel(categoryAssessment?.level || "");
   }
 
   return (

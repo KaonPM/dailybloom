@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import { reportCategories } from "../lib/report-categories";
 import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -37,8 +38,13 @@ export default function ProgressReportsPage() {
   const [showFilter, setShowFilter] = useState(false);
   const [showAssessments, setShowAssessments] = useState(true);
   const [showGeneratedReports, setShowGeneratedReports] = useState(true);
-  const [expandedAssessmentKey, setExpandedAssessmentKey] = useState<string | null>(null);
-  const [expandedReportKey, setExpandedReportKey] = useState<string | null>(null);
+
+  const [expandedAssessmentKey, setExpandedAssessmentKey] = useState<
+    string | null
+  >(null);
+  const [expandedReportKey, setExpandedReportKey] = useState<string | null>(
+    null
+  );
 
   const [assessmentPage, setAssessmentPage] = useState(1);
   const [reportPage, setReportPage] = useState(1);
@@ -314,17 +320,59 @@ export default function ProgressReportsPage() {
   }, [allAssessments]);
 
   const filteredAssessments = groupedAssessments.filter((item) => {
-    if (selectedClassroomId && String(item.classroom_id) !== String(selectedClassroomId)) return false;
-    if (selectedTeacherId && String(item.teacher_id) !== String(selectedTeacherId)) return false;
-    if (selectedLearnerId && String(item.learner_id) !== String(selectedLearnerId)) return false;
-    if (selectedPeriodId && String(item.report_period_id) !== String(selectedPeriodId)) return false;
+    if (
+      selectedClassroomId &&
+      String(item.classroom_id) !== String(selectedClassroomId)
+    ) {
+      return false;
+    }
+
+    if (
+      selectedTeacherId &&
+      String(item.teacher_id) !== String(selectedTeacherId)
+    ) {
+      return false;
+    }
+
+    if (
+      selectedLearnerId &&
+      String(item.learner_id) !== String(selectedLearnerId)
+    ) {
+      return false;
+    }
+
+    if (
+      selectedPeriodId &&
+      String(item.report_period_id) !== String(selectedPeriodId)
+    ) {
+      return false;
+    }
+
     return true;
   });
 
   const filteredReports = generatedReports.filter((item) => {
-    if (selectedClassroomId && String(item.classroom_id) !== String(selectedClassroomId)) return false;
-    if (selectedLearnerId && String(item.learner_id) !== String(selectedLearnerId)) return false;
-    if (selectedPeriodId && String(item.report_period_id) !== String(selectedPeriodId)) return false;
+    if (
+      selectedClassroomId &&
+      String(item.classroom_id) !== String(selectedClassroomId)
+    ) {
+      return false;
+    }
+
+    if (
+      selectedLearnerId &&
+      String(item.learner_id) !== String(selectedLearnerId)
+    ) {
+      return false;
+    }
+
+    if (
+      selectedPeriodId &&
+      String(item.report_period_id) !== String(selectedPeriodId)
+    ) {
+      return false;
+    }
+
     return true;
   });
 
@@ -1516,12 +1564,51 @@ function ReportSkillTable({
   reviewAssessments: any[];
 }) {
   const levels = ["NP", "PA", "A", "G", "VG"];
+  const category = reportCategories.find((item) => item.key === categoryKey);
+  const indicators = category?.indicators || [];
 
-  const rows = reviewAssessments.filter(
+  const categoryAssessments = reviewAssessments.filter(
     (item) => item.category === categoryKey
   );
 
-  if (rows.length === 0) {
+  function normalizeLevel(value: string) {
+    if (!value) return "";
+
+    const cleaned = value.trim();
+
+    if (["NP", "PA", "A", "G", "VG"].includes(cleaned)) return cleaned;
+
+    if (cleaned === "NP - Needs Practice") return "NP";
+    if (cleaned === "PA - Partially Achieved") return "PA";
+    if (cleaned === "A - Achieved") return "A";
+    if (cleaned === "G - Good") return "G";
+    if (cleaned === "VG - Very Good") return "VG";
+
+    if (cleaned === "needs_practice") return "NP";
+    if (cleaned === "partially_achieved") return "PA";
+    if (cleaned === "achieved") return "A";
+    if (cleaned === "good") return "G";
+    if (cleaned === "very_good") return "VG";
+
+    if (cleaned === "needs_support") return "NP";
+    if (cleaned === "progressing") return "PA";
+    if (cleaned === "meeting_expectations") return "G";
+    if (cleaned === "exceeding_expectations") return "VG";
+
+    return "";
+  }
+
+  function getIndicatorLevel(indicator: any) {
+    const assessment = categoryAssessments.find(
+      (item) =>
+        item.indicator_key === indicator.key ||
+        item.indicator_label === indicator.label
+    );
+
+    return normalizeLevel(assessment?.level || "");
+  }
+
+  if (indicators.length === 0) {
     return (
       <div
         style={{
@@ -1532,7 +1619,7 @@ function ReportSkillTable({
           marginBottom: "4px",
         }}
       >
-        No assessment data available.
+        No assessment indicators configured.
       </div>
     );
   }
@@ -1552,17 +1639,21 @@ function ReportSkillTable({
       </thead>
 
       <tbody>
-        {rows.map((row) => (
-          <tr key={`${row.category}-${row.indicator_key}`}>
-            <td style={skillCell}>{row.indicator_label}</td>
+        {indicators.map((indicator) => {
+          const selectedLevel = getIndicatorLevel(indicator);
 
-            {levels.map((level) => (
-              <td key={level} style={tickCell}>
-                {row.level === level ? "✓" : ""}
-              </td>
-            ))}
-          </tr>
-        ))}
+          return (
+            <tr key={`${categoryKey}-${indicator.key}`}>
+              <td style={skillCell}>{indicator.label}</td>
+
+              {levels.map((level) => (
+                <td key={level} style={tickCell}>
+                  {selectedLevel === level ? "✓" : ""}
+                </td>
+              ))}
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

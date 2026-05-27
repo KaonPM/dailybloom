@@ -7,7 +7,6 @@ export const metadata = {
   title: "DailyBloom",
   description: "Preschool Management App",
   manifest: "/manifest.json",
-  themeColor: "#6B4EFF",
 
   appleWebApp: {
     capable: true,
@@ -47,6 +46,10 @@ export const metadata = {
   },
 };
 
+export const viewport = {
+  themeColor: "#6B4EFF",
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -62,9 +65,7 @@ export default function RootLayout({
       >
         <RegisterServiceWorker />
 
-        <Suspense
-          fallback={<div style={{ padding: "24px" }}>Loading...</div>}
-        >
+        <Suspense fallback={<div style={{ padding: "24px" }}>Loading...</div>}>
           <AppChrome>{children}</AppChrome>
         </Suspense>
       </body>

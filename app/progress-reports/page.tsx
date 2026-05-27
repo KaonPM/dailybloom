@@ -5,7 +5,6 @@ import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import {
   reportCategories,
-  reportLevels,
   formatReportLevel,
 } from "../lib/report-categories";
 import { useRouter } from "next/navigation";
@@ -444,14 +443,6 @@ export default function ProgressReportsPage() {
       ?.scrollIntoView({ behavior: "smooth" });
   }
 
-  function updateAssessment(category: string, field: string, value: string) {
-    setReviewAssessments((current) =>
-      current.map((item) =>
-        item.category === category ? { ...item, [field]: value } : item
-      )
-    );
-  }
-
   async function savePrincipalReview() {
     if (!reviewAssessments.length) {
       alert("No practitioner developmental observations found for this learner.");
@@ -670,8 +661,11 @@ export default function ProgressReportsPage() {
       ".report-print-area"
     ) as HTMLElement;
     const pdfButtons = document.querySelector(".pdf-hide") as HTMLElement;
+    const bookletPages = Array.from(
+      document.querySelectorAll(".booklet-page")
+    ) as HTMLElement[];
 
-    if (!reportElement) {
+    if (!reportElement || bookletPages.length === 0) {
       alert("Report not found.");
       return;
     }
@@ -681,32 +675,47 @@ export default function ProgressReportsPage() {
         pdfButtons.style.display = "none";
       }
 
-      const canvas = await html2canvas(reportElement, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
-
-      if (pdfButtons) {
-        pdfButtons.style.display = "flex";
-      }
-
-      const imgData = canvas.toDataURL("image/png");
-
       const pdf = new jsPDF({
-        orientation: "portrait",
+        orientation: "landscape",
         unit: "mm",
         format: "a4",
       });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      const pageHeight = pdf.internal.pageSize.getHeight();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
 
-      if (pdfHeight > pageHeight) {
-        pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pageHeight);
-      } else {
-        pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      for (let index = 0; index < bookletPages.length; index++) {
+        const page = bookletPages[index];
+
+        const canvas = await html2canvas(page, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+        });
+
+        const imgData = canvas.toDataURL("image/png");
+        const imgRatio = canvas.width / canvas.height;
+
+        let renderWidth = pdfWidth;
+        let renderHeight = renderWidth / imgRatio;
+
+        if (renderHeight > pdfHeight) {
+          renderHeight = pdfHeight;
+          renderWidth = renderHeight * imgRatio;
+        }
+
+        const x = (pdfWidth - renderWidth) / 2;
+        const y = (pdfHeight - renderHeight) / 2;
+
+        if (index > 0) {
+          pdf.addPage("a4", "landscape");
+        }
+
+        pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
+      }
+
+      if (pdfButtons) {
+        pdfButtons.style.display = "flex";
       }
 
       const learnerName =
@@ -714,12 +723,16 @@ export default function ProgressReportsPage() {
 
       pdf.save(`${learnerName}_Developmental_Progress_Report.pdf`);
     } catch (error) {
+      if (pdfButtons) {
+        pdfButtons.style.display = "flex";
+      }
+
       console.error(error);
       alert("Failed to generate PDF.");
     }
   }
 
-  const selectedClassroom = classrooms.find(
+    const selectedClassroom = classrooms.find(
     (c) => String(c.id) === String(selectedClassroomId)
   );
   const selectedLearner = learners.find(
@@ -729,10 +742,8 @@ export default function ProgressReportsPage() {
     (p) => String(p.id) === String(selectedPeriodId)
   );
   const teacherName = getTeacherName(selectedTeacherId);
-  const principalName =
-    profile?.full_name || profile?.name || profile?.email || "Principal";
 
-    function calculateAge(dateOfBirth?: string) {
+    function calculateAge(dateOfBirth?: string | null) {
   if (!dateOfBirth) return "Not added";
 
   const birthDate = new Date(dateOfBirth);
@@ -748,7 +759,7 @@ export default function ProgressReportsPage() {
     age--;
   }
 
-  return `${age} years`;
+  return `${age} ${age === 1 ? "year" : "years"}`;
   }
 
   if (loading) return <p>Loading...</p>;
@@ -1148,249 +1159,288 @@ export default function ProgressReportsPage() {
               overflow: "hidden",
             }}
           >
-            {school?.logo_url && (
-              <img
-                src={school.logo_url}
-                alt="Watermark"
-                style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
-                  width: "320px",
-                  opacity: 0.05,
-                  zIndex: 0,
-                  pointerEvents: "none",
-                }}
-              />
-            )}
+            <div className="booklet-page">
+              <div style={bookletPanel}>
+                <h2 style={bookletTitle}>Developmental Progress Report</h2>
 
-            <div style={reportHeader}>
-              <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-                {school?.logo_url ? (
+                <h3 style={bookletSectionTitle}>
+                  Knowledge and Understanding of the World
+                </h3>
+                <p style={bookletSmallText}>
+                  Mapped from perceptual skills, observation, shapes and
+                  patterns, visual perception and auditory perception.
+                </p>
+
+                <ReportSkillTable
+                  categoryKey="knowledge_world"
+                  rows={[
+                    "I can recognise and name colours",
+                    "I can copy simple colour patterns",
+                    "I can name and identify shapes",
+                    "I can draw basic shapes",
+                    "I can copy a shape pattern",
+                    "I can put pictures in order to make a story",
+                    "I can identify sounds and listen carefully",
+                    "I can point out a picture from a background",
+                    "I can name the sound my name begins with",
+                    "I can build a puzzle",
+                    "I can point out similarities and differences",
+                    "I can complete a pegboard pattern",
+                    "I can work from left to right",
+                  ]}
+                  reviewAssessments={reviewAssessments}
+                />
+
+                <h3 style={bookletSectionTitle}>Practitioner Remarks</h3>
+
+                {!generatedReport ? (
+                  <>
+                    <textarea
+                      className="db-input no-print compact-textarea"
+                      rows={3}
+                      placeholder="Type practitioner remarks for this learner"
+                      value={teacherObservation}
+                      onChange={(e) => setTeacherObservation(e.target.value)}
+                      style={{ width: "100%", boxSizing: "border-box" }}
+                    />
+                    <p className="print-only" style={remarksBox}>
+                      {teacherObservation || "No practitioner remarks added."}
+                    </p>
+                  </>
+                ) : (
+                  <p style={remarksBox}>
+                    {teacherObservation || "No practitioner remarks added."}
+                  </p>
+                )}
+
+                <h3 style={bookletSectionTitle}>Principal Comments</h3>
+
+                {!generatedReport ? (
+                  <>
+                    <textarea
+                      className="db-input no-print compact-textarea"
+                      rows={3}
+                      placeholder="Type principal comments"
+                      value={principalComment}
+                      onChange={(e) => setPrincipalComment(e.target.value)}
+                      style={{ width: "100%", boxSizing: "border-box" }}
+                    />
+                    <p className="print-only" style={remarksBox}>
+                      {principalComment || "No principal comments added."}
+                    </p>
+                  </>
+                ) : (
+                  <p style={remarksBox}>
+                    {principalComment || "No principal comments added."}
+                  </p>
+                )}
+
+                <div style={signatureGrid}>
+                  <p style={bookletLine}>Teacher’s Name: {teacherName}</p>
+                  <p style={bookletLine}>Opening Date: __________________</p>
+                  <p style={bookletLine}>Teacher’s Signature: ___________</p>
+                  <p style={bookletLine}>Principal’s Signature: __________</p>
+                </div>
+              </div>
+
+              <div style={{ ...bookletPanel, textAlign: "center" }}>
+                {school?.logo_url && (
                   <img
                     src={school.logo_url}
                     alt="School Logo"
                     style={{
-                      width: "82px",
-                      height: "82px",
-                      objectFit: "cover",
-                      borderRadius: "16px",
-                      background: "#fff",
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: "82px",
-                      height: "82px",
-                      borderRadius: "16px",
-                      background: "#f2f2f2",
+                      width: "120px",
+                      height: "120px",
+                      objectFit: "contain",
+                      marginBottom: "20px",
                     }}
                   />
                 )}
 
-                <div>
-                  <h1 style={{ margin: 0 }}>
-                    {school?.school_name || "School Name"}
-                  </h1>
-                <p style={textStyle}>
-                <strong>EMIS / NPO / Registration Number:</strong>{" "}
-                {school?.emis_number ||
-                school?.npo_number ||
-                school?.registration_number ||
-                "Not added"}
+                <h1 style={coverSchoolName}>
+                  {school?.school_name || "Preschool Name"}
+                </h1>
+
+                <h2 style={coverTitle}>Developmental Progress Report</h2>
+
+                <p style={coverText}>{selectedClassroom.classroom_name}</p>
+
+                <p style={coverText}>
+                  <strong>EMIS / NPO Number:</strong>{" "}
+                  {school?.emis_number || school?.npo_number || "Not added"}
                 </p>
 
-                <p style={textStyle}>
-                <strong>Address:</strong>{" "}
-                {school?.address ||
-                school?.school_address ||
-                school?.physical_address ||
-                "Not added"}
+                <p style={coverText}>
+                  <strong>Address:</strong>{" "}
+                  {school?.address ||
+                    school?.school_address ||
+                    school?.physical_address ||
+                    "Not added"}
                 </p>
 
-                <p style={textStyle}>
-                <strong>Contact Number:</strong>{" "}
-                {school?.contact_number ||
-                school?.phone_number ||
-                school?.telephone ||
-                "Not added"}
+                <p style={coverText}>
+                  <strong>Contact:</strong>{" "}
+                  {school?.contact_number ||
+                    school?.phone_number ||
+                    school?.telephone ||
+                    "Not added"}
                 </p>
 
-                <p style={textStyle}>
-                <strong>Province:</strong> {school?.province || "Not added"}
+                <p style={{ ...coverText, marginTop: "30px" }}>
+                {selectedPeriod.title}
                 </p>
+              </div>
+            </div>
 
-                <p style={textStyle}>
-                <strong>District:</strong> {school?.district || "Not added"}
-                </p>
+            <div className="booklet-page">
+              <div style={bookletPanel}>
+                <h2 style={bookletTitle}>Developmental Progress Report</h2>
 
-                  <p style={textStyle}>Developmental Progress Report</p>
-                  <p style={textStyle}>
-                    {selectedPeriod?.title || "Report Period"}
+                <div style={learnerInfoBox}>
+                  <p style={bookletText}>
+                    <strong>Name of Child:</strong> {selectedLearner.name}
                   </p>
-                  <p style={textStyle}>
-                    Aligned to the National Curriculum Framework developmental
-                    domains.
+
+                  <p style={bookletText}>
+                    <strong>Age:</strong>{" "}
+                    {selectedLearner?.age ||
+                      calculateAge(selectedLearner?.date_of_birth)}
+                  </p>
+
+                  <p style={bookletText}>
+                    <strong>Date of Birth:</strong>{" "}
+                    {selectedLearner.date_of_birth || "Not added"}
+                  </p>
+
+                  <p style={bookletText}>
+                    <strong>Class:</strong> {selectedClassroom.classroom_name}
                   </p>
                 </div>
+
+                <div style={codesBox}>
+                  <strong>Codes / Level of Competence</strong>
+                  <br />
+                  NP = Needs Practice | PA = Partially Achieved | A = Achieved
+                  | G = Good | VG = Very Good
+                </div>
+
+                <h3 style={bookletSectionTitle}>Well-being</h3>
+                <p style={bookletSmallText}>
+                  Mapped from gross motor abilities, fine motor abilities,
+                  physical coordination and self-care activities.
+                </p>
+
+                <h4 style={bookletSubTitle}>Gross Motor Abilities</h4>
+                <ReportSkillTable
+                  categoryKey="wellbeing"
+                  rows={[
+                    "I can balance on one foot for 5 seconds",
+                    "I can catch and throw a beanbag",
+                    "I can skip with a skipping rope",
+                    "I can jump with feet together",
+                    "I can climb on the climbing apparatus",
+                  ]}
+                  reviewAssessments={reviewAssessments}
+                />
+
+                <h4 style={bookletSubTitle}>Fine Motor Abilities</h4>
+                <ReportSkillTable
+                  categoryKey="wellbeing"
+                  rows={[
+                    "I can handle a crayon or pencil correctly",
+                    "I can handle a paintbrush correctly",
+                    "I can cut on a straight line",
+                    "I can cut on a curved line",
+                    "I can paste",
+                    "I can write my name correctly",
+                    "I can colour in neatly",
+                    "I can colour in one direction",
+                    "I can trace a picture",
+                    "I can draw a picture of myself",
+                  ]}
+                  reviewAssessments={reviewAssessments}
+                />
               </div>
 
-              <div style={{ textAlign: "right" }}>
-                <strong>{formatPeriodType(selectedPeriod.report_type)}</strong>
-                <p style={textStyle}>
-                  Generated: {new Date().toLocaleDateString()}
+              <div style={bookletPanel}>
+                <h3 style={bookletSectionTitle}>Communication</h3>
+                <p style={bookletSmallText}>
+                  Mapped from literacy, language development, listening and
+                  speaking.
                 </p>
-              </div>
-            </div>
 
-            <div style={learnerCard}>
-              <h2 style={{ margin: 0 }}>{selectedLearner.name}</h2>
+                <ReportSkillTable
+                  categoryKey="communication"
+                  rows={[
+                    "My pronunciation is clear",
+                    "I can concentrate in class",
+                    "I can follow instructions given in class",
+                    "I can tell the class my news",
+                    "I can draw my news",
+                    "I am attentive and listen to stories",
+                    "I participate during class discussions",
+                    "My speech is clear",
+                  ]}
+                  reviewAssessments={reviewAssessments}
+                />
 
-              <p style={textStyle}>
-                <strong>Class:</strong> {selectedClassroom.classroom_name}
-              </p>
-
-              <p style={textStyle}>
-                <strong>Practitioner/Teacher:</strong> {teacherName}
-              </p>
-
-              <p style={textStyle}>
-                <strong>Date of Birth:</strong>{" "}
-                {selectedLearner.date_of_birth || "Not added"}
-              </p>
-
-              <p style={textStyle}>
-              <strong>Age:</strong>{" "}
-              {selectedLearner.age || calculateAge(selectedLearner.date_of_birth)}
-              </p>
-
-              <p style={textStyle}>
-                <strong>Principal:</strong> {principalName}
-              </p>
-            </div>
-
-            <div style={{ display: "grid", gap: "14px", marginTop: "20px" }}>
-              {reportCategories.map((category) => {
-                const assessment = reviewAssessments.find(
-                  (item) => item.category === category.key
-                );
-
-                const displayLevel = assessment?.level || "not_assessed";
-
-                const displayComment =
-                assessment?.comment ||
-                assessment?.teacher_comment ||
-                "No observation recorded for this domain yet.";
-
-                return (
-                  <div key={category.key} className="db-list-card">
-                    <strong>{category.label}</strong>
-                    <p style={textStyle}>({category.description})</p>
-
-                    {category.mappedAreas && (
-                <ul style={{ marginTop: "8px", paddingLeft: "20px" }}>
-                {category.mappedAreas.map((area: string) => (
-                <li key={area} style={textStyle}>
-                {area}
-                </li>
-                ))}
-                </ul>
-                )}
-
-                    {!generatedReport && (
-                      <select
-                        className="db-input no-print"
-                        value={assessment.level}
-                        onChange={(e) =>
-                          updateAssessment(category.key, "level", e.target.value)
-                        }
-                      >
-                        {reportLevels.map((level) => (
-                          <option key={level.value} value={level.value}>
-                            {level.label}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-
-                    <p>
-                      <strong>Progress Level:</strong>{" "}
-                      {assessment ? formatReportLevel(displayLevel) : "Not Assessed"}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div style={{ marginTop: "22px" }}>
-              <h3 style={sectionTitle}>Practitioner Developmental Observation</h3>
-
-              {!generatedReport ? (
-                <>
-                  <textarea
-                    className="db-input no-print"
-                    rows={4}
-                    placeholder="Practitioner overall developmental observation for this learner"
-                    value={teacherObservation}
-                    onChange={(e) => setTeacherObservation(e.target.value)}
-                    style={{ width: "100%", boxSizing: "border-box" }}
-                  />
-                  <p className="print-only" style={textStyle}>
-                    {teacherObservation || "No observation added."}
-                  </p>
-                </>
-              ) : (
-                <p style={textStyle}>
-                  {teacherObservation || "No observation added."}
+                <h3 style={bookletSectionTitle}>Identity and Belonging</h3>
+                <p style={bookletSmallText}>
+                  Mapped from life skills, social development, independence and
+                  classroom participation.
                 </p>
-              )}
-            </div>
 
-            <div style={{ marginTop: "22px" }}>
-              <h3 style={sectionTitle}>Principal Comment</h3>
+                <ReportSkillTable
+                  categoryKey="identity_belonging"
+                  rows={[
+                    "I recognise the role of the teacher in class",
+                    "I look after my belongings",
+                    "I understand that goods have value",
+                    "I persevere and complete given tasks",
+                    "I participate with confidence",
+                    "I interact positively with others",
+                  ]}
+                  reviewAssessments={reviewAssessments}
+                />
 
-              {!generatedReport ? (
-                <>
-                  <textarea
-                    className="db-input no-print"
-                    rows={4}
-                    placeholder="Add official principal comment"
-                    value={principalComment}
-                    onChange={(e) => setPrincipalComment(e.target.value)}
-                    style={{ width: "100%", boxSizing: "border-box" }}
-                  />
-                  <p className="print-only" style={textStyle}>
-                    {principalComment || "No principal comment added."}
-                  </p>
-                </>
-              ) : (
-                <p style={textStyle}>
-                  {principalComment || "No principal comment added."}
+                <h3 style={bookletSectionTitle}>Exploring Mathematics</h3>
+                <p style={bookletSmallText}>
+                  Mapped from numeracy, number awareness, counting and
+                  comparison.
                 </p>
-              )}
-            </div>
 
-            <div style={signatureRow}>
-              <div style={signatureBlock}>
-                <div style={signatureLine} />
-                <p style={signatureLabel}>
-                  <strong>Practitioner/Teacher:</strong> {teacherName}
-                </p>
-                <p style={signatureLabel}>
-                  <strong>Date:</strong> {new Date().toLocaleDateString()}
-                </p>
-              </div>
+                <ReportSkillTable
+                  categoryKey="mathematical_literacy"
+                  rows={[
+                    "I can count up to 20",
+                    "I can count 20 objects",
+                    "I can recognise and name numbers 1 to 10",
+                    "I can write numbers 1 to 15",
+                    "I understand more and less",
+                    "I know my name and surname",
+                    "I know my date of birth",
+                    "I know my age",
+                  ]}
+                  reviewAssessments={reviewAssessments}
+                />
 
-              <div style={signatureBlock}>
-                <div style={signatureLine} />
-                <p style={signatureLabel}>
-                  <strong>Principal:</strong> {principalName}
+                <h3 style={bookletSectionTitle}>Creativity</h3>
+                <p style={bookletSmallText}>
+                  Mapped from drawing, music participation, colouring and
+                  imaginative activities.
                 </p>
-                <p style={signatureLabel}>
-                  <strong>Date:</strong> {new Date().toLocaleDateString()}
-                </p>
+
+                <ReportSkillTable
+                  categoryKey="creativity"
+                  rows={[
+                    "I participate in music rings",
+                    "I enjoy drawing activities",
+                    "I colour neatly",
+                    "I use imagination during creative activities",
+                    "I take part in art activities",
+                  ]}
+                  reviewAssessments={reviewAssessments}
+                />
               </div>
             </div>
 
@@ -1402,8 +1452,8 @@ export default function ProgressReportsPage() {
                 textAlign: "center",
               }}
             >
-              Generated securely by DailyBloom. Aligned to the National
-              Curriculum Framework developmental domains.
+              Generated securely by DailyBloom. Aligned to the six recognised DBE
+              National Curriculum Framework developmental and learning areas.
             </p>
 
             <div
@@ -1460,9 +1510,23 @@ export default function ProgressReportsPage() {
               )}
 
               <button className="db-button-primary" onClick={downloadPDF}>
-                Download / Print Developmental Report
+               Download / Print Developmental Report
               </button>
-            </div>
+
+              <p
+              className="no-print"
+              style={{
+              fontSize: "12px",
+              color: "#666",
+              marginTop: "12px",
+              lineHeight: 1.5,
+              }}
+              >
+              Recommended print settings:
+              Landscape • Double-sided • Flip on short edge • A4
+              </p>
+
+          </div>
           </div>
         )}
 
@@ -1471,7 +1535,29 @@ export default function ProgressReportsPage() {
           display: none;
         }
 
+        .booklet-page {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8mm;
+          background: #fff;
+          padding: 6mm;
+          margin-bottom: 18px;
+          border-radius: 14px;
+          box-sizing: border-box;
+          min-height: 190mm;
+        }
+
+        .compact-textarea {
+          min-height: 54px !important;
+          font-size: 12px !important;
+        }
+
         @media print {
+          @page {
+            size: A4 landscape;
+            margin: 8mm;
+          }
+
           body {
             background: white !important;
           }
@@ -1491,10 +1577,29 @@ export default function ProgressReportsPage() {
             top: 0;
             width: 100%;
             margin: 0;
-            padding: 24px;
+            padding: 0 !important;
             box-shadow: none !important;
             border-radius: 0 !important;
             background: white !important;
+          }
+
+          .booklet-page {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 6mm !important;
+            page-break-after: always;
+            break-after: page;
+            width: 100%;
+            min-height: 190mm;
+            background: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+          }
+
+          .booklet-page:last-of-type {
+            page-break-after: auto;
+            break-after: auto;
           }
 
           .no-print {
@@ -1508,6 +1613,87 @@ export default function ProgressReportsPage() {
       `}</style>
     </div>
   );
+}
+
+function ReportSkillTable({
+  categoryKey,
+  rows,
+  reviewAssessments,
+}: {
+  categoryKey: string;
+  rows: string[];
+  reviewAssessments: any[];
+}) {
+  const levels = [
+    { value: "needs_practice", label: "NP" },
+    { value: "partially_achieved", label: "PA" },
+    { value: "achieved", label: "A" },
+    { value: "good", label: "G" },
+    { value: "very_good", label: "VG" },
+  ];
+
+  function getRowLevel(row: string) {
+    const indicatorKey = makeIndicatorKey(row);
+
+    const indicatorAssessment = reviewAssessments.find(
+      (item) =>
+        item.category === categoryKey &&
+        (item.indicator_key === indicatorKey || item.indicator_label === row)
+    );
+
+    if (indicatorAssessment?.level) {
+      return indicatorAssessment.level;
+    }
+
+    const categoryAssessment = reviewAssessments.find(
+      (item) =>
+        item.category === categoryKey &&
+        !item.indicator_key &&
+        !item.indicator_label
+    );
+
+    return categoryAssessment?.level || "";
+  }
+
+  return (
+    <table style={skillTable}>
+      <thead>
+        <tr>
+          <th style={skillHeader}>Developmental Indicator</th>
+          {levels.map((level) => (
+            <th key={level.value} style={levelHeader}>
+              {level.label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+
+      <tbody>
+        {rows.map((row) => {
+          const selectedLevel = getRowLevel(row);
+
+          return (
+            <tr key={row}>
+              <td style={skillCell}>{row}</td>
+
+              {levels.map((level) => (
+                <td key={level.value} style={tickCell}>
+                  {selectedLevel === level.value ? "✓" : ""}
+                </td>
+              ))}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function makeIndicatorKey(label: string) {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 const sectionTitle = {
@@ -1557,43 +1743,181 @@ const modalBox: React.CSSProperties = {
   boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
 };
 
-const reportHeader: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "20px",
-  borderBottom: "1px solid #ddd",
-  paddingBottom: "16px",
-  marginBottom: "18px",
-};
 
-const learnerCard: React.CSSProperties = {
+const reportCard: React.CSSProperties = {
   padding: "16px",
-  borderRadius: "18px",
+  borderRadius: "16px",
   background: "#fff",
-  marginBottom: "18px",
+  marginBottom: "12px",
+  border: "1px solid rgba(0,0,0,0.06)",
 };
 
-const signatureRow: React.CSSProperties = {
+const smallReviewRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: "40px",
-  marginTop: "24px",
-  paddingTop: "16px",
-  borderTop: "1px solid #eee",
+  gap: "12px",
+  padding: "8px 0",
+  borderBottom: "1px solid #eee",
 };
 
-const signatureBlock: React.CSSProperties = {
-  flex: 1,
+const paginationRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  marginTop: "16px",
 };
 
-const signatureLine: React.CSSProperties = {
-  borderBottom: "1.5px solid #333",
-  marginBottom: "6px",
-  height: "32px",
+
+
+
+
+
+
+
+const bookletPanel: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #d8d8d8",
+  padding: "9px",
+  minHeight: "178mm",
+  boxSizing: "border-box",
+  overflow: "hidden",
 };
 
-const signatureLabel: React.CSSProperties = {
-  margin: "2px 0",
-  fontSize: "11px",
+const bookletTitle: React.CSSProperties = {
+  textAlign: "center",
+  fontSize: "15px",
+  margin: "0 0 6px",
+  color: "#222",
+};
+
+const bookletSectionTitle: React.CSSProperties = {
+  fontSize: "9.5px",
+  fontWeight: 800,
+  textTransform: "uppercase",
+  margin: "7px 0 4px",
+  background: "#f3f3f3",
+  padding: "3px 5px",
+  border: "1px solid #ddd",
+};
+
+const bookletSubTitle: React.CSSProperties = {
+  fontSize: "9.5px",
+  fontWeight: 800,
+  margin: "6px 0 3px",
+  color: "#333",
+};
+
+const bookletText: React.CSSProperties = {
+  fontSize: "9.5px",
+  margin: "3px 0",
+  color: "#333",
+};
+
+
+const remarksBox: React.CSSProperties = {
+  minHeight: "34px",
+  border: "1px solid #ddd",
+  padding: "5px",
+  margin: "4px 0 6px",
+  fontSize: "9px",
+  color: "#333",
+  lineHeight: 1.25,
+  background: "#fafafa",
+};
+
+const bookletSmallText: React.CSSProperties = {
+  fontSize: "8px",
+  margin: "2px 0 4px",
   color: "#555",
+  lineHeight: 1.2,
+};
+
+const bookletLine: React.CSSProperties = {
+  fontSize: "9px",
+  margin: "5px 0",
+  color: "#333",
+};
+
+const skillTable: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  fontSize: "7.6px",
+  marginBottom: "4px",
+};
+
+const skillHeader: React.CSSProperties = {
+  border: "1px solid #888",
+  padding: "2px 3px",
+  textAlign: "left",
+  background: "#f7f7f7",
+};
+
+const levelHeader: React.CSSProperties = {
+  border: "1px solid #888",
+  padding: "2px",
+  textAlign: "center",
+  width: "18px",
+  background: "#f7f7f7",
+};
+
+const skillCell: React.CSSProperties = {
+  border: "1px solid #888",
+  padding: "2px 3px",
+  verticalAlign: "top",
+  lineHeight: 1.15,
+};
+
+const tickCell: React.CSSProperties = {
+  border: "1px solid #888",
+  padding: "2px",
+  textAlign: "center",
+  fontWeight: 800,
+  lineHeight: 1,
+};
+
+const signatureGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "4px 10px",
+  marginTop: "8px",
+};
+
+const coverSchoolName: React.CSSProperties = {
+  fontSize: "22px",
+  marginTop: "14px",
+  marginBottom: "14px",
+  color: "#222",
+};
+
+const coverTitle: React.CSSProperties = {
+  fontSize: "19px",
+  margin: "16px 0",
+  color: "#4f6fbd",
+};
+
+const coverText: React.CSSProperties = {
+  fontSize: "11px",
+  margin: "7px 0",
+  color: "#333",
+  lineHeight: 1.35,
+};
+
+const learnerInfoBox: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "2px 8px",
+  border: "1px solid #ddd",
+  padding: "6px",
+  marginBottom: "6px",
+  background: "#fafafa",
+};
+
+const codesBox: React.CSSProperties = {
+  fontSize: "8.5px",
+  lineHeight: 1.25,
+  padding: "5px",
+  border: "1px solid #ddd",
+  margin: "5px 0",
+  background: "#fafafa",
 };

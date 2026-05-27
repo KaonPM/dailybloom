@@ -1,10 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
-import { reportCategories, reportLevels } from "../lib/report-categories";
-import { useRouter } from "next/navigation";
+import { reportCategories } from "../lib/report-categories";
+
+const levelOptions = [
+  { value: "NP", label: "NP - Needs Practice" },
+  { value: "PA", label: "PA - Partially Achieved" },
+  { value: "A", label: "A - Achieved" },
+  { value: "G", label: "G - Good" },
+  { value: "VG", label: "VG - Very Good" },
+];
 
 export default function TeacherAssessmentsPage() {
   const router = useRouter();
@@ -22,7 +30,6 @@ export default function TeacherAssessmentsPage() {
 
   const [assessmentValues, setAssessmentValues] = useState<any>({});
   const [overallComment, setOverallComment] = useState("");
-
   const [existingAssessments, setExistingAssessments] = useState<any[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -32,40 +39,51 @@ export default function TeacherAssessmentsPage() {
     loadPage();
   }, []);
 
-  function isValidNumber(value: any) {
-    if (value === "" || value === null || value === undefined) return false;
+  function normalizeLevel(value: string) {
+    if (!value) return "";
 
-    const parsedValue = Number(value);
+    const cleaned = value.trim();
 
-    return Number.isFinite(parsedValue) && !Number.isNaN(parsedValue);
+    if (cleaned === "NP" || cleaned === "NP - Needs Practice") return "NP";
+    if (cleaned === "PA" || cleaned === "PA - Partially Achieved") return "PA";
+    if (cleaned === "A" || cleaned === "A - Achieved") return "A";
+    if (cleaned === "G" || cleaned === "G - Good") return "G";
+    if (cleaned === "VG" || cleaned === "VG - Very Good") return "VG";
+
+    if (cleaned === "needs_support") return "NP";
+    if (cleaned === "progressing") return "PA";
+    if (cleaned === "meeting_expectations") return "G";
+    if (cleaned === "exceeding_expectations") return "VG";
+
+    return "";
   }
 
   async function loadPage() {
-    const { profile, error } = await getCurrentProfile();
+    const result = await getCurrentProfile();
 
-    if (error || !profile) {
+    if (result.error || !result.profile) {
       router.push("/login");
       return;
     }
 
-    if (profile.role !== "teacher" && profile.role !== "principal") {
+    const currentProfile = result.profile;
+
+    if (currentProfile.role !== "teacher" && currentProfile.role !== "principal") {
       router.push("/dashboard");
       return;
     }
 
-    if (!isValidNumber(profile.school_id)) {
+    if (!currentProfile.school_id) {
       alert("No school linked to this account.");
       router.push("/dashboard");
       return;
     }
 
-    const currentSchoolId = Number(profile.school_id);
+    setProfile(currentProfile);
+    setSchoolId(Number(currentProfile.school_id));
 
-    setProfile(profile);
-    setSchoolId(currentSchoolId);
-
-    await fetchClassrooms(currentSchoolId);
-    await fetchPeriods(currentSchoolId);
+    await fetchClassrooms(Number(currentProfile.school_id));
+    await fetchPeriods(Number(currentProfile.school_id));
 
     setLoading(false);
   }
@@ -85,40 +103,6 @@ export default function TeacherAssessmentsPage() {
     setClassrooms(data || []);
   }
 
-  async function fetchLearnersByClassroom(
-    currentSchoolId: number,
-    classroomId: string
-  ) {
-    if (!classroomId) {
-      setLearners([]);
-      return;
-    }
-
-    const selectedClassroom = classrooms.find(
-      (item) => String(item.id) === String(classroomId)
-    );
-
-    const { data, error } = await supabase
-      .from("learners")
-      .select("*")
-      .eq("school_id", currentSchoolId)
-      .order("name", { ascending: true });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    const filteredLearners = (data || []).filter((learner) => {
-      return (
-        String(learner.classroom_id) === String(classroomId) ||
-        learner.class === selectedClassroom?.classroom_name
-      );
-    });
-
-    setLearners(filteredLearners);
-  }
-
   async function fetchPeriods(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("report_periods")
@@ -133,6 +117,38 @@ export default function TeacherAssessmentsPage() {
     }
 
     setPeriods(data || []);
+  }
+
+  async function fetchLearnersByClassroom(classroomId: string) {
+    if (!schoolId || !classroomId) {
+      setLearners([]);
+      return;
+    }
+
+    const selectedClassroom = classrooms.find(
+      (room) => String(room.id) === String(classroomId)
+    );
+
+    const { data, error } = await supabase
+      .from("learners")
+      .select("*")
+      .eq("school_id", schoolId)
+      .order("name", { ascending: true });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const filtered = (data || []).filter((learner) => {
+      return (
+        String(learner.classroom_id) === String(classroomId) ||
+        learner.class === selectedClassroom?.classroom_name ||
+        learner.classroom_name === selectedClassroom?.classroom_name
+      );
+    });
+
+    setLearners(filtered);
   }
 
   async function loadExistingAssessment(learnerId: string, periodId: string) {
@@ -153,10 +169,10 @@ export default function TeacherAssessmentsPage() {
 
     const nextValues: any = {};
 
-    reportCategories.forEach((category) => {
+    reportCategories.forEach((category: any) => {
       nextValues[category.key] = {};
 
-      category.indicators.forEach((indicator) => {
+      (category.indicators || []).forEach((indicator: any) => {
         const existing = data?.find(
           (item) =>
             item.category === category.key &&
@@ -164,30 +180,18 @@ export default function TeacherAssessmentsPage() {
         );
 
         nextValues[category.key][indicator.key] = {
-          level: existing?.level || "",
-          status: existing?.status || "draft",
+          level: normalizeLevel(existing?.level || ""),
         };
       });
     });
 
-    const existingComment = data?.[0]?.teacher_comment || "";
-
     setAssessmentValues(nextValues);
-    setOverallComment(existingComment);
+    setOverallComment(data?.[0]?.teacher_comment || "");
   }
 
-  function formatPeriodType(type: string) {
-    if (type === "quarterly") return "Quarterly Report";
-    if (type === "biannual") return "Biannual Report";
-    if (type === "annual") return "Annual Report";
-
-    return type || "Report";
-  }
-
-  function updateCategory(
+  function updateAssessmentLevel(
     categoryKey: string,
     indicatorKey: string,
-    field: string,
     value: string
   ) {
     setAssessmentValues((current: any) => ({
@@ -196,7 +200,7 @@ export default function TeacherAssessmentsPage() {
         ...current[categoryKey],
         [indicatorKey]: {
           ...current[categoryKey]?.[indicatorKey],
-          [field]: value,
+          level: normalizeLevel(value),
         },
       },
     }));
@@ -228,11 +232,14 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
-    const missingLevel = reportCategories.some((category) =>
-      category.indicators.some(
-        (indicator) =>
-          !assessmentValues?.[category.key]?.[indicator.key]?.level
-      )
+    const missingLevel = reportCategories.some((category: any) =>
+      (category.indicators || []).some((indicator: any) => {
+        const level = normalizeLevel(
+          assessmentValues?.[category.key]?.[indicator.key]?.level || ""
+        );
+
+        return !level;
+      })
     );
 
     if (missingLevel) {
@@ -242,64 +249,44 @@ export default function TeacherAssessmentsPage() {
 
     setSaving(true);
 
-    const rows = reportCategories.flatMap((category) =>
-      category.indicators.map((indicator) => ({
-        school_id: Number(schoolId),
-        classroom_id: Number(selectedClassroomId),
-        learner_id: selectedLearnerId,
-        report_period_id: Number(selectedPeriodId),
+    const rowsMap = new Map<string, any>();
 
-        category: category.key,
+    reportCategories.forEach((category: any) => {
+      (category.indicators || []).forEach((indicator: any) => {
+        const row = {
+          school_id: Number(schoolId),
+          classroom_id: Number(selectedClassroomId),
+          learner_id: selectedLearnerId,
+          report_period_id: Number(selectedPeriodId),
+          category: category.key,
+          indicator_key: indicator.key,
+          indicator_label: indicator.label,
+          level: normalizeLevel(
+            assessmentValues?.[category.key]?.[indicator.key]?.level || ""
+          ),
+          teacher_comment: overallComment || null,
+          teacher_id: profile.id,
+          status,
+          updated_at: new Date().toISOString(),
+        };
 
-        indicator_key: indicator.key,
-        indicator_label: indicator.label,
+        const key = `${row.learner_id}-${row.report_period_id}-${row.category}-${row.indicator_key}`;
+        rowsMap.set(key, row);
+      });
+    });
 
-        level: assessmentValues?.[category.key]?.[indicator.key]?.level || "",
+    const rows = Array.from(rowsMap.values());
 
-        teacher_comment: overallComment || null,
-        teacher_id: profile.id,
-        status,
-        updated_at: new Date().toISOString(),
-      }))
-    );
+    const { error } = await supabase
+      .from("learner_assessments")
+      .upsert(rows, {
+        onConflict: "learner_id,report_period_id,category,indicator_key",
+      });
 
-    for (const row of rows) {
-      const existing = existingAssessments.find(
-        (item) =>
-          item.category === row.category &&
-          item.indicator_key === row.indicator_key &&
-          String(item.learner_id) === String(row.learner_id) &&
-          String(item.report_period_id) === String(row.report_period_id)
-      );
-
-      if (existing) {
-        const { error } = await supabase
-          .from("learner_assessments")
-          .update({
-            indicator_key: row.indicator_key,
-            indicator_label: row.indicator_label,
-            level: row.level,
-            teacher_comment: row.teacher_comment,
-            teacher_id: row.teacher_id,
-            status: row.status,
-            updated_at: row.updated_at,
-          })
-          .eq("id", existing.id);
-
-        if (error) {
-          alert(error.message);
-          setSaving(false);
-          return;
-        }
-      } else {
-        const { error } = await supabase.from("learner_assessments").insert(row);
-
-        if (error) {
-          alert(error.message);
-          setSaving(false);
-          return;
-        }
-      }
+    if (error) {
+      alert(error.message);
+      setSaving(false);
+      return;
     }
 
     await loadExistingAssessment(selectedLearnerId, selectedPeriodId);
@@ -313,13 +300,18 @@ export default function TeacherAssessmentsPage() {
     );
   }
 
+  function formatPeriodType(type: string) {
+    if (type === "quarterly") return "Quarterly Report";
+    if (type === "biannual") return "Biannual Report";
+    if (type === "annual") return "Annual Report";
+    return type || "Report";
+  }
+
   const teacherName =
     profile?.full_name || profile?.name || profile?.email || "Teacher";
 
   const canShowAssessmentForm =
-    selectedClassroomId !== "" &&
-    selectedLearnerId !== "" &&
-    selectedPeriodId !== "";
+    selectedClassroomId && selectedLearnerId && selectedPeriodId;
 
   const currentStatus = existingAssessments?.[0]?.status || null;
 
@@ -329,56 +321,22 @@ export default function TeacherAssessmentsPage() {
 
   return (
     <div>
-      <div
-        className="db-soft-card"
-        style={{
-          padding: "20px 22px",
-          marginBottom: "24px",
-        }}
-      >
+      <div className="db-soft-card" style={{ padding: 22, marginBottom: 24 }}>
         <h1 className="db-page-title">Learner Progress Assessments</h1>
-
         <p className="db-page-subtitle">
-          Complete learner development assessments and submit them to the
-          principal.
+          Complete learner development assessments and submit them to the principal.
         </p>
       </div>
 
-      <div
-        className="db-card db-card-blue"
-        style={{
-          padding: "20px",
-          marginBottom: "24px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "14px",
-            gap: "10px",
-            flexWrap: "wrap",
-          }}
-        >
+      <div className="db-card db-card-blue" style={{ padding: 20, marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
           <h3 style={sectionTitle}>Class, Teacher and Learner</h3>
 
-          {currentStatus && (
-            <div
-              style={{
-                padding: "3px 8px",
-                borderRadius: "999px",
-                fontSize: "11px",
-                fontWeight: 700,
-                background:
-                  currentStatus === "submitted" ? "#dcfce7" : "#fef3c7",
-                color: currentStatus === "submitted" ? "#166534" : "#92400e",
-                lineHeight: 1.1,
-              }}
-            >
+          {currentStatus ? (
+            <span style={currentStatus === "submitted" ? pillGreen : pillNeutral}>
               {currentStatus === "submitted" ? "Submitted" : "Draft"}
-            </div>
-          )}
+            </span>
+          ) : null}
         </div>
 
         <select
@@ -388,23 +346,16 @@ export default function TeacherAssessmentsPage() {
             const classroomId = e.target.value;
 
             setSelectedClassroomId(classroomId);
-
             setSelectedLearnerId("");
             setSelectedPeriodId("");
-
             setAssessmentValues({});
             setOverallComment("");
             setExistingAssessments([]);
 
-            if (schoolId && classroomId) {
-              await fetchLearnersByClassroom(schoolId, classroomId);
-            } else {
-              setLearners([]);
-            }
+            await fetchLearnersByClassroom(classroomId);
           }}
         >
           <option value="">Select Class</option>
-
           {classrooms.map((classroom) => (
             <option key={classroom.id} value={String(classroom.id)}>
               {classroom.classroom_name}
@@ -412,9 +363,8 @@ export default function TeacherAssessmentsPage() {
           ))}
         </select>
 
-        <div className="db-list-card" style={{ marginBottom: "14px" }}>
+        <div className="db-list-card" style={{ marginBottom: 14 }}>
           <strong>Teacher</strong>
-
           <p style={textStyle}>{teacherName}</p>
         </div>
 
@@ -423,7 +373,6 @@ export default function TeacherAssessmentsPage() {
           value={selectedLearnerId}
           onChange={async (e) => {
             const learnerId = e.target.value;
-
             setSelectedLearnerId(learnerId);
 
             if (learnerId && selectedPeriodId) {
@@ -432,10 +381,9 @@ export default function TeacherAssessmentsPage() {
           }}
         >
           <option value="">Select Learner</option>
-
           {learners.map((learner) => (
             <option key={learner.id} value={String(learner.id)}>
-              {learner.name}
+              {learner.name || learner.full_name}
             </option>
           ))}
         </select>
@@ -445,7 +393,6 @@ export default function TeacherAssessmentsPage() {
           value={selectedPeriodId}
           onChange={async (e) => {
             const periodId = e.target.value;
-
             setSelectedPeriodId(periodId);
 
             if (selectedLearnerId && periodId) {
@@ -454,7 +401,6 @@ export default function TeacherAssessmentsPage() {
           }}
         >
           <option value="">Select Report Period</option>
-
           {periods.map((period) => (
             <option key={period.id} value={String(period.id)}>
               {period.title} ({formatPeriodType(period.report_type)})
@@ -463,49 +409,20 @@ export default function TeacherAssessmentsPage() {
         </select>
       </div>
 
-      {canShowAssessmentForm && (
-        <div
-          className="db-card db-card-lavender"
-          style={{ padding: "20px" }}
-        >
+      {canShowAssessmentForm ? (
+        <div className="db-card db-card-lavender" style={{ padding: 20 }}>
           <h3 style={sectionTitle}>Development Indicators</h3>
 
-          <div
-            style={{
-              display: "grid",
-              gap: "16px",
-            }}
-          >
-            {reportCategories.map((category) => (
+          <div style={{ display: "grid", gap: 16 }}>
+            {reportCategories.map((category: any) => (
               <div key={category.key} className="db-list-card">
                 <strong>{category.label}</strong>
+                <p style={textStyle}>{category.description}</p>
 
-                <p style={textStyle}>({category.description})</p>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gap: "12px",
-                    marginTop: "12px",
-                  }}
-                >
-                  {category.indicators.map((indicator) => (
-                    <div
-                      key={indicator.key}
-                      style={{
-                        display: "grid",
-                        gap: "6px",
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: "14px",
-                          fontWeight: 700,
-                          color: "var(--db-text)",
-                        }}
-                      >
-                        {indicator.label}
-                      </label>
+                <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+                  {(category.indicators || []).map((indicator: any) => (
+                    <div key={indicator.key}>
+                      <label style={labelText}>{indicator.label}</label>
 
                       <select
                         className="db-input"
@@ -514,17 +431,15 @@ export default function TeacherAssessmentsPage() {
                             ?.level || ""
                         }
                         onChange={(e) =>
-                          updateCategory(
+                          updateAssessmentLevel(
                             category.key,
                             indicator.key,
-                            "level",
                             e.target.value
                           )
                         }
                       >
                         <option value="">Select Level</option>
-
-                        {reportLevels.map((level) => (
+                        {levelOptions.map((level) => (
                           <option key={level.value} value={level.value}>
                             {level.label}
                           </option>
@@ -537,9 +452,8 @@ export default function TeacherAssessmentsPage() {
             ))}
           </div>
 
-          <div className="db-list-card" style={{ marginTop: "20px" }}>
+          <div className="db-list-card" style={{ marginTop: 20 }}>
             <strong>Teacher Observation</strong>
-
             <textarea
               className="db-input"
               rows={3}
@@ -549,14 +463,7 @@ export default function TeacherAssessmentsPage() {
             />
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: "12px",
-              marginTop: "20px",
-              flexWrap: "wrap",
-            }}
-          >
+          <div style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
             <button
               className="db-button-primary"
               onClick={() => saveAssessment("draft")}
@@ -574,20 +481,48 @@ export default function TeacherAssessmentsPage() {
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
 const sectionTitle = {
-  marginTop: 0,
-  marginBottom: "0",
-  color: "var(--db-text)",
-  fontSize: "22px",
+  margin: "0 0 14px 0",
+  color: "#2D2A3E",
+  fontSize: 20,
   fontWeight: 800 as const,
+};
+
+const labelText = {
+  display: "block",
+  margin: "0 0 8px 0",
+  color: "#2D2A3E",
+  fontSize: 14,
+  fontWeight: 700 as const,
 };
 
 const textStyle = {
   margin: "6px 0 12px 0",
-  color: "var(--db-text-soft)",
+  color: "#6D6888",
+  fontSize: 14,
+};
+
+const pillGreen = {
+  background: "#EAF8EE",
+  border: "1px solid #CDEED8",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 12,
+  color: "#2D2A3E",
+  height: "fit-content",
+};
+
+const pillNeutral = {
+  background: "#F8F4FF",
+  border: "1px solid #E7DFF8",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 12,
+  color: "#2D2A3E",
+  height: "fit-content",
 };

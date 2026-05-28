@@ -9,12 +9,12 @@ type ClassroomRow = {
   id: number;
   school_id?: number | null;
   classroom_name?: string | null;
-  age_group?: string | null;
+  age_groups?: string[] | null;
   created_at?: string | null;
 };
 
 type LearnerRow = {
-  id: number;
+  id: string;
   name?: string | null;
   class?: string | null;
   classroom_id?: number | null;
@@ -29,8 +29,12 @@ type TeacherRow = {
 };
 
 const ageGroupOptions = [
-  "0 - 3 years",
-  "3 - 6 years",
+  "0-1 Years",
+  "1-2 Years",
+  "2-3 Years",
+  "3-4 Years",
+  "4-5 Years",
+  "5-6 Years",
 ];
 
 export default function ClassroomsPage() {
@@ -49,10 +53,10 @@ export default function ClassroomsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [classroomName, setClassroomName] = useState("");
-  const [ageGroup, setAgeGroup] = useState("");
+  const [selectedAgeGroups, setSelectedAgeGroups] = useState<string[]>([]);
 
   const [teacherToAssign, setTeacherToAssign] = useState("");
-  const [selectedLearnerId, setSelectedLearnerId] = useState<number | null>(
+  const [selectedLearnerId, setSelectedLearnerId] = useState<string | null>(
     null
   );
   const [moveLearnerToClassroomId, setMoveLearnerToClassroomId] = useState("");
@@ -97,7 +101,7 @@ export default function ClassroomsPage() {
   async function fetchClassrooms(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("classrooms")
-      .select("id, school_id, classroom_name, age_group, created_at")
+      .select("id, school_id, classroom_name, age_groups, created_at")
       .eq("school_id", currentSchoolId)
       .order("classroom_name", { ascending: true });
 
@@ -124,41 +128,47 @@ export default function ClassroomsPage() {
     setLearners((data || []) as LearnerRow[]);
   }
 
-async function fetchTeachers(currentSchoolId: number) {
-  const response = await fetch("/api/list-teachers", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      school_id: currentSchoolId,
-    }),
-  });
+  async function fetchTeachers(currentSchoolId: number) {
+    const response = await fetch("/api/list-teachers", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        school_id: currentSchoolId,
+      }),
+    });
 
-  const result = await response.json();
+    const result = await response.json();
 
-  if (!response.ok) {
-    alert(result.error || "Could not load teachers.");
-    return;
+    if (!response.ok) {
+      alert(result.error || "Could not load teachers.");
+      return;
+    }
+
+    setTeachers(result.teachers || []);
   }
-
-  setTeachers(result.teachers || []);
-}
 
   function getClassroomName(room: ClassroomRow) {
     return room.classroom_name || "Unnamed classroom";
   }
 
+  function getAgeGroupsLabel(room: ClassroomRow) {
+    return room.age_groups && room.age_groups.length > 0
+      ? room.age_groups.join(", ")
+      : "No age groups";
+  }
+
   function resetForm() {
     setClassroomName("");
-    setAgeGroup("");
+    setSelectedAgeGroups([]);
     setEditingId(null);
   }
 
   function startEdit(room: ClassroomRow) {
     setEditingId(room.id);
     setClassroomName(getClassroomName(room));
-    setAgeGroup(room.age_group || "");
+    setSelectedAgeGroups(room.age_groups || []);
     setSelectedClassroom(room);
     setShowForm(true);
   }
@@ -171,8 +181,8 @@ async function fetchTeachers(currentSchoolId: number) {
       return;
     }
 
-    if (!ageGroup.trim()) {
-      alert("Please select an age group.");
+    if (selectedAgeGroups.length === 0) {
+      alert("Please select at least one age group.");
       return;
     }
 
@@ -187,7 +197,7 @@ async function fetchTeachers(currentSchoolId: number) {
         .from("classrooms")
         .update({
           classroom_name: newName,
-          age_group: ageGroup,
+          age_groups: selectedAgeGroups,
         })
         .eq("id", editingId);
 
@@ -220,7 +230,7 @@ async function fetchTeachers(currentSchoolId: number) {
         id: editingId,
         school_id: schoolId,
         classroom_name: newName,
-        age_group: ageGroup,
+        age_groups: selectedAgeGroups,
       });
 
       setSaving(false);
@@ -232,7 +242,7 @@ async function fetchTeachers(currentSchoolId: number) {
       {
         school_id: schoolId,
         classroom_name: classroomName.trim(),
-        age_group: ageGroup,
+        age_groups: selectedAgeGroups,
       },
     ]);
 
@@ -251,37 +261,38 @@ async function fetchTeachers(currentSchoolId: number) {
   }
 
   async function assignTeacherToClassroom() {
-  if (!schoolId || !selectedClassroom || !teacherToAssign) {
-    alert("Please select a teacher.");
-    return;
+    if (!schoolId || !selectedClassroom || !teacherToAssign) {
+      alert("Please select a teacher.");
+      return;
+    }
+
+    const roomName = getClassroomName(selectedClassroom);
+
+    const response = await fetch("/api/assign-classroom-teacher", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        school_id: schoolId,
+        classroom_name: roomName,
+        teacher_id: teacherToAssign,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Could not assign teacher.");
+      return;
+    }
+
+    setTeacherToAssign("");
+    await fetchTeachers(schoolId);
+
+    alert("Teacher assigned.");
   }
 
-  const roomName = getClassroomName(selectedClassroom);
-
-  const response = await fetch("/api/assign-classroom-teacher", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      school_id: schoolId,
-      classroom_name: roomName,
-      teacher_id: teacherToAssign,
-    }),
-  });
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    alert(result.error || "Could not assign teacher.");
-    return;
-  }
-
-  setTeacherToAssign("");
-  await fetchTeachers(schoolId);
-
-  alert("Teacher assigned.");
-}
   async function removeTeacherFromClassroom(teacherId: string) {
     if (!schoolId) return;
 
@@ -499,7 +510,7 @@ async function fetchTeachers(currentSchoolId: number) {
     : teachers;
 
   const selectedLearner = selectedLearnerId
-    ? learners.find((learner) => learner.id === selectedLearnerId)
+    ? learners.find((learner) => String(learner.id) === String(selectedLearnerId))
     : null;
 
   const deleteTargetName = deleteTargetClassroom
@@ -567,20 +578,59 @@ async function fetchTeachers(currentSchoolId: number) {
               />
             </div>
 
-            <div>
-              <p style={labelText}>Age Group</p>
-              <select
-                className="db-input"
-                value={ageGroup}
-                onChange={(e) => setAgeGroup(e.target.value)}
+            <div
+              style={{
+                border: "1px solid #ddd",
+                borderRadius: "12px",
+                padding: "14px",
+                background: "#fff",
+              }}
+            >
+              <p
+                style={{
+                  fontWeight: 700,
+                  margin: "0 0 10px 0",
+                  color: "#333",
+                }}
               >
-                <option value="">Select age group</option>
-                {ageGroupOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
+                Select Age Groups
+              </p>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: "10px",
+                }}
+              >
+                {ageGroupOptions.map((group) => (
+                  <label
+                    key={group}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      fontSize: "14px",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedAgeGroups.includes(group)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedAgeGroups((prev) => [...prev, group]);
+                        } else {
+                          setSelectedAgeGroups((prev) =>
+                            prev.filter((item) => item !== group)
+                          );
+                        }
+                      }}
+                    />
+
+                    {group}
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
           </div>
 
@@ -674,7 +724,7 @@ async function fetchTeachers(currentSchoolId: number) {
                     style={{
                       width: "100%",
                       display: "grid",
-                      gridTemplateColumns: "1fr 130px 110px 110px",
+                      gridTemplateColumns: "1fr 180px 110px 110px",
                       gap: 8,
                       alignItems: "center",
                       background: active ? "#EAF7FD" : "#FFFDFB",
@@ -689,9 +739,7 @@ async function fetchTeachers(currentSchoolId: number) {
                     }}
                   >
                     <strong>{item.roomName}</strong>
-                    <span style={pillAge}>
-                      {item.room.age_group || "No age group"}
-                    </span>
+                    <span style={pillAge}>{getAgeGroupsLabel(item.room)}</span>
                     <span style={pillBlue}>{item.learnerCount} learners</span>
                     <span style={pillNeutral}>{item.teacherCount} teachers</span>
                   </button>
@@ -708,7 +756,7 @@ async function fetchTeachers(currentSchoolId: number) {
                     >
                       <h3 style={sectionTitle}>{selectedStats.roomName}</h3>
                       <p style={smallText}>
-                        Age group: {selectedStats.room.age_group || "Not added"}
+                        Age groups: {getAgeGroupsLabel(selectedStats.room)}
                       </p>
 
                       <div style={miniGrid}>
@@ -776,7 +824,8 @@ async function fetchTeachers(currentSchoolId: number) {
                         ) : (
                           <div style={{ display: "grid", gap: 6 }}>
                             {selectedLearners.map((learner) => {
-                              const learnerActive = selectedLearnerId === learner.id;
+                              const learnerActive =
+                                String(selectedLearnerId) === String(learner.id);
 
                               return (
                                 <button
@@ -784,7 +833,7 @@ async function fetchTeachers(currentSchoolId: number) {
                                   type="button"
                                   onClick={() => {
                                     setSelectedLearnerId(
-                                      learnerActive ? null : learner.id
+                                      learnerActive ? null : String(learner.id)
                                     );
                                     setMoveLearnerToClassroomId("");
                                   }}

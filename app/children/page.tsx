@@ -399,13 +399,15 @@ export default function LearnersPage() {
       classrooms.find((classroom) => classroom.age_groups?.includes(ageGroup)) ||
       null;
 
-    if (!classroomMatch) {
-      alert(
-        `No classroom found for age group ${ageGroup}. Please select a classroom manually.`
-      );
-      setSaving(false);
-      return;
-    }
+   if (!classroomMatch) {
+  alert(
+    manualClassroomId
+      ? "Selected classroom could not be found. Please choose another classroom."
+      : `No classroom found for age group ${ageGroup}. Please select a classroom manually.`
+  );
+  setSaving(false);
+  return;
+}
 
     const { error } = await supabase.from("learners").insert([
       {

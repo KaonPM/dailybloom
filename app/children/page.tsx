@@ -7,7 +7,7 @@ import { resolveSchoolContext } from "../lib/school-context";
 import { getCurrentProfile } from "../lib/auth";
 
 type LearnerRow = {
-  id: number;
+  id: string;
   name?: string | null;
   legal_name?: string | null;
   class?: string | null;
@@ -32,6 +32,7 @@ type LearnerRow = {
 type ClassroomRow = {
   id: number;
   classroom_name?: string | null;
+  age_groups?: string[] | null;
 };
 
 type ProfileRow = {
@@ -71,6 +72,7 @@ export default function LearnersPage() {
 
   const [receivingSchool, setReceivingSchool] = useState("");
   const [manualClassroomId, setManualClassroomId] = useState("");
+  const [suggestedAgeGroup, setSuggestedAgeGroup] = useState("");
 
   const [selectedLearner, setSelectedLearner] = useState<LearnerRow | null>(
     null
@@ -120,7 +122,7 @@ export default function LearnersPage() {
   async function fetchClassrooms(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("classrooms")
-      .select("id, classroom_name")
+      .select("id, classroom_name, age_groups")
       .eq("school_id", currentSchoolId)
       .order("classroom_name", { ascending: true });
 
@@ -184,6 +186,50 @@ export default function LearnersPage() {
     return match?.id || null;
   }, [classrooms, teacherClassroom]);
 
+  function calculateAge(dateString: string) {
+    const today = new Date();
+    const dob = new Date(dateString);
+
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDifference = today.getMonth() - dob.getMonth();
+
+    if (
+      monthDifference < 0 ||
+      (monthDifference === 0 && today.getDate() < dob.getDate())
+    ) {
+      age--;
+    }
+
+    return age;
+  }
+
+  function determineAgeGroup(age: number) {
+    if (age < 1) return "0-1 Years";
+    if (age < 2) return "1-2 Years";
+    if (age < 3) return "2-3 Years";
+    if (age < 4) return "3-4 Years";
+    if (age < 5) return "4-5 Years";
+
+    return "5-6 Years";
+  }
+
+  useEffect(() => {
+    if (!dateOfBirth || classrooms.length === 0) return;
+
+    const age = calculateAge(dateOfBirth);
+    const group = determineAgeGroup(age);
+
+    setSuggestedAgeGroup(group);
+
+    const matchedClassroom = classrooms.find((room) =>
+      room.age_groups?.includes(group)
+    );
+
+    if (matchedClassroom) {
+      setManualClassroomId(String(matchedClassroom.id));
+    }
+  }, [dateOfBirth, classrooms]);
+
   const visibleLearners = useMemo(() => {
     let scopedLearners = learners;
 
@@ -233,6 +279,7 @@ export default function LearnersPage() {
     setParentEmail("");
     setReceivingSchool("");
     setManualClassroomId("");
+    setSuggestedAgeGroup("");
     setSelectedLearner(null);
   }
 
@@ -302,44 +349,6 @@ export default function LearnersPage() {
     }
   }
 
-  function calculateAge(dateValue: string) {
-    const today = new Date();
-    const birthDate = new Date(dateValue);
-
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDifference = today.getMonth() - birthDate.getMonth();
-
-    if (
-      monthDifference < 0 ||
-      (monthDifference === 0 && today.getDate() < birthDate.getDate())
-    ) {
-      age--;
-    }
-
-    return age;
-  }
-
-  function getAgeGroup(age: number) {
-    if (age <= 0) return "0-1";
-    if (age === 1) return "1-2";
-    if (age === 2) return "2-3";
-    if (age === 3) return "3-4";
-    if (age === 4) return "4-5";
-    return "5-6";
-  }
-
-  function findClassroomByAgeGroup(ageGroup: string) {
-    const normalizedAgeGroup = ageGroup.replace(/\s/g, "").toLowerCase();
-
-    return classrooms.find((classroom) => {
-      const classroomName = String(classroom.classroom_name || "")
-        .replace(/\s/g, "")
-        .toLowerCase();
-
-      return classroomName.includes(normalizedAgeGroup);
-    });
-  }
-
   async function addLearner() {
     if (!schoolId) return;
 
@@ -383,18 +392,12 @@ export default function LearnersPage() {
     setSaving(true);
 
     const learnerAge = calculateAge(dateOfBirth);
-    const ageGroup = getAgeGroup(learnerAge);
+    const ageGroup = determineAgeGroup(learnerAge);
 
-    let classroomMatch: ClassroomRow | null = null;
-
-    if (manualClassroomId) {
-      classroomMatch =
-        classrooms.find(
-          (classroom) => String(classroom.id) === manualClassroomId
-        ) || null;
-    } else {
-      classroomMatch = findClassroomByAgeGroup(ageGroup) || null;
-    }
+    const classroomMatch =
+      classrooms.find((classroom) => String(classroom.id) === manualClassroomId) ||
+      classrooms.find((classroom) => classroom.age_groups?.includes(ageGroup)) ||
+      null;
 
     if (!classroomMatch) {
       alert(
@@ -447,6 +450,9 @@ export default function LearnersPage() {
   }
 
   const canAddLearner = profile?.role !== "teacher";
+  const selectedClassroom = classrooms.find(
+    (classroom) => String(classroom.id) === manualClassroomId
+  );
 
   return (
     <div>
@@ -719,6 +725,9 @@ export default function LearnersPage() {
                 {classrooms.map((classroom) => (
                   <option key={classroom.id} value={classroom.id}>
                     {classroom.classroom_name}
+                    {classroom.age_groups?.length
+                      ? ` (${classroom.age_groups.join(", ")})`
+                      : ""}
                   </option>
                 ))}
               </select>
@@ -737,7 +746,13 @@ export default function LearnersPage() {
               marginTop: 10,
             }}
           >
-            Leave blank to auto-assign by age, or choose a classroom manually.
+            {suggestedAgeGroup
+              ? `Suggested age group: ${suggestedAgeGroup}. ${
+                  selectedClassroom?.classroom_name
+                    ? `Assigned classroom: ${selectedClassroom.classroom_name}.`
+                    : "No matching classroom found yet."
+                }`
+              : "Leave blank to auto-assign by age, or choose a classroom manually."}
           </div>
 
           <button

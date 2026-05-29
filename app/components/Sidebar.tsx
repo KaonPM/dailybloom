@@ -197,6 +197,11 @@ export default function Sidebar() {
         match: ["/communications"],
       },
       {
+        label: "School Printable Documents",
+        href: "/school-documents",
+        match: ["/school-documents"],
+      },
+      {
         label: "Developmental Progress Reports",
         href: "/progress-reports",
         match: ["/progress-reports"],

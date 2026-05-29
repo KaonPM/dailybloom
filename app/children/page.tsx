@@ -27,6 +27,9 @@ type LearnerRow = {
   receiving_school?: string | null;
   ulin?: string | null;
   school_id?: number | null;
+  is_deleted?: boolean | null;
+  deleted_at?: string | null;
+  deleted_name?: string | null;
 };
 
 type ClassroomRow = {
@@ -158,10 +161,14 @@ export default function LearnersPage() {
         parent_email,
         receiving_school,
         ulin,
-        school_id
+        school_id,
+        is_deleted,
+        deleted_at,
+        deleted_name
       `
       )
       .eq("school_id", currentSchoolId)
+      .or("is_deleted.is.null,is_deleted.eq.false")
       .order("name", { ascending: true });
 
     if (error) {
@@ -349,6 +356,71 @@ export default function LearnersPage() {
     }
   }
 
+  function viewLearner(learner: LearnerRow) {
+    setSelectedLearner((current) =>
+      current?.id === learner.id ? null : learner
+    );
+  }
+
+  function editLearner(learner: LearnerRow) {
+    setSelectedLearner(learner);
+
+    setName(learner.name || "");
+    setLegalName(learner.legal_name || "");
+    setDateOfBirth(learner.date_of_birth || "");
+    setBirthCertificateNumber(learner.birth_certificate_number || "");
+    setSaIdNumber(learner.sa_id_number || "");
+    setGender(learner.gender || "");
+    setNationality(learner.nationality || "");
+    setHomeLanguage(learner.home_language || "");
+    setSupportNeeds(learner.support_needs || "");
+    setGuardianName(learner.guardian_name || "");
+    setGuardianRelationship(learner.guardian_relationship || "");
+    setGuardianIdNumber(learner.guardian_id_number || "");
+    setParentPhone(learner.parent_phone || "");
+    setParentEmail(learner.parent_email || "");
+    setReceivingSchool(learner.receiving_school || "");
+    setManualClassroomId(
+      learner.classroom_id ? String(learner.classroom_id) : ""
+    );
+
+    setShowForm(true);
+  }
+
+  async function deleteLearner(learner: LearnerRow) {
+    if (!schoolId) return;
+
+    const confirmed = confirm(
+      `Remove ${learner.name} from the active learner list? Historical attendance, summaries and payments will remain available in reports.`
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("learners")
+      .update({
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        deleted_name: learner.name || learner.legal_name || "Deleted learner",
+      })
+      .eq("id", learner.id)
+      .eq("school_id", schoolId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await fetchLearners(schoolId);
+
+    if (selectedLearner?.id === learner.id) {
+      resetForm();
+      setShowForm(false);
+    }
+
+    alert("Learner removed from active list. Historical records were kept.");
+  }
+
   async function addLearner() {
     if (!schoolId) return;
 
@@ -399,39 +471,45 @@ export default function LearnersPage() {
       classrooms.find((classroom) => classroom.age_groups?.includes(ageGroup)) ||
       null;
 
-   if (!classroomMatch) {
-  alert(
-    manualClassroomId
-      ? "Selected classroom could not be found. Please choose another classroom."
-      : `No classroom found for age group ${ageGroup}. Please select a classroom manually.`
-  );
-  setSaving(false);
-  return;
-}
+    if (!classroomMatch) {
+      alert(
+        manualClassroomId
+          ? "Selected classroom could not be found. Please choose another classroom."
+          : `No classroom found for age group ${ageGroup}. Please select a classroom manually.`
+      );
+      setSaving(false);
+      return;
+    }
 
-    const { error } = await supabase.from("learners").insert([
-      {
-        name: name.trim(),
-        legal_name: legalName.trim(),
-        class: classroomMatch.classroom_name || "Unassigned",
-        classroom_id: classroomMatch.id,
-        date_of_birth: dateOfBirth,
-        birth_certificate_number: birthCertificateNumber.trim() || null,
-        sa_id_number: saIdNumber.trim() || null,
-        gender,
-        nationality: nationality || null,
-        home_language: homeLanguage,
-        support_needs: supportNeeds.trim() || null,
-        guardian_name: guardianName.trim(),
-        guardian_relationship: guardianRelationship || null,
-        guardian_id_number: guardianIdNumber.trim() || null,
-        parent_phone: parentPhone.trim(),
-        parent_email: parentEmail.trim() || null,
-        receiving_school: receivingSchool.trim() || null,
-        ulin: null,
-        school_id: schoolId,
-      },
-    ]);
+    const learnerPayload = {
+      name: name.trim(),
+      legal_name: legalName.trim(),
+      class: classroomMatch.classroom_name || "Unassigned",
+      classroom_id: classroomMatch.id,
+      date_of_birth: dateOfBirth,
+      birth_certificate_number: birthCertificateNumber.trim() || null,
+      sa_id_number: saIdNumber.trim() || null,
+      gender,
+      nationality: nationality || null,
+      home_language: homeLanguage,
+      support_needs: supportNeeds.trim() || null,
+      guardian_name: guardianName.trim(),
+      guardian_relationship: guardianRelationship || null,
+      guardian_id_number: guardianIdNumber.trim() || null,
+      parent_phone: parentPhone.trim(),
+      parent_email: parentEmail.trim() || null,
+      receiving_school: receivingSchool.trim() || null,
+      ulin: selectedLearner ? selectedLearner.ulin || null : null,
+      school_id: schoolId,
+    };
+
+    const { error } = selectedLearner
+      ? await supabase
+          .from("learners")
+          .update(learnerPayload)
+          .eq("id", selectedLearner.id)
+          .eq("school_id", schoolId)
+      : await supabase.from("learners").insert([learnerPayload]);
 
     if (error) {
       alert(error.message);
@@ -444,7 +522,11 @@ export default function LearnersPage() {
     await fetchLearners(schoolId);
 
     setSaving(false);
-    alert(`Learner added and assigned to ${classroomMatch.classroom_name}.`);
+    alert(
+      selectedLearner
+        ? `Learner updated and assigned to ${classroomMatch.classroom_name}.`
+        : `Learner added and assigned to ${classroomMatch.classroom_name}.`
+    );
   }
 
   if (loading) {
@@ -504,7 +586,9 @@ export default function LearnersPage() {
           className="db-card db-card-blue"
           style={{ padding: 16, marginBottom: 18 }}
         >
-          <h3 style={sectionTitle}>Add Learner</h3>
+          <h3 style={sectionTitle}>
+            {selectedLearner ? "Edit Learner" : "Add Learner"}
+          </h3>
 
           <p style={helperText}>
             Capture the learner’s legal identity, guardian details and Grade R
@@ -764,7 +848,11 @@ export default function LearnersPage() {
             onClick={addLearner}
             disabled={saving}
           >
-            {saving ? "Saving..." : "Save Learner"}
+            {saving
+              ? "Saving..."
+              : selectedLearner
+              ? "Update Learner"
+              : "Save Learner"}
           </button>
         </div>
       ) : null}
@@ -794,10 +882,8 @@ export default function LearnersPage() {
               const active = selectedLearner?.id === learner.id;
 
               return (
-                <button
+                <div
                   key={learner.id}
-                  type="button"
-                  onClick={() => setSelectedLearner(active ? null : learner)}
                   style={{
                     background: active ? "#EAF7FD" : "#FFFDFB",
                     border: active ? "1px solid #CBEAF7" : "1px solid #F0E3D8",
@@ -805,7 +891,6 @@ export default function LearnersPage() {
                     padding: 14,
                     textAlign: "left",
                     color: "#2D2A3E",
-                    cursor: "pointer",
                   }}
                 >
                   <strong style={{ display: "block", fontSize: 15 }}>
@@ -815,6 +900,43 @@ export default function LearnersPage() {
                   <span style={smallText}>
                     {learner.class || "Unassigned"}
                   </span>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      marginTop: 10,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="db-button-secondary"
+                      onClick={() => viewLearner(learner)}
+                    >
+                      View
+                    </button>
+
+                    {canAddLearner ? (
+                      <>
+                        <button
+                          type="button"
+                          className="db-button-secondary"
+                          onClick={() => editLearner(learner)}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          className="db-button-secondary"
+                          onClick={() => deleteLearner(learner)}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
 
                   {active ? (
                     <div style={{ marginTop: 10 }}>
@@ -871,7 +993,7 @@ export default function LearnersPage() {
                       </p>
                     </div>
                   ) : null}
-                </button>
+                </div>
               );
             })}
           </div>

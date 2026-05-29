@@ -30,7 +30,17 @@ export async function POST(request: Request) {
       },
     });
 
-    await admin.from("profiles").delete().eq("id", teacherId);
+    const { error: profileError } = await admin
+      .from("profiles")
+      .delete()
+      .eq("id", teacherId);
+
+    if (profileError) {
+      return NextResponse.json(
+        { error: profileError.message },
+        { status: 400 }
+      );
+    }
 
     const { error: authError } = await admin.auth.admin.deleteUser(teacherId);
 

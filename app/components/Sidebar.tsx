@@ -37,6 +37,10 @@ export default function Sidebar() {
   const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const [dbeOpen, setDbeOpen] = useState(false);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const [schoolManagementOpen, setSchoolManagementOpen] = useState(false);
+
   useEffect(() => {
     loadSidebarContext();
   }, [pathname, searchParams]);
@@ -128,170 +132,141 @@ export default function Sidebar() {
     []
   );
 
-  const schoolScopedNav = useMemo<NavItem[]>(() => {
-    const schoolQuery = school ? `?school=${school.id}` : "";
-
-    if (profile?.role === "master") {
-      return [
-        {
-          label: "Dashboard",
-          href: `/master/school/${school?.id || ""}`,
-          match: ["/master/school"],
-        },
-        {
-          label: "Learners",
-          href: `/children${schoolQuery}`,
-          match: ["/children"],
-        },
-        {
-          label: "Events",
-          href: `/events${schoolQuery}`,
-          match: ["/events"],
-        },
-        {
-          label: "Attendance",
-          href: `/attendance${schoolQuery}`,
-          match: ["/attendance"],
-        },
-        {
-          label: "Summaries",
-          href: `/summaries${schoolQuery}`,
-          match: ["/summaries"],
-        },
-        {
-          label: "Broadcasts",
-          href: `/broadcasts${schoolQuery}`,
-          match: ["/broadcasts"],
-        },
-        {
-          label: "Payments",
-          href: `/payments${schoolQuery}`,
-          match: ["/payments"],
-        },
-        {
-          label: "Teachers",
-          href: `/teachers${schoolQuery}`,
-          match: ["/teachers"],
-        },
-        {
-          label: "Classrooms",
-          href: `/classrooms${schoolQuery}`,
-          match: ["/classrooms"],
-        },
-        {
-          label: "Reports",
-          href: `/reports${schoolQuery}`,
-          match: ["/reports"],
-        },
-      ];
-    }
-
-    if (profile?.role === "teacher") {
-      return [
-        {
-          label: "Dashboard",
-          href: "/teacher",
-          match: ["/teacher"],
-        },
-        {
-          label: "Classroom Activities",
-          href: "/classroom-activities",
-          match: ["/classroom-activities"],
-        },
-        {
-          label: "Learners",
-          href: "/children",
-          match: ["/children"],
-        },
-        {
-          label: "Attendance",
-          href: "/attendance",
-          match: ["/attendance"],
-        },
-        {
-          label: "Summaries",
-          href: "/summaries",
-          match: ["/summaries"],
-        },
-        {
-          label: "Events",
-          href: "/events",
-          match: ["/events"],
-        },
-      ];
-    }
-
-    return [
+  const quickActionsNav = useMemo<NavItem[]>(
+    () => [
+      { label: "Add Learner", href: "/children", match: ["/children"] },
+      { label: "Add Event", href: "/events", match: ["/events"] },
       {
-        label: "Dashboard",
-        href: "/dashboard",
-        match: ["/dashboard"],
+        label: "Create Broadcast",
+        href: "/broadcasts",
+        match: ["/broadcasts"],
       },
+      {
+        label: "Record Payment",
+        href: "/payments",
+        match: ["/payments"],
+      },
+    ],
+    []
+  );
+
+  const dbeNav = useMemo<NavItem[]>(
+    () => [
+      {
+        label: "Registration Details",
+        href: "/dbe-registration",
+        match: ["/dbe-registration"],
+      },
+      {
+        label: "Compliance Documents",
+        href: "/dbe-registration/documents",
+        match: ["/dbe-registration/documents"],
+      },
+    ],
+    []
+  );
+
+  const schoolManagementNav = useMemo<NavItem[]>(
+    () => [
+      { label: "Learners", href: "/children", match: ["/children"] },
+      { label: "Teachers", href: "/teachers", match: ["/teachers"] },
+      { label: "Classrooms", href: "/classrooms", match: ["/classrooms"] },
+      { label: "Attendance", href: "/attendance", match: ["/attendance"] },
       {
         label: "Classroom Activities",
         href: "/classroom-activities",
         match: ["/classroom-activities"],
       },
-      {
-        label: "Attendance",
-        href: "/attendance",
-        match: ["/attendance"],
-      },
-      {
-        label: "Classrooms",
-        href: "/classrooms",
-        match: ["/classrooms"],
-      },
-      {
-        label: "Teachers",
-        href: "/teachers",
-        match: ["/teachers"],
-      },
-      {
-        label: "Learners",
-        href: "/children",
-        match: ["/children"],
-      },
-      {
-        label: "Summaries",
-        href: "/summaries",
-        match: ["/summaries"],
-      },
-      {
-        label: "Events",
-        href: "/events",
-        match: ["/events"],
-      },
-      {
-        label: "Broadcasts",
-        href: "/broadcasts",
-        match: ["/broadcasts"],
-      },
-      {
-        label: "Reports",
-        href: "/reports",
-        match: ["/reports"],
-      },
-      {
-        label: "Payments",
-        href: "/payments",
-        match: ["/payments"],
-      },
-      {
-        label: "Billing",
-        href: "/billing",
-        match: ["/billing"],
-      },
+      { label: "Events", href: "/events", match: ["/events"] },
+      { label: "Summaries", href: "/summaries", match: ["/summaries"] },
+      { label: "Broadcasts", href: "/broadcasts", match: ["/broadcasts"] },
+      { label: "Payments", href: "/payments", match: ["/payments"] },
+      { label: "Billing", href: "/billing", match: ["/billing"] },
       {
         label: "Communications",
         href: "/communications",
         match: ["/communications"],
       },
-    ];
-  }, [profile?.role, school]);
+      {
+        label: "Developmental Progress Reports",
+        href: "/progress-reports",
+        match: ["/progress-reports"],
+      },
+      { label: "Reports", href: "/reports", match: ["/reports"] },
+    ],
+    []
+  );
+
+  const teacherSchoolManagementNav = useMemo<NavItem[]>(
+    () => [
+      {
+        label: "Classroom Activities",
+        href: "/classroom-activities",
+        match: ["/classroom-activities"],
+      },
+      { label: "Learners", href: "/children", match: ["/children"] },
+      { label: "Attendance", href: "/attendance", match: ["/attendance"] },
+      { label: "Summaries", href: "/summaries", match: ["/summaries"] },
+      { label: "Events", href: "/events", match: ["/events"] },
+    ],
+    []
+  );
 
   const isMaster = profile?.role === "master";
+  const isTeacher = profile?.role === "teacher";
   const showSchoolActions = Boolean(school) || !isMaster;
+
+  const dashboardHref = isMaster
+    ? `/master/school/${school?.id || ""}`
+    : isTeacher
+    ? "/teacher"
+    : "/dashboard";
+
+  const dashboardMatch = isMaster
+    ? ["/master/school"]
+    : isTeacher
+    ? ["/teacher"]
+    : ["/dashboard"];
+
+  function isActiveNav(item: NavItem) {
+    if (item.view) {
+      return pathname.startsWith("/master") && searchParams.get("view") === item.view;
+    }
+
+    return (
+      item.match?.some((segment) => pathname.startsWith(segment)) ||
+      pathname === item.href
+    );
+  }
+
+  function navStyle(item: NavItem) {
+    const isActive = isActiveNav(item);
+
+    return {
+      textDecoration: "none",
+      background: isActive ? "#EAF7FD" : "#FFFDFB",
+      color: "#2D2A3E",
+      border: isActive ? "1px solid #CBEAF7" : "1px solid #F0E3D8",
+      padding: "12px 14px",
+      borderRadius: "14px",
+      fontSize: "14px",
+      fontWeight: isActive ? 700 : 600,
+      display: "block",
+    };
+  }
+
+  const collapsibleButtonStyle = {
+    width: "100%",
+    textAlign: "left" as const,
+    background: "#FFFFFF",
+    color: "#2D2A3E",
+    border: "1px solid #F0E3D8",
+    padding: "12px 14px",
+    borderRadius: "14px",
+    fontSize: "14px",
+    fontWeight: 700,
+    cursor: "pointer",
+  };
 
   return (
     <aside className="db-sidebar-shell">
@@ -516,12 +491,87 @@ export default function Sidebar() {
         ) : null}
 
         {showSchoolActions ? (
-          <NavSection
-            title={isMaster ? "Selected School" : "School Management"}
-            items={schoolScopedNav}
-            pathname={pathname}
-            currentView={null}
-          />
+          <div
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid #F0E3D8",
+              borderRadius: "22px",
+              padding: "14px",
+            }}
+          >
+            <div style={{ display: "grid", gap: "8px" }}>
+              <Link
+                href={dashboardHref}
+                style={navStyle({
+                  label: "Dashboard",
+                  href: dashboardHref,
+                  match: dashboardMatch,
+                })}
+              >
+                Dashboard
+              </Link>
+
+              {!isTeacher ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setDbeOpen((prev) => !prev)}
+                    style={collapsibleButtonStyle}
+                  >
+                    {dbeOpen ? "▼" : "▶"} DBE Registration Information
+                  </button>
+
+                  {dbeOpen &&
+                    dbeNav.map((item) => (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        style={navStyle(item)}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+
+                  <button
+                    type="button"
+                    onClick={() => setQuickActionsOpen((prev) => !prev)}
+                    style={collapsibleButtonStyle}
+                  >
+                    {quickActionsOpen ? "▼" : "▶"} Quick Actions
+                  </button>
+
+                  {quickActionsOpen &&
+                    quickActionsNav.map((item) => (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        style={navStyle(item)}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                </>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => setSchoolManagementOpen((prev) => !prev)}
+                style={collapsibleButtonStyle}
+              >
+                {schoolManagementOpen ? "▼" : "▶"} School Management
+              </button>
+
+              {schoolManagementOpen &&
+                (isTeacher
+                  ? teacherSchoolManagementNav
+                  : schoolManagementNav
+                ).map((item) => (
+                  <Link key={item.label} href={item.href} style={navStyle(item)}>
+                    {item.label}
+                  </Link>
+                ))}
+            </div>
+          </div>
         ) : null}
 
         <div

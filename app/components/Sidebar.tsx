@@ -171,7 +171,16 @@ export default function Sidebar() {
       { label: "Learners", href: "/children", match: ["/children"] },
       { label: "Teachers", href: "/teachers", match: ["/teachers"] },
       { label: "Classrooms", href: "/classrooms", match: ["/classrooms"] },
-      { label: "Attendance", href: "/attendance", match: ["/attendance"] },
+      {
+       label: "Learner Attendance",
+       href: "/attendance",
+       match: ["/attendance"],
+      },
+      {
+        label: "Teacher Attendance",
+        href: "/teacher-attendance",
+        match: ["/teacher-attendance"],
+      },
       {
         label: "Classroom Activities",
         href: "/classroom-activities",

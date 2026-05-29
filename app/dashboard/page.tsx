@@ -9,15 +9,7 @@ import { getCurrentProfile } from "../lib/auth";
 type School = {
   id: number;
   school_name: string;
-  primary_color?: string | null;
-  secondary_color?: string | null;
   logo_url?: string | null;
-  emis_number?: string | null;
-  npo_number?: string | null;
-  province?: string | null;
-  district?: string | null;
-  centre_type?: string | null;
-  registration_status?: string | null;
 };
 
 type DashboardStats = {
@@ -26,7 +18,7 @@ type DashboardStats = {
   classrooms: number;
   events: number;
   summaries: number;
-  payments: number;
+  healthSafetyFlags: number;
 };
 
 type EventItem = {
@@ -44,6 +36,14 @@ type LearnerItem = {
 type AttendanceItem = {
   id: number;
   learner_name?: string | null;
+  status?: string | null;
+  attendance_date?: string | null;
+};
+
+type TeacherAttendanceItem = {
+  id: string;
+  teacher_id?: string | null;
+  teacher_name?: string | null;
   status?: string | null;
   attendance_date?: string | null;
 };
@@ -75,13 +75,10 @@ type UpcomingBirthdayItem = {
 type ConsolidatedOverview = {
   presentToday: number;
   absentToday: number;
-  summariesToday: number;
-  missingSummariesToday: number;
-  eventsToday: number;
-  birthdaysToday: number;
+  teachersPresentToday: number;
+  teachersAbsentToday: number;
   paymentsThisMonth: number;
   unpaidThisMonth: number;
-  flaggedIncidentsToday: number;
 };
 
 export default function PrincipalDashboardPage() {
@@ -96,31 +93,28 @@ export default function PrincipalDashboardPage() {
     classrooms: 0,
     events: 0,
     summaries: 0,
-    payments: 0,
+    healthSafetyFlags: 0,
   });
 
   const [todayEvents, setTodayEvents] = useState<EventItem[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<EventItem[]>([]);
   const [birthdaysToday, setBirthdaysToday] = useState<LearnerItem[]>([]);
-  const [upcomingBirthdays, setUpcomingBirthdays] = useState<UpcomingBirthdayItem[]>([]);
+  const [upcomingBirthdays, setUpcomingBirthdays] = useState<
+    UpcomingBirthdayItem[]
+  >([]);
   const [todayActivities, setTodayActivities] = useState<ActivityItem[]>([]);
 
   const [consolidated, setConsolidated] = useState<ConsolidatedOverview>({
     presentToday: 0,
     absentToday: 0,
-    summariesToday: 0,
-    missingSummariesToday: 0,
-    eventsToday: 0,
-    birthdaysToday: 0,
+    teachersPresentToday: 0,
+    teachersAbsentToday: 0,
     paymentsThisMonth: 0,
     unpaidThisMonth: 0,
-    flaggedIncidentsToday: 0,
   });
 
-  const [dailyHighlightsOpen, setDailyHighlightsOpen] = useState(false);
-  const [schoolRecordsOpen, setSchoolRecordsOpen] = useState(false);
-  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
-  const [schoolManagementOpen, setSchoolManagementOpen] = useState(false);
+  const [dailyHighlightsOpen, setDailyHighlightsOpen] = useState(true);
+  const [schoolRecordsOpen, setSchoolRecordsOpen] = useState(true);
 
   const [loading, setLoading] = useState(true);
 
@@ -156,7 +150,7 @@ export default function PrincipalDashboardPage() {
 
     const { data: schoolData, error: schoolError } = await supabase
       .from("schools")
-      .select("*")
+      .select("id, school_name, logo_url")
       .eq("id", currentSchoolId)
       .single();
 
@@ -177,18 +171,24 @@ export default function PrincipalDashboardPage() {
   }
 
   async function fetchStats(currentSchoolId: number) {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const yearStart = `${currentYear}-01-01`;
+    const yearEnd = `${currentYear}-12-31`;
+
     const [
       learnersResult,
       teachersResult,
       classroomsResult,
       eventsResult,
       summariesResult,
-      paymentsResult,
+      healthSafetyResult,
     ] = await Promise.all([
       supabase
         .from("learners")
         .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
+        .eq("school_id", currentSchoolId)
+        .or("is_deleted.is.null,is_deleted.eq.false"),
 
       supabase
         .from("teachers")
@@ -203,17 +203,26 @@ export default function PrincipalDashboardPage() {
       supabase
         .from("events")
         .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
+        .eq("school_id", currentSchoolId)
+        .gte("event_date", yearStart)
+        .lte("event_date", yearEnd),
 
       supabase
         .from("summaries")
         .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
+        .eq("school_id", currentSchoolId)
+        .gte("created_at", `${yearStart} 00:00:00`)
+        .lte("created_at", `${yearEnd} 23:59:59`),
 
       supabase
-        .from("payments")
+        .from("summaries")
         .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
+        .eq("school_id", currentSchoolId)
+        .gte("created_at", `${yearStart} 00:00:00`)
+        .lte("created_at", `${yearEnd} 23:59:59`)
+        .not("health_safety", "is", null)
+        .neq("health_safety", "")
+        .neq("health_safety", "No incident"),
     ]);
 
     setStats({
@@ -222,7 +231,7 @@ export default function PrincipalDashboardPage() {
       classrooms: classroomsResult.count || 0,
       events: eventsResult.count || 0,
       summaries: summariesResult.count || 0,
-      payments: paymentsResult.count || 0,
+      healthSafetyFlags: healthSafetyResult.count || 0,
     });
   }
 
@@ -248,6 +257,7 @@ export default function PrincipalDashboardPage() {
         .from("learners")
         .select("id, name, date_of_birth")
         .eq("school_id", currentSchoolId)
+        .or("is_deleted.is.null,is_deleted.eq.false")
         .order("name", { ascending: true }),
 
       supabase
@@ -305,7 +315,11 @@ export default function PrincipalDashboardPage() {
             nextBirthday.getMonth(),
             nextBirthday.getDate()
           ).getTime() -
-          new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+          new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            today.getDate()
+          ).getTime();
 
         const daysUntil = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
@@ -337,12 +351,13 @@ export default function PrincipalDashboardPage() {
     const currentMonth = today.getMonth() + 1;
     const currentYear = today.getFullYear();
 
-    const [learnersRes, attendanceRes, summariesRes, eventsRes, paymentsRes] =
+    const [learnersRes, attendanceRes, teacherAttendanceRes, paymentsRes] =
       await Promise.all([
         supabase
           .from("learners")
           .select("id, name, date_of_birth")
-          .eq("school_id", currentSchoolId),
+          .eq("school_id", currentSchoolId)
+          .or("is_deleted.is.null,is_deleted.eq.false"),
 
         supabase
           .from("attendance")
@@ -351,17 +366,10 @@ export default function PrincipalDashboardPage() {
           .eq("attendance_date", todayDate),
 
         supabase
-          .from("summaries")
-          .select("id, learner_name, created_at, health_safety")
+          .from("teacher_attendance")
+          .select("id, teacher_id, teacher_name, status, attendance_date")
           .eq("school_id", currentSchoolId)
-          .gte("created_at", `${todayDate} 00:00:00`)
-          .lt("created_at", `${todayDate} 23:59:59`),
-
-        supabase
-          .from("events")
-          .select("id, event_date")
-          .eq("school_id", currentSchoolId)
-          .eq("event_date", todayDate),
+          .eq("attendance_date", todayDate),
 
         supabase
           .from("payments")
@@ -373,8 +381,8 @@ export default function PrincipalDashboardPage() {
 
     const learners = (learnersRes.data || []) as LearnerItem[];
     const attendance = (attendanceRes.data || []) as AttendanceItem[];
-    const summaries = (summariesRes.data || []) as any[];
-    const events = (eventsRes.data || []) as EventItem[];
+    const teacherAttendance =
+      (teacherAttendanceRes.data || []) as TeacherAttendanceItem[];
     const payments = (paymentsRes.data || []) as PaymentItem[];
 
     const learnerNames = learners
@@ -389,11 +397,13 @@ export default function PrincipalDashboardPage() {
       (item) => String(item.status || "").toLowerCase() === "absent"
     ).length;
 
-    const summaryLearners = new Set(
-      summaries
-        .map((item) => String(item.learner_name || "").trim().toLowerCase())
-        .filter(Boolean)
-    );
+    const teachersPresentToday = teacherAttendance.filter(
+      (item) => String(item.status || "").toLowerCase() === "present"
+    ).length;
+
+    const teachersAbsentToday = teacherAttendance.filter(
+      (item) => String(item.status || "").toLowerCase() === "absent"
+    ).length;
 
     const paidLearners = new Set(
       payments
@@ -402,32 +412,15 @@ export default function PrincipalDashboardPage() {
         .filter(Boolean)
     );
 
-    const birthdaysTodayCount = learners.filter((learner) => {
-      if (!learner.date_of_birth) return false;
-      const dob = new Date(learner.date_of_birth);
-      return (
-        dob.getMonth() + 1 === today.getMonth() + 1 &&
-        dob.getDate() === today.getDate()
-      );
-    }).length;
-
-    const flaggedIncidentsToday = summaries.filter((item) => {
-      const value = String(item.health_safety || "").trim().toLowerCase();
-      return value && value !== "no incident";
-    }).length;
-
     setConsolidated({
       presentToday,
       absentToday,
-      summariesToday: summaries.length,
-      missingSummariesToday: Math.max(learnerNames.length - summaryLearners.size, 0),
-      eventsToday: events.length,
-      birthdaysToday: birthdaysTodayCount,
+      teachersPresentToday,
+      teachersAbsentToday,
       paymentsThisMonth: payments.filter(
         (item) => String(item.status || "").toLowerCase() === "paid"
       ).length,
       unpaidThisMonth: Math.max(learnerNames.length - paidLearners.size, 0),
-      flaggedIncidentsToday,
     });
   }
 
@@ -451,17 +444,17 @@ export default function PrincipalDashboardPage() {
         style={{
           background: "linear-gradient(135deg, #F8E8F0 0%, #FFF8F2 100%)",
           border: "1px solid #EBC9D8",
-          borderRadius: "28px",
-          padding: "24px",
-          marginBottom: "20px",
-          boxShadow: "0 10px 24px rgba(45, 42, 62, 0.06)",
+          borderRadius: "24px",
+          padding: "18px",
+          marginBottom: "16px",
+          boxShadow: "0 8px 18px rgba(45, 42, 62, 0.05)",
         }}
       >
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "16px",
+            gap: "14px",
             flexWrap: "wrap",
           }}
         >
@@ -470,21 +463,20 @@ export default function PrincipalDashboardPage() {
               src={school.logo_url}
               alt={`${school.school_name} logo`}
               style={{
-                width: "84px",
-                height: "84px",
+                width: "68px",
+                height: "68px",
                 objectFit: "cover",
-                borderRadius: "20px",
+                borderRadius: "18px",
                 border: "1px solid #F0E3D8",
                 background: "#FFFFFF",
-                boxShadow: "0 8px 18px rgba(45, 42, 62, 0.06)",
               }}
             />
           ) : (
             <div
               style={{
-                width: "84px",
-                height: "84px",
-                borderRadius: "20px",
+                width: "68px",
+                height: "68px",
+                borderRadius: "18px",
                 border: "1px solid #F0E3D8",
                 background: "#FFFFFF",
                 display: "flex",
@@ -492,8 +484,7 @@ export default function PrincipalDashboardPage() {
                 justifyContent: "center",
                 color: "#8A84A3",
                 fontWeight: 700,
-                fontSize: "28px",
-                boxShadow: "0 8px 18px rgba(45, 42, 62, 0.06)",
+                fontSize: "24px",
               }}
             >
               {school.school_name?.charAt(0)?.toUpperCase() || "S"}
@@ -501,21 +492,12 @@ export default function PrincipalDashboardPage() {
           )}
 
           <div>
-            <p
-              style={{
-                margin: 0,
-                color: "#6D6888",
-                fontSize: "13px",
-                fontWeight: 600,
-              }}
-            >
-              Principal Dashboard
-            </p>
+            <p style={eyebrowText}>Principal Dashboard</p>
 
             <h1
               style={{
-                margin: "8px 0 0 0",
-                fontSize: "34px",
+                margin: "6px 0 0 0",
+                fontSize: "28px",
                 fontWeight: 700,
                 color: "#2D2A3E",
               }}
@@ -525,59 +507,17 @@ export default function PrincipalDashboardPage() {
 
             <p
               style={{
-                marginTop: "10px",
+                marginTop: "8px",
                 marginBottom: 0,
                 color: "#5B5675",
-                fontSize: "15px",
-                lineHeight: 1.6,
+                fontSize: "14px",
+                lineHeight: 1.5,
               }}
             >
-              Run the school day smoothly, keep track of classes and teachers and stay on top of daily activity.
+              Daily operations, attendance, events, activities and school records
+              in one clean view.
             </p>
           </div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          background: "#FFFFFF",
-          border: "1px solid #F0E3D8",
-          borderRadius: "24px",
-          padding: "18px",
-          marginBottom: "20px",
-          boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-        }}
-      >
-        <p
-          style={{
-            margin: 0,
-            color: "#6D6888",
-            fontSize: "13px",
-            fontWeight: 700,
-          }}
-        >
-          DBE / Registration Information
-        </p>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: "12px",
-            marginTop: "12px",
-          }}
-        >
-          <InfoTile
-          label="EMIS / NPO Number"
-          value={school.emis_number || school.npo_number || "Not added"}
-        />
-          <InfoTile label="Province" value={school.province || "Not added"} />
-          <InfoTile label="District" value={school.district || "Not added"} />
-          <InfoTile label="Centre Type" value={school.centre_type || "Not added"} />
-          <InfoTile
-            label="Registration Status"
-            value={school.registration_status || "Not added"}
-          />
         </div>
       </div>
 
@@ -585,9 +525,9 @@ export default function PrincipalDashboardPage() {
         id="today-activities"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-          gap: "12px",
-          marginBottom: "20px",
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gap: "10px",
+          marginBottom: "16px",
           scrollMarginTop: "110px",
         }}
       >
@@ -599,7 +539,7 @@ export default function PrincipalDashboardPage() {
           accentBorder="#F3E4A3"
           footerText="Open events"
         >
-          <div style={{ display: "grid", gap: "8px" }}>
+          <div style={{ display: "grid", gap: "7px" }}>
             {todayEvents.length > 0 ? (
               todayEvents.slice(0, 2).map((event) => (
                 <div key={`today-${event.id}`} style={compactMiniCard}>
@@ -636,7 +576,7 @@ export default function PrincipalDashboardPage() {
           accentBorder="#EBC9D8"
           footerText="Open birthdays"
         >
-          <div style={{ display: "grid", gap: "8px" }}>
+          <div style={{ display: "grid", gap: "7px" }}>
             {birthdaysToday.length > 0 ? (
               birthdaysToday.slice(0, 2).map((learner) => (
                 <div key={`today-birthday-${learner.id}`} style={compactMiniCard}>
@@ -653,7 +593,10 @@ export default function PrincipalDashboardPage() {
               <>
                 <p style={compactSectionLabel}>Upcoming Birthdays</p>
                 {upcomingBirthdays.map((learner) => (
-                  <div key={`upcoming-birthday-${learner.id}`} style={compactMiniCard}>
+                  <div
+                    key={`upcoming-birthday-${learner.id}`}
+                    style={compactMiniCard}
+                  >
                     <strong style={compactMiniTitle}>
                       {learner.name || "Unnamed learner"}
                     </strong>
@@ -673,7 +616,7 @@ export default function PrincipalDashboardPage() {
           accentBorder="#CBEAF7"
           footerText="Open activities"
         >
-          <div style={{ display: "grid", gap: "8px" }}>
+          <div style={{ display: "grid", gap: "7px" }}>
             {todayActivities.length > 0 ? (
               todayActivities.map((activity) => (
                 <div key={activity.id} style={compactMiniCard}>
@@ -695,21 +638,15 @@ export default function PrincipalDashboardPage() {
 
       <CollapsibleSection
         title="Daily Highlights"
-        description="A whole-school view for today and this month, so you can monitor operations without going into each class."
+        description="Operational and payment indicators for today and this month."
         isOpen={dailyHighlightsOpen}
         onToggle={() => setDailyHighlightsOpen((current) => !current)}
       >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "14px",
-          }}
-        >
+        <div style={compactGrid}>
           <OverviewCard
             label="Present Today"
             value={consolidated.presentToday}
-            helper="Whole school attendance"
+            helper="Learners marked present"
             background="#EAF7FD"
             border="#CBEAF7"
           />
@@ -717,17 +654,25 @@ export default function PrincipalDashboardPage() {
           <OverviewCard
             label="Absent Today"
             value={consolidated.absentToday}
-            helper="Whole school attendance"
+            helper="Learners marked absent"
             background="#F8E8F0"
             border="#EBC9D8"
           />
 
           <OverviewCard
-            label="Summaries Today"
-            value={consolidated.summariesToday}
-            helper="Learners with saved summaries"
+            label="Teachers Present Today"
+            value={consolidated.teachersPresentToday}
+            helper="Staff marked present"
             background="#EEF9EE"
             border="#D3EDD4"
+          />
+
+          <OverviewCard
+            label="Teachers Absent Today"
+            value={consolidated.teachersAbsentToday}
+            helper="Staff marked absent"
+            background="#FFF7D9"
+            border="#F3E4A3"
           />
 
           <OverviewCard
@@ -745,30 +690,16 @@ export default function PrincipalDashboardPage() {
             background="#EAF7FD"
             border="#CBEAF7"
           />
-
-          <OverviewCard
-            label="Health & Safety Flags"
-            value={consolidated.flaggedIncidentsToday}
-            helper="Non-routine incidents today"
-            background="#F8E8F0"
-            border="#EBC9D8"
-          />
         </div>
       </CollapsibleSection>
 
       <CollapsibleSection
         title="School Records"
-        description="View the main records currently saved for this school."
+        description="Full records saved for the current school year."
         isOpen={schoolRecordsOpen}
         onToggle={() => setSchoolRecordsOpen((current) => !current)}
       >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: "14px",
-          }}
-        >
+        <div style={compactGrid}>
           <StatLinkCard
             label="Learners"
             value={stats.learners}
@@ -802,7 +733,7 @@ export default function PrincipalDashboardPage() {
           />
 
           <StatLinkCard
-            label="Summaries"
+            label="Summaries To Date"
             value={stats.summaries}
             href="/summaries"
             background="#EAF7FD"
@@ -810,114 +741,12 @@ export default function PrincipalDashboardPage() {
           />
 
           <StatLinkCard
-            label="Payments"
-            value={stats.payments}
-            href="/payments"
-            background="#EEF9EE"
-            border="#D3EDD4"
-          />
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Quick Actions"
-        description="Jump straight into the main workflows for this school."
-        isOpen={quickActionsOpen}
-        onToggle={() => setQuickActionsOpen((current) => !current)}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "14px",
-          }}
-        >
-          <QuickActionCard
-            title="Add Learner"
-            description="Open learners with the add form ready."
-            href="/children?action=add&returnTo=dashboard"
-            background="#EAF7FD"
-            border="#CBEAF7"
-          />
-
-          <QuickActionCard
-            title="Add Event"
-            description="Open events with the add form ready."
-            href="/events?action=add&returnTo=dashboard"
-            background="#FFF7D9"
-            border="#F3E4A3"
-          />
-
-          <QuickActionCard
-            title="Create Broadcast"
-            description="Open broadcasts ready to create."
-            href="/broadcasts?action=create&returnTo=dashboard"
+            label="Health & Safety Flags To Date"
+            value={stats.healthSafetyFlags}
+            href="/reports"
             background="#F8E8F0"
             border="#EBC9D8"
           />
-
-          <QuickActionCard
-            title="Record Payment"
-            description="Open payments ready to record."
-            href="/payments?action=record&returnTo=dashboard"
-            background="#EEF9EE"
-            border="#D3EDD4"
-          />
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="School Management"
-        description="Open the areas you need for school operations."
-        isOpen={schoolManagementOpen}
-        onToggle={() => setSchoolManagementOpen((current) => !current)}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "12px",
-          }}
-        >
-          <Link href="/children" style={primaryButton}>
-            Learners
-          </Link>
-
-          <Link href="/teachers" style={secondaryButton}>
-            Teachers
-          </Link>
-
-          <Link href="/classrooms" style={secondaryButton}>
-            Classrooms
-          </Link>
-
-          <Link href="/events" style={secondaryButton}>
-            Events
-          </Link>
-
-          <Link href="/attendance" style={secondaryButton}>
-            Attendance
-          </Link>
-
-          <Link href="/summaries" style={secondaryButton}>
-            Daily Summaries
-          </Link>
-
-          <Link href="/broadcasts" style={secondaryButton}>
-            Broadcasts
-          </Link>
-
-          <Link href="/payments" style={secondaryButton}>
-            Payments
-          </Link>
-
-          <Link href="/activities" style={secondaryButton}>
-            Activities
-          </Link>
-
-          <Link href="/progress-reports" className="db-button-primary">
-            Progress Reports
-          </Link>
         </div>
       </CollapsibleSection>
     </div>
@@ -942,35 +771,20 @@ function CollapsibleSection({
       style={{
         background: "#FFFFFF",
         border: "1px solid #F0E3D8",
-        borderRadius: "24px",
-        padding: "20px",
-        boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-        marginBottom: "24px",
+        borderRadius: "20px",
+        padding: "16px",
+        boxShadow: "0 6px 16px rgba(45, 42, 62, 0.04)",
+        marginBottom: "16px",
       }}
     >
-      <button
-        type="button"
-        onClick={onToggle}
-        style={{
-          width: "100%",
-          background: "transparent",
-          border: "none",
-          padding: 0,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "12px",
-          cursor: "pointer",
-          textAlign: "left",
-        }}
-      >
+      <button type="button" onClick={onToggle} style={sectionButton}>
         <div>
           <h3
             style={{
               marginTop: 0,
-              marginBottom: "8px",
+              marginBottom: "6px",
               color: "#2D2A3E",
-              fontSize: "22px",
+              fontSize: "19px",
               fontWeight: 700,
             }}
           >
@@ -982,137 +796,19 @@ function CollapsibleSection({
               marginTop: 0,
               marginBottom: 0,
               color: "#6D6888",
-              fontSize: "14px",
-              lineHeight: 1.6,
+              fontSize: "13px",
+              lineHeight: 1.5,
             }}
           >
             {description}
           </p>
         </div>
 
-        <span
-          style={{
-            background: "#FFF7D9",
-            border: "1px solid #F3E4A3",
-            borderRadius: "999px",
-            padding: "8px 12px",
-            color: "#2D2A3E",
-            fontSize: "13px",
-            fontWeight: 700,
-            whiteSpace: "nowrap",
-          }}
-        >
-          {isOpen ? "Hide" : "Open"}
-        </span>
+        <span style={togglePill}>{isOpen ? "Hide" : "Open"}</span>
       </button>
 
-      {isOpen && <div style={{ marginTop: "16px" }}>{children}</div>}
+      {isOpen && <div style={{ marginTop: "12px" }}>{children}</div>}
     </div>
-  );
-}
-
-function InfoTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        background: "#FFFDFB",
-        border: "1px solid #F0E3D8",
-        borderRadius: "18px",
-        padding: "14px",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: "#6D6888",
-          fontSize: "12px",
-          fontWeight: 700,
-        }}
-      >
-        {label}
-      </p>
-
-      <p
-        style={{
-          margin: "6px 0 0 0",
-          color: "#2D2A3E",
-          fontSize: "15px",
-          fontWeight: 700,
-          lineHeight: 1.4,
-        }}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function QuickActionCard({
-  title,
-  description,
-  href,
-  background,
-  border,
-}: {
-  title: string;
-  description: string;
-  href: string;
-  background: string;
-  border: string;
-}) {
-  return (
-    <Link
-      href={href}
-      style={{
-        textDecoration: "none",
-        color: "inherit",
-      }}
-    >
-      <div
-        style={{
-          background,
-          border: `1px solid ${border}`,
-          borderRadius: "20px",
-          padding: "18px",
-          boxShadow: "0 8px 18px rgba(45, 42, 62, 0.05)",
-          cursor: "pointer",
-          minHeight: "120px",
-        }}
-      >
-        <h4
-          style={{
-            margin: 0,
-            color: "#2D2A3E",
-            fontSize: "18px",
-            fontWeight: 700,
-          }}
-        >
-          {title}
-        </h4>
-
-        <p
-          style={{
-            margin: "8px 0 0 0",
-            color: "#5B5675",
-            fontSize: "14px",
-            lineHeight: 1.6,
-          }}
-        >
-          {description}
-        </p>
-
-        <p
-          style={{
-            margin: "12px 0 0 0",
-            color: "#6D6888",
-            fontSize: "13px",
-            fontWeight: 600,
-          }}
-        >
-          Open action
-        </p>
-      </div>
-    </Link>
   );
 }
 
@@ -1130,47 +826,10 @@ function OverviewCard({
   border: string;
 }) {
   return (
-    <div
-      style={{
-        background,
-        border: `1px solid ${border}`,
-        borderRadius: "22px",
-        padding: "18px",
-        boxShadow: "0 8px 18px rgba(45, 42, 62, 0.05)",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: "#5B5675",
-          fontSize: "14px",
-          fontWeight: 600,
-        }}
-      >
-        {label}
-      </p>
-
-      <h2
-        style={{
-          margin: "8px 0 0 0",
-          color: "#2D2A3E",
-          fontSize: "30px",
-          fontWeight: 700,
-        }}
-      >
-        {value}
-      </h2>
-
-      <p
-        style={{
-          margin: "8px 0 0 0",
-          color: "#6D6888",
-          fontSize: "13px",
-          lineHeight: 1.5,
-        }}
-      >
-        {helper}
-      </p>
+    <div style={smallCard(background, border)}>
+      <p style={cardLabel}>{label}</p>
+      <h2 style={cardValue}>{value}</h2>
+      <p style={cardHelper}>{helper}</p>
     </div>
   );
 }
@@ -1189,55 +848,11 @@ function StatLinkCard({
   border: string;
 }) {
   return (
-    <Link
-      href={href}
-      style={{
-        textDecoration: "none",
-        color: "inherit",
-      }}
-    >
-      <div
-        style={{
-          background,
-          border: `1px solid ${border}`,
-          borderRadius: "22px",
-          padding: "18px",
-          boxShadow: "0 8px 18px rgba(45, 42, 62, 0.05)",
-          cursor: "pointer",
-        }}
-      >
-        <p
-          style={{
-            margin: 0,
-            color: "#5B5675",
-            fontSize: "14px",
-            fontWeight: 600,
-          }}
-        >
-          {label}
-        </p>
-
-        <h2
-          style={{
-            margin: "8px 0 0 0",
-            color: "#2D2A3E",
-            fontSize: "30px",
-            fontWeight: 700,
-          }}
-        >
-          {value}
-        </h2>
-
-        <p
-          style={{
-            margin: "8px 0 0 0",
-            color: "#6D6888",
-            fontSize: "13px",
-            fontWeight: 600,
-          }}
-        >
-          Open {label.toLowerCase()}
-        </p>
+    <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
+      <div style={smallCard(background, border)}>
+        <p style={cardLabel}>{label}</p>
+        <h2 style={cardValue}>{value}</h2>
+        <p style={cardHelper}>Open {label.toLowerCase()}</p>
       </div>
     </Link>
   );
@@ -1261,22 +876,16 @@ function CompactHighlightCard({
   children: React.ReactNode;
 }) {
   return (
-    <Link
-      href={href}
-      style={{
-        textDecoration: "none",
-        color: "inherit",
-      }}
-    >
+    <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
       <div
         style={{
           background: "#FFFFFF",
           border: "1px solid #F0E3D8",
-          borderRadius: "22px",
-          padding: "14px",
-          boxShadow: "0 8px 18px rgba(45, 42, 62, 0.05)",
+          borderRadius: "20px",
+          padding: "12px",
+          boxShadow: "0 6px 16px rgba(45, 42, 62, 0.04)",
           cursor: "pointer",
-          minHeight: "220px",
+          minHeight: "170px",
           height: "100%",
         }}
       >
@@ -1285,15 +894,15 @@ function CompactHighlightCard({
             background: accentBackground,
             border: `1px solid ${accentBorder}`,
             borderRadius: "14px",
-            padding: "10px 12px",
-            marginBottom: "10px",
+            padding: "9px 11px",
+            marginBottom: "9px",
           }}
         >
           <h3
             style={{
               margin: 0,
               color: "#2D2A3E",
-              fontSize: "16px",
+              fontSize: "15px",
               fontWeight: 700,
             }}
           >
@@ -1302,10 +911,10 @@ function CompactHighlightCard({
 
           <p
             style={{
-              margin: "4px 0 0 0",
+              margin: "3px 0 0 0",
               color: "#6D6888",
               fontSize: "12px",
-              lineHeight: 1.4,
+              lineHeight: 1.35,
             }}
           >
             {subtitle}
@@ -1316,7 +925,7 @@ function CompactHighlightCard({
 
         <p
           style={{
-            margin: "10px 0 0 0",
+            margin: "9px 0 0 0",
             color: "#6D6888",
             fontSize: "12px",
             fontWeight: 600,
@@ -1330,24 +939,84 @@ function CompactHighlightCard({
 }
 
 function CompactEmptyText({ text }: { text: string }) {
-  return (
-    <p
-      style={{
-        margin: 0,
-        color: "#6D6888",
-        fontSize: "13px",
-      }}
-    >
-      {text}
-    </p>
-  );
+  return <p style={compactEmptyText}>{text}</p>;
 }
+
+const compactGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+  gap: "10px",
+};
+
+const eyebrowText = {
+  margin: 0,
+  color: "#6D6888",
+  fontSize: "13px",
+  fontWeight: 600,
+};
+
+const sectionButton = {
+  width: "100%",
+  background: "transparent",
+  border: "none",
+  padding: 0,
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  cursor: "pointer",
+  textAlign: "left" as const,
+};
+
+const togglePill = {
+  background: "#FFF7D9",
+  border: "1px solid #F3E4A3",
+  borderRadius: "999px",
+  padding: "7px 11px",
+  color: "#2D2A3E",
+  fontSize: "12px",
+  fontWeight: 700,
+  whiteSpace: "nowrap" as const,
+};
+
+function smallCard(background: string, border: string) {
+  return {
+    background,
+    border: `1px solid ${border}`,
+    borderRadius: "18px",
+    padding: "14px",
+    boxShadow: "0 6px 14px rgba(45, 42, 62, 0.04)",
+    cursor: "pointer",
+    minHeight: "105px",
+  };
+}
+
+const cardLabel = {
+  margin: 0,
+  color: "#5B5675",
+  fontSize: "13px",
+  fontWeight: 700,
+};
+
+const cardValue = {
+  margin: "6px 0 0 0",
+  color: "#2D2A3E",
+  fontSize: "26px",
+  fontWeight: 800,
+};
+
+const cardHelper = {
+  margin: "6px 0 0 0",
+  color: "#6D6888",
+  fontSize: "12px",
+  lineHeight: 1.4,
+};
 
 const compactMiniCard = {
   background: "#FFFDFB",
   border: "1px solid #F0E3D8",
   borderRadius: "12px",
-  padding: "10px",
+  padding: "9px",
 };
 
 const compactMiniTitle = {
@@ -1377,22 +1046,8 @@ const compactSectionLabel = {
   fontWeight: 600,
 };
 
-const primaryButton = {
-  background: "#7CCCF3",
-  color: "#2D2A3E",
-  textDecoration: "none",
-  padding: "12px 16px",
-  borderRadius: "12px",
-  fontWeight: 600,
-  fontSize: "14px",
-};
-
-const secondaryButton = {
-  background: "#FFF3C4",
-  color: "#2D2A3E",
-  textDecoration: "none",
-  padding: "12px 16px",
-  borderRadius: "12px",
-  fontWeight: 600,
-  fontSize: "14px",
+const compactEmptyText = {
+  margin: 0,
+  color: "#6D6888",
+  fontSize: "13px",
 };

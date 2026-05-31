@@ -38,8 +38,20 @@ export default function Sidebar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [dbeOpen, setDbeOpen] = useState(false);
-  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(true);
   const [schoolManagementOpen, setSchoolManagementOpen] = useState(false);
+
+  useEffect(() => {
+    const savedQuickActions = localStorage.getItem("db-quick-actions");
+
+    if (savedQuickActions !== null) {
+      setQuickActionsOpen(savedQuickActions === "true");
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("db-quick-actions", String(quickActionsOpen));
+  }, [quickActionsOpen]);
 
   useEffect(() => {
     loadSidebarContext();
@@ -134,17 +146,23 @@ export default function Sidebar() {
 
   const quickActionsNav = useMemo<NavItem[]>(
     () => [
-      { label: "Add Learner", href: "/children", match: ["/children"] },
-      { label: "Add Event", href: "/events", match: ["/events"] },
+      { label: "➕ Add Learner", href: "/children", match: ["/children"] },
+      { label: "👩‍🏫 Add Teacher", href: "/teachers", match: ["/teachers"] },
+      { label: "📅 Add Event", href: "/events", match: ["/events"] },
       {
-        label: "Create Broadcast",
+        label: "💬 Create Broadcast",
         href: "/broadcasts",
         match: ["/broadcasts"],
       },
       {
-        label: "Record Payment",
+        label: "💳 Record Payment",
         href: "/payments",
         match: ["/payments"],
+      },
+      {
+        label: "📊 Progress Reports",
+        href: "/progress-reports",
+        match: ["/progress-reports"],
       },
     ],
     []
@@ -172,9 +190,9 @@ export default function Sidebar() {
       { label: "Teachers", href: "/teachers", match: ["/teachers"] },
       { label: "Classrooms", href: "/classrooms", match: ["/classrooms"] },
       {
-       label: "Learner Attendance",
-       href: "/attendance",
-       match: ["/attendance"],
+        label: "Learner Attendance",
+        href: "/attendance",
+        match: ["/attendance"],
       },
       {
         label: "Teacher Attendance",
@@ -269,18 +287,25 @@ export default function Sidebar() {
     };
   }
 
-  const collapsibleButtonStyle = {
-    width: "100%",
-    textAlign: "left" as const,
-    background: "#FFFFFF",
-    color: "#2D2A3E",
-    border: "1px solid #F0E3D8",
-    padding: "12px 14px",
-    borderRadius: "14px",
-    fontSize: "14px",
-    fontWeight: 700,
-    cursor: "pointer",
-  };
+  function collapsibleButtonStyle(borderLeftColor: string) {
+    return {
+      width: "100%",
+      textAlign: "left" as const,
+      background: "#FFFDFB",
+      color: "#2D2A3E",
+      border: "1px solid #F0E3D8",
+      borderLeft: `4px solid ${borderLeftColor}`,
+      padding: "12px 14px",
+      borderRadius: "14px",
+      fontSize: "14px",
+      fontWeight: 700,
+      cursor: "pointer",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: "10px",
+    };
+  }
 
   return (
     <aside className="db-sidebar-shell">
@@ -529,29 +554,11 @@ export default function Sidebar() {
                 <>
                   <button
                     type="button"
-                    onClick={() => setDbeOpen((prev) => !prev)}
-                    style={collapsibleButtonStyle}
-                  >
-                    {dbeOpen ? "▼" : "▶"} DBE Registration Information
-                  </button>
-
-                  {dbeOpen &&
-                    dbeNav.map((item) => (
-                      <Link
-                        key={item.label}
-                        href={item.href}
-                        style={navStyle(item)}
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
-
-                  <button
-                    type="button"
                     onClick={() => setQuickActionsOpen((prev) => !prev)}
-                    style={collapsibleButtonStyle}
+                    style={collapsibleButtonStyle("#22C55E")}
                   >
-                    {quickActionsOpen ? "▼" : "▶"} Quick Actions
+                    <span>🌱 Quick Actions</span>
+                    <span>{quickActionsOpen ? "⌄" : "›"}</span>
                   </button>
 
                   {quickActionsOpen &&
@@ -570,9 +577,10 @@ export default function Sidebar() {
               <button
                 type="button"
                 onClick={() => setSchoolManagementOpen((prev) => !prev)}
-                style={collapsibleButtonStyle}
+                style={collapsibleButtonStyle("#F59E0B")}
               >
-                {schoolManagementOpen ? "▼" : "▶"} School Management
+                <span>🏫 School Management</span>
+                <span>{schoolManagementOpen ? "⌄" : "›"}</span>
               </button>
 
               {schoolManagementOpen &&
@@ -584,6 +592,30 @@ export default function Sidebar() {
                     {item.label}
                   </Link>
                 ))}
+
+              {!isTeacher ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setDbeOpen((prev) => !prev)}
+                    style={collapsibleButtonStyle("#60A5FA")}
+                  >
+                    <span>📋 DBE Registration Information</span>
+                    <span>{dbeOpen ? "⌄" : "›"}</span>
+                  </button>
+
+                  {dbeOpen &&
+                    dbeNav.map((item) => (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        style={navStyle(item)}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                </>
+              ) : null}
             </div>
           </div>
         ) : null}

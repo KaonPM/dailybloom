@@ -4,9 +4,15 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { reportCategories } from "../lib/report-categories";
+import {
+  gradeRRCategories,
+  gradeRRRatingScale,
+} from "../lib/grade-rr-categories";
 import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+
+const reportLevels = ["NP", "PA", "A", "G", "VG"];
 
 export default function ProgressReportsPage() {
   const router = useRouter();
@@ -22,6 +28,10 @@ export default function ProgressReportsPage() {
   const [allAssessments, setAllAssessments] = useState<any[]>([]);
   const [generatedReports, setGeneratedReports] = useState<any[]>([]);
 
+  const [reportType, setReportType] = useState<"developmental" | "grade-rr">(
+    "developmental"
+  );
+
   const [selectedClassroomId, setSelectedClassroomId] = useState("");
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
   const [selectedLearnerId, setSelectedLearnerId] = useState("");
@@ -29,6 +39,9 @@ export default function ProgressReportsPage() {
 
   const [reviewAssessments, setReviewAssessments] = useState<any[]>([]);
   const [principalComment, setPrincipalComment] = useState("");
+  const [teacherComment, setTeacherComment] = useState("");
+  const [openingDate, setOpeningDate] = useState("");
+  const [closingDate, setClosingDate] = useState("");
   const [generatedReport, setGeneratedReport] = useState<any>(null);
 
   const [newPeriodTitle, setNewPeriodTitle] = useState("");
@@ -56,6 +69,34 @@ export default function ProgressReportsPage() {
   const [saving, setSaving] = useState(false);
 
   const pageSize = 5;
+
+  const activeCategories = useMemo(() => {
+    return reportType === "grade-rr" ? gradeRRCategories : reportCategories;
+  }, [reportType]);
+
+  const activeRatingScale = useMemo(() => {
+    return reportType === "grade-rr" ? gradeRRRatingScale : reportLevels;
+  }, [reportType]);
+
+  const reportTitle =
+    reportType === "grade-rr"
+      ? "Grade RR Progress Report"
+      : "Developmental Progress Report";
+
+  const reportTitleUpper =
+    reportType === "grade-rr"
+      ? "GRADE RR PROGRESS REPORT"
+      : "DEVELOPMENTAL PROGRESS REPORT";
+
+  const firstPageCategories =
+    reportType === "grade-rr"
+      ? activeCategories.slice(0, 2)
+      : activeCategories.slice(0, 3);
+
+  const secondPageCategories =
+    reportType === "grade-rr"
+      ? activeCategories.slice(2)
+      : activeCategories.slice(3);
 
   useEffect(() => {
     loadPage();
@@ -171,6 +212,7 @@ export default function ProgressReportsPage() {
       .from("learners")
       .select("*")
       .eq("school_id", currentSchoolId)
+      .or("is_deleted.is.null,is_deleted.eq.false")
       .order("name", { ascending: true });
 
     if (error) {
@@ -236,7 +278,7 @@ export default function ProgressReportsPage() {
 
   async function createReportPeriod() {
     if (!schoolId || !newPeriodTitle.trim()) {
-      alert("Please enter a developmental progress report period title.");
+      alert("Please enter a progress report period title.");
       return;
     }
 
@@ -259,7 +301,7 @@ export default function ProgressReportsPage() {
     setShowCreateModal(false);
     await fetchPeriods(schoolId);
 
-    alert("Developmental progress report period created.");
+    alert("Progress report period created.");
   }
 
   function getClassroomName(classroomId: any) {
@@ -352,6 +394,12 @@ export default function ProgressReportsPage() {
   });
 
   const filteredReports = generatedReports.filter((item) => {
+    const savedReportType = item.report_type || "developmental";
+
+    if (savedReportType !== reportType) {
+      return false;
+    }
+
     if (
       selectedClassroomId &&
       String(item.classroom_id) !== String(selectedClassroomId)
@@ -411,12 +459,14 @@ export default function ProgressReportsPage() {
         ?.teacher_comment || "";
 
     setTeacherObservation(observation);
+    setTeacherComment(observation);
 
     const { data: reportData, error: reportError } = await supabase
       .from("generated_reports")
       .select("*")
       .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
+      .eq("report_type", reportType)
       .maybeSingle();
 
     if (reportError) {
@@ -426,6 +476,8 @@ export default function ProgressReportsPage() {
 
     setGeneratedReport(reportData);
     setPrincipalComment(reportData?.principal_comment || "");
+    setOpeningDate(reportData?.opening_date || "");
+    setClosingDate(reportData?.closing_date || "");
 
     window.requestAnimationFrame(() => {
       document
@@ -435,6 +487,9 @@ export default function ProgressReportsPage() {
   }
 
   async function openGeneratedReport(item: any) {
+    const savedReportType = item.report_type || "developmental";
+
+    setReportType(savedReportType);
     setSelectedClassroomId(String(item.classroom_id || ""));
     setSelectedLearnerId(String(item.learner_id || ""));
     setSelectedPeriodId(String(item.report_period_id || ""));
@@ -458,8 +513,11 @@ export default function ProgressReportsPage() {
         ?.teacher_comment || "";
 
     setTeacherObservation(observation);
+    setTeacherComment(observation);
     setGeneratedReport(item);
     setPrincipalComment(item.principal_comment || "");
+    setOpeningDate(item.opening_date || "");
+    setClosingDate(item.closing_date || "");
 
     if (data && data.length > 0) {
       setSelectedTeacherId(String(data[0].teacher_id || ""));
@@ -474,7 +532,7 @@ export default function ProgressReportsPage() {
 
   async function savePrincipalReview() {
     if (!reviewAssessments.length) {
-      alert("No practitioner developmental observations found for this learner.");
+      alert("No practitioner observations found for this learner.");
       return;
     }
 
@@ -515,6 +573,9 @@ export default function ProgressReportsPage() {
       .from("generated_reports")
       .update({
         principal_comment: principalComment || null,
+        opening_date: openingDate || null,
+        closing_date: closingDate || null,
+        report_type: reportType,
         generated_at: new Date().toISOString(),
       })
       .eq("id", generatedReport.id);
@@ -610,7 +671,7 @@ export default function ProgressReportsPage() {
     }
 
     if (!reviewAssessments.length) {
-      alert("No submitted developmental observation found.");
+      alert("No submitted observation found.");
       return;
     }
 
@@ -621,6 +682,7 @@ export default function ProgressReportsPage() {
       .select("id")
       .eq("learner_id", selectedLearnerId)
       .eq("report_period_id", Number(selectedPeriodId))
+      .eq("report_type", reportType)
       .maybeSingle();
 
     let reportError: any = null;
@@ -633,6 +695,9 @@ export default function ProgressReportsPage() {
           classroom_id: Number(selectedClassroomId),
           principal_id: profile.id,
           principal_comment: principalComment || null,
+          opening_date: openingDate || null,
+          closing_date: closingDate || null,
+          report_type: reportType,
           report_status: "generated",
           locked: true,
           generated_at: new Date().toISOString(),
@@ -649,6 +714,9 @@ export default function ProgressReportsPage() {
           report_period_id: Number(selectedPeriodId),
           principal_id: profile.id,
           principal_comment: principalComment || null,
+          opening_date: openingDate || null,
+          closing_date: closingDate || null,
+          report_type: reportType,
           report_status: "generated",
           locked: true,
           generated_at: new Date().toISOString(),
@@ -688,7 +756,7 @@ export default function ProgressReportsPage() {
     }
 
     setSaving(false);
-    alert("Official developmental progress report generated and locked.");
+    alert(`Official ${reportTitle.toLowerCase()} generated and locked.`);
   }
 
   async function downloadPDF() {
@@ -755,8 +823,12 @@ export default function ProgressReportsPage() {
 
       const learnerName =
         selectedLearner?.name?.replace(/\s+/g, "_") || "Learner";
+      const fileLabel =
+        reportType === "grade-rr"
+          ? "Grade_RR_Progress_Report"
+          : "Developmental_Progress_Report";
 
-      pdf.save(`${learnerName}_Developmental_Progress_Report.pdf`);
+      pdf.save(`${learnerName}_${fileLabel}.pdf`);
     } catch (error) {
       if (pdfButtons) {
         pdfButtons.style.display = "flex";
@@ -805,11 +877,10 @@ export default function ProgressReportsPage() {
         className="db-card db-card-lavender no-print"
         style={{ padding: "24px" }}
       >
-        <h1 className="db-page-title">Developmental Progress Reports</h1>
+        <h1 className="db-page-title">Progress Reports</h1>
         <p className="db-page-subtitle">
-          Review practitioner developmental observations and generate
-          NCF-aligned learner progress reports for ECD and Grade R transition
-          readiness.
+          Review practitioner observations and generate developmental or Grade RR
+          learner progress reports.
         </p>
       </div>
 
@@ -818,7 +889,7 @@ export default function ProgressReportsPage() {
           className="db-button-primary"
           onClick={() => setShowCreateModal(true)}
         >
-          + Create Developmental Progress Report Period
+          + Create Progress Report Period
         </button>
       </div>
 
@@ -826,12 +897,12 @@ export default function ProgressReportsPage() {
         <div style={modalOverlay} className="no-print">
           <div style={modalBox}>
             <h3 style={{ ...sectionTitle, marginBottom: "18px" }}>
-              New Developmental Progress Report Period
+              New Progress Report Period
             </h3>
 
             <input
               className="db-input"
-              placeholder="Example: Term 1 Developmental Progress Report 2026"
+              placeholder="Example: Term 1 Progress Report 2026"
               value={newPeriodTitle}
               onChange={(e) => setNewPeriodTitle(e.target.value)}
             />
@@ -868,14 +939,26 @@ export default function ProgressReportsPage() {
         style={{ padding: "20px", marginBottom: "24px" }}
       >
         <div onClick={() => setShowFilter(!showFilter)} style={collapsibleHeader}>
-          <h3 style={{ ...sectionTitle, margin: 0 }}>
-            Filter Developmental Reports
-          </h3>
+          <h3 style={{ ...sectionTitle, margin: 0 }}>Filter Reports</h3>
           <span style={chevron}>{showFilter ? "-" : "+"}</span>
         </div>
 
         {showFilter && (
           <div style={{ marginTop: "14px" }}>
+            <select
+              value={reportType}
+              onChange={(e) => {
+                setReportType(e.target.value as "developmental" | "grade-rr");
+                setReportPage(1);
+              }}
+              className="db-input"
+            >
+              <option value="developmental">
+                Developmental Progress Report
+              </option>
+              <option value="grade-rr">Grade RR Progress Report</option>
+            </select>
+
             <select
               className="db-input"
               value={selectedClassroomId}
@@ -955,7 +1038,7 @@ export default function ProgressReportsPage() {
           style={collapsibleHeader}
         >
           <h3 style={{ ...sectionTitle, margin: 0 }}>
-            Practitioner Submitted Developmental Observations
+            Practitioner Submitted Observations
           </h3>
           <span style={chevron}>{showAssessments ? "-" : "+"}</span>
         </div>
@@ -964,7 +1047,7 @@ export default function ProgressReportsPage() {
           <>
             {visibleAssessments.length === 0 ? (
               <p className="db-helper" style={{ marginTop: "14px" }}>
-                No submitted practitioner developmental observations found.
+                No submitted practitioner observations found.
               </p>
             ) : (
               <div style={{ display: "grid", gap: "10px", marginTop: "14px" }}>
@@ -1059,7 +1142,7 @@ export default function ProgressReportsPage() {
           style={collapsibleHeader}
         >
           <h3 style={{ ...sectionTitle, margin: 0 }}>
-            Generated Developmental Progress Reports
+            Generated Progress Reports
           </h3>
           <span style={chevron}>{showGeneratedReports ? "-" : "+"}</span>
         </div>
@@ -1068,7 +1151,7 @@ export default function ProgressReportsPage() {
           <>
             {visibleReports.length === 0 ? (
               <p className="db-helper" style={{ marginTop: "14px" }}>
-                No generated developmental progress reports yet.
+                No generated progress reports yet.
               </p>
             ) : (
               <div style={{ display: "grid", gap: "10px", marginTop: "14px" }}>
@@ -1106,6 +1189,12 @@ export default function ProgressReportsPage() {
 
                       {isExpanded && (
                         <div style={{ marginTop: "12px" }}>
+                          <p style={textStyle}>
+                            Type:{" "}
+                            {(item.report_type || "developmental") === "grade-rr"
+                              ? "Grade RR Progress Report"
+                              : "Developmental Progress Report"}
+                          </p>
                           <p style={textStyle}>
                             Class: {getClassroomName(item.classroom_id)}
                           </p>
@@ -1194,58 +1283,6 @@ export default function ProgressReportsPage() {
             }}
           >
             <div className="booklet-page">
-              <div style={bookletPanel}>
-                <h2 style={bookletTitle}>Developmental Progress Report</h2>
-
-                <h3 style={bookletSectionTitle}>
-                  Knowledge and Understanding of the World
-                </h3>
-                <p style={bookletSmallText}>
-                  Mapped from awareness of the environment, community, nature,
-                  observation, shapes and everyday experiences.
-                </p>
-
-                <ReportSkillTable
-                  categoryKey="knowledge_world"
-                  reviewAssessments={reviewAssessments}
-                />
-
-                <h3 style={bookletSectionTitle}>Practitioner Remarks</h3>
-
-                <textarea
-                  className="db-input no-print compact-textarea"
-                  rows={3}
-                  placeholder="Type practitioner remarks for this learner"
-                  value={teacherObservation}
-                  onChange={(e) => setTeacherObservation(e.target.value)}
-                  style={{ width: "100%", boxSizing: "border-box" }}
-                />
-                <p className="print-only" style={remarksBox}>
-                  {teacherObservation || "No practitioner remarks added."}
-                </p>
-
-                <h3 style={bookletSectionTitle}>Principal Comments</h3>
-
-                <textarea
-                  className="db-input no-print compact-textarea"
-                  rows={3}
-                  placeholder="Type principal comments"
-                  value={principalComment}
-                  onChange={(e) => setPrincipalComment(e.target.value)}
-                  style={{ width: "100%", boxSizing: "border-box" }}
-                />
-                <p className="print-only" style={remarksBox}>
-                  {principalComment || "No principal comments added."}
-                </p>
-
-                <div style={signatureGrid}>
-                  <p style={bookletLine}>Teacher's Name: {teacherName}</p>
-                  <p style={bookletLine}>Opening Date: __________________</p>
-                  <p style={bookletLine}>Teacher's Signature: ___________</p>
-                  <p style={bookletLine}>Principal's Signature: __________</p>
-                </div>
-              </div>
-
               <div style={{ ...bookletPanel, textAlign: "center" }}>
                 {school?.logo_url && (
                   <img
@@ -1264,7 +1301,7 @@ export default function ProgressReportsPage() {
                   {school?.school_name || "Preschool Name"}
                 </h1>
 
-                <h2 style={coverTitle}>Developmental Progress Report</h2>
+                <h2 style={coverTitle}>{reportTitleUpper}</h2>
 
                 <p style={coverText}>{selectedClassroom.classroom_name}</p>
 
@@ -1293,11 +1330,9 @@ export default function ProgressReportsPage() {
                   {selectedPeriod.title}
                 </p>
               </div>
-            </div>
 
-            <div className="booklet-page">
               <div style={bookletPanel}>
-                <h2 style={bookletTitle}>Developmental Progress Report</h2>
+                <h2 style={bookletTitle}>{reportTitleUpper}</h2>
 
                 <div style={learnerInfoBox}>
                   <p style={bookletText}>
@@ -1318,71 +1353,138 @@ export default function ProgressReportsPage() {
                   <p style={bookletText}>
                     <strong>Class:</strong> {selectedClassroom.classroom_name}
                   </p>
+
+                  {reportType === "grade-rr" ? (
+                    <>
+                      <p style={bookletText}>
+                        <strong>Opening Date:</strong>{" "}
+                        {openingDate || "Not added"}
+                      </p>
+
+                      <p style={bookletText}>
+                        <strong>Closing Date:</strong>{" "}
+                        {closingDate || "Not added"}
+                      </p>
+                    </>
+                  ) : null}
                 </div>
 
                 <div style={codesBox}>
                   <strong>Codes / Level of Competence</strong>
                   <br />
-                  NP = Needs Practice | PA = Partially Achieved | A = Achieved
-                  | G = Good | VG = Very Good
+                  {reportType === "grade-rr"
+                    ? "1 = Not Achieved | 2 = Partially Achieved | 3 = Achieved | 4 = Outstanding Achievement"
+                    : "NP = Needs Practice | PA = Partially Achieved | A = Achieved | G = Good | VG = Very Good"}
                 </div>
 
-                <h3 style={bookletSectionTitle}>Well-being</h3>
-                <p style={bookletSmallText}>
-                  Mapped from gross motor abilities, fine motor abilities,
-                  physical coordination, self-care and healthy participation.
-                </p>
+                {reportType === "grade-rr" ? (
+                  <div className="no-print" style={gradeRRMetaGrid}>
+                    <div>
+                      <p style={labelText}>Opening Date</p>
+                      <input
+                        className="db-input"
+                        type="date"
+                        value={openingDate}
+                        onChange={(e) => setOpeningDate(e.target.value)}
+                      />
+                    </div>
 
-                <ReportSkillTable
-                  categoryKey="wellbeing"
-                  reviewAssessments={reviewAssessments}
-                />
+                    <div>
+                      <p style={labelText}>Closing Date</p>
+                      <input
+                        className="db-input"
+                        type="date"
+                        value={closingDate}
+                        onChange={(e) => setClosingDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ) : null}
 
-                <h3 style={bookletSectionTitle}>Communication</h3>
-                <p style={bookletSmallText}>
-                  Mapped from language development, listening, speaking and early
-                  literacy foundations.
-                </p>
+                {firstPageCategories.map((category: any) => (
+                  <React.Fragment key={category.key}>
+                    <h3 style={bookletSectionTitle}>{category.label}</h3>
 
-                <ReportSkillTable
-                  categoryKey="communication"
-                  reviewAssessments={reviewAssessments}
-                />
+                    {category.description ? (
+                      <p style={bookletSmallText}>{category.description}</p>
+                    ) : null}
+
+                    <ReportSkillTable
+                      categoryKey={category.key}
+                      categories={activeCategories}
+                      ratingScale={activeRatingScale}
+                      reviewAssessments={reviewAssessments}
+                    />
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+
+            <div className="booklet-page">
+              <div style={bookletPanel}>
+                {secondPageCategories.map((category: any) => (
+                  <React.Fragment key={category.key}>
+                    <h3 style={bookletSectionTitle}>{category.label}</h3>
+
+                    {category.description ? (
+                      <p style={bookletSmallText}>{category.description}</p>
+                    ) : null}
+
+                    <ReportSkillTable
+                      categoryKey={category.key}
+                      categories={activeCategories}
+                      ratingScale={activeRatingScale}
+                      reviewAssessments={reviewAssessments}
+                    />
+                  </React.Fragment>
+                ))}
               </div>
 
               <div style={bookletPanel}>
-                <h3 style={bookletSectionTitle}>Identity and Belonging</h3>
-                <p style={bookletSmallText}>
-                  Mapped from self-awareness, confidence, social interaction,
-                  independence and classroom participation.
+                <h3 style={bookletSectionTitle}>Practitioner Remarks</h3>
+
+                <textarea
+                  className="db-input no-print compact-textarea"
+                  rows={3}
+                  placeholder="Type practitioner remarks for this learner"
+                  value={teacherObservation}
+                  onChange={(e) => {
+                    setTeacherObservation(e.target.value);
+                    setTeacherComment(e.target.value);
+                  }}
+                  style={{ width: "100%", boxSizing: "border-box" }}
+                />
+                <p className="print-only" style={remarksBox}>
+                  {teacherObservation ||
+                    teacherComment ||
+                    "No practitioner remarks added."}
                 </p>
 
-                <ReportSkillTable
-                  categoryKey="identity_belonging"
-                  reviewAssessments={reviewAssessments}
-                />
+                <h3 style={bookletSectionTitle}>Principal Comments</h3>
 
-                <h3 style={bookletSectionTitle}>Exploring Mathematics</h3>
-                <p style={bookletSmallText}>
-                  Mapped from early numeracy, number awareness, counting,
-                  sorting, matching and comparison.
+                <textarea
+                  className="db-input no-print compact-textarea"
+                  rows={3}
+                  placeholder="Type principal comments"
+                  value={principalComment}
+                  onChange={(e) => setPrincipalComment(e.target.value)}
+                  style={{ width: "100%", boxSizing: "border-box" }}
+                />
+                <p className="print-only" style={remarksBox}>
+                  {principalComment || "No principal comments added."}
                 </p>
 
-                <ReportSkillTable
-                  categoryKey="mathematical_literacy"
-                  reviewAssessments={reviewAssessments}
-                />
-
-                <h3 style={bookletSectionTitle}>Creativity</h3>
-                <p style={bookletSmallText}>
-                  Mapped from drawing, music, rhythm, art expression and
-                  imaginative play.
-                </p>
-
-                <ReportSkillTable
-                  categoryKey="creativity"
-                  reviewAssessments={reviewAssessments}
-                />
+                <div style={signatureGrid}>
+                  <p style={bookletLine}>Teacher's Name: {teacherName}</p>
+                  <p style={bookletLine}>
+                    Opening Date: {openingDate || "__________________"}
+                  </p>
+                  <p style={bookletLine}>
+                    Closing Date: {closingDate || "__________________"}
+                  </p>
+                  <p style={bookletLine}>Teacher's Signature: ___________</p>
+                  <p style={bookletLine}>Principal's Signature: __________</p>
+                </div>
               </div>
             </div>
 
@@ -1394,8 +1496,10 @@ export default function ProgressReportsPage() {
                 textAlign: "center",
               }}
             >
-              Generated securely by DailyBloom. Aligned to the six recognised DBE
-              National Curriculum Framework developmental and learning areas.
+              Generated securely by DailyBloom.{" "}
+              {reportType === "grade-rr"
+                ? "Aligned to Grade RR reporting domains."
+                : "Aligned to the six recognised DBE National Curriculum Framework developmental and learning areas."}
             </p>
 
             <div
@@ -1415,6 +1519,9 @@ export default function ProgressReportsPage() {
                   setReviewAssessments([]);
                   setPrincipalComment("");
                   setTeacherObservation("");
+                  setTeacherComment("");
+                  setOpeningDate("");
+                  setClosingDate("");
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
               >
@@ -1436,7 +1543,7 @@ export default function ProgressReportsPage() {
                     onClick={generateReport}
                     disabled={saving}
                   >
-                    Generate Official Developmental Progress Report
+                    Generate Official {reportTitle}
                   </button>
                 </>
               )}
@@ -1452,7 +1559,7 @@ export default function ProgressReportsPage() {
               )}
 
               <button className="db-button-primary" onClick={downloadPDF}>
-                Download / Print Developmental Report
+                Download / Print {reportTitle}
               </button>
 
               <p
@@ -1558,25 +1665,48 @@ export default function ProgressReportsPage() {
 
 function ReportSkillTable({
   categoryKey,
+  categories,
+  ratingScale,
   reviewAssessments,
 }: {
   categoryKey: string;
+  categories: any[];
+  ratingScale: any[];
   reviewAssessments: any[];
 }) {
-  const levels = ["NP", "PA", "A", "G", "VG"];
-  const category = reportCategories.find((item) => item.key === categoryKey);
-  const indicators = category?.indicators || [];
+  const category = categories.find((item) => item.key === categoryKey);
+
+  const indicators =
+    category?.indicators ||
+    category?.sections?.flatMap((section: any) => section.indicators || []) ||
+    [];
 
   const categoryAssessments = reviewAssessments.filter(
     (item) => item.category === categoryKey
   );
 
+  function getLevelCode(level: any) {
+    if (typeof level === "string") {
+      return level.includes(" - ") ? level.split(" - ")[0] : level;
+    }
+
+    return (
+      level?.code ||
+      level?.value ||
+      level?.level ||
+      level?.label ||
+      String(level || "")
+    );
+  }
+
+  const levels = ratingScale.map((level) => getLevelCode(level));
+
   function normalizeLevel(value: string) {
     if (!value) return "";
 
-    const cleaned = value.trim();
+    const cleaned = String(value).trim();
 
-    if (["NP", "PA", "A", "G", "VG"].includes(cleaned)) return cleaned;
+    if (levels.includes(cleaned)) return cleaned;
 
     if (cleaned === "NP - Needs Practice") return "NP";
     if (cleaned === "PA - Partially Achieved") return "PA";
@@ -1594,6 +1724,16 @@ function ReportSkillTable({
     if (cleaned === "progressing") return "PA";
     if (cleaned === "meeting_expectations") return "G";
     if (cleaned === "exceeding_expectations") return "VG";
+
+    if (cleaned === "not_achieved") return "1";
+    if (cleaned === "partially_achieved_grade_rr") return "2";
+    if (cleaned === "achieved_grade_rr") return "3";
+    if (cleaned === "outstanding_achievement") return "4";
+
+    if (cleaned === "1 - Not Achieved") return "1";
+    if (cleaned === "2 - Partially Achieved") return "2";
+    if (cleaned === "3 - Achieved") return "3";
+    if (cleaned === "4 - Outstanding Achievement") return "4";
 
     return "";
   }
@@ -1628,7 +1768,7 @@ function ReportSkillTable({
     <table style={skillTable}>
       <thead>
         <tr>
-          <th style={skillHeader}>Developmental Indicator</th>
+          <th style={skillHeader}>Assessment Indicator</th>
 
           {levels.map((level) => (
             <th key={level} style={levelHeader}>
@@ -1639,7 +1779,7 @@ function ReportSkillTable({
       </thead>
 
       <tbody>
-        {indicators.map((indicator) => {
+        {indicators.map((indicator: any) => {
           const selectedLevel = getIndicatorLevel(indicator);
 
           return (
@@ -1670,6 +1810,13 @@ const sectionTitle = {
 const textStyle = {
   margin: "6px 0",
   color: "var(--db-text-soft)",
+};
+
+const labelText = {
+  margin: "0 0 8px 0",
+  color: "#6D6888",
+  fontSize: 13,
+  fontWeight: 800,
 };
 
 const collapsibleHeader: React.CSSProperties = {
@@ -1843,4 +1990,11 @@ const codesBox: React.CSSProperties = {
   border: "1px solid #ddd",
   margin: "5px 0",
   background: "#fafafa",
+};
+
+const gradeRRMetaGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "10px",
+  margin: "8px 0",
 };

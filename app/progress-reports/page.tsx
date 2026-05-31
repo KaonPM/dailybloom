@@ -284,6 +284,12 @@ export default function ProgressReportsPage() {
     return "Developmental Progress Report";
   }
 
+  function periodStatusStyle(status: string) {
+    if (status === "open") return pillGreen;
+    if (status === "closed") return pillOrange;
+    return pillGrey;
+  }
+
   async function createReportPeriod() {
     if (!schoolId || !newPeriodTitle.trim()) {
       alert("Please enter a progress report period title.");
@@ -312,6 +318,25 @@ export default function ProgressReportsPage() {
     await fetchPeriods(schoolId);
 
     alert("Progress report period created.");
+  }
+
+  async function updatePeriodStatus(
+    periodId: number,
+    status: "open" | "closed" | "archived"
+  ) {
+    const { error } = await supabase
+      .from("report_periods")
+      .update({ status })
+      .eq("id", periodId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    if (schoolId) {
+      await fetchPeriods(schoolId);
+    }
   }
 
   function getClassroomName(classroomId: any) {
@@ -697,6 +722,13 @@ export default function ProgressReportsPage() {
       return;
     }
 
+    if (selectedPeriod?.status === "archived") {
+      alert(
+        "This report period has been archived. Reports can no longer be generated."
+      );
+      return;
+    }
+
     setSaving(true);
 
     const selectedReportPeriod = periods.find(
@@ -943,6 +975,87 @@ export default function ProgressReportsPage() {
         >
           + Create Progress Report Period
         </button>
+      </div>
+
+      <div
+        className="db-card db-card-blue no-print"
+        style={{ padding: "20px", marginBottom: "24px" }}
+      >
+        <h3 style={sectionTitle}>Report Period Management</h3>
+
+        {periods.length === 0 ? (
+          <p className="db-helper">No report periods created yet.</p>
+        ) : (
+          <div style={{ display: "grid", gap: "12px" }}>
+            {periods.map((period) => (
+              <div key={period.id} className="db-list-card">
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div>
+                    <strong>{period.title}</strong>
+                    <p style={textStyle}>
+                      {formatReportTemplate(
+                        period.report_template || "developmental"
+                      )}
+                    </p>
+                    <span style={periodStatusStyle(period.status || "open")}>
+                      Status: {period.status || "open"}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                      flexWrap: "wrap",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    {(period.status || "open") === "open" ? (
+                      <button
+                        className="db-button-primary"
+                        onClick={() => updatePeriodStatus(period.id, "closed")}
+                      >
+                        Close Period
+                      </button>
+                    ) : null}
+
+                    {period.status === "closed" ? (
+                      <>
+                        <button
+                          className="db-button-primary"
+                          onClick={() => updatePeriodStatus(period.id, "open")}
+                        >
+                          Reopen
+                        </button>
+
+                        <button
+                          className="db-button-primary"
+                          style={{ background: "#777" }}
+                          onClick={() =>
+                            updatePeriodStatus(period.id, "archived")
+                          }
+                        >
+                          Archive
+                        </button>
+                      </>
+                    ) : null}
+
+                    {period.status === "archived" ? (
+                      <span style={pillGrey}>Archived</span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {showCreateModal && (
@@ -2079,4 +2192,34 @@ const gradeRRMetaGrid: React.CSSProperties = {
   gridTemplateColumns: "1fr 1fr",
   gap: "10px",
   margin: "8px 0",
+};
+
+const pillGreen = {
+  background: "#EAF8EE",
+  border: "1px solid #CDEED8",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 12,
+  color: "#2D2A3E",
+  height: "fit-content",
+};
+
+const pillOrange = {
+  background: "#FFF4E5",
+  border: "1px solid #F6C981",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 12,
+  color: "#2D2A3E",
+  height: "fit-content",
+};
+
+const pillGrey = {
+  background: "#F1F1F1",
+  border: "1px solid #D8D8D8",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 12,
+  color: "#555",
+  height: "fit-content",
 };

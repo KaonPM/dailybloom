@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { reportCategories } from "../lib/report-categories";
+import { awardTypes, awardCategories } from "../lib/award-types";
 import {
   gradeRRCategories,
   gradeRRRatingScale,
@@ -67,6 +68,15 @@ export default function ProgressReportsPage() {
 
   const [teacherObservation, setTeacherObservation] = useState("");
   const [pendingDownload, setPendingDownload] = useState(false);
+
+  const [showAwards, setShowAwards] = useState(true);
+  const [awards, setAwards] = useState<any[]>([]);
+
+  const [selectedAwardLearnerId, setSelectedAwardLearnerId] = useState("");
+  const [selectedAwardPeriodId, setSelectedAwardPeriodId] = useState("");
+  const [selectedAwardType, setSelectedAwardType] = useState("");
+  const [selectedAwardCategory, setSelectedAwardCategory] = useState("General");
+  const [awardReason, setAwardReason] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -160,6 +170,7 @@ export default function ProgressReportsPage() {
     await fetchPeriods(currentSchoolId);
     await fetchAllAssessments(currentSchoolId);
     await fetchGeneratedReports(currentSchoolId);
+    await fetchAwards(currentSchoolId);
 
     setLoading(false);
   }
@@ -272,6 +283,21 @@ export default function ProgressReportsPage() {
     setGeneratedReports(data || []);
   }
 
+  async function fetchAwards(currentSchoolId: number) {
+    const { data, error } = await supabase
+      .from("achievement_awards")
+      .select("*")
+      .eq("school_id", currentSchoolId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setAwards(data || []);
+  }
+
   function formatPeriodType(type: string) {
     if (type === "quarterly") return "Term Report";
     if (type === "biannual") return "Semester Report";
@@ -337,6 +363,51 @@ export default function ProgressReportsPage() {
     if (schoolId) {
       await fetchPeriods(schoolId);
     }
+  }
+
+  async function createAward() {
+    if (
+      !schoolId ||
+      !selectedAwardLearnerId ||
+      !selectedAwardPeriodId ||
+      !selectedAwardType
+    ) {
+      alert("Please complete all award fields.");
+      return;
+    }
+
+    const certificateNumber = `DB-${new Date().getFullYear()}-${Date.now()}`;
+
+    const { error } = await supabase.from("achievement_awards").insert([
+      {
+        school_id: schoolId,
+        learner_id: selectedAwardLearnerId,
+        report_period_id: selectedAwardPeriodId,
+        award_name: selectedAwardType,
+        award_category: selectedAwardCategory,
+        award_reason: awardReason || null,
+        teacher_name: teacherName,
+        principal_name: profile?.full_name || profile?.name || "Principal",
+        certificate_number: certificateNumber,
+        award_year: new Date().getFullYear(),
+        certificate_generated: true,
+      },
+    ]);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setSelectedAwardLearnerId("");
+    setSelectedAwardPeriodId("");
+    setSelectedAwardType("");
+    setSelectedAwardCategory("General");
+    setAwardReason("");
+
+    await fetchAwards(schoolId);
+
+    alert("Achievement award created.");
   }
 
   function getClassroomName(classroomId: any) {
@@ -944,30 +1015,6 @@ export default function ProgressReportsPage() {
         </p>
       </div>
 
-      <div
-        className="db-card db-card-blue no-print"
-        style={{ padding: "20px", marginBottom: "24px" }}
-      >
-        <h3 style={sectionTitle}>Report Areas</h3>
-
-        <div style={{ display: "grid", gap: "12px" }}>
-          <div className="db-list-card">
-            <strong>Developmental Reports</strong>
-            <p style={textStyle}>All learners</p>
-          </div>
-
-          <div className="db-list-card">
-            <strong>Grade RR Reports</strong>
-            <p style={textStyle}>Learners preparing for Grade R next year</p>
-          </div>
-
-          <div className="db-list-card">
-            <strong>Achievement Awards</strong>
-            <p style={textStyle}>Certificates and learner awards</p>
-          </div>
-        </div>
-      </div>
-
       <div className="no-print" style={{ marginBottom: "24px" }}>
         <button
           className="db-button-primary"
@@ -1460,6 +1507,129 @@ export default function ProgressReportsPage() {
               >
                 Next
               </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div
+        className="db-card db-card-yellow no-print"
+        style={{ padding: "20px", marginBottom: "24px" }}
+      >
+        <div onClick={() => setShowAwards(!showAwards)} style={collapsibleHeader}>
+          <h3 style={{ ...sectionTitle, margin: 0 }}>Achievement Awards</h3>
+
+          <span style={chevron}>{showAwards ? "-" : "+"}</span>
+        </div>
+
+        {showAwards && (
+          <>
+            <div style={{ marginTop: "16px" }}>
+              <select
+                className="db-input"
+                value={selectedAwardLearnerId}
+                onChange={(e) => setSelectedAwardLearnerId(e.target.value)}
+              >
+                <option value="">Select Learner</option>
+
+                {learners.map((learner) => (
+                  <option key={learner.id} value={learner.id}>
+                    {learner.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                className="db-input"
+                value={selectedAwardPeriodId}
+                onChange={(e) => setSelectedAwardPeriodId(e.target.value)}
+              >
+                <option value="">Select Report Period</option>
+
+                {periods.map((period) => (
+                  <option key={period.id} value={period.id}>
+                    {period.title} ({formatPeriodType(period.report_type)} -{" "}
+                    {formatReportTemplate(
+                      period.report_template || "developmental"
+                    )}
+                    )
+                  </option>
+                ))}
+              </select>
+
+              <select
+                className="db-input"
+                value={selectedAwardType}
+                onChange={(e) => setSelectedAwardType(e.target.value)}
+              >
+                <option value="">Select Award</option>
+
+                {awardTypes.map((award) => (
+                  <option key={award} value={award}>
+                    {award}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                className="db-input"
+                value={selectedAwardCategory}
+                onChange={(e) => setSelectedAwardCategory(e.target.value)}
+              >
+                {awardCategories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+
+              <textarea
+                className="db-input"
+                rows={3}
+                placeholder="Reason for award"
+                value={awardReason}
+                onChange={(e) => setAwardReason(e.target.value)}
+              />
+
+              <button className="db-button-primary" onClick={createAward}>
+                Create Award
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gap: "10px",
+                marginTop: "20px",
+              }}
+            >
+              {awards.map((award) => (
+                <div key={award.id} className="db-list-card">
+                  <strong>{award.award_name}</strong>
+
+                  <p style={textStyle}>
+                    Learner: {getLearnerName(award.learner_id)}
+                  </p>
+
+                  <p style={textStyle}>
+                    Report Period:{" "}
+                    {award.report_period_id
+                      ? getPeriodTitle(award.report_period_id)
+                      : "Not linked"}
+                  </p>
+
+                  <p style={textStyle}>
+                    Award Date:{" "}
+                    {award.created_at
+                      ? new Date(award.created_at).toLocaleDateString()
+                      : "Not recorded"}
+                  </p>
+
+                  <p style={textStyle}>
+                    Certificate: {award.certificate_number}
+                  </p>
+                </div>
+              ))}
             </div>
           </>
         )}

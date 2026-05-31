@@ -46,6 +46,9 @@ export default function ProgressReportsPage() {
 
   const [newPeriodTitle, setNewPeriodTitle] = useState("");
   const [newPeriodType, setNewPeriodType] = useState("quarterly");
+  const [newReportTemplate, setNewReportTemplate] = useState<
+    "developmental" | "grade-rr"
+  >("developmental");
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [showFilter, setShowFilter] = useState(false);
@@ -276,6 +279,11 @@ export default function ProgressReportsPage() {
     return type || "Report";
   }
 
+  function formatReportTemplate(template: string) {
+    if (template === "grade-rr") return "Grade RR Progress Report";
+    return "Developmental Progress Report";
+  }
+
   async function createReportPeriod() {
     if (!schoolId || !newPeriodTitle.trim()) {
       alert("Please enter a progress report period title.");
@@ -287,6 +295,7 @@ export default function ProgressReportsPage() {
         school_id: schoolId,
         title: newPeriodTitle.trim(),
         report_type: newPeriodType,
+        report_template: newReportTemplate,
         status: "open",
       },
     ]);
@@ -298,6 +307,7 @@ export default function ProgressReportsPage() {
 
     setNewPeriodTitle("");
     setNewPeriodType("quarterly");
+    setNewReportTemplate("developmental");
     setShowCreateModal(false);
     await fetchPeriods(schoolId);
 
@@ -333,7 +343,11 @@ export default function ProgressReportsPage() {
     const period = periods.find((p) => String(p.id) === String(periodId));
 
     return period
-      ? `${period.title} (${formatPeriodType(period.report_type)})`
+      ? `${period.title} (${formatPeriodType(
+          period.report_type
+        )} - ${formatReportTemplate(
+          period.report_template || "developmental"
+        )})`
       : "Period not recorded";
   }
 
@@ -440,6 +454,14 @@ export default function ProgressReportsPage() {
     setSelectedLearnerId(String(item.learner_id || ""));
     setSelectedPeriodId(String(item.report_period_id || ""));
 
+    const period = periods.find(
+      (periodItem) => String(periodItem.id) === String(item.report_period_id)
+    );
+
+    if (period?.report_template) {
+      setReportType(period.report_template as "developmental" | "grade-rr");
+    }
+
     const { data, error } = await supabase
       .from("learner_assessments")
       .select("*")
@@ -466,7 +488,7 @@ export default function ProgressReportsPage() {
       .select("*")
       .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
-      .eq("report_type", reportType)
+      .eq("report_type", period?.report_template || reportType)
       .maybeSingle();
 
     if (reportError) {
@@ -677,12 +699,18 @@ export default function ProgressReportsPage() {
 
     setSaving(true);
 
+    const selectedReportPeriod = periods.find(
+      (period) => String(period.id) === String(selectedPeriodId)
+    );
+    const reportTemplate =
+      selectedReportPeriod?.report_template || reportType || "developmental";
+
     const { data: existing } = await supabase
       .from("generated_reports")
       .select("id")
       .eq("learner_id", selectedLearnerId)
       .eq("report_period_id", Number(selectedPeriodId))
-      .eq("report_type", reportType)
+      .eq("report_type", reportTemplate)
       .maybeSingle();
 
     let reportError: any = null;
@@ -697,7 +725,7 @@ export default function ProgressReportsPage() {
           principal_comment: principalComment || null,
           opening_date: openingDate || null,
           closing_date: closingDate || null,
-          report_type: reportType,
+          report_type: reportTemplate,
           report_status: "generated",
           locked: true,
           generated_at: new Date().toISOString(),
@@ -716,7 +744,7 @@ export default function ProgressReportsPage() {
           principal_comment: principalComment || null,
           opening_date: openingDate || null,
           closing_date: closingDate || null,
-          report_type: reportType,
+          report_type: reportTemplate,
           report_status: "generated",
           locked: true,
           generated_at: new Date().toISOString(),
@@ -875,13 +903,37 @@ export default function ProgressReportsPage() {
     <div>
       <div
         className="db-card db-card-lavender no-print"
-        style={{ padding: "24px" }}
+        style={{ padding: "24px", marginBottom: "24px" }}
       >
         <h1 className="db-page-title">Progress Reports</h1>
         <p className="db-page-subtitle">
-          Review practitioner observations and generate developmental or Grade RR
-          learner progress reports.
+          Generate Developmental Reports for all learners and Grade RR Reports for
+          learners preparing for Grade R next year.
         </p>
+      </div>
+
+      <div
+        className="db-card db-card-blue no-print"
+        style={{ padding: "20px", marginBottom: "24px" }}
+      >
+        <h3 style={sectionTitle}>Report Areas</h3>
+
+        <div style={{ display: "grid", gap: "12px" }}>
+          <div className="db-list-card">
+            <strong>Developmental Reports</strong>
+            <p style={textStyle}>All learners</p>
+          </div>
+
+          <div className="db-list-card">
+            <strong>Grade RR Reports</strong>
+            <p style={textStyle}>Learners preparing for Grade R next year</p>
+          </div>
+
+          <div className="db-list-card">
+            <strong>Achievement Awards</strong>
+            <p style={textStyle}>Certificates and learner awards</p>
+          </div>
+        </div>
       </div>
 
       <div className="no-print" style={{ marginBottom: "24px" }}>
@@ -906,6 +958,21 @@ export default function ProgressReportsPage() {
               value={newPeriodTitle}
               onChange={(e) => setNewPeriodTitle(e.target.value)}
             />
+
+            <select
+              className="db-input"
+              value={newReportTemplate}
+              onChange={(e) =>
+                setNewReportTemplate(
+                  e.target.value as "developmental" | "grade-rr"
+                )
+              }
+            >
+              <option value="developmental">
+                Developmental Progress Report
+              </option>
+              <option value="grade-rr">Grade RR Progress Report</option>
+            </select>
 
             <select
               className="db-input"
@@ -1013,15 +1080,30 @@ export default function ProgressReportsPage() {
               className="db-input"
               value={selectedPeriodId}
               onChange={(e) => {
-                setSelectedPeriodId(e.target.value);
+                const periodId = e.target.value;
+                setSelectedPeriodId(periodId);
                 setAssessmentPage(1);
                 setReportPage(1);
+
+                const selectedReportPeriod = periods.find(
+                  (period) => String(period.id) === String(periodId)
+                );
+
+                if (selectedReportPeriod?.report_template) {
+                  setReportType(
+                    selectedReportPeriod.report_template as
+                      | "developmental"
+                      | "grade-rr"
+                  );
+                }
               }}
             >
               <option value="">All Report Periods</option>
               {periods.map((period) => (
                 <option key={period.id} value={period.id}>
-                  {period.title} ({formatPeriodType(period.report_type)})
+                  {period.title} ({formatPeriodType(period.report_type)} -{" "}
+                  {formatReportTemplate(period.report_template || "developmental")}
+                  )
                 </option>
               ))}
             </select>

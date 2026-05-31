@@ -159,11 +159,6 @@ export default function Sidebar() {
         href: "/payments",
         match: ["/payments"],
       },
-      {
-        label: "📊 Progress Reports",
-        href: "/progress-reports",
-        match: ["/progress-reports"],
-      },
     ],
     []
   );
@@ -220,7 +215,7 @@ export default function Sidebar() {
         match: ["/school-documents"],
       },
       {
-        label: "Developmental Progress Reports",
+        label: "Progress Reports",
         href: "/progress-reports",
         match: ["/progress-reports"],
       },

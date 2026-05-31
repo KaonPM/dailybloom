@@ -93,6 +93,21 @@ export default function TeacherAssessmentsPage() {
     return "";
   }
 
+  function getTemplateFromPeriod(periodId: string) {
+    const selectedPeriod = periods.find(
+      (period) => String(period.id) === String(periodId)
+    );
+
+    return selectedPeriod?.report_template === "grade-rr"
+      ? "grade-rr"
+      : "developmental";
+  }
+
+  function formatReportTemplate(template: string) {
+    if (template === "grade-rr") return "Grade RR Assessment";
+    return "Developmental Assessment";
+  }
+
   async function loadPage() {
     const result = await getCurrentProfile();
 
@@ -187,7 +202,11 @@ export default function TeacherAssessmentsPage() {
     setLearners(filtered);
   }
 
-  async function loadExistingAssessment(learnerId: string, periodId: string) {
+  async function loadExistingAssessment(
+    learnerId: string,
+    periodId: string,
+    template = reportType
+  ) {
     if (!learnerId || !periodId) return;
 
     const { data, error } = await supabase
@@ -195,7 +214,7 @@ export default function TeacherAssessmentsPage() {
       .select("*")
       .eq("learner_id", learnerId)
       .eq("report_period_id", Number(periodId))
-      .eq("report_type", reportType);
+      .eq("report_type", template);
 
     if (error) {
       alert(error.message);
@@ -204,9 +223,12 @@ export default function TeacherAssessmentsPage() {
 
     setExistingAssessments(data || []);
 
+    const categories =
+      template === "grade-rr" ? gradeRRCategories : reportCategories;
+
     const nextValues: any = {};
 
-    activeCategories.forEach((category: any) => {
+    categories.forEach((category: any) => {
       nextValues[category.key] = {};
 
       getCategoryIndicators(category).forEach((indicator: any) => {
@@ -269,6 +291,8 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
+    const template = getTemplateFromPeriod(selectedPeriodId);
+
     const missingLevel = activeCategories.some((category: any) =>
       getCategoryIndicators(category).some((indicator: any) => {
         const level = normalizeLevel(
@@ -295,7 +319,7 @@ export default function TeacherAssessmentsPage() {
           classroom_id: Number(selectedClassroomId),
           learner_id: selectedLearnerId,
           report_period_id: Number(selectedPeriodId),
-          report_type: reportType,
+          report_type: template,
           category: category.key,
           indicator_key: indicator.key,
           indicator_label: indicator.label,
@@ -318,7 +342,8 @@ export default function TeacherAssessmentsPage() {
     const { error } = await supabase
       .from("learner_assessments")
       .upsert(rows, {
-        onConflict: "learner_id,report_period_id,report_type,category,indicator_key"
+        onConflict:
+          "learner_id,report_period_id,report_type,category,indicator_key",
       });
 
     if (error) {
@@ -327,7 +352,7 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
-    await loadExistingAssessment(selectedLearnerId, selectedPeriodId);
+    await loadExistingAssessment(selectedLearnerId, selectedPeriodId, template);
 
     setSaving(false);
 
@@ -362,8 +387,8 @@ export default function TeacherAssessmentsPage() {
       <div className="db-soft-card" style={{ padding: 22, marginBottom: 24 }}>
         <h1 className="db-page-title">Learner Progress Assessments</h1>
         <p className="db-page-subtitle">
-          Complete learner development or Grade RR assessments and submit them to
-          the principal.
+          Complete the assessment type selected by the principal for the open
+          report period.
         </p>
       </div>
 
@@ -378,19 +403,10 @@ export default function TeacherAssessmentsPage() {
           ) : null}
         </div>
 
-        <select
-          className="db-input"
-          value={reportType}
-          onChange={(e) => {
-            setReportType(e.target.value as "developmental" | "grade-rr");
-            setAssessmentValues({});
-            setExistingAssessments([]);
-            setOverallComment("");
-          }}
-        >
-          <option value="developmental">Developmental Assessment</option>
-          <option value="grade-rr">Grade RR Assessment</option>
-        </select>
+        <div className="db-list-card" style={{ marginBottom: 14 }}>
+          <strong>Assessment Type</strong>
+          <p style={textStyle}>{formatReportTemplate(reportType)}</p>
+        </div>
 
         <select
           className="db-input"
@@ -401,6 +417,7 @@ export default function TeacherAssessmentsPage() {
             setSelectedClassroomId(classroomId);
             setSelectedLearnerId("");
             setSelectedPeriodId("");
+            setReportType("developmental");
             setAssessmentValues({});
             setOverallComment("");
             setExistingAssessments([]);
@@ -427,9 +444,14 @@ export default function TeacherAssessmentsPage() {
           onChange={async (e) => {
             const learnerId = e.target.value;
             setSelectedLearnerId(learnerId);
+            setAssessmentValues({});
+            setExistingAssessments([]);
+            setOverallComment("");
 
             if (learnerId && selectedPeriodId) {
-              await loadExistingAssessment(learnerId, selectedPeriodId);
+              const template = getTemplateFromPeriod(selectedPeriodId);
+              setReportType(template);
+              await loadExistingAssessment(learnerId, selectedPeriodId, template);
             }
           }}
         >
@@ -447,16 +469,23 @@ export default function TeacherAssessmentsPage() {
           onChange={async (e) => {
             const periodId = e.target.value;
             setSelectedPeriodId(periodId);
+            setAssessmentValues({});
+            setExistingAssessments([]);
+            setOverallComment("");
+
+            const template = getTemplateFromPeriod(periodId);
+            setReportType(template);
 
             if (selectedLearnerId && periodId) {
-              await loadExistingAssessment(selectedLearnerId, periodId);
+              await loadExistingAssessment(selectedLearnerId, periodId, template);
             }
           }}
         >
           <option value="">Select Report Period</option>
           {periods.map((period) => (
             <option key={period.id} value={String(period.id)}>
-              {period.title} ({formatPeriodType(period.report_type)})
+              {period.title} ({formatPeriodType(period.report_type)} -{" "}
+              {formatReportTemplate(period.report_template || "developmental")})
             </option>
           ))}
         </select>

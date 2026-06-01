@@ -17,6 +17,7 @@ type SchoolItem = {
   package_name?: string | null;
   wageflow_enabled?: boolean | null;
   emis_number?: string | null;
+  contact_number?: string | null;
   province?: string | null;
   district?: string | null;
   centre_type?: string | null;
@@ -43,7 +44,6 @@ type SignupRequestItem = {
 
 type MasterStats = {
   totalSchools: number;
-  activePrincipals: number;
   schoolsNeedingSetup: number;
   pendingSignupRequests: number;
 };
@@ -154,6 +154,7 @@ export default function MasterPage() {
   const [packageName, setPackageName] = useState("Bloom");
   const [wageflowEnabled, setWageflowEnabled] = useState(false);
   const [emisNumber, setEmisNumber] = useState("");
+  const [contactNumber, setContactNumber] = useState("");
   const [province, setProvince] = useState("");
   const [district, setDistrict] = useState("");
   const [centreType, setCentreType] = useState("");
@@ -161,24 +162,22 @@ export default function MasterPage() {
 
   const [principalFullName, setPrincipalFullName] = useState("");
   const [principalEmail, setPrincipalEmail] = useState("");
-  const [selectedSchoolId, setSelectedSchoolId] = useState("");
 
   const [selectedSignupRequest, setSelectedSignupRequest] =
     useState<SignupRequestItem | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [savingSchool, setSavingSchool] = useState(false);
-  const [savingPrincipal, setSavingPrincipal] = useState(false);
   const [approvingSignup, setApprovingSignup] = useState(false);
   const [updatingSchoolId, setUpdatingSchoolId] = useState<number | null>(null);
 
   const [showManageSchools, setShowManageSchools] = useState(false);
+  const [manualSetupOpen, setManualSetupOpen] = useState(false);
   const [schoolSearch, setSchoolSearch] = useState("");
   const [visibleSchoolCount, setVisibleSchoolCount] = useState(5);
 
   const [stats, setStats] = useState<MasterStats>({
     totalSchools: 0,
-    activePrincipals: 0,
     schoolsNeedingSetup: 0,
     pendingSignupRequests: 0,
   });
@@ -208,7 +207,7 @@ export default function MasterPage() {
     const { data, error } = await supabase
       .from("schools")
       .select(
-        "id, school_name, primary_color, secondary_color, logo_url, status, deleted_at, package_name, wageflow_enabled, emis_number, province, district, centre_type, registration_status"
+        "id, school_name, primary_color, secondary_color, logo_url, status, deleted_at, package_name, wageflow_enabled, emis_number, contact_number, province, district, centre_type, registration_status"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -238,18 +237,7 @@ export default function MasterPage() {
       return;
     }
 
-    const rows = (data || []) as PrincipalItem[];
-    setPrincipals(rows);
-
-    const activeCount = rows.filter((item) => {
-      const status = String(item.approval_status || "").toLowerCase();
-      return status === "approved" || status === "";
-    }).length;
-
-    setStats((prev) => ({
-      ...prev,
-      activePrincipals: activeCount,
-    }));
+    setPrincipals((data || []) as PrincipalItem[]);
   }
 
   async function fetchSignupRequests() {
@@ -283,33 +271,61 @@ export default function MasterPage() {
   }
 
   async function createSchool() {
-    if (!schoolName.trim()) {
-      alert("Please enter a school name.");
+    if (!schoolName.trim() || !principalFullName.trim() || !principalEmail.trim()) {
+      alert("Please complete school name, principal name, and principal email.");
       return;
     }
 
     setSavingSchool(true);
 
-    const { error } = await supabase.from("schools").insert([
-      {
-        school_name: schoolName.trim(),
-        primary_color: primaryColor || "#7CCCF3",
-        secondary_color: secondaryColor || "#FFD76A",
-        logo_url: logoUrl.trim() || null,
-        emis_number: emisNumber.trim() || null,
-        province: province || null,
-        district: district || null,
-        centre_type: centreType || null,
-        registration_status: registrationStatus || null,
-        status: "active",
-        package_name: packageName,
-        wageflow_enabled:
-          packageName === "Bloom Elite" ? true : wageflowEnabled,
-      },
-    ]);
+    const { data: schoolData, error } = await supabase
+      .from("schools")
+      .insert([
+        {
+          school_name: schoolName.trim(),
+          emis_number: emisNumber.trim() || null,
+          contact_number: contactNumber.trim() || null,
+          province: province || null,
+          district: district || null,
+          centre_type: centreType || null,
+          registration_status: registrationStatus || null,
+          primary_color: primaryColor,
+          secondary_color: secondaryColor,
+          logo_url: logoUrl || null,
+          package_name: packageName,
+          wageflow_enabled:
+            packageName === "Bloom Elite" ? true : wageflowEnabled,
+        },
+      ])
+      .select("id")
+      .single();
 
     if (error) {
       alert(error.message);
+      setSavingSchool(false);
+      return;
+    }
+
+    const inviteResponse = await fetch("/api/invite-principal", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        full_name: principalFullName.trim(),
+        email: principalEmail.trim(),
+        school_id: Number(schoolData.id),
+      }),
+    });
+
+    const inviteResult = await inviteResponse.json();
+
+    if (!inviteResponse.ok) {
+      alert(
+        `School created, but principal invite failed: ${
+          inviteResult.error || "Unknown error"
+        }`
+      );
       setSavingSchool(false);
       return;
     }
@@ -321,14 +337,17 @@ export default function MasterPage() {
     setPackageName("Bloom");
     setWageflowEnabled(false);
     setEmisNumber("");
+    setContactNumber("");
     setProvince("");
     setDistrict("");
     setCentreType("");
     setRegistrationStatus("");
+    setPrincipalFullName("");
+    setPrincipalEmail("");
 
-    await fetchSchools();
+    await Promise.all([fetchSchools(), fetchPrincipals(), fetchSignupRequests()]);
     setSavingSchool(false);
-    alert("School created successfully.");
+    alert("School created and principal invite sent successfully.");
   }
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -459,43 +478,6 @@ export default function MasterPage() {
     alert("School soft deleted.");
   }
 
-  async function createPrincipalLogin() {
-    if (!principalFullName.trim() || !principalEmail.trim() || !selectedSchoolId) {
-      alert("Please complete principal name, email, and school.");
-      return;
-    }
-
-    setSavingPrincipal(true);
-
-    const response = await fetch("/api/invite-principal", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        full_name: principalFullName.trim(),
-        email: principalEmail.trim(),
-        school_id: Number(selectedSchoolId),
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      alert(result.error || "Could not send principal invite.");
-      setSavingPrincipal(false);
-      return;
-    }
-
-    setPrincipalFullName("");
-    setPrincipalEmail("");
-    setSelectedSchoolId("");
-
-    await Promise.all([fetchPrincipals(), fetchSignupRequests()]);
-    setSavingPrincipal(false);
-    alert("Principal invite email sent successfully.");
-  }
-
   async function approveSignupRequest(request: SignupRequestItem) {
     if (!request.school_name || !request.principal_full_name || !request.principal_email) {
       alert("This sign-up request is missing school or principal details.");
@@ -531,18 +513,11 @@ export default function MasterPage() {
     setApprovingSignup(false);
 
     alert(
-      `School approved and principal login created.\n\nTemporary password: ${result.tempPassword}`
+      `School approved and principal invite sent.\n\nTemporary password: ${result.tempPassword}`
     );
 
     router.push(`/master/school/${result.schoolId}`);
   }
-
-  const approvedPrincipals = useMemo(() => {
-    return principals.filter((item) => {
-      const status = String(item.approval_status || "").toLowerCase();
-      return status === "approved" || status === "";
-    });
-  }, [principals]);
 
   const pendingSignupRequests = useMemo(() => {
     return signupRequests.filter(
@@ -646,14 +621,6 @@ export default function MasterPage() {
           href="/master?view=manage-schools"
           background="#EAF7FD"
           border="#CBEAF7"
-        />
-
-        <StatLinkCard
-          label="Active Principals"
-          value={stats.activePrincipals}
-          href="/master?view=active-principals"
-          background="#EEF9EE"
-          border="#D3EDD4"
         />
 
         <StatLinkCard
@@ -761,7 +728,7 @@ export default function MasterPage() {
                       if (!school.logo_url) missingItems.push("logo");
                       if (!school.primary_color) missingItems.push("primary colour");
                       if (!school.secondary_color) missingItems.push("secondary colour");
-                      if (!school.emis_number) missingItems.push("EMIS number");
+                      if (!school.emis_number) missingItems.push("NPO / registration number");
                       if (!school.province) missingItems.push("province");
                       if (!school.district) missingItems.push("district");
                       if (!school.centre_type) missingItems.push("centre type");
@@ -782,7 +749,11 @@ export default function MasterPage() {
                             </p>
 
                             <p style={helperText}>
-                              EMIS: {school.emis_number || "Not added"}
+                              NPO / Registration: {school.emis_number || "Not added"}
+                            </p>
+
+                            <p style={helperText}>
+                              Contact: {school.contact_number || "Not added"}
                             </p>
 
                             <p style={helperText}>
@@ -993,9 +964,7 @@ export default function MasterPage() {
                   onClick={() => approveSignupRequest(selectedSignupRequest)}
                   disabled={approvingSignup}
                 >
-                  {approvingSignup
-                    ? "Approving..."
-                    : "Approve and Create Principal Login"}
+                  {approvingSignup ? "Approving..." : "Approve and Create School"}
                 </button>
 
                 <button
@@ -1009,30 +978,6 @@ export default function MasterPage() {
             </SectionCard>
           ) : null}
         </>
-      )}
-
-      {currentView === "active-principals" && (
-        <SectionCard title="Active Principals">
-          {approvedPrincipals.length === 0 ? (
-            <p style={helperText}>No active principals yet.</p>
-          ) : (
-            <div style={{ display: "grid", gap: "12px" }}>
-              {approvedPrincipals.map((principal) => (
-                <div key={principal.id} style={listCard}>
-                  <strong style={listTitle}>
-                    {principal.full_name || "Unnamed principal"}
-                  </strong>
-
-                  <p style={helperText}>Email: {principal.email || "Not added"}</p>
-
-                  <p style={helperText}>
-                    School ID: {principal.school_id || "Not linked"}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
       )}
 
       {currentView === "schools-needing-setup" && (
@@ -1052,7 +997,11 @@ export default function MasterPage() {
                   </p>
 
                   <p style={helperText}>
-                    EMIS: {school.emis_number || "Not added"}
+                    NPO / Registration: {school.emis_number || "Not added"}
+                  </p>
+
+                  <p style={helperText}>
+                    Contact: {school.contact_number || "Not added"}
                   </p>
 
                   <p style={helperText}>
@@ -1092,231 +1041,217 @@ export default function MasterPage() {
         </SectionCard>
       )}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-          gap: "14px",
-        }}
-      >
-        <div style={formCard}>
-          <h3 style={sectionTitle}>Create School</h3>
+      <SectionCard title="Manual School Setup">
+        <button
+          type="button"
+          onClick={() => setManualSetupOpen((prev) => !prev)}
+          style={secondaryButton}
+        >
+          {manualSetupOpen ? "Hide Manual Setup" : "Open Manual Setup"}
+        </button>
 
-          <input
-            className="db-input"
-            placeholder="School Name"
-            value={schoolName}
-            onChange={(e) => setSchoolName(e.target.value)}
-          />
+        {manualSetupOpen && (
+          <div style={{ marginTop: "16px" }}>
+            <p style={helperText}>
+              Create a school and send the principal invite from one place.
+            </p>
 
-          <input
-            className="db-input"
-            placeholder="EMIS Number"
-            value={emisNumber}
-            onChange={(e) => setEmisNumber(e.target.value)}
-          />
+            <input
+              className="db-input"
+              placeholder="School Name"
+              value={schoolName}
+              onChange={(e) => setSchoolName(e.target.value)}
+            />
 
-          <select
-            className="db-input"
-            value={province}
-            onChange={(e) => {
-              const selectedProvince = e.target.value;
-              setProvince(selectedProvince);
-              setDistrict("");
-            }}
-          >
-            <option value="">Select Province</option>
-            {provinces.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
+            <input
+              className="db-input"
+              placeholder="School Contact Number"
+              value={contactNumber}
+              onChange={(e) => setContactNumber(e.target.value)}
+            />
 
-          <select
-            className="db-input"
-            value={district}
-            onChange={(e) => setDistrict(e.target.value)}
-            disabled={!province}
-          >
-            <option value="">
-              {province ? "Select District" : "Select Province First"}
-            </option>
-            {(districtsByProvince[province] || []).map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
+            <input
+              className="db-input"
+              placeholder="NPO / Registration Number"
+              value={emisNumber}
+              onChange={(e) => setEmisNumber(e.target.value)}
+            />
 
-          <select
-            className="db-input"
-            value={centreType}
-            onChange={(e) => setCentreType(e.target.value)}
-          >
-            <option value="">Select Centre Type</option>
-            {centreTypes.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className="db-input"
-            value={registrationStatus}
-            onChange={(e) => setRegistrationStatus(e.target.value)}
-          >
-            <option value="">Select Registration Status</option>
-            {registrationStatuses.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-
-          <input
-            className="db-input"
-            placeholder="Primary Colour"
-            value={primaryColor}
-            onChange={(e) => setPrimaryColor(e.target.value)}
-          />
-
-          <input
-            className="db-input"
-            placeholder="Secondary Colour"
-            value={secondaryColor}
-            onChange={(e) => setSecondaryColor(e.target.value)}
-          />
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label
-              style={{
-                fontSize: 14,
-                fontWeight: 500,
-                color: "#5B5675",
+            <select
+              className="db-input"
+              value={province}
+              onChange={(e) => {
+                const selectedProvince = e.target.value;
+                setProvince(selectedProvince);
+                setDistrict("");
               }}
             >
-              School Logo
+              <option value="">Select Province</option>
+              {provinces.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="db-input"
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+              disabled={!province}
+            >
+              <option value="">
+                {province ? "Select District" : "Select Province First"}
+              </option>
+              {(districtsByProvince[province] || []).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="db-input"
+              value={centreType}
+              onChange={(e) => setCentreType(e.target.value)}
+            >
+              <option value="">Select Centre Type</option>
+              {centreTypes.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="db-input"
+              value={registrationStatus}
+              onChange={(e) => setRegistrationStatus(e.target.value)}
+            >
+              <option value="">Select Registration Status</option>
+              {registrationStatuses.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+
+            <input
+              className="db-input"
+              placeholder="Primary Colour"
+              value={primaryColor}
+              onChange={(e) => setPrimaryColor(e.target.value)}
+            />
+
+            <input
+              className="db-input"
+              placeholder="Secondary Colour"
+              value={secondaryColor}
+              onChange={(e) => setSecondaryColor(e.target.value)}
+            />
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label
+                style={{
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: "#5B5675",
+                }}
+              >
+                School Logo
+              </label>
+
+              <input
+                type="file"
+                accept="image/*"
+                className="db-input"
+                onChange={handleLogoUpload}
+                style={{
+                  paddingTop: 12,
+                  paddingBottom: 12,
+                  background: "#fff",
+                  cursor: "pointer",
+                }}
+              />
+
+              {logoUrl && (
+                <img
+                  src={logoUrl}
+                  alt="School Logo Preview"
+                  style={{
+                    width: 80,
+                    height: 80,
+                    objectFit: "cover",
+                    borderRadius: 12,
+                    border: "1px solid #E5E7EB",
+                    marginTop: 6,
+                  }}
+                />
+              )}
+            </div>
+
+            <select
+              className="db-input"
+              value={packageName}
+              onChange={(e) => {
+                const nextPackage = e.target.value;
+                setPackageName(nextPackage);
+
+                if (nextPackage === "Bloom Elite") {
+                  setWageflowEnabled(true);
+                }
+              }}
+            >
+              <option value="Bloom">Bloom</option>
+              <option value="Bloom Pro">Bloom Pro</option>
+              <option value="Bloom Elite">Bloom Elite</option>
+            </select>
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                marginBottom: "18px",
+                color: "#5B5675",
+                fontWeight: 600,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={packageName === "Bloom Elite" ? true : wageflowEnabled}
+                onChange={(e) => setWageflowEnabled(e.target.checked)}
+                disabled={packageName === "Bloom Elite"}
+              />
+              Enable WageFlow Add-on
             </label>
 
             <input
-              type="file"
-              accept="image/*"
               className="db-input"
-              onChange={handleLogoUpload}
-              style={{
-                paddingTop: 12,
-                paddingBottom: 12,
-                background: "#fff",
-                cursor: "pointer",
-              }}
+              placeholder="Principal Full Name"
+              value={principalFullName}
+              onChange={(e) => setPrincipalFullName(e.target.value)}
             />
 
-            {logoUrl && (
-              <img
-                src={logoUrl}
-                alt="School Logo Preview"
-                style={{
-                  width: 80,
-                  height: 80,
-                  objectFit: "cover",
-                  borderRadius: 12,
-                  border: "1px solid #E5E7EB",
-                  marginTop: 6,
-                }}
-              />
-            )}
-          </div>
-
-          <select
-            className="db-input"
-            value={packageName}
-            onChange={(e) => {
-              const nextPackage = e.target.value;
-              setPackageName(nextPackage);
-
-              if (nextPackage === "Bloom Elite") {
-                setWageflowEnabled(true);
-              }
-            }}
-          >
-            <option value="Bloom">Bloom</option>
-            <option value="Bloom Pro">Bloom Pro</option>
-            <option value="Bloom Elite">Bloom Elite</option>
-          </select>
-
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              marginBottom: "18px",
-              color: "#5B5675",
-              fontWeight: 600,
-            }}
-          >
             <input
-              type="checkbox"
-              checked={packageName === "Bloom Elite" ? true : wageflowEnabled}
-              onChange={(e) => setWageflowEnabled(e.target.checked)}
-              disabled={packageName === "Bloom Elite"}
+              className="db-input"
+              placeholder="Principal Email"
+              value={principalEmail}
+              onChange={(e) => setPrincipalEmail(e.target.value)}
             />
-            Enable WageFlow Add-on
-          </label>
 
-          <button
-            type="button"
-            className="db-button-primary"
-            style={{ width: "100%" }}
-            onClick={createSchool}
-            disabled={savingSchool}
-          >
-            {savingSchool ? "Saving..." : "Create School"}
-          </button>
-        </div>
-
-        <div style={formCard}>
-          <h3 style={sectionTitle}>Create Principal Login</h3>
-
-          <input
-            className="db-input"
-            placeholder="Principal Full Name"
-            value={principalFullName}
-            onChange={(e) => setPrincipalFullName(e.target.value)}
-          />
-
-          <input
-            className="db-input"
-            placeholder="Principal Email"
-            value={principalEmail}
-            onChange={(e) => setPrincipalEmail(e.target.value)}
-          />
-
-          <select
-            className="db-input"
-            value={selectedSchoolId}
-            onChange={(e) => setSelectedSchoolId(e.target.value)}
-          >
-            <option value="">Select School</option>
-            {schools.map((school) => (
-              <option key={school.id} value={school.id}>
-                {school.school_name}
-              </option>
-            ))}
-          </select>
-
-          <button
-            type="button"
-            className="db-button-primary"
-            style={{ width: "100%" }}
-            onClick={createPrincipalLogin}
-            disabled={savingPrincipal}
-          >
-            {savingPrincipal ? "Saving..." : "Send Principal Invite"}
-          </button>
-        </div>
-      </div>
+            <button
+              type="button"
+              className="db-button-primary"
+              style={{ width: "100%" }}
+              onClick={createSchool}
+              disabled={savingSchool}
+            >
+              {savingSchool ? "Saving..." : "Create School and Principal Login"}
+            </button>
+          </div>
+        )}
+      </SectionCard>
     </div>
   );
 }
@@ -1419,14 +1354,6 @@ const sectionCard = {
   padding: "20px",
   boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
   marginBottom: "24px",
-};
-
-const formCard = {
-  background: "#FFFFFF",
-  border: "1px solid #F0E3D8",
-  borderRadius: "24px",
-  padding: "20px",
-  boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
 };
 
 const sectionTitle = {

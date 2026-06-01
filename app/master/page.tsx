@@ -44,7 +44,6 @@ type SignupRequestItem = {
 
 type MasterStats = {
   totalSchools: number;
-  schoolsNeedingSetup: number;
   pendingSignupRequests: number;
 };
 
@@ -178,7 +177,6 @@ export default function MasterPage() {
 
   const [stats, setStats] = useState<MasterStats>({
     totalSchools: 0,
-    schoolsNeedingSetup: 0,
     pendingSignupRequests: 0,
   });
 
@@ -525,21 +523,6 @@ export default function MasterPage() {
     );
   }, [signupRequests]);
 
-  const schoolsNeedingSetup = useMemo(() => {
-    return schools.filter((school) => {
-      const linkedPrincipals = principals.filter(
-        (principal) => Number(principal.school_id) === Number(school.id)
-      );
-
-      const hasApprovedPrincipal = linkedPrincipals.some((principal) => {
-        const status = String(principal.approval_status || "").toLowerCase();
-        return status === "approved" || status === "";
-      });
-
-      return !hasApprovedPrincipal || !school.logo_url;
-    });
-  }, [schools, principals]);
-
   const filteredSchools = useMemo(() => {
     return schools.filter((school) =>
       String(school.school_name || "")
@@ -549,15 +532,7 @@ export default function MasterPage() {
   }, [schools, schoolSearch]);
 
   const visibleSchools = filteredSchools.slice(0, visibleSchoolCount);
-
-  useEffect(() => {
-    setStats((prev) => ({
-      ...prev,
-      schoolsNeedingSetup: schoolsNeedingSetup.length,
-    }));
-  }, [schoolsNeedingSetup]);
-
-  const currentView = searchParams.get("view") || "manage-schools";
+  const currentView = searchParams.get("view") || "dashboard";
 
   if (loading) {
     return <p>Loading master dashboard...</p>;
@@ -603,88 +578,82 @@ export default function MasterPage() {
             lineHeight: 1.6,
           }}
         >
-          Manage schools, setup status, sign-ups, and platform access from one place.
+          Manage schools, sign-ups, billing, and platform access from one place.
         </p>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: "14px",
-          marginBottom: "24px",
-        }}
-      >
-        <StatLinkCard
-          label="Total Schools"
-          value={stats.totalSchools}
-          href="/master?view=manage-schools"
-          background="#EAF7FD"
-          border="#CBEAF7"
-        />
+      {currentView === "dashboard" && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: "14px",
+            marginBottom: "24px",
+          }}
+        >
+          <StatLinkCard
+            label="Total Schools"
+            value={stats.totalSchools}
+            href="/master?view=manage-schools"
+            background="#EAF7FD"
+            border="#CBEAF7"
+          />
 
-        <StatLinkCard
-          label="Schools Needing Setup"
-          value={stats.schoolsNeedingSetup}
-          href="/master?view=schools-needing-setup"
-          background="#FFF7D9"
-          border="#F3E4A3"
-        />
+          <StatLinkCard
+            label="Pending Signups"
+            value={stats.pendingSignupRequests}
+            href="/master?view=pending-signups"
+            background="#EAF7FD"
+            border="#CBEAF7"
+          />
 
-        <StatLinkCard
-          label="Pending Signups"
-          value={stats.pendingSignupRequests}
-          href="/master?view=pending-signups"
-          background="#EAF7FD"
-          border="#CBEAF7"
-        />
-
-        <Link href="/billing" style={{ textDecoration: "none" }}>
-          <div
-            style={{
-              background: "#FFF7D9",
-              border: "1px solid #F3E4A3",
-              borderRadius: "18px",
-              padding: "14px",
-              boxShadow: "0 6px 14px rgba(45, 42, 62, 0.05)",
-              cursor: "pointer",
-            }}
-          >
-            <p
+          <Link href="/billing" style={{ textDecoration: "none" }}>
+            <div
               style={{
-                margin: 0,
-                color: "#5B5675",
-                fontSize: "13px",
-                fontWeight: 700,
+                background: "#FFF7D9",
+                border: "1px solid #F3E4A3",
+                borderRadius: "18px",
+                padding: "14px",
+                boxShadow: "0 6px 14px rgba(45, 42, 62, 0.05)",
+                cursor: "pointer",
               }}
             >
-              Billing
-            </p>
+              <p
+                style={{
+                  margin: 0,
+                  color: "#5B5675",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                }}
+              >
+                Billing
+              </p>
 
-            <h2
-              style={{
-                margin: "6px 0 0 0",
-                color: "#2D2A3E",
-                fontSize: "22px",
-                fontWeight: 800,
-              }}
-            >
-              Subscriptions
-            </h2>
+              <h2
+                style={{
+                  margin: "6px 0 0 0",
+                  color: "#2D2A3E",
+                  fontSize: "22px",
+                  fontWeight: 800,
+                }}
+              >
+                Subscriptions
+              </h2>
 
-            <p
-              style={{
-                margin: "6px 0 0 0",
-                color: "#6D6888",
-                fontSize: "12px",
-                fontWeight: 600,
-              }}
-            >
-              Manage DailyBloom billing
-            </p>
-          </div>
-        </Link>
-      </div>
+              <p
+                style={{
+                  margin: "6px 0 0 0",
+                  color: "#6D6888",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                Manage DailyBloom billing
+              </p>
+            </div>
+          </Link>
+        </div>
+      )}
 
       {currentView === "manage-schools" && (
         <SectionCard title="Manage Schools">
@@ -978,67 +947,6 @@ export default function MasterPage() {
             </SectionCard>
           ) : null}
         </>
-      )}
-
-      {currentView === "schools-needing-setup" && (
-        <SectionCard title="Schools Needing Setup">
-          {schoolsNeedingSetup.length === 0 ? (
-            <p style={helperText}>All schools look set up.</p>
-          ) : (
-            <div style={{ display: "grid", gap: "12px" }}>
-              {schoolsNeedingSetup.map((school) => (
-                <div key={school.id} style={listCard}>
-                  <strong style={listTitle}>
-                    {school.school_name || "Unnamed school"}
-                  </strong>
-
-                  <p style={helperText}>
-                    Package: {school.package_name || "Bloom"}
-                  </p>
-
-                  <p style={helperText}>
-                    NPO / Registration: {school.emis_number || "Not added"}
-                  </p>
-
-                  <p style={helperText}>
-                    Contact: {school.contact_number || "Not added"}
-                  </p>
-
-                  <p style={helperText}>
-                    Province / District: {school.province || "Not added"}{" "}
-                    {school.district ? `- ${school.district}` : ""}
-                  </p>
-
-                  <p style={helperText}>
-                    Centre Type: {school.centre_type || "Not added"}
-                  </p>
-
-                  <p style={helperText}>
-                    Registration: {school.registration_status || "Not added"}
-                  </p>
-
-                  <p style={helperText}>
-                    WageFlow:{" "}
-                    {school.package_name === "Bloom Elite" ||
-                    school.wageflow_enabled
-                      ? "Enabled"
-                      : "Disabled"}
-                  </p>
-
-                  <div style={{ marginTop: "10px" }}>
-                    <Link
-                      href={`/master/school/${school.id}`}
-                      className="db-button-primary"
-                      style={{ textDecoration: "none" }}
-                    >
-                      Open School Overview
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
       )}
 
       <SectionCard title="Manual School Setup">

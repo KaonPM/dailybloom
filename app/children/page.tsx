@@ -357,9 +357,8 @@ export default function LearnersPage() {
   }
 
   function viewLearner(learner: LearnerRow) {
-    setSelectedLearner((current) =>
-      current?.id === learner.id ? null : learner
-    );
+    const schoolQuery = schoolParam ? `?school=${schoolParam}` : "";
+    router.push(`/children/${learner.id}${schoolQuery}`);
   }
 
   function editLearner(learner: LearnerRow) {
@@ -874,7 +873,7 @@ export default function LearnersPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
               gap: 10,
             }}
           >
@@ -887,8 +886,8 @@ export default function LearnersPage() {
                   style={{
                     background: active ? "#EAF7FD" : "#FFFDFB",
                     border: active ? "1px solid #CBEAF7" : "1px solid #F0E3D8",
-                    borderRadius: 16,
-                    padding: 14,
+                    borderRadius: 14,
+                    padding: 12,
                     textAlign: "left",
                     color: "#2D2A3E",
                   }}
@@ -904,14 +903,16 @@ export default function LearnersPage() {
                   <div
                     style={{
                       display: "flex",
-                      gap: 8,
-                      flexWrap: "wrap",
+                      gap: 6,
+                      flexWrap: "nowrap",
                       marginTop: 10,
+                      alignItems: "center",
                     }}
                   >
                     <button
                       type="button"
                       className="db-button-secondary"
+                      style={learnerActionButton}
                       onClick={() => viewLearner(learner)}
                     >
                       View
@@ -922,6 +923,7 @@ export default function LearnersPage() {
                         <button
                           type="button"
                           className="db-button-secondary"
+                          style={learnerActionButton}
                           onClick={() => editLearner(learner)}
                         >
                           Edit
@@ -930,6 +932,7 @@ export default function LearnersPage() {
                         <button
                           type="button"
                           className="db-button-secondary"
+                          style={learnerActionButton}
                           onClick={() => deleteLearner(learner)}
                         >
                           Delete
@@ -1044,3 +1047,10 @@ const grid2 = {
   gap: 10,
   marginTop: 10,
 };
+
+const learnerActionButton = {
+  minHeight: 34,
+  padding: "7px 12px",
+  fontSize: 13,
+  flex: "1 1 0",
+} as const;

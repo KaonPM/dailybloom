@@ -40,7 +40,7 @@ export default function LearnerProfilePage() {
 
   const [learner, setLearner] = useState<LearnerRow | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "overview" | "stationery" | "documents"
+    "overview" | "requirements" | "documents"
   >("overview");
   const [loading, setLoading] = useState(true);
 
@@ -113,7 +113,7 @@ export default function LearnerProfilePage() {
 
         <div style={summaryGrid}>
           <div className="db-card db-card-blue" style={summaryCard}>
-            <strong>Stationery</strong>
+            <strong>Requirements</strong>
             <p style={summaryText}>Coming next</p>
           </div>
 
@@ -150,14 +150,14 @@ export default function LearnerProfilePage() {
           <button
             type="button"
             className={
-              activeTab === "stationery"
+              activeTab === "requirements"
                 ? "db-button-primary"
                 : "db-button-secondary"
             }
             style={tabButton}
-            onClick={() => setActiveTab("stationery")}
+            onClick={() => setActiveTab("requirements")}
           >
-            Stationery
+            Requirements
           </button>
 
           <button
@@ -225,13 +225,43 @@ export default function LearnerProfilePage() {
         </div>
       )}
 
-      {activeTab === "stationery" && (
+      {activeTab === "requirements" && (
         <div className="db-card db-card-green" style={{ padding: 16 }}>
-          <h3 style={sectionTitle}>Stationery Checklist</h3>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <h3 style={{ ...sectionTitle, margin: 0 }}>Requirements</h3>
+
+            <button type="button" className="db-button-primary">
+              + Add Item
+            </button>
+          </div>
+
           <p className="db-helper">
-            Stationery list per class and learner tick-off will be added here
-            next.
+            Stationery requirements for this learner will appear here.
           </p>
+
+          <div
+            style={{
+              background: "#FFFDFB",
+              border: "1px solid #F0E3D8",
+              borderRadius: 12,
+              padding: 12,
+              marginTop: 12,
+            }}
+          >
+            <strong>Example Items</strong>
+
+            <div style={{ marginTop: 10 }}>☐ 10x Toilet Rolls</div>
+            <div style={{ marginTop: 8 }}>☐ 3x Tissue Boxes</div>
+            <div style={{ marginTop: 8 }}>☐ 6x Wipes</div>
+            <div style={{ marginTop: 8 }}>☐ 1x Glue Stick</div>
+          </div>
         </div>
       )}
 
@@ -239,8 +269,7 @@ export default function LearnerProfilePage() {
         <div className="db-card db-card-yellow" style={{ padding: 16 }}>
           <h3 style={sectionTitle}>Documents</h3>
           <p className="db-helper">
-            Birth certificate, parent ID, proof of address and contract uploads
-            will be added here next.
+            Birth certificate, immunisation card, parent / guardian ID and contract uploads
           </p>
         </div>
       )}

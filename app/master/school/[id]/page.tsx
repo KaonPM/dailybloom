@@ -99,73 +99,73 @@ export default function MasterSchoolOverviewPage() {
   }
 
   async function fetchSchoolStats(currentSchoolId: number) {
-  const [
-    learnersResult,
-    teachersTableResult,
-    teacherProfilesResult,
-    classroomsResult,
-    eventsResult,
-    activitiesResult,
-    summariesResult,
-    paymentsResult,
-  ] = await Promise.all([
-    supabase
-      .from("learners")
-      .select("*", { count: "exact", head: true })
-      .eq("school_id", currentSchoolId),
+    const [
+      learnersResult,
+      teachersTableResult,
+      teacherProfilesResult,
+      classroomsResult,
+      eventsResult,
+      activitiesResult,
+      summariesResult,
+      paymentsResult,
+    ] = await Promise.all([
+      supabase
+        .from("learners")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
 
-    supabase
-      .from("teachers")
-      .select("*", { count: "exact", head: true })
-      .eq("school_id", currentSchoolId),
+      supabase
+        .from("teachers")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
 
-    supabase
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .eq("school_id", currentSchoolId)
-      .eq("role", "teacher"),
+      supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId)
+        .eq("role", "teacher"),
 
-    supabase
-      .from("classrooms")
-      .select("*", { count: "exact", head: true })
-      .eq("school_id", currentSchoolId),
+      supabase
+        .from("classrooms")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
 
-    supabase
-      .from("events")
-      .select("*", { count: "exact", head: true })
-      .eq("school_id", currentSchoolId),
+      supabase
+        .from("events")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
 
-    supabase
-      .from("classroom_activities")
-      .select("*", { count: "exact", head: true })
-      .eq("school_id", currentSchoolId),
+      supabase
+        .from("classroom_activities")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
 
-    supabase
-      .from("summaries")
-      .select("*", { count: "exact", head: true })
-      .eq("school_id", currentSchoolId),
+      supabase
+        .from("summaries")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
 
-    supabase
-      .from("payments")
-      .select("*", { count: "exact", head: true })
-      .eq("school_id", currentSchoolId),
-  ]);
+      supabase
+        .from("payments")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
+    ]);
 
-  const teacherCount = Math.max(
-    teachersTableResult.count || 0,
-    teacherProfilesResult.count || 0
-  );
+    const teacherCount = Math.max(
+      teachersTableResult.count || 0,
+      teacherProfilesResult.count || 0
+    );
 
-  setStats({
-    learners: learnersResult.count || 0,
-    teachers: teacherCount,
-    classrooms: classroomsResult.count || 0,
-    events: eventsResult.count || 0,
-    activities: activitiesResult.count || 0,
-    summaries: summariesResult.count || 0,
-    payments: paymentsResult.count || 0,
-  });
-}
+    setStats({
+      learners: learnersResult.count || 0,
+      teachers: teacherCount,
+      classrooms: classroomsResult.count || 0,
+      events: eventsResult.count || 0,
+      activities: activitiesResult.count || 0,
+      summaries: summariesResult.count || 0,
+      payments: paymentsResult.count || 0,
+    });
+  }
 
   async function fetchPrincipalCount(currentSchoolId: number) {
     const { count } = await supabase
@@ -235,7 +235,7 @@ export default function MasterSchoolOverviewPage() {
       {
         label: "Principal assigned",
         complete: principalCount > 0,
-        href: "/master?view=active-principals",
+        href: "/principals",
         helper: "A school should have at least one principal account.",
       },
       {
@@ -305,7 +305,7 @@ export default function MasterSchoolOverviewPage() {
             fontWeight: 700,
           }}
         >
-          School Setup Overview
+          School Overview
         </p>
 
         <h1
@@ -328,7 +328,7 @@ export default function MasterSchoolOverviewPage() {
             lineHeight: 1.6,
           }}
         >
-          Complete this school’s onboarding and open the linked management pages from here.
+          Review this school’s records and open linked management pages from here.
         </p>
 
         <div
@@ -341,6 +341,10 @@ export default function MasterSchoolOverviewPage() {
         >
           <Link href="/master?view=manage-schools" style={topButton}>
             Back to Master Dashboard
+          </Link>
+
+          <Link href="/onboarding" style={topButton}>
+            Open Onboarding Pipeline
           </Link>
 
           <Link href={`/classrooms?school=${school.id}`} style={topButtonBlue}>
@@ -448,7 +452,7 @@ export default function MasterSchoolOverviewPage() {
           boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
         }}
       >
-        <h3 style={sectionTitle}>Setup Checklist</h3>
+        <h3 style={sectionTitle}>School Readiness Checklist</h3>
 
         <div style={{ display: "grid", gap: "12px" }}>
           {setupItems.map((item) => (

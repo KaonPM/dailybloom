@@ -108,9 +108,8 @@ export default function Sidebar() {
     () => [
       {
         label: "Master Dashboard",
-        href: "/master?view=manage-schools",
+        href: "/master",
         match: ["/master"],
-        view: "manage-schools",
       },
       {
         label: "Manage Schools",
@@ -119,26 +118,20 @@ export default function Sidebar() {
         view: "manage-schools",
       },
       {
-        label: "Billing",
-        href: "/billing",
-        match: ["/billing"],
-      },
-      {
         label: "Principal Management",
         href: "/principals",
         match: ["/principals"],
-      },
-      {
-        label: "Active Principals",
-        href: "/master?view=active-principals",
-        match: ["/master"],
-        view: "active-principals",
       },
       {
         label: "Schools Needing Setup",
         href: "/master?view=schools-needing-setup",
         match: ["/master"],
         view: "schools-needing-setup",
+      },
+      {
+        label: "Billing",
+        href: "/billing",
+        match: ["/billing"],
       },
     ],
     []

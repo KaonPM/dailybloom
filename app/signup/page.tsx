@@ -4,10 +4,37 @@ import Link from "next/link";
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 
+const packages = [
+  {
+    name: "Bloom",
+    description: "Core school admin tools for getting started.",
+  },
+  {
+    name: "Bloom Pro",
+    description: "More complete daily operations and communication support.",
+  },
+  {
+    name: "Bloom Elite",
+    description: "Full DailyBloom experience for growing schools.",
+  },
+];
+
 export default function SignUpPage() {
   const [schoolName, setSchoolName] = useState("");
+  const [schoolEmail, setSchoolEmail] = useState("");
+  const [schoolPhone, setSchoolPhone] = useState("");
+  const [schoolAddress, setSchoolAddress] = useState("");
+  const [province, setProvince] = useState("");
+
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [principalEmail, setPrincipalEmail] = useState("");
+  const [principalPhone, setPrincipalPhone] = useState("");
+
+  const [packageSelected, setPackageSelected] = useState("Bloom");
+
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [permissionToContact, setPermissionToContact] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -16,8 +43,25 @@ export default function SignUpPage() {
     e.preventDefault();
     setMessage("");
 
-    if (!schoolName || !fullName || !email) {
-      setMessage("Please complete all fields.");
+    if (
+      !schoolName ||
+      !schoolEmail ||
+      !schoolPhone ||
+      !schoolAddress ||
+      !province ||
+      !fullName ||
+      !principalEmail ||
+      !principalPhone ||
+      !packageSelected
+    ) {
+      setMessage("Please complete all required fields.");
+      return;
+    }
+
+    if (!acceptedTerms || !acceptedPrivacy || !permissionToContact) {
+      setMessage(
+        "Please accept the terms, privacy policy, and permission to be contacted."
+      );
       return;
     }
 
@@ -26,9 +70,22 @@ export default function SignUpPage() {
     const { error } = await supabase.from("school_signup_requests").insert([
       {
         school_name: schoolName.trim(),
+        school_email: schoolEmail.trim().toLowerCase(),
+        school_phone: schoolPhone.trim(),
+        school_address: schoolAddress.trim(),
+        province: province.trim(),
+
         principal_full_name: fullName.trim(),
-        principal_email: email.trim().toLowerCase(),
+        principal_email: principalEmail.trim().toLowerCase(),
+        principal_phone: principalPhone.trim(),
+
+        package_selected: packageSelected,
+        accepted_terms: true,
+        accepted_privacy: true,
+        permission_to_contact: true,
+
         status: "pending",
+        onboarding_status: "application_received",
       },
     ]);
 
@@ -39,11 +96,20 @@ export default function SignUpPage() {
     }
 
     setSchoolName("");
+    setSchoolEmail("");
+    setSchoolPhone("");
+    setSchoolAddress("");
+    setProvince("");
     setFullName("");
-    setEmail("");
+    setPrincipalEmail("");
+    setPrincipalPhone("");
+    setPackageSelected("Bloom");
+    setAcceptedTerms(false);
+    setAcceptedPrivacy(false);
+    setPermissionToContact(false);
 
     setMessage(
-      "Your sign-up request has been submitted and is pending review. DailyBloom will create your school and principal login after approval."
+      "Your sign-up request has been submitted. DailyBloom will review your application and contact you after approval."
     );
 
     setLoading(false);
@@ -57,12 +123,7 @@ export default function SignUpPage() {
         padding: "32px 20px",
       }}
     >
-      <div
-        style={{
-          maxWidth: "520px",
-          margin: "0 auto",
-        }}
-      >
+      <div style={{ maxWidth: "680px", margin: "0 auto" }}>
         <Link
           href="/"
           style={{
@@ -116,16 +177,56 @@ export default function SignUpPage() {
               lineHeight: 1.6,
             }}
           >
-            Submit your school details for review. A DailyBloom administrator
-            will create your school and principal login after approval.
+            Submit your school and principal details for review. After approval,
+            DailyBloom will send your login details and onboarding requirements.
           </p>
 
-          <form onSubmit={handleSignUp} style={{ marginTop: "20px" }}>
+          <form onSubmit={handleSignUp} style={{ marginTop: "22px" }}>
+            <SectionTitle title="School Information" />
+
             <Input
               placeholder="School Name"
               value={schoolName}
               onChange={setSchoolName}
             />
+
+            <Input
+              placeholder="School Email Address"
+              value={schoolEmail}
+              onChange={setSchoolEmail}
+              type="email"
+            />
+
+            <Input
+              placeholder="School Phone Number"
+              value={schoolPhone}
+              onChange={setSchoolPhone}
+            />
+
+            <Input
+              placeholder="School Physical Address"
+              value={schoolAddress}
+              onChange={setSchoolAddress}
+            />
+
+            <select
+              value={province}
+              onChange={(e) => setProvince(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">Select Province</option>
+              <option value="Eastern Cape">Eastern Cape</option>
+              <option value="Free State">Free State</option>
+              <option value="Gauteng">Gauteng</option>
+              <option value="KwaZulu-Natal">KwaZulu-Natal</option>
+              <option value="Limpopo">Limpopo</option>
+              <option value="Mpumalanga">Mpumalanga</option>
+              <option value="Northern Cape">Northern Cape</option>
+              <option value="North West">North West</option>
+              <option value="Western Cape">Western Cape</option>
+            </select>
+
+            <SectionTitle title="Principal Details" />
 
             <Input
               placeholder="Principal Full Name"
@@ -135,9 +236,103 @@ export default function SignUpPage() {
 
             <Input
               placeholder="Principal Email Address"
-              value={email}
-              onChange={setEmail}
+              value={principalEmail}
+              onChange={setPrincipalEmail}
               type="email"
+            />
+
+            <Input
+              placeholder="Principal Phone Number"
+              value={principalPhone}
+              onChange={setPrincipalPhone}
+            />
+
+            <SectionTitle title="Package Selection" />
+
+            <div style={{ display: "grid", gap: "10px", marginBottom: "16px" }}>
+              {packages.map((item) => (
+                <label
+                  key={item.name}
+                  style={{
+                    display: "flex",
+                    gap: "12px",
+                    alignItems: "flex-start",
+                    border:
+                      packageSelected === item.name
+                        ? "2px solid #7CCCF3"
+                        : "1px solid #E3D9CD",
+                    borderRadius: "16px",
+                    padding: "14px",
+                    cursor: "pointer",
+                    background:
+                      packageSelected === item.name ? "#EAF7FD" : "#FFFFFF",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="package"
+                    value={item.name}
+                    checked={packageSelected === item.name}
+                    onChange={(e) => setPackageSelected(e.target.value)}
+                    style={{ marginTop: "4px" }}
+                  />
+
+                  <span>
+                    <strong style={{ color: "#2D2A3E", fontSize: "15px" }}>
+                      {item.name}
+                    </strong>
+
+                    <span
+                      style={{
+                        display: "block",
+                        marginTop: "4px",
+                        color: "#6D6888",
+                        fontSize: "13px",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {item.description}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            <SectionTitle title="Agreement" />
+
+            <Checkbox
+              checked={acceptedTerms}
+              onChange={setAcceptedTerms}
+              label={
+                <>
+                  I accept the{" "}
+                  <Link href="/terms" style={linkStyle}>
+                    Terms and Conditions
+                  </Link>
+                  .
+                </>
+              }
+            />
+
+            <Checkbox
+              checked={acceptedPrivacy}
+              onChange={setAcceptedPrivacy}
+              label={
+                <>
+                  I accept the{" "}
+                  <Link href="/privacy" style={linkStyle}>
+                    Privacy Policy
+                  </Link>{" "}
+                  and consent to DailyBloom processing the information submitted
+                  in this form.
+                </>
+              }
+            />
+
+            <Checkbox
+              checked={permissionToContact}
+              onChange={setPermissionToContact}
+              label="I give DailyBloom permission to contact me about my sign-up request, approval, payment and onboarding."
             />
 
             <button
@@ -153,7 +348,7 @@ export default function SignUpPage() {
                 fontWeight: 800,
                 fontSize: "15px",
                 cursor: "pointer",
-                marginTop: "8px",
+                marginTop: "12px",
               }}
             >
               {loading ? "Submitting..." : "Submit Request"}
@@ -198,6 +393,21 @@ export default function SignUpPage() {
   );
 }
 
+function SectionTitle({ title }: { title: string }) {
+  return (
+    <h2
+      style={{
+        margin: "22px 0 12px 0",
+        color: "#2D2A3E",
+        fontSize: "18px",
+        fontWeight: 800,
+      }}
+    >
+      {title}
+    </h2>
+  );
+}
+
 function Input({
   placeholder,
   value,
@@ -215,18 +425,58 @@ function Input({
       placeholder={placeholder}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      style={{
-        width: "100%",
-        height: "46px",
-        padding: "0 14px",
-        marginBottom: "12px",
-        borderRadius: "14px",
-        border: "1px solid #E3D9CD",
-        fontSize: "15px",
-        outline: "none",
-        color: "#2D2A3E",
-        background: "#FFFFFF",
-      }}
+      style={inputStyle}
     />
   );
 }
+
+function Checkbox({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  label: React.ReactNode;
+}) {
+  return (
+    <label
+      style={{
+        display: "flex",
+        gap: "10px",
+        alignItems: "flex-start",
+        marginBottom: "10px",
+        color: "#5F6275",
+        fontSize: "14px",
+        lineHeight: 1.5,
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ marginTop: "3px" }}
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  height: "46px",
+  padding: "0 14px",
+  marginBottom: "12px",
+  borderRadius: "14px",
+  border: "1px solid #E3D9CD",
+  fontSize: "15px",
+  outline: "none",
+  color: "#2D2A3E",
+  background: "#FFFFFF",
+};
+
+const linkStyle: React.CSSProperties = {
+  color: "#F66BA0",
+  fontWeight: 700,
+  textDecoration: "none",
+};

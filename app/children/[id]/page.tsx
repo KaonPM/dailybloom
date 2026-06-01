@@ -50,6 +50,24 @@ type ChecklistItem = {
   received_at?: string | null;
 };
 
+type LearnerDocument = {
+  id: number;
+  school_id: number;
+  learner_id: string;
+  document_type: string;
+  document_name: string;
+  file_name?: string | null;
+  file_url?: string | null;
+  uploaded_at?: string | null;
+};
+
+const requiredDocuments = [
+  "Birth Certificate",
+  "Immunisation Card",
+  "Parent / Guardian ID",
+  "Contract",
+];
+
 export default function LearnerProfilePage() {
   const params = useParams();
   const router = useRouter();
@@ -69,6 +87,10 @@ export default function LearnerProfilePage() {
   const [itemName, setItemName] = useState("");
   const [quantity, setQuantity] = useState("");
   const [editingItem, setEditingItem] = useState<ChecklistItem | null>(null);
+
+  const [documents, setDocuments] = useState<LearnerDocument[]>([]);
+  const [uploadingDocumentType, setUploadingDocumentType] =
+    useState<string>("");
 
   const [loading, setLoading] = useState(true);
   const [savingItem, setSavingItem] = useState(false);
@@ -115,6 +137,8 @@ export default function LearnerProfilePage() {
         Number(currentLearner.classroom_id)
       );
     }
+
+    await fetchDocuments(context.schoolId, currentLearner.id);
 
     setLoading(false);
   }
@@ -203,6 +227,22 @@ export default function LearnerProfilePage() {
     setChecklist((data || []) as ChecklistItem[]);
   }
 
+  async function fetchDocuments(currentSchoolId: number, currentLearnerId: string) {
+    const { data, error } = await supabase
+      .from("learner_documents")
+      .select("*")
+      .eq("school_id", currentSchoolId)
+      .eq("learner_id", currentLearnerId)
+      .order("document_type", { ascending: true });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setDocuments((data || []) as LearnerDocument[]);
+  }
+
   function goBack() {
     router.push(schoolParam ? `/children?school=${schoolParam}` : "/children");
   }
@@ -262,7 +302,6 @@ export default function LearnerProfilePage() {
     }
 
     resetItemForm();
-
     await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
     setSavingItem(false);
   }
@@ -318,6 +357,108 @@ export default function LearnerProfilePage() {
     await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
   }
 
+  function getDocument(documentType: string) {
+    return documents.find((document) => document.document_type === documentType);
+  }
+
+  async function handleDocumentUpload(
+    documentType: string,
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    if (!learner || !schoolId) return;
+
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    setUploadingDocumentType(documentType);
+
+    const existingDocument = getDocument(documentType);
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const filePath = `${schoolId}/${learner.id}/${documentType.replace(
+      /[^a-zA-Z0-9]/g,
+      "-"
+    )}-${Date.now()}-${safeFileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("learner-documents")
+      .upload(filePath, file, {
+        upsert: true,
+      });
+
+    if (uploadError) {
+      alert(uploadError.message);
+      setUploadingDocumentType("");
+      event.target.value = "";
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from("learner-documents")
+      .getPublicUrl(filePath);
+
+    const payload = {
+      school_id: schoolId,
+      learner_id: learner.id,
+      document_type: documentType,
+      document_name: documentType,
+      file_name: file.name,
+      file_url: publicUrlData.publicUrl,
+      uploaded_at: new Date().toISOString(),
+    };
+
+    if (existingDocument) {
+      const { error } = await supabase
+        .from("learner_documents")
+        .update(payload)
+        .eq("id", existingDocument.id)
+        .eq("school_id", schoolId)
+        .eq("learner_id", learner.id);
+
+      if (error) {
+        alert(error.message);
+        setUploadingDocumentType("");
+        event.target.value = "";
+        return;
+      }
+    } else {
+      const { error } = await supabase.from("learner_documents").insert([payload]);
+
+      if (error) {
+        alert(error.message);
+        setUploadingDocumentType("");
+        event.target.value = "";
+        return;
+      }
+    }
+
+    await fetchDocuments(schoolId, learner.id);
+    setUploadingDocumentType("");
+    event.target.value = "";
+  }
+
+  async function deleteDocument(document: LearnerDocument) {
+    if (!learner || !schoolId) return;
+
+    const confirmed = confirm(`Delete ${document.document_name}?`);
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("learner_documents")
+      .delete()
+      .eq("id", document.id)
+      .eq("school_id", schoolId)
+      .eq("learner_id", learner.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await fetchDocuments(schoolId, learner.id);
+  }
+
   if (loading) {
     return <p>Loading learner profile...</p>;
   }
@@ -325,10 +466,6 @@ export default function LearnerProfilePage() {
   if (!learner) {
     return <p>Learner not found.</p>;
   }
-
-  const receivedCount = checklist.filter((item) => item.received).length;
-  const totalCount = checklist.length;
-  const outstandingCount = totalCount - receivedCount;
 
   return (
     <div>
@@ -350,27 +487,6 @@ export default function LearnerProfilePage() {
           {learner.class || "Unassigned class"} ·{" "}
           {learner.legal_name || "Legal name not added"}
         </p>
-
-        <div style={summaryGrid}>
-          <div className="db-card db-card-blue" style={summaryCard}>
-            <strong>Requirements</strong>
-            <p style={summaryText}>
-              {totalCount > 0 ? `${receivedCount} / ${totalCount} received` : "No items yet"}
-            </p>
-          </div>
-
-          <div className="db-card db-card-green" style={summaryCard}>
-            <strong>Documents</strong>
-            <p style={summaryText}>Coming next</p>
-          </div>
-
-          <div className="db-card db-card-yellow" style={summaryCard}>
-            <strong>Outstanding</strong>
-            <p style={summaryText}>
-              {totalCount > 0 ? `${outstandingCount} item(s)` : "No items yet"}
-            </p>
-          </div>
-        </div>
       </div>
 
       <div
@@ -484,7 +600,7 @@ export default function LearnerProfilePage() {
             <div>
               <h3 style={{ ...sectionTitle, margin: 0 }}>Requirements</h3>
               <p className="db-helper" style={{ marginTop: 4 }}>
-                Track stationery items received for this learner.
+                Track learner requirements and stationery received.
               </p>
             </div>
           </div>
@@ -582,10 +698,70 @@ export default function LearnerProfilePage() {
       {activeTab === "documents" && (
         <div className="db-card db-card-yellow" style={{ padding: 16 }}>
           <h3 style={sectionTitle}>Documents</h3>
+
           <p className="db-helper">
-            Birth certificate, immunisation card, parent / guardian ID and
-            contract uploads will be added here next.
+            Upload and manage required learner documents.
           </p>
+
+          <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+            {requiredDocuments.map((documentType) => {
+              const document = getDocument(documentType);
+              const uploaded = Boolean(document?.file_url);
+              const isUploading = uploadingDocumentType === documentType;
+
+              return (
+                <div key={documentType} style={documentRow}>
+                  <div style={{ flex: 1 }}>
+                    <strong>{documentType}</strong>
+
+                    <p style={summaryText}>
+                      {uploaded
+                        ? `Uploaded: ${document?.file_name || "File attached"}`
+                        : "Missing"}
+                    </p>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <label className="db-button-secondary" style={smallButton}>
+                      {isUploading ? "Uploading..." : uploaded ? "Replace" : "Upload"}
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                        style={{ display: "none" }}
+                        onChange={(event) =>
+                          handleDocumentUpload(documentType, event)
+                        }
+                        disabled={isUploading}
+                      />
+                    </label>
+
+                    {uploaded && document?.file_url ? (
+                      <a
+                        href={document.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="db-button-secondary"
+                        style={{ ...smallButton, textDecoration: "none" }}
+                      >
+                        Download
+                      </a>
+                    ) : null}
+
+                    {uploaded && document ? (
+                      <button
+                        type="button"
+                        className="db-button-secondary"
+                        style={smallButton}
+                        onClick={() => deleteDocument(document)}
+                      >
+                        Delete
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -606,18 +782,6 @@ function Info({
     </div>
   );
 }
-
-const summaryGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-  gap: 10,
-  marginTop: 14,
-};
-
-const summaryCard = {
-  padding: 12,
-  minHeight: 76,
-};
 
 const summaryText = {
   margin: "6px 0 0 0",
@@ -681,6 +845,18 @@ const requirementRow = {
   border: "1px solid #F0E3D8",
   borderRadius: 12,
   padding: "10px 12px",
+};
+
+const documentRow = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  background: "#FFFDFB",
+  border: "1px solid #F0E3D8",
+  borderRadius: 12,
+  padding: "10px 12px",
+  flexWrap: "wrap" as const,
 };
 
 const checkboxButton = {

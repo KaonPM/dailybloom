@@ -22,11 +22,15 @@ type ReportRow = {
 };
 
 const reportTypes = [
-  "Attendance",
-  "Summaries",
+  "Learner Attendance",
+  "Teacher Attendance",
+  "Learner Register",
+  "Daily Summaries",
+  "Classroom Activities",
+  "Events",
+  "Health & Safety Incidents",
   "Payments",
-  "Incidents",
-  "Activities",
+  "Outstanding Fees",
 ];
 
 const scopeOptions = ["Entire School", "Classroom", "Learner"];
@@ -43,7 +47,7 @@ export default function ReportsPage() {
   const [teacherClassroom, setTeacherClassroom] = useState("");
 
   const [learners, setLearners] = useState<Learner[]>([]);
-  const [reportType, setReportType] = useState("Attendance");
+  const [reportType, setReportType] = useState("Learner Attendance");
   const [scope, setScope] = useState("Entire School");
   const [selectedClassroom, setSelectedClassroom] = useState("");
   const [selectedLearner, setSelectedLearner] = useState("");
@@ -96,6 +100,7 @@ export default function ReportsPage() {
       .from("learners")
       .select("id, name, class")
       .eq("school_id", currentSchoolId)
+      .or("is_deleted.is.null,is_deleted.eq.false")
       .order("name", { ascending: true });
 
     if (teacherClass) {
@@ -196,11 +201,15 @@ export default function ReportsPage() {
 
     setRunning(true);
 
-    if (reportType === "Attendance") await runAttendanceReport();
-    if (reportType === "Summaries") await runSummariesReport();
+    if (reportType === "Learner Attendance") await runAttendanceReport();
+    if (reportType === "Teacher Attendance") await runTeacherAttendanceReport();
+    if (reportType === "Learner Register") await runLearnerRegisterReport();
+    if (reportType === "Daily Summaries") await runSummariesReport();
+    if (reportType === "Classroom Activities") await runActivitiesReport();
+    if (reportType === "Health & Safety Incidents") await runIncidentsReport();
     if (reportType === "Payments") await runPaymentsReport();
-    if (reportType === "Incidents") await runIncidentsReport();
-    if (reportType === "Activities") await runActivitiesReport();
+    if (reportType === "Outstanding Fees") await runOutstandingFeesReport();
+    if (reportType === "Events") await runEventsReport();
 
     setShowReportResults(true);
     setRunning(false);
@@ -226,9 +235,94 @@ export default function ReportsPage() {
         date: item.attendance_date || "",
         learner: item.learner_name || "",
         classroom: getLearnerClass(item.learner_name),
-        type: "Attendance",
+        type: "Learner Attendance",
         detail: item.status || "",
         extra: "",
+      }));
+
+    setReportRows(rows);
+  }
+
+  async function runTeacherAttendanceReport() {
+    const { data, error } = await supabase
+      .from("teacher_attendance")
+      .select("*")
+      .eq("school_id", schoolId)
+      .gte("attendance_date", fromDate)
+      .lte("attendance_date", toDate)
+      .order("attendance_date", { ascending: false });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const rows: ReportRow[] = (data || []).map((item: any) => ({
+      date: item.attendance_date || "",
+      learner: item.teacher_name || "Unnamed teacher",
+      classroom: "Staff",
+      type: "Teacher Attendance",
+      detail: item.status || "",
+      extra: item.notes || "",
+    }));
+
+    setReportRows(rows);
+  }
+
+  async function runLearnerRegisterReport() {
+    let query = supabase
+      .from("learners")
+      .select(
+        `
+        id,
+        name,
+        legal_name,
+        class,
+        date_of_birth,
+        gender,
+        guardian_name,
+        parent_phone,
+        parent_email,
+        receiving_school,
+        is_deleted
+      `
+      )
+      .eq("school_id", schoolId)
+      .or("is_deleted.is.null,is_deleted.eq.false")
+      .order("name", { ascending: true });
+
+    if (scope === "Classroom" && selectedClassroom) {
+      query = query.eq("class", selectedClassroom);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const rows: ReportRow[] = (data || [])
+      .filter((item: any) => {
+        if (scope === "Learner" && selectedLearner) {
+          return item.name === selectedLearner;
+        }
+
+        return true;
+      })
+      .map((item: any) => ({
+       date: "",
+       learner: item.name || item.legal_name || "Unnamed learner",
+       classroom: item.class || "Unassigned",
+       type: "Learner Register",
+       detail: `DOB: ${item.date_of_birth || "Not added"} | Gender: ${
+       item.gender || "Not added"
+      }`,
+       extra: `Guardian: ${item.guardian_name || "Not added"} | Phone: ${
+       item.parent_phone || "Not added"
+      } | Email: ${item.parent_email || "Not added"} | Receiving School: ${
+       item.receiving_school || "Not added"
+      }`,
       }));
 
     setReportRows(rows);
@@ -254,7 +348,7 @@ export default function ReportsPage() {
         date: item.created_at ? item.created_at.split("T")[0] : "",
         learner: item.learner_name || "",
         classroom: getLearnerClass(item.learner_name),
-        type: "Summary",
+        type: "Daily Summary",
         detail: `Mood: ${item.mood || "N/A"} | Meals: ${
           item.meals || "N/A"
         } | Rest: ${item.rest || "N/A"}`,
@@ -307,6 +401,52 @@ export default function ReportsPage() {
     setReportRows(rows);
   }
 
+  async function runOutstandingFeesReport() {
+    const { data, error } = await supabase
+      .from("payments")
+      .select("*")
+      .eq("school_id", schoolId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const rows: ReportRow[] = (data || [])
+      .filter((item: any) => {
+        const status = String(item.status || "").trim().toLowerCase();
+
+        const dateValue =
+          item.payment_date ||
+          item.created_at ||
+          `${item.payment_year || new Date().getFullYear()}-${String(
+            item.payment_month || 1
+          ).padStart(2, "0")}-01`;
+
+        return (
+          status !== "paid" &&
+          isWithinRange(String(dateValue)) &&
+          isInScopeByLearner(item.learner_name)
+        );
+      })
+      .map((item: any) => ({
+        date:
+          item.payment_date ||
+          item.created_at?.split("T")[0] ||
+          `${item.payment_year || ""}-${String(item.payment_month || "").padStart(
+            2,
+            "0"
+          )}`,
+        learner: item.learner_name || "",
+        classroom: getLearnerClass(item.learner_name),
+        type: "Outstanding Fee",
+        detail: item.status || "Unpaid",
+        extra: item.amount ? `Amount: ${item.amount}` : "",
+      }));
+
+    setReportRows(rows);
+  }
+
   async function runIncidentsReport() {
     const { data, error } = await supabase
       .from("summaries")
@@ -331,7 +471,7 @@ export default function ReportsPage() {
         date: item.created_at ? item.created_at.split("T")[0] : "",
         learner: item.learner_name || "",
         classroom: getLearnerClass(item.learner_name),
-        type: "Incident",
+        type: "Health & Safety Incident",
         detail: item.health_safety || "",
         extra: item.teacher_notes || "",
       }));
@@ -362,10 +502,36 @@ export default function ReportsPage() {
         date: item.activity_date || "",
         learner: scope === "Learner" ? selectedLearner : "Class activity",
         classroom: item.class_name || item.classroom || "All classes",
-        type: "Activity",
+        type: "Classroom Activity",
         detail: `${item.subject || "No subject"} | ${item.title || "No title"}`,
         extra: item.description || "",
       }));
+
+    setReportRows(rows);
+  }
+
+  async function runEventsReport() {
+    const { data, error } = await supabase
+      .from("events")
+      .select("*")
+      .eq("school_id", schoolId)
+      .gte("event_date", fromDate)
+      .lte("event_date", toDate)
+      .order("event_date", { ascending: false });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const rows: ReportRow[] = (data || []).map((item: any) => ({
+      date: item.event_date || "",
+      learner: "School Event",
+      classroom: item.classroom || item.class_name || "Entire School",
+      type: "Event",
+      detail: item.title || item.event_name || "Untitled event",
+      extra: item.description || item.notes || "",
+    }));
 
     setReportRows(rows);
   }
@@ -394,7 +560,9 @@ export default function ReportsPage() {
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
 
-    const filename = `${reportType.toLowerCase()}-report-${fromDate}-to-${toDate}.csv`;
+    const filename = `${reportType
+      .toLowerCase()
+      .replace(/\s+/g, "-")}-report-${fromDate}-to-${toDate}.csv`;
 
     const link = document.createElement("a");
     link.href = url;

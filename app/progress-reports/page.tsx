@@ -1656,13 +1656,13 @@ export default function ProgressReportsPage() {
               </select>
 
               <textarea
-               className="db-input"
-               rows={3}
-               placeholder="Reason for award"
-               value={awardReason}
-               onChange={(e) => setAwardReason(e.target.value)}
-               style={{ gridColumn: "1 / -1" }}
-/>
+                className="db-input"
+                rows={3}
+                placeholder="Reason for award"
+                value={awardReason}
+                onChange={(e) => setAwardReason(e.target.value)}
+                style={{ gridColumn: "1 / -1" }}
+              />
 
               <div style={{ gridColumn: "1 / -1" }}>
               <button className="db-button-primary" onClick={createAward}>

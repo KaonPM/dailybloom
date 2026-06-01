@@ -77,6 +77,8 @@ export default function ProgressReportsPage() {
   const [selectedAwardType, setSelectedAwardType] = useState("");
   const [selectedAwardCategory, setSelectedAwardCategory] = useState("General");
   const [awardReason, setAwardReason] = useState("");
+  const [selectedAward, setSelectedAward] = useState<any>(null);
+  const [pendingAwardDownload, setPendingAwardDownload] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -127,6 +129,17 @@ export default function ProgressReportsPage() {
 
     return () => window.cancelAnimationFrame(frame);
   }, [pendingDownload, generatedReport, reviewAssessments.length]);
+
+  useEffect(() => {
+    if (!pendingAwardDownload || !selectedAward) return;
+
+    const frame = window.requestAnimationFrame(async () => {
+      await downloadAwardCertificate();
+      setPendingAwardDownload(false);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [pendingAwardDownload, selectedAward]);
 
   async function loadPage() {
     const { profile, error } = await getCurrentProfile();
@@ -970,6 +983,59 @@ export default function ProgressReportsPage() {
     }
   }
 
+  async function downloadAwardCertificate() {
+    const certificateElement = document.querySelector(
+      ".award-certificate-print-area"
+    ) as HTMLElement;
+    const certificateButtons = document.querySelector(
+      ".award-certificate-buttons"
+    ) as HTMLElement;
+
+    if (!certificateElement) {
+      alert("Certificate not found.");
+      return;
+    }
+
+    try {
+      if (certificateButtons) {
+        certificateButtons.style.display = "none";
+      }
+
+      const canvas = await html2canvas(certificateElement, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+      });
+
+      if (certificateButtons) {
+        certificateButtons.style.display = "flex";
+      }
+
+      const imgData = canvas.toDataURL("image/png");
+
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
+
+      pdf.addImage(imgData, "PNG", 0, 0, 297, 210);
+
+      const learnerName =
+        getLearnerName(selectedAward?.learner_id).replace(/\s+/g, "_") ||
+        "Learner";
+
+      pdf.save(`${learnerName}_Achievement_Award.pdf`);
+    } catch (error) {
+      if (certificateButtons) {
+        certificateButtons.style.display = "flex";
+      }
+
+      console.error(error);
+      alert("Failed to generate certificate PDF.");
+    }
+  }
+
   const selectedClassroom = classrooms.find(
     (c) => String(c.id) === String(selectedClassroomId)
   );
@@ -1518,13 +1584,19 @@ export default function ProgressReportsPage() {
       >
         <div onClick={() => setShowAwards(!showAwards)} style={collapsibleHeader}>
           <h3 style={{ ...sectionTitle, margin: 0 }}>Achievement Awards</h3>
-
           <span style={chevron}>{showAwards ? "-" : "+"}</span>
         </div>
 
         {showAwards && (
           <>
-            <div style={{ marginTop: "16px" }}>
+            <div
+            style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: "12px",
+            marginTop: "16px",
+          }}
+          >
               <select
                 className="db-input"
                 value={selectedAwardLearnerId}
@@ -1584,16 +1656,19 @@ export default function ProgressReportsPage() {
               </select>
 
               <textarea
-                className="db-input"
-                rows={3}
-                placeholder="Reason for award"
-                value={awardReason}
-                onChange={(e) => setAwardReason(e.target.value)}
-              />
+               className="db-input"
+               rows={3}
+               placeholder="Reason for award"
+               value={awardReason}
+               onChange={(e) => setAwardReason(e.target.value)}
+               style={{ gridColumn: "1 / -1" }}
+/>
 
+              <div style={{ gridColumn: "1 / -1" }}>
               <button className="db-button-primary" onClick={createAward}>
-                Create Award
+               Create Award
               </button>
+             </div>
             </div>
 
             <div
@@ -1628,12 +1703,236 @@ export default function ProgressReportsPage() {
                   <p style={textStyle}>
                     Certificate: {award.certificate_number}
                   </p>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                      marginTop: "10px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <button
+                      className="db-button-primary"
+                      onClick={() => setSelectedAward(award)}
+                    >
+                      View Certificate
+                    </button>
+
+                    <button
+                      className="db-button-primary"
+                      onClick={async () => {
+                        setSelectedAward(award);
+                        setPendingAwardDownload(true);
+                      }}
+                    >
+                      Download Certificate
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </>
         )}
       </div>
+
+      {selectedAward && (
+        <div
+          className="db-card db-card-lavender award-certificate-print-area"
+          style={{
+            padding: "24px",
+            marginBottom: "24px",
+            background: "#fff",
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              minHeight: "620px",
+              border: "8px solid #D4AF37",
+              outline: `14px solid ${school?.primary_color || "#4f6fbd"}`,
+              padding: "42px",
+              overflow: "hidden",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                width: "34px",
+                height: "100%",
+                background: school?.secondary_color || "#b53030",
+              }}
+            />
+
+            <div
+              style={{
+                position: "absolute",
+                right: 0,
+                top: 0,
+                width: "80px",
+                height: "80px",
+                background: school?.secondary_color || "#b53030",
+                clipPath: "polygon(100% 0, 0 0, 100% 100%)",
+              }}
+            />
+
+            <div
+              style={{
+                position: "absolute",
+                right: 0,
+                bottom: 0,
+                width: "80px",
+                height: "80px",
+                background: school?.secondary_color || "#b53030",
+                clipPath: "polygon(100% 0, 0 100%, 100% 100%)",
+              }}
+            />
+
+            {school?.logo_url && (
+              <img
+                src={school.logo_url}
+                alt="School Logo"
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  width: "260px",
+                  height: "260px",
+                  objectFit: "contain",
+                  opacity: 0.08,
+                  transform: "translate(-50%, -50%)",
+                }}
+              />
+            )}
+
+            <h1
+              style={{
+                margin: "10px 0 6px",
+                fontSize: "42px",
+                color: "#D4AF37",
+                letterSpacing: "2px",
+                fontWeight: 900,
+              }}
+            >
+              CERTIFICATE
+            </h1>
+
+            <h2
+              style={{
+                margin: "0 0 26px",
+                fontSize: "24px",
+                color: "#333",
+                fontWeight: 700,
+              }}
+            >
+              OF ACHIEVEMENT
+            </h2>
+
+            <p style={{ fontSize: "17px", color: "#555" }}>
+              This certificate is proudly presented to
+            </p>
+
+            <h2
+              style={{
+                margin: "24px 0",
+                fontSize: "44px",
+                color: "#D4AF37",
+                fontWeight: 800,
+                fontFamily: "Georgia, serif",
+              }}
+            >
+              {getLearnerName(selectedAward.learner_id)}
+            </h2>
+
+            <p style={{ fontSize: "18px", color: "#333" }}>For</p>
+
+            <h3
+              style={{
+                fontSize: "28px",
+                color: "#2D2A3E",
+                margin: "14px 0",
+              }}
+            >
+              {selectedAward.award_name}
+            </h3>
+
+            <p
+              style={{
+                maxWidth: "680px",
+                margin: "0 auto",
+                fontSize: "16px",
+                color: "#555",
+                lineHeight: 1.6,
+              }}
+            >
+              {selectedAward.award_reason ||
+                "In recognition of outstanding effort and achievement."}
+            </p>
+
+            <p style={{ marginTop: "28px", fontSize: "14px", color: "#555" }}>
+              {school?.school_name || "School Name"} | Certificate No:{" "}
+              {selectedAward.certificate_number}
+            </p>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "80px",
+                marginTop: "70px",
+              }}
+            >
+              <div>
+                <p style={{ borderTop: "1px solid #333", paddingTop: "8px" }}>
+                  {selectedAward.teacher_name || teacherName}
+                </p>
+                <p style={{ fontSize: "13px", color: "#777" }}>
+                  Teacher Signature
+                </p>
+              </div>
+
+              <div>
+                <p style={{ borderTop: "1px solid #333", paddingTop: "8px" }}>
+                  {selectedAward.principal_name ||
+                    profile?.full_name ||
+                    "Principal"}
+                </p>
+                <p style={{ fontSize: "13px", color: "#777" }}>
+                  Principal Signature
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="no-print award-certificate-buttons"
+            style={{
+              display: "flex",
+              gap: "12px",
+              marginTop: "20px",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              className="db-button-primary"
+              style={{ background: "#777" }}
+              onClick={() => setSelectedAward(null)}
+            >
+              Close Certificate
+            </button>
+
+            <button
+              className="db-button-primary"
+              onClick={downloadAwardCertificate}
+            >
+              Download / Print Certificate
+            </button>
+          </div>
+        </div>
+      )}
 
       {selectedClassroom &&
         selectedLearner &&
@@ -1980,11 +2279,14 @@ export default function ProgressReportsPage() {
           }
 
           .report-print-area,
-          .report-print-area * {
+          .report-print-area *,
+          .award-certificate-print-area,
+          .award-certificate-print-area * {
             visibility: visible;
           }
 
-          .report-print-area {
+          .report-print-area,
+          .award-certificate-print-area {
             position: absolute;
             left: 0;
             top: 0;

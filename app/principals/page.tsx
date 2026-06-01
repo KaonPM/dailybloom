@@ -21,6 +21,7 @@ type PrincipalProfile = {
   school_id: number | null;
   is_active?: boolean | null;
   created_at?: string | null;
+  last_login_at?: string | null;
   schools?: {
     school_name?: string | null;
     is_active?: boolean | null;
@@ -90,6 +91,7 @@ export default function PrincipalsPage() {
         school_id,
         is_active,
         created_at,
+        last_login_at,
         schools (
           school_name,
           is_active,
@@ -247,6 +249,65 @@ export default function PrincipalsPage() {
     alert("Principal removed from school.");
   }
 
+  async function sendPasswordReset(principal: PrincipalProfile) {
+    if (!principal.email) {
+      alert("This principal does not have an email address.");
+      return;
+    }
+
+    setActionLoadingId(principal.id);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(principal.email, {
+      redirectTo: `${window.location.origin}/change-password`,
+    });
+
+    if (error) {
+      alert(error.message);
+      setActionLoadingId(null);
+      return;
+    }
+
+    setActionLoadingId(null);
+    alert("Password reset email sent.");
+  }
+
+  async function resendPrincipalAccess(principal: PrincipalProfile) {
+    if (!principal.email) {
+      alert("This principal does not have an email address.");
+      return;
+    }
+
+    if (!principal.school_id) {
+      alert("This principal is not linked to a school.");
+      return;
+    }
+
+    setActionLoadingId(principal.id);
+
+    const response = await fetch("/api/invite-principal", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        full_name: principal.full_name || "Principal",
+        email: principal.email,
+        school_id: Number(principal.school_id),
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Could not resend principal invite.");
+      setActionLoadingId(null);
+      return;
+    }
+
+    setActionLoadingId(null);
+    alert("Principal access email resent.");
+  }
+
   if (checkingAccess) {
     return <p>Loading...</p>;
   }
@@ -310,7 +371,7 @@ export default function PrincipalsPage() {
             style={{ width: "100%" }}
             onClick={() => router.push("/master")}
           >
-            Create Principal Login
+            Open Manual School Setup
           </button>
         </div>
       </div>
@@ -372,6 +433,12 @@ export default function PrincipalsPage() {
                       <p style={textStyle}>
                         Effective Access: {effectiveActive ? "Active" : "Blocked"}
                       </p>
+                      <p style={textStyle}>
+                        Last Login:{" "}
+                        {principal.last_login_at
+                          ? new Date(principal.last_login_at).toLocaleString()
+                          : "Not tracked yet"}
+                      </p>
 
                       {hasWageFlow && effectiveActive ? (
                         <a
@@ -428,6 +495,26 @@ export default function PrincipalsPage() {
                         disabled={isBusy}
                       >
                         {isBusy ? "Working..." : "Remove From School"}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="db-button-primary"
+                        style={smallButton}
+                        onClick={() => resendPrincipalAccess(principal)}
+                        disabled={isBusy}
+                      >
+                        {isBusy ? "Working..." : "Resend Invite"}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="db-button-primary"
+                        style={smallButton}
+                        onClick={() => sendPasswordReset(principal)}
+                        disabled={isBusy}
+                      >
+                        {isBusy ? "Working..." : "Reset Password"}
                       </button>
                     </div>
                   </div>

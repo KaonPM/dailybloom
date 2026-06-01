@@ -92,7 +92,7 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 0.8fr", gap: isMobile ? 14 : 28 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.1fr 0.9fr", gap: isMobile ? 14 : 24 }}>
           <div style={heroCard(isMobile)}>
             <div style={sunShape(isMobile)} />
             <div style={greenShape(isMobile)} />
@@ -100,14 +100,15 @@ export default function LandingPage() {
             <div style={{ position: "relative", zIndex: 1 }}>
               <p style={pinkEyebrow(isMobile)}>Preschool operations, simplified</p>
 
-              <h2 style={heroHeading(isMobile)}>Where Preschools Bloom Every Day</h2>
+              <h2 style={heroHeading(isMobile)}>One Platform to Run Your Entire Preschool</h2>
 
               <p style={heroBody(isMobile)}>
-                DailyBloom helps preschools manage learners, attendance, summaries, events, broadcasts,
-                payments and parent communication from one warm and organised workspace.
+                From learner records and progress reports to parent communication, payment reminders
+                and Grade RR readiness, DailyBloom helps preschools manage everything in one warm
+                and organised workspace.
               </p>
 
-              <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
                 <Link href="/legal" style={{ ...primaryButton, width: isMobile ? "100%" : "auto" }}>
                   Sign Up
                 </Link>
@@ -119,12 +120,49 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gap: isMobile ? 10 : 18 }}>
-            <FeatureCard title="Daily admin in one place" body="Manage learners, attendance, birthdays, activities, events, summaries, broadcasts, and payments without scattered paperwork." accent="#7CCCF3" isMobile={isMobile} />
-            <FeatureCard title="WhatsApp-ready communication" body="Prepare parent summaries, broadcasts, and payment reminders now, with WhatsApp API sending planned for integration." accent="#FFD166" isMobile={isMobile} />
-            <FeatureCard title="Built for preschool teams" body="Principals get full school oversight. Teachers see only their assigned classroom and daily workflows." accent="#57C785" isMobile={isMobile} />
+          <div style={{ display: "grid", gap: isMobile ? 10 : 14 }}>
+            <FeatureCard
+              title="Learner Management"
+              body="Keep learner profiles, attendance, birthdays, parent contacts and learner requirements organised in one place."
+              accent="#7CCCF3"
+              isMobile={isMobile}
+            />
+
+            <FeatureCard
+              title="Progress & Grade RR Reports"
+              body="Support developmental progress reports, Grade RR readiness tracking and learner achievement records."
+              accent="#FFD166"
+              isMobile={isMobile}
+            />
+
+            <FeatureCard
+              title="Parent Communication"
+              body="Prepare daily summaries, broadcasts, event updates and payment reminders for clear parent communication."
+              accent="#57C785"
+              isMobile={isMobile}
+            />
+
+            <FeatureCard
+              title="School Operations"
+              body="Give principals better visibility across teachers, classrooms, payments, school records and daily workflows."
+              accent="#F66BA0"
+              isMobile={isMobile}
+            />
           </div>
         </div>
+
+        <section style={whySection(isMobile)}>
+          <h2 style={sectionHeading(isMobile)}>Why Preschools Choose DailyBloom</h2>
+
+          <div style={whyGrid(isMobile)}>
+            <WhyCard icon="🌈" text="Built for South African preschools" isMobile={isMobile} />
+            <WhyCard icon="🎒" text="Grade RR ready" isMobile={isMobile} />
+            <WhyCard icon="🧒" text="Centralised learner records" isMobile={isMobile} />
+            <WhyCard icon="💌" text="Parent communication made simple" isMobile={isMobile} />
+            <WhyCard icon="💳" text="Payment reminders" isMobile={isMobile} />
+            <WhyCard icon="🌼" text="Less admin, more care" isMobile={isMobile} />
+          </div>
+        </section>
 
         <details style={contactDetailsBox(isMobile)}>
           <summary style={contactSummary(isMobile)}>Packages</summary>
@@ -311,11 +349,38 @@ export default function LandingPage() {
   );
 }
 
-function FeatureCard({ title, body, accent, isMobile }: { title: string; body: string; accent: string; isMobile: boolean }) {
+function FeatureCard({
+  title,
+  body,
+  accent,
+  isMobile,
+}: {
+  title: string;
+  body: string;
+  accent: string;
+  isMobile: boolean;
+}) {
   return (
     <div style={{ ...card(isMobile), borderTop: `8px solid ${accent}` }}>
       <h3 style={smallHeading(isMobile)}>{title}</h3>
       <p style={paragraph(isMobile)}>{body}</p>
+    </div>
+  );
+}
+
+function WhyCard({
+  icon,
+  text,
+  isMobile,
+}: {
+  icon: string;
+  text: string;
+  isMobile: boolean;
+}) {
+  return (
+    <div style={whyCard(isMobile)}>
+      <span style={playfulIcon(isMobile)}>{icon}</span>
+      <span>{text}</span>
     </div>
   );
 }
@@ -397,8 +462,8 @@ const primaryButton = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: "48px",
-  padding: "12px 22px",
+  minHeight: "44px",
+  padding: "10px 20px",
   borderRadius: "16px",
   background: "#7CCCF3",
   color: "#24324A",
@@ -411,8 +476,8 @@ const secondaryButton = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: "48px",
-  padding: "12px 22px",
+  minHeight: "44px",
+  padding: "10px 20px",
   borderRadius: "16px",
   background: "#FFF1BA",
   color: "#2D2A3E",
@@ -472,7 +537,7 @@ function topBar(isMobile: boolean): React.CSSProperties {
     display: "flex",
     justifyContent: "space-between",
     alignItems: isMobile ? "flex-start" : "center",
-    marginBottom: isMobile ? 20 : 36,
+    marginBottom: isMobile ? 20 : 32,
     flexWrap: "wrap",
     gap: isMobile ? 12 : 18,
   };
@@ -520,7 +585,7 @@ function heroCard(isMobile: boolean): React.CSSProperties {
     background: "#FFFFFF",
     border: "1px solid #E9E0D4",
     borderRadius: isMobile ? 18 : 22,
-    padding: isMobile ? "18px 16px" : "22px",
+    padding: isMobile ? "18px 16px" : "18px",
     boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
     position: "relative",
     overflow: "hidden",
@@ -532,8 +597,8 @@ function sunShape(isMobile: boolean): React.CSSProperties {
     position: "absolute",
     top: -30,
     right: -20,
-    width: isMobile ? 120 : 180,
-    height: isMobile ? 120 : 180,
+    width: isMobile ? 110 : 150,
+    height: isMobile ? 110 : 150,
     background: "#FFD166",
     borderRadius: "50%",
     opacity: 0.22,
@@ -545,8 +610,8 @@ function greenShape(isMobile: boolean): React.CSSProperties {
     position: "absolute",
     bottom: -50,
     left: -40,
-    width: isMobile ? 120 : 180,
-    height: isMobile ? 120 : 180,
+    width: isMobile ? 110 : 150,
+    height: isMobile ? 110 : 150,
     background: "#57C785",
     borderRadius: "50%",
     opacity: 0.2,
@@ -558,27 +623,27 @@ function pinkEyebrow(isMobile: boolean): React.CSSProperties {
     margin: 0,
     color: "#F66BA0",
     fontWeight: 800,
-    fontSize: isMobile ? 13 : 15,
+    fontSize: isMobile ? 13 : 14,
   };
 }
 
 function heroHeading(isMobile: boolean): React.CSSProperties {
   return {
-    margin: isMobile ? "10px 0 12px" : "12px 0 14px",
-    fontSize: isMobile ? 30 : 40,
-    lineHeight: 1.05,
+    margin: isMobile ? "10px 0 12px" : "10px 0 12px",
+    fontSize: isMobile ? 26 : 34,
+    lineHeight: 1.15,
     color: "#2D2A3E",
     fontWeight: 800,
-    maxWidth: isMobile ? "100%" : 680,
+    maxWidth: isMobile ? "100%" : 580,
   };
 }
 
 function heroBody(isMobile: boolean): React.CSSProperties {
   return {
     margin: 0,
-    maxWidth: isMobile ? "100%" : 620,
+    maxWidth: isMobile ? "100%" : 500,
     fontSize: isMobile ? 15 : 16,
-    lineHeight: 1.6,
+    lineHeight: 1.55,
     color: "#5F6275",
   };
 }
@@ -587,17 +652,17 @@ function card(isMobile: boolean): React.CSSProperties {
   return {
     background: "#FFFFFF",
     border: "1px solid #E9E0D4",
-    borderRadius: isMobile ? 18 : 24,
-    padding: isMobile ? 16 : 22,
+    borderRadius: isMobile ? 18 : 22,
+    padding: isMobile ? 16 : 18,
     boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
   };
 }
 
 function smallHeading(isMobile: boolean): React.CSSProperties {
   return {
-    margin: "0 0 10px 0",
+    margin: "0 0 8px 0",
     color: "#2D2A3E",
-    fontSize: isMobile ? 18 : 22,
+    fontSize: isMobile ? 18 : 20,
     fontWeight: 800,
   };
 }
@@ -606,8 +671,67 @@ function paragraph(isMobile: boolean): React.CSSProperties {
   return {
     margin: "6px 0 0 0",
     color: "#5F6275",
-    fontSize: isMobile ? 14 : 16,
-    lineHeight: 1.6,
+    fontSize: isMobile ? 14 : 15,
+    lineHeight: 1.55,
+  };
+}
+
+function whySection(isMobile: boolean): React.CSSProperties {
+  return {
+    marginTop: isMobile ? 24 : 36,
+    background: "#FFFFFF",
+    border: "1px solid #E9E0D4",
+    borderRadius: isMobile ? 18 : 22,
+    padding: isMobile ? 16 : 18,
+    boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
+  };
+}
+
+function sectionHeading(isMobile: boolean): React.CSSProperties {
+  return {
+    margin: "0 0 16px 0",
+    color: "#2D2A3E",
+    fontSize: isMobile ? 22 : 28,
+    fontWeight: 800,
+  };
+}
+
+function whyGrid(isMobile: boolean): React.CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
+    gap: isMobile ? 10 : 14,
+  };
+}
+
+function whyCard(isMobile: boolean): React.CSSProperties {
+  return {
+    background: "#FFF8F2",
+    border: "1px solid #E9E0D4",
+    borderRadius: isMobile ? 14 : 18,
+    padding: isMobile ? "12px" : "14px",
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    color: "#2D2A3E",
+    fontSize: isMobile ? 14 : 15,
+    fontWeight: 800,
+  };
+}
+
+function playfulIcon(isMobile: boolean): React.CSSProperties {
+  return {
+    width: isMobile ? 34 : 42,
+    height: isMobile ? 34 : 42,
+    minWidth: isMobile ? 34 : 42,
+    borderRadius: "16px",
+    background: "#FFF1BA",
+    border: "1px solid #F0D98A",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: isMobile ? 18 : 22,
+    boxShadow: "0 6px 14px rgba(86, 118, 158, 0.08)",
   };
 }
 
@@ -625,18 +749,18 @@ function noticeBox(isMobile: boolean): React.CSSProperties {
     marginTop: isMobile ? 18 : 24,
     background: "#F8E8F0",
     border: "1px solid #EBC9D8",
-    borderRadius: isMobile ? 18 : 24,
-    padding: isMobile ? 16 : 22,
+    borderRadius: isMobile ? 18 : 22,
+    padding: isMobile ? 16 : 18,
   };
 }
 
 function contactDetailsBox(isMobile: boolean): React.CSSProperties {
   return {
-    marginTop: isMobile ? 24 : 42,
+    marginTop: isMobile ? 24 : 36,
     background: "#FFFFFF",
     border: "1px solid #E9E0D4",
-    borderRadius: isMobile ? 18 : 24,
-    padding: isMobile ? 16 : 22,
+    borderRadius: isMobile ? 18 : 22,
+    padding: isMobile ? 16 : 18,
     boxShadow: "0 10px 24px rgba(86, 118, 158, 0.06)",
   };
 }
@@ -645,18 +769,18 @@ function contactSummary(isMobile: boolean): React.CSSProperties {
   return {
     cursor: "pointer",
     color: "#2D2A3E",
-    fontSize: isMobile ? 20 : 26,
+    fontSize: isMobile ? 20 : 24,
     fontWeight: 800,
   };
 }
 
 function footer(isMobile: boolean): React.CSSProperties {
   return {
-    marginTop: isMobile ? 26 : 42,
+    marginTop: isMobile ? 26 : 36,
     background: "#F8E8F0",
     border: "1px solid #EBC9D8",
-    borderRadius: isMobile ? 18 : 24,
-    padding: isMobile ? 16 : 22,
+    borderRadius: isMobile ? 18 : 22,
+    padding: isMobile ? 16 : 18,
     display: "flex",
     justifyContent: "space-between",
     gap: 16,

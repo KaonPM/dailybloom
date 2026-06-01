@@ -30,6 +30,26 @@ type LearnerRow = {
   notes?: string | null;
 };
 
+type StationeryItem = {
+  id: number;
+  school_id: number;
+  classroom_id: number;
+  item_name: string;
+  quantity?: string | null;
+};
+
+type ChecklistItem = {
+  id: number;
+  school_id: number;
+  learner_id: string;
+  classroom_id: number;
+  stationery_item_id: number | null;
+  item_name: string;
+  quantity?: string | null;
+  received: boolean;
+  received_at?: string | null;
+};
+
 export default function LearnerProfilePage() {
   const params = useParams();
   const router = useRouter();
@@ -39,10 +59,19 @@ export default function LearnerProfilePage() {
   const schoolParam = searchParams.get("school");
 
   const [learner, setLearner] = useState<LearnerRow | null>(null);
+  const [schoolId, setSchoolId] = useState<number | null>(null);
+
   const [activeTab, setActiveTab] = useState<
     "overview" | "requirements" | "documents"
   >("overview");
+
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [itemName, setItemName] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [editingItem, setEditingItem] = useState<ChecklistItem | null>(null);
+
   const [loading, setLoading] = useState(true);
+  const [savingItem, setSavingItem] = useState(false);
 
   useEffect(() => {
     loadLearnerProfile();
@@ -61,6 +90,8 @@ export default function LearnerProfilePage() {
       return;
     }
 
+    setSchoolId(context.schoolId);
+
     const { data, error } = await supabase
       .from("learners")
       .select("*")
@@ -74,12 +105,217 @@ export default function LearnerProfilePage() {
       return;
     }
 
-    setLearner(data as LearnerRow);
+    const currentLearner = data as LearnerRow;
+    setLearner(currentLearner);
+
+    if (currentLearner.classroom_id) {
+      await syncAndFetchChecklist(
+        context.schoolId,
+        currentLearner.id,
+        Number(currentLearner.classroom_id)
+      );
+    }
+
     setLoading(false);
+  }
+
+  async function syncAndFetchChecklist(
+    currentSchoolId: number,
+    currentLearnerId: string,
+    currentClassroomId: number
+  ) {
+    const { data: templateItems, error: templateError } = await supabase
+      .from("class_stationery_items")
+      .select("*")
+      .eq("school_id", currentSchoolId)
+      .eq("classroom_id", currentClassroomId)
+      .order("id", { ascending: true });
+
+    if (templateError) {
+      alert(templateError.message);
+      return;
+    }
+
+    const { data: existingChecklist, error: checklistError } = await supabase
+      .from("learner_stationery_checklist")
+      .select("*")
+      .eq("school_id", currentSchoolId)
+      .eq("learner_id", currentLearnerId)
+      .eq("classroom_id", currentClassroomId)
+      .order("id", { ascending: true });
+
+    if (checklistError) {
+      alert(checklistError.message);
+      return;
+    }
+
+    const existing = (existingChecklist || []) as ChecklistItem[];
+    const templates = (templateItems || []) as StationeryItem[];
+
+    const missingTemplates = templates.filter((template) => {
+      return !existing.some(
+        (item) => Number(item.stationery_item_id) === Number(template.id)
+      );
+    });
+
+    if (missingTemplates.length > 0) {
+      const rowsToInsert = missingTemplates.map((template) => ({
+        school_id: currentSchoolId,
+        learner_id: currentLearnerId,
+        classroom_id: currentClassroomId,
+        stationery_item_id: template.id,
+        item_name: template.item_name,
+        quantity: template.quantity || null,
+        received: false,
+      }));
+
+      const { error: insertError } = await supabase
+        .from("learner_stationery_checklist")
+        .insert(rowsToInsert);
+
+      if (insertError) {
+        alert(insertError.message);
+        return;
+      }
+    }
+
+    await fetchChecklist(currentSchoolId, currentLearnerId, currentClassroomId);
+  }
+
+  async function fetchChecklist(
+    currentSchoolId: number,
+    currentLearnerId: string,
+    currentClassroomId: number
+  ) {
+    const { data, error } = await supabase
+      .from("learner_stationery_checklist")
+      .select("*")
+      .eq("school_id", currentSchoolId)
+      .eq("learner_id", currentLearnerId)
+      .eq("classroom_id", currentClassroomId)
+      .order("id", { ascending: true });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setChecklist((data || []) as ChecklistItem[]);
   }
 
   function goBack() {
     router.push(schoolParam ? `/children?school=${schoolParam}` : "/children");
+  }
+
+  function resetItemForm() {
+    setItemName("");
+    setQuantity("");
+    setEditingItem(null);
+  }
+
+  async function saveRequirementItem() {
+    if (!learner || !schoolId || !learner.classroom_id) return;
+
+    if (!itemName.trim()) {
+      alert("Please enter the item name.");
+      return;
+    }
+
+    setSavingItem(true);
+
+    if (editingItem) {
+      const { error } = await supabase
+        .from("learner_stationery_checklist")
+        .update({
+          item_name: itemName.trim(),
+          quantity: quantity.trim() || null,
+        })
+        .eq("id", editingItem.id)
+        .eq("school_id", schoolId)
+        .eq("learner_id", learner.id);
+
+      if (error) {
+        alert(error.message);
+        setSavingItem(false);
+        return;
+      }
+    } else {
+      const { error } = await supabase
+        .from("learner_stationery_checklist")
+        .insert([
+          {
+            school_id: schoolId,
+            learner_id: learner.id,
+            classroom_id: learner.classroom_id,
+            stationery_item_id: null,
+            item_name: itemName.trim(),
+            quantity: quantity.trim() || null,
+            received: false,
+          },
+        ]);
+
+      if (error) {
+        alert(error.message);
+        setSavingItem(false);
+        return;
+      }
+    }
+
+    resetItemForm();
+
+    await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
+    setSavingItem(false);
+  }
+
+  function startEditItem(item: ChecklistItem) {
+    setEditingItem(item);
+    setItemName(item.item_name || "");
+    setQuantity(item.quantity || "");
+  }
+
+  async function deleteRequirementItem(item: ChecklistItem) {
+    if (!learner || !schoolId || !learner.classroom_id) return;
+
+    const confirmed = confirm(`Delete ${item.item_name}?`);
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("learner_stationery_checklist")
+      .delete()
+      .eq("id", item.id)
+      .eq("school_id", schoolId)
+      .eq("learner_id", learner.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
+  }
+
+  async function toggleReceived(item: ChecklistItem) {
+    if (!learner || !schoolId || !learner.classroom_id) return;
+
+    const nextReceived = !item.received;
+
+    const { error } = await supabase
+      .from("learner_stationery_checklist")
+      .update({
+        received: nextReceived,
+        received_at: nextReceived ? new Date().toISOString() : null,
+      })
+      .eq("id", item.id)
+      .eq("school_id", schoolId)
+      .eq("learner_id", learner.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
   }
 
   if (loading) {
@@ -89,6 +325,10 @@ export default function LearnerProfilePage() {
   if (!learner) {
     return <p>Learner not found.</p>;
   }
+
+  const receivedCount = checklist.filter((item) => item.received).length;
+  const totalCount = checklist.length;
+  const outstandingCount = totalCount - receivedCount;
 
   return (
     <div>
@@ -114,7 +354,9 @@ export default function LearnerProfilePage() {
         <div style={summaryGrid}>
           <div className="db-card db-card-blue" style={summaryCard}>
             <strong>Requirements</strong>
-            <p style={summaryText}>Coming next</p>
+            <p style={summaryText}>
+              {totalCount > 0 ? `${receivedCount} / ${totalCount} received` : "No items yet"}
+            </p>
           </div>
 
           <div className="db-card db-card-green" style={summaryCard}>
@@ -124,7 +366,9 @@ export default function LearnerProfilePage() {
 
           <div className="db-card db-card-yellow" style={summaryCard}>
             <strong>Outstanding</strong>
-            <p style={summaryText}>Coming next</p>
+            <p style={summaryText}>
+              {totalCount > 0 ? `${outstandingCount} item(s)` : "No items yet"}
+            </p>
           </div>
         </div>
       </div>
@@ -231,37 +475,107 @@ export default function LearnerProfilePage() {
             style={{
               display: "flex",
               justifyContent: "space-between",
+              gap: 12,
               alignItems: "center",
               marginBottom: 12,
+              flexWrap: "wrap",
             }}
           >
-            <h3 style={{ ...sectionTitle, margin: 0 }}>Requirements</h3>
+            <div>
+              <h3 style={{ ...sectionTitle, margin: 0 }}>Requirements</h3>
+              <p className="db-helper" style={{ marginTop: 4 }}>
+                Track stationery items received for this learner.
+              </p>
+            </div>
+          </div>
 
-            <button type="button" className="db-button-primary">
-              + Add Item
+          <div style={formGrid}>
+            <input
+              className="db-input"
+              placeholder="Item name, e.g. Toilet Rolls"
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+            />
+
+            <input
+              className="db-input"
+              placeholder="Quantity, e.g. 10x"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+            />
+
+            <button
+              type="button"
+              className="db-button-primary"
+              onClick={saveRequirementItem}
+              disabled={savingItem}
+            >
+              {savingItem
+                ? "Saving..."
+                : editingItem
+                ? "Update Item"
+                : "+ Add Item"}
             </button>
+
+            {editingItem ? (
+              <button
+                type="button"
+                className="db-button-secondary"
+                onClick={resetItemForm}
+              >
+                Cancel
+              </button>
+            ) : null}
           </div>
 
-          <p className="db-helper">
-            Stationery requirements for this learner will appear here.
-          </p>
+          {checklist.length === 0 ? (
+            <p className="db-helper" style={{ marginTop: 14 }}>
+              No stationery items found yet. Add the first item above.
+            </p>
+          ) : (
+            <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+              {checklist.map((item) => (
+                <div key={item.id} style={requirementRow}>
+                  <button
+                    type="button"
+                    onClick={() => toggleReceived(item)}
+                    style={checkboxButton}
+                    aria-label="Toggle received status"
+                  >
+                    {item.received ? "✓" : ""}
+                  </button>
 
-          <div
-            style={{
-              background: "#FFFDFB",
-              border: "1px solid #F0E3D8",
-              borderRadius: 12,
-              padding: 12,
-              marginTop: 12,
-            }}
-          >
-            <strong>Example Items</strong>
+                  <div style={{ flex: 1 }}>
+                    <strong>{item.item_name}</strong>
+                    <p style={summaryText}>
+                      {item.quantity || "No quantity"} ·{" "}
+                      {item.received ? "Received" : "Outstanding"}
+                    </p>
+                  </div>
 
-            <div style={{ marginTop: 10 }}>☐ 10x Toilet Rolls</div>
-            <div style={{ marginTop: 8 }}>☐ 3x Tissue Boxes</div>
-            <div style={{ marginTop: 8 }}>☐ 6x Wipes</div>
-            <div style={{ marginTop: 8 }}>☐ 1x Glue Stick</div>
-          </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className="db-button-secondary"
+                      style={smallButton}
+                      onClick={() => startEditItem(item)}
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      type="button"
+                      className="db-button-secondary"
+                      style={smallButton}
+                      onClick={() => deleteRequirementItem(item)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -269,7 +583,8 @@ export default function LearnerProfilePage() {
         <div className="db-card db-card-yellow" style={{ padding: 16 }}>
           <h3 style={sectionTitle}>Documents</h3>
           <p className="db-helper">
-            Birth certificate, immunisation card, parent / guardian ID and contract uploads
+            Birth certificate, immunisation card, parent / guardian ID and
+            contract uploads will be added here next.
           </p>
         </div>
       )}
@@ -329,6 +644,13 @@ const grid = {
   gap: 8,
 };
 
+const formGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 8,
+  alignItems: "center",
+};
+
 const infoBox = {
   background: "#FFFDFB",
   border: "1px solid #F0E3D8",
@@ -350,3 +672,30 @@ const valueText = {
   fontSize: 12,
   lineHeight: 1.35,
 };
+
+const requirementRow = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  background: "#FFFDFB",
+  border: "1px solid #F0E3D8",
+  borderRadius: 12,
+  padding: "10px 12px",
+};
+
+const checkboxButton = {
+  width: 30,
+  height: 30,
+  borderRadius: 10,
+  border: "1px solid #CBEAF7",
+  background: "#FFFFFF",
+  color: "#2D2A3E",
+  fontWeight: 900 as const,
+  cursor: "pointer",
+};
+
+const smallButton = {
+  minHeight: 32,
+  padding: "7px 10px",
+  fontSize: 12,
+} as const;

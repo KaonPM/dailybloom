@@ -117,10 +117,9 @@ export default function Sidebar() {
         match: ["/principals"],
       },
       {
-        label: "Schools Needing Setup",
-        href: "/master?view=schools-needing-setup",
-        match: ["/master"],
-        view: "schools-needing-setup",
+      label: "Onboarding Pipeline",
+      href: "/onboarding",
+      match: ["/onboarding"],
       },
       {
         label: "Billing",

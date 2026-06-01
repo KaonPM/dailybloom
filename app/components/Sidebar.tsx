@@ -219,7 +219,16 @@ export default function Sidebar() {
         href: "/progress-reports",
         match: ["/progress-reports"],
       },
-      { label: "Reports", href: "/reports", match: ["/reports"] },
+      {
+        label: "Learner Requirements",
+        href: "/learner-requirements",
+        match: ["/learner-requirements"],
+      },
+      {
+        label: "Reports",
+        href: "/reports",
+        match: ["/reports"],
+      },
     ],
     []
   );

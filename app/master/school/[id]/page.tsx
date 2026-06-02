@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 import { getCurrentProfile } from "../../../lib/auth";
 
@@ -34,7 +34,6 @@ type SetupItem = {
 export default function MasterSchoolOverviewPage() {
   const router = useRouter();
   const params = useParams();
-  const searchParams = useSearchParams();
 
   const [school, setSchool] = useState<School | null>(null);
   const [stats, setStats] = useState<SchoolStats>({
@@ -49,14 +48,6 @@ export default function MasterSchoolOverviewPage() {
 
   const [principalCount, setPrincipalCount] = useState(0);
   const [loading, setLoading] = useState(true);
-
-  const [principalFullName, setPrincipalFullName] = useState(
-    searchParams.get("principalName") || ""
-  );
-  const [principalEmail, setPrincipalEmail] = useState(
-    searchParams.get("principalEmail") || ""
-  );
-  const [principalLoading, setPrincipalLoading] = useState(false);
 
   const schoolId = Number(params?.id);
 
@@ -175,39 +166,6 @@ export default function MasterSchoolOverviewPage() {
       .eq("role", "principal");
 
     setPrincipalCount(count || 0);
-  }
-
-  async function sendPrincipalInvite() {
-    if (!principalFullName.trim() || !principalEmail.trim()) {
-      alert("Please enter principal name and email.");
-      return;
-    }
-
-    setPrincipalLoading(true);
-
-    const response = await fetch("/api/invite-principal", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        full_name: principalFullName.trim(),
-        email: principalEmail.trim(),
-        school_id: schoolId,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      alert(result.error || "Could not send principal invite.");
-      setPrincipalLoading(false);
-      return;
-    }
-
-    await fetchPrincipalCount(schoolId);
-    setPrincipalLoading(false);
-    alert("Principal invite sent successfully.");
   }
 
   const setupItems = useMemo<SetupItem[]>(() => {
@@ -396,51 +354,6 @@ export default function MasterSchoolOverviewPage() {
         <StatCard label="Summaries" value={stats.summaries} />
         <StatCard label="Payments" value={stats.payments} />
         <StatCard label="Principals" value={principalCount} />
-      </div>
-
-      <div
-        style={{
-          background: "#FFFFFF",
-          border: "1px solid #F0E3D8",
-          borderRadius: "24px",
-          padding: "20px",
-          boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-          marginBottom: "24px",
-        }}
-      >
-        <h3 style={sectionTitle}>Continue Principal Setup</h3>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: "12px",
-            marginBottom: "14px",
-          }}
-        >
-          <input
-            className="db-input"
-            placeholder="Principal Full Name"
-            value={principalFullName}
-            onChange={(e) => setPrincipalFullName(e.target.value)}
-          />
-
-          <input
-            className="db-input"
-            placeholder="Principal Email"
-            value={principalEmail}
-            onChange={(e) => setPrincipalEmail(e.target.value)}
-          />
-        </div>
-
-        <button
-          type="button"
-          className="db-button-primary"
-          onClick={sendPrincipalInvite}
-          disabled={principalLoading}
-        >
-          {principalLoading ? "Sending..." : "Send Principal Invite"}
-        </button>
       </div>
 
       <div

@@ -669,17 +669,18 @@ export default function Sidebar() {
                 ))}
 
               {showWageFlowStaffManagement ? (
-                <a
-                   href="https://wageflow.lesedismartsolutions.co.za/login"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   style={navStyle({
-                   label: "Staff Management",
-                   href: "https://wageflow.lesedismartsolutions.co.za/login",
-              })}
-                >
-                👥 Staff Management
-                </a>
+              <a
+                href="https://wageflow.lesedismartsolutions.co.za/login"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                ...collapsibleButtonStyle("#7C3AED"),
+                textDecoration: "none",
+              }}
+              >
+              <span>👥 Staff Management</span>
+              <span>›</span>
+              </a>
               ) : null}
 
               {!isTeacher ? (

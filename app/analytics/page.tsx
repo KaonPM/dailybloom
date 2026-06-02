@@ -2,6 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 import SubscriptionGuard from "../components/SubscriptionGuard";
@@ -12,6 +23,7 @@ type LearnerRow = {
   class?: string | null;
   classroom_id?: number | null;
   date_of_birth?: string | null;
+  created_at?: string | null;
 };
 
 type TeacherRow = {
@@ -26,7 +38,7 @@ type AttendanceRow = {
   learner_id?: string | null;
   learner_name?: string | null;
   status?: string | null;
-  date?: string | null;
+  attendance_date?: string | null;
 };
 
 type TeacherAttendanceRow = {
@@ -65,6 +77,11 @@ type DocumentRow = {
   learner_id?: string | null;
   document_type?: string | null;
   file_url?: string | null;
+};
+
+type ChartRow = {
+  month: string;
+  value: number;
 };
 
 const requiredDocuments = [
@@ -121,7 +138,7 @@ export default function AnalyticsPage() {
     ] = await Promise.all([
       supabase
         .from("learners")
-        .select("id, name, class, classroom_id, date_of_birth")
+        .select("id, name, class, classroom_id, date_of_birth, created_at")
         .eq("school_id", context.schoolId)
         .or("is_deleted.is.null,is_deleted.eq.false"),
 
@@ -133,7 +150,7 @@ export default function AnalyticsPage() {
 
       supabase
         .from("attendance")
-        .select("id, learner_id, learner_name, status, date")
+        .select("id, learner_id, learner_name, status, attendance_date")
         .eq("school_id", context.schoolId),
 
       supabase
@@ -339,6 +356,67 @@ export default function AnalyticsPage() {
     documents,
   ]);
 
+  const learnerAttendanceTrend = useMemo(() => {
+    return buildAttendanceTrend(attendance, "attendance_date");
+  }, [attendance]);
+
+  const teacherAttendanceTrend = useMemo(() => {
+    return buildAttendanceTrend(teacherAttendance, "attendance_date");
+  }, [teacherAttendance]);
+
+  const feeCollectionTrend = useMemo(() => {
+    const monthMap = new Map<string, { paid: number; total: number }>();
+
+    payments.forEach((payment) => {
+      const monthKey = getMonthKey(
+        payment.payment_date ||
+          `${payment.payment_year || new Date().getFullYear()}-${String(
+            payment.payment_month || 1
+          ).padStart(2, "0")}-01`
+      );
+
+      if (!monthKey) return;
+
+      if (!monthMap.has(monthKey)) {
+        monthMap.set(monthKey, { paid: 0, total: 0 });
+      }
+
+      const entry = monthMap.get(monthKey);
+
+      if (!entry) return;
+
+      entry.total += 1;
+
+      if (String(payment.status || "").toLowerCase() === "paid") {
+        entry.paid += 1;
+      }
+    });
+
+    return Array.from(monthMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-6)
+      .map(([month, value]) => ({
+        month: formatMonthLabel(month),
+        value: value.total > 0 ? Math.round((value.paid / value.total) * 100) : 0,
+      }));
+  }, [payments]);
+
+  const learnerGrowthTrend = useMemo(() => {
+    const months = getLastSixMonthKeys();
+
+    return months.map((monthKey) => {
+      const total = learners.filter((learner) => {
+        if (!learner.created_at) return false;
+        return getMonthKey(learner.created_at) <= monthKey;
+      }).length;
+
+      return {
+        month: formatMonthLabel(monthKey),
+        value: total,
+      };
+    });
+  }, [learners]);
+
   if (loading) {
     return <p>Loading school analytics...</p>;
   }
@@ -367,100 +445,59 @@ export default function AnalyticsPage() {
         </div>
 
         <div style={grid}>
-          <InsightCard
-            title="Learners"
-            value={analytics.totalLearners}
-            helper="Active learners"
-          />
+          <InsightCard title="Learners" value={analytics.totalLearners} helper="Active learners" />
+          <InsightCard title="Teachers" value={analytics.totalTeachers} helper="Active teachers" />
+          <InsightCard title="Learner Attendance Rate" value={`${analytics.learnerAttendanceRate}%`} helper="Learner present vs absent records" />
+          <InsightCard title="Teacher Attendance Rate" value={`${analytics.teacherAttendanceRate}%`} helper="Teacher present vs absent records" />
+          <InsightCard title="Teachers Present Today" value={analytics.teachersPresentToday} helper="Marked present today" />
+          <InsightCard title="Teachers Absent Today" value={analytics.teachersAbsentToday} helper="Marked absent today" />
+          <InsightCard title="Collection Rate" value={`${analytics.collectionRate}%`} helper="Paid payment records" />
+          <InsightCard title="Daily Summary Send Rate" value={`${analytics.summarySendRate}%`} helper="Summaries marked as sent" />
+          <InsightCard title="Document Completion" value={`${analytics.documentCompletionRate}%`} helper="Required documents uploaded" />
+          <InsightCard title="Fees Collected" value={`R${analytics.totalCollected.toFixed(2)}`} helper="Paid records total" />
+          <InsightCard title="Outstanding Fees" value={`R${analytics.totalOutstanding.toFixed(2)}`} helper="Pending, partial and overdue records" />
+          <InsightCard title="Unpaid Records" value={analytics.unpaidCount} helper="Payment records needing follow-up" />
+          <InsightCard title="Learner Absence Records" value={analytics.learnerAbsentCount} helper="Total learner absent records" />
+          <InsightCard title="Teacher Absence Records" value={analytics.teacherAbsentCount} helper="Total teacher absence records" />
+          <InsightCard title="Outstanding Stationery" value={analytics.outstandingStationery} helper="Items not yet received" />
+          <InsightCard title="Missing Documents" value={analytics.missingDocuments} helper="Required learner documents missing" />
+        </div>
 
-          <InsightCard
-            title="Teachers"
-            value={analytics.totalTeachers}
-            helper="Active teachers"
-          />
+        <div className="db-card db-card-blue" style={{ padding: 18, marginTop: 18 }}>
+          <h3 style={sectionTitle}>Attendance Trends</h3>
 
-          <InsightCard
-            title="Learner Attendance Rate"
-            value={`${analytics.learnerAttendanceRate}%`}
-            helper="Learner present vs absent records"
-          />
+          <div style={chartGrid}>
+            <AnalyticsChart
+              title="Learner Attendance Trend"
+              data={learnerAttendanceTrend}
+              suffix="%"
+            />
 
-          <InsightCard
-            title="Teacher Attendance Rate"
-            value={`${analytics.teacherAttendanceRate}%`}
-            helper="Teacher present vs absent records"
-          />
+            <AnalyticsChart
+              title="Teacher Attendance Trend"
+              data={teacherAttendanceTrend}
+              suffix="%"
+            />
+          </div>
+        </div>
 
-          <InsightCard
-            title="Teachers Present Today"
-            value={analytics.teachersPresentToday}
-            helper="Marked present today"
-          />
+        <div className="db-card db-card-green" style={{ padding: 18, marginTop: 18 }}>
+          <h3 style={sectionTitle}>Financial Trend</h3>
 
-          <InsightCard
-            title="Teachers Absent Today"
-            value={analytics.teachersAbsentToday}
-            helper="Marked absent today"
+          <AnalyticsChart
+            title="Fee Collection Rate"
+            data={feeCollectionTrend}
+            suffix="%"
+            chartType="bar"
           />
+        </div>
 
-          <InsightCard
-            title="Collection Rate"
-            value={`${analytics.collectionRate}%`}
-            helper="Paid payment records"
-          />
+        <div className="db-card db-card-yellow" style={{ padding: 18, marginTop: 18 }}>
+          <h3 style={sectionTitle}>School Growth</h3>
 
-          <InsightCard
-            title="Daily Summary Send Rate"
-            value={`${analytics.summarySendRate}%`}
-            helper="Summaries marked as sent"
-          />
-
-          <InsightCard
-            title="Document Completion"
-            value={`${analytics.documentCompletionRate}%`}
-            helper="Required documents uploaded"
-          />
-
-          <InsightCard
-            title="Fees Collected"
-            value={`R${analytics.totalCollected.toFixed(2)}`}
-            helper="Paid records total"
-          />
-
-          <InsightCard
-            title="Outstanding Fees"
-            value={`R${analytics.totalOutstanding.toFixed(2)}`}
-            helper="Pending, partial and overdue records"
-          />
-
-          <InsightCard
-            title="Unpaid Records"
-            value={analytics.unpaidCount}
-            helper="Payment records needing follow-up"
-          />
-
-          <InsightCard
-            title="Learner Absence Records"
-            value={analytics.learnerAbsentCount}
-            helper="Total learner absent records"
-          />
-
-          <InsightCard
-            title="Teacher Absence Records"
-            value={analytics.teacherAbsentCount}
-            helper="Total teacher absence records"
-          />
-
-          <InsightCard
-            title="Outstanding Stationery"
-            value={analytics.outstandingStationery}
-            helper="Items not yet received"
-          />
-
-          <InsightCard
-            title="Missing Documents"
-            value={analytics.missingDocuments}
-            helper="Required learner documents missing"
+          <AnalyticsChart
+            title="Learner Growth Trend"
+            data={learnerGrowthTrend}
           />
         </div>
 
@@ -480,9 +517,7 @@ export default function AnalyticsPage() {
             )}
 
             {analytics.outstandingStationery > 0 && (
-              <li>
-                {analytics.outstandingStationery} stationery item(s) still outstanding.
-              </li>
+              <li>{analytics.outstandingStationery} stationery item(s) still outstanding.</li>
             )}
 
             {analytics.unpaidCount > 0 && (
@@ -525,10 +560,140 @@ function InsightCard({
   );
 }
 
+function AnalyticsChart({
+  title,
+  data,
+  suffix = "",
+  chartType = "line",
+}: {
+  title: string;
+  data: ChartRow[];
+  suffix?: string;
+  chartType?: "line" | "bar";
+}) {
+  return (
+    <div style={chartCard}>
+      <strong>{title}</strong>
+
+      {data.length === 0 ? (
+        <p style={smallText}>No trend data available yet.</p>
+      ) : (
+        <div style={{ width: "100%", height: 260, marginTop: 12 }}>
+          <ResponsiveContainer>
+            {chartType === "bar" ? (
+              <BarChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip formatter={(value) => `${value}${suffix}`} />
+                <Bar dataKey="value" />
+              </BarChart>
+            ) : (
+              <LineChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip formatter={(value) => `${value}${suffix}`} />
+                <Line type="monotone" dataKey="value" strokeWidth={2} />
+              </LineChart>
+            )}
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function buildAttendanceTrend(
+  rows: Array<{ status?: string | null; attendance_date?: string | null }>,
+  dateKey: "attendance_date"
+) {
+  const monthMap = new Map<string, { present: number; absent: number }>();
+
+  rows.forEach((row) => {
+    const monthKey = getMonthKey(row[dateKey] || "");
+
+    if (!monthKey) return;
+
+    if (!monthMap.has(monthKey)) {
+      monthMap.set(monthKey, { present: 0, absent: 0 });
+    }
+
+    const entry = monthMap.get(monthKey);
+
+    if (!entry) return;
+
+    const status = String(row.status || "").toLowerCase();
+
+    if (status === "present") entry.present += 1;
+    if (status === "absent") entry.absent += 1;
+  });
+
+  return Array.from(monthMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-6)
+    .map(([month, value]) => {
+      const total = value.present + value.absent;
+
+      return {
+        month: formatMonthLabel(month),
+        value: total > 0 ? Math.round((value.present / total) * 100) : 0,
+      };
+    });
+}
+
+function getMonthKey(dateValue: string) {
+  if (!dateValue) return "";
+
+  const dateOnly = String(dateValue).split("T")[0];
+
+  if (dateOnly.length < 7) return "";
+
+  return dateOnly.slice(0, 7);
+}
+
+function formatMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+
+  if (!year || !month) return monthKey;
+
+  return new Date(year, month - 1, 1).toLocaleString("en-US", {
+    month: "short",
+  });
+}
+
+function getLastSixMonthKeys() {
+  const months: string[] = [];
+  const today = new Date();
+
+  for (let index = 5; index >= 0; index--) {
+    const date = new Date(today.getFullYear(), today.getMonth() - index, 1);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+
+    months.push(`${year}-${month}`);
+  }
+
+  return months;
+}
+
 const grid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 12,
+};
+
+const chartGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+  gap: 14,
+};
+
+const chartCard = {
+  background: "#FFFDFB",
+  border: "1px solid #F0E3D8",
+  borderRadius: 16,
+  padding: 16,
 };
 
 const sectionTitle = {

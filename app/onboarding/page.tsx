@@ -22,15 +22,16 @@ export default function OnboardingPage() {
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [activatingId, setActivatingId] = useState<string | null>(null);
-  const [visibleCount, setVisibleCount] = useState(5);
+
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  const [pendingVisibleCount, setPendingVisibleCount] = useState(5);
+  const [completedVisibleCount, setCompletedVisibleCount] = useState(5);
 
   useEffect(() => {
     loadPage();
   }, []);
-
-  const visibleRows = useMemo(() => {
-    return rows.slice(0, visibleCount);
-  }, [rows, visibleCount]);
 
   async function loadPage() {
     const { profile, error } = await getCurrentProfile();
@@ -98,7 +99,8 @@ export default function OnboardingPage() {
         package_name: school.package_name || school.package || "Not added",
         subscription_amount:
           school.subscription_amount || school.subscription || "Not added",
-        setup_fee_amount: school.setup_fee_amount || school.setup_fee || "Not added",
+        setup_fee_amount:
+          school.setup_fee_amount || school.setup_fee || "Not added",
         school_status: school.status || "inactive",
         onboarding_id: record?.id || null,
         onboarding_status: record?.onboarding_status || "Not started",
@@ -157,6 +159,7 @@ export default function OnboardingPage() {
 
     await fetchOnboarding();
     setSavingId(null);
+    setEditingId(null);
     alert("Onboarding updated.");
   }
 
@@ -214,6 +217,7 @@ export default function OnboardingPage() {
 
     await fetchOnboarding();
     setActivatingId(null);
+    setEditingId(null);
 
     if (!emailResponse.ok) {
       alert(
@@ -227,6 +231,17 @@ export default function OnboardingPage() {
     alert("School activated and welcome email sent.");
   }
 
+  const pendingRows = useMemo(() => {
+    return rows.filter((row) => row.onboarding_status !== "Activated");
+  }, [rows]);
+
+  const completedRows = useMemo(() => {
+    return rows.filter((row) => row.onboarding_status === "Activated");
+  }, [rows]);
+
+  const visiblePendingRows = pendingRows.slice(0, pendingVisibleCount);
+  const visibleCompletedRows = completedRows.slice(0, completedVisibleCount);
+
   if (checkingAccess) {
     return <p>Loading...</p>;
   }
@@ -239,275 +254,388 @@ export default function OnboardingPage() {
       >
         <h1 className="db-page-title">School Onboarding Pipeline</h1>
         <p className="db-page-subtitle">
-          Manage approved schools from signup approval until activation.
+          View pending onboarding and completed onboarding separately.
         </p>
       </div>
 
-      <div
-        className="db-card db-card-blue"
-        style={{ padding: "16px", overflowX: "auto" }}
-      >
-        {rows.length === 0 ? (
-          <p className="db-helper">No schools found yet.</p>
-        ) : (
-          <>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                minWidth: "1180px",
-              }}
-            >
-              <thead>
-                <tr>
-                  {[
-                    "School",
-                    "Principal",
-                    "Package",
-                    "Status",
-                    "Fees",
-                    "Setup Date",
-                    "Documents",
-                    "Notes",
-                    "Action",
-                  ].map((heading) => (
-                    <th key={heading} style={thStyle}>
-                      {heading}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
+      <OnboardingSection
+        title="Pending Onboarding"
+        rows={visiblePendingRows}
+        total={pendingRows.length}
+        expandedId={expandedId}
+        editingId={editingId}
+        savingId={savingId}
+        activatingId={activatingId}
+        setExpandedId={setExpandedId}
+        setEditingId={setEditingId}
+        updateLocalRow={updateLocalRow}
+        saveRow={saveRow}
+        activateSchool={activateSchool}
+      />
 
-              <tbody>
-                {visibleRows.map((row) => (
-                  <tr key={row.school_id}>
-                    <td style={tdStyle}>
-                      <strong>{row.school_name}</strong>
-                      <p style={smallText}>School status: {row.school_status}</p>
-                      <Link
-                        href={`/master/school/${row.school_id}`}
-                        style={smallLink}
-                      >
-                        Open overview
-                      </Link>
-                    </td>
+      {pendingRows.length > pendingVisibleCount ? (
+        <LoadMoreButtons
+          onLoad5={() => setPendingVisibleCount((current) => current + 5)}
+          onLoad10={() => setPendingVisibleCount((current) => current + 10)}
+        />
+      ) : null}
 
-                    <td style={tdStyle}>
-                      <strong>{row.principal_name}</strong>
-                      {row.principal_email ? (
-                        <p style={smallText}>{row.principal_email}</p>
-                      ) : null}
-                    </td>
+      <OnboardingSection
+        title="Completed Onboarding"
+        rows={visibleCompletedRows}
+        total={completedRows.length}
+        expandedId={expandedId}
+        editingId={editingId}
+        savingId={savingId}
+        activatingId={activatingId}
+        setExpandedId={setExpandedId}
+        setEditingId={setEditingId}
+        updateLocalRow={updateLocalRow}
+        saveRow={saveRow}
+        activateSchool={activateSchool}
+      />
 
-                    <td style={tdStyle}>{row.package_name}</td>
-
-                    <td style={tdStyle}>
-                      <select
-                        className="db-input"
-                        value={row.onboarding_status}
-                        onChange={(e) =>
-                          updateLocalRow(
-                            row.school_id,
-                            "onboarding_status",
-                            e.target.value
-                          )
-                        }
-                      >
-                        {statuses.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-
-                    <td style={tdStyle}>
-                      <p style={smallText}>Setup: {row.setup_fee_amount}</p>
-                      <label style={checkLabel}>
-                        <input
-                          type="checkbox"
-                          checked={row.setup_fee_paid}
-                          onChange={(e) =>
-                            updateLocalRow(
-                              row.school_id,
-                              "setup_fee_paid",
-                              e.target.checked
-                            )
-                          }
-                        />
-                        Setup paid
-                      </label>
-
-                      <p style={smallText}>Sub: {row.subscription_amount}</p>
-                      <label style={checkLabel}>
-                        <input
-                          type="checkbox"
-                          checked={row.subscription_paid}
-                          onChange={(e) =>
-                            updateLocalRow(
-                              row.school_id,
-                              "subscription_paid",
-                              e.target.checked
-                            )
-                          }
-                        />
-                        Sub paid
-                      </label>
-                    </td>
-
-                    <td style={tdStyle}>
-                      <input
-                        className="db-input"
-                        type="date"
-                        value={row.setup_date}
-                        onChange={(e) =>
-                          updateLocalRow(
-                            row.school_id,
-                            "setup_date",
-                            e.target.value
-                          )
-                        }
-                      />
-                    </td>
-
-                    <td style={tdStyle}>
-                      <div style={{ display: "grid", gap: "6px" }}>
-                        {[
-                          ["logo_received", "Logo"],
-                          ["brand_colours_received", "Colours"],
-                          ["learner_list_received", "Learners"],
-                          ["teacher_list_received", "Teachers"],
-                          ["classroom_list_received", "Classes"],
-                          ["year_planner_received", "Planner"],
-                        ].map(([field, label]) => (
-                          <label key={field} style={checkLabel}>
-                            <input
-                              type="checkbox"
-                              checked={row[field]}
-                              onChange={(e) =>
-                                updateLocalRow(
-                                  row.school_id,
-                                  field,
-                                  e.target.checked
-                                )
-                              }
-                            />
-                            {label}
-                          </label>
-                        ))}
-                      </div>
-                    </td>
-
-                    <td style={tdStyle}>
-                      <textarea
-                        className="db-input"
-                        rows={3}
-                        placeholder="Notes"
-                        value={row.onboarding_notes}
-                        onChange={(e) =>
-                          updateLocalRow(
-                            row.school_id,
-                            "onboarding_notes",
-                            e.target.value
-                          )
-                        }
-                      />
-                    </td>
-
-                    <td style={tdStyle}>
-                      <div style={{ display: "grid", gap: "8px" }}>
-                        <button
-                          className="db-button-primary"
-                          onClick={() => saveRow(row)}
-                          disabled={savingId === String(row.school_id)}
-                        >
-                          {savingId === String(row.school_id)
-                            ? "Saving..."
-                            : "Save"}
-                        </button>
-
-                        {row.onboarding_status === "Ready for activation" &&
-                          row.school_status !== "active" && (
-                            <button
-                              type="button"
-                              className="db-button-primary"
-                              onClick={() => activateSchool(row)}
-                              disabled={activatingId === String(row.school_id)}
-                            >
-                              {activatingId === String(row.school_id)
-                                ? "Activating..."
-                                : "Activate School"}
-                            </button>
-                          )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {visibleCount < rows.length && (
-              <button
-                type="button"
-                style={{ ...secondaryButton, marginTop: "14px" }}
-                onClick={() => setVisibleCount((current) => current + 5)}
-              >
-                Show Next 5
-              </button>
-            )}
-          </>
-        )}
-      </div>
+      {completedRows.length > completedVisibleCount ? (
+        <LoadMoreButtons
+          onLoad5={() => setCompletedVisibleCount((current) => current + 5)}
+          onLoad10={() => setCompletedVisibleCount((current) => current + 10)}
+        />
+      ) : null}
     </div>
   );
 }
 
-const thStyle = {
-  textAlign: "left" as const,
-  padding: "10px",
-  borderBottom: "1px solid rgba(0,0,0,0.08)",
+function OnboardingSection({
+  title,
+  rows,
+  total,
+  expandedId,
+  editingId,
+  savingId,
+  activatingId,
+  setExpandedId,
+  setEditingId,
+  updateLocalRow,
+  saveRow,
+  activateSchool,
+}: any) {
+  return (
+    <div
+      className="db-card db-card-blue"
+      style={{ padding: "18px", marginBottom: "18px" }}
+    >
+      <h3 style={sectionTitle}>
+        {title} ({total})
+      </h3>
+
+      {rows.length === 0 ? (
+        <p className="db-helper">No schools in this section.</p>
+      ) : (
+        <div style={{ display: "grid", gap: "12px" }}>
+          {rows.map((row: any) => {
+            const isExpanded = expandedId === row.school_id;
+            const isEditing = editingId === row.school_id;
+
+            return (
+              <div key={row.school_id} className="db-list-card">
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <strong style={{ fontSize: "17px" }}>
+                    {row.school_name || "Unnamed school"}
+                  </strong>
+
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      style={smallButton}
+                      onClick={() => {
+                        setExpandedId(isExpanded ? null : row.school_id);
+                        setEditingId(null);
+                      }}
+                    >
+                      {isExpanded ? "Hide" : "View"}
+                    </button>
+
+                    <button
+                      type="button"
+                      style={smallButton}
+                      onClick={() => {
+                        setEditingId(isEditing ? null : row.school_id);
+                        setExpandedId(row.school_id);
+                      }}
+                    >
+                      {isEditing ? "Close Edit" : "Edit"}
+                    </button>
+
+                    <Link
+                      href={`/master/school/${row.school_id}`}
+                      style={primaryButton}
+                    >
+                      Open School Overview
+                    </Link>
+                  </div>
+                </div>
+
+                {isExpanded ? (
+                  <div style={detailsPanel}>
+                    <p style={textStyle}>
+                      Principal: {row.principal_name || "Not added"}
+                    </p>
+                    <p style={textStyle}>
+                      Email: {row.principal_email || "Not added"}
+                    </p>
+                    <p style={textStyle}>Package: {row.package_name}</p>
+                    <p style={textStyle}>
+                      School Status: {row.school_status || "inactive"}
+                    </p>
+                    <p style={textStyle}>
+                      Onboarding Status: {row.onboarding_status}
+                    </p>
+                    <p style={textStyle}>
+                      Setup Fee Paid: {row.setup_fee_paid ? "Yes" : "No"}
+                    </p>
+                    <p style={textStyle}>
+                      Subscription Paid: {row.subscription_paid ? "Yes" : "No"}
+                    </p>
+                    <p style={textStyle}>
+                      Setup Date: {row.setup_date || "Not set"}
+                    </p>
+                    <p style={textStyle}>
+                      Notes: {row.onboarding_notes || "No notes"}
+                    </p>
+                  </div>
+                ) : null}
+
+                {isEditing ? (
+                  <div style={editPanel}>
+                    <label style={labelStyle}>Onboarding Status</label>
+                    <select
+                      className="db-input"
+                      value={row.onboarding_status}
+                      onChange={(e) =>
+                        updateLocalRow(
+                          row.school_id,
+                          "onboarding_status",
+                          e.target.value
+                        )
+                      }
+                    >
+                      {statuses.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label style={checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={row.setup_fee_paid}
+                        onChange={(e) =>
+                          updateLocalRow(
+                            row.school_id,
+                            "setup_fee_paid",
+                            e.target.checked
+                          )
+                        }
+                      />
+                      Setup fee paid
+                    </label>
+
+                    <label style={checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={row.subscription_paid}
+                        onChange={(e) =>
+                          updateLocalRow(
+                            row.school_id,
+                            "subscription_paid",
+                            e.target.checked
+                          )
+                        }
+                      />
+                      Subscription paid
+                    </label>
+
+                    <label style={labelStyle}>Setup Date</label>
+                    <input
+                      className="db-input"
+                      type="date"
+                      value={row.setup_date}
+                      onChange={(e) =>
+                        updateLocalRow(row.school_id, "setup_date", e.target.value)
+                      }
+                    />
+
+                    <div style={documentGrid}>
+                      {[
+                        ["logo_received", "Logo received"],
+                        ["brand_colours_received", "Brand colours received"],
+                        ["learner_list_received", "Learner list received"],
+                        ["teacher_list_received", "Teacher list received"],
+                        ["classroom_list_received", "Classroom list received"],
+                        ["year_planner_received", "Year planner received"],
+                      ].map(([field, label]) => (
+                        <label key={field} style={checkLabel}>
+                          <input
+                            type="checkbox"
+                            checked={row[field]}
+                            onChange={(e) =>
+                              updateLocalRow(
+                                row.school_id,
+                                field,
+                                e.target.checked
+                              )
+                            }
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+
+                    <label style={labelStyle}>Notes</label>
+                    <textarea
+                      className="db-input"
+                      rows={3}
+                      value={row.onboarding_notes}
+                      onChange={(e) =>
+                        updateLocalRow(
+                          row.school_id,
+                          "onboarding_notes",
+                          e.target.value
+                        )
+                      }
+                    />
+
+                    <div style={{ display: "grid", gap: "8px", marginTop: "10px" }}>
+                      <button
+                        type="button"
+                        className="db-button-primary"
+                        onClick={() => saveRow(row)}
+                        disabled={savingId === String(row.school_id)}
+                      >
+                        {savingId === String(row.school_id)
+                          ? "Saving..."
+                          : "Save Onboarding"}
+                      </button>
+
+                      {row.onboarding_status === "Ready for activation" &&
+                      row.school_status !== "active" ? (
+                        <button
+                          type="button"
+                          className="db-button-primary"
+                          onClick={() => activateSchool(row)}
+                          disabled={activatingId === String(row.school_id)}
+                        >
+                          {activatingId === String(row.school_id)
+                            ? "Activating..."
+                            : "Activate School"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LoadMoreButtons({
+  onLoad5,
+  onLoad10,
+}: {
+  onLoad5: () => void;
+  onLoad10: () => void;
+}) {
+  return (
+    <div style={{ display: "flex", gap: "10px", marginBottom: "18px" }}>
+      <button type="button" style={smallButton} onClick={onLoad5}>
+        Load 5 More
+      </button>
+
+      <button type="button" style={smallButton} onClick={onLoad10}>
+        Load 10 More
+      </button>
+    </div>
+  );
+}
+
+const sectionTitle = {
+  marginTop: 0,
+  marginBottom: "14px",
   color: "var(--db-text)",
-  fontSize: "13px",
+  fontSize: "22px",
   fontWeight: 800 as const,
 };
 
-const tdStyle = {
-  padding: "10px",
-  borderBottom: "1px solid rgba(0,0,0,0.06)",
-  verticalAlign: "top" as const,
+const textStyle = {
+  margin: "6px 0 0 0",
   color: "var(--db-text-soft)",
-  fontSize: "13px",
 };
 
-const smallText = {
-  margin: "4px 0",
-  color: "var(--db-text-soft)",
-  fontSize: "12px",
+const detailsPanel = {
+  marginTop: "14px",
+  paddingTop: "14px",
+  borderTop: "1px solid #F0E3D8",
+};
+
+const editPanel = {
+  marginTop: "14px",
+  paddingTop: "14px",
+  borderTop: "1px solid #F0E3D8",
+  display: "grid",
+  gap: "10px",
+};
+
+const documentGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "8px",
+};
+
+const labelStyle = {
+  display: "block",
+  color: "var(--db-text)",
+  fontWeight: 700,
+  fontSize: "13px",
 };
 
 const checkLabel = {
   display: "flex",
   alignItems: "center",
-  gap: "6px",
-  fontSize: "12px",
+  gap: "8px",
   color: "var(--db-text-soft)",
+  fontSize: "13px",
 };
 
-const smallLink = {
-  display: "inline-block",
-  marginTop: "4px",
-  color: "var(--db-text)",
-  fontSize: "12px",
-  fontWeight: 700,
-  textDecoration: "underline",
-};
-
-const secondaryButton = {
-  border: "1px solid #E3D9CD",
+const smallButton = {
   background: "#FFFFFF",
-  color: "#5B5675",
+  color: "#2D2A3E",
+  border: "1px solid #E3D9CD",
   borderRadius: "12px",
-  padding: "10px 14px",
+  padding: "9px 12px",
   fontWeight: 600,
   cursor: "pointer",
+};
+
+const primaryButton = {
+  textDecoration: "none",
+  background: "#7CCCF3",
+  color: "#2D2A3E",
+  border: "1px solid #CBEAF7",
+  borderRadius: "12px",
+  padding: "9px 12px",
+  fontWeight: 600,
+  display: "inline-block",
 };

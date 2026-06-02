@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resolveSchoolContext } from "../lib/school-context";
+import SubscriptionGuard from "../components/SubscriptionGuard";
 
 type PaymentItem = {
   id: number;
@@ -404,418 +405,420 @@ export default function PaymentsPage() {
   }
 
   return (
-    <div>
-      <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <h2 className="db-page-title">Payments</h2>
-            <p className="db-page-subtitle">
-              Record payments and schedule SMS reminders for unpaid learners.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            className="db-button-primary"
-            onClick={() => setShowRecordForm((prev) => !prev)}
+    <SubscriptionGuard schoolId={schoolId} featureKey="payment_tracking">
+      <div>
+        <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
           >
-            {showRecordForm ? "Close" : "Record Payment"}
-          </button>
-        </div>
-      </div>
-
-      <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            flexWrap: "wrap",
-            alignItems: "center",
-            marginBottom: 14,
-          }}
-        >
-          <div>
-            <h3 style={sectionTitle}>Payment Month</h3>
-            <p style={smallText}>Choose the month used for paid and unpaid counts.</p>
-          </div>
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <select
-              className="db-input"
-              value={selectedReminderMonth}
-              onChange={(e) => setSelectedReminderMonth(e.target.value)}
-              style={{ marginBottom: 0, minWidth: 140 }}
-            >
-              {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-                <option key={month} value={month}>
-                  Month {month}
-                </option>
-              ))}
-            </select>
-
-            <input
-              className="db-input"
-              type="number"
-              placeholder="Year"
-              value={selectedReminderYear}
-              onChange={(e) => setSelectedReminderYear(e.target.value)}
-              style={{ marginBottom: 0, width: 120 }}
-            />
-          </div>
-        </div>
-
-        <div style={statsGrid}>
-          <InsightCard
-            label="Paid Learners"
-            value={paidLearners.length}
-            helper="Marked paid for selected month"
-            background="#EEF9EE"
-            border="#D3EDD4"
-          />
-
-          <InsightCard
-            label="Unpaid Learners"
-            value={unpaidLearners.length}
-            helper="Need payment follow-up"
-            background="#F8E8F0"
-            border="#EBC9D8"
-          />
-        </div>
-      </div>
-
-      <div
-        ref={formRef}
-        className="db-card db-card-green"
-        style={{
-          padding: 16,
-          marginBottom: 18,
-          display: showRecordForm ? "block" : "none",
-          border: highlightRecordForm ? "2px solid #7CCCF3" : "1px solid rgba(0,0,0,0.06)",
-          boxShadow: highlightRecordForm
-            ? "0 0 0 4px rgba(124, 204, 243, 0.18)"
-            : undefined,
-          transition: "all 0.2s ease",
-        }}
-      >
-        <h3 style={sectionTitle}>Record Payment</h3>
-
-        {lastSavedSuccess ? (
-          <div style={successBox}>
-            <p style={{ margin: 0, color: "#2D2A3E", fontSize: 14, fontWeight: 700 }}>
-              Payment recorded successfully.
-            </p>
-
-            {shouldShowBackToOverview ? (
-              <button
-                type="button"
-                className="db-button-primary"
-                style={{ marginTop: 10 }}
-                onClick={() => router.push(`/master/school/${schoolId}`)}
-              >
-                Back to School Overview
-              </button>
-            ) : null}
-
-            {shouldShowBackToDashboard ? (
-              <button
-                type="button"
-                className="db-button-primary"
-                style={{ marginTop: 10 }}
-                onClick={() => router.push("/dashboard")}
-              >
-                Back to Dashboard
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-
-        <div style={formGrid}>
-          <div>
-            <p style={labelText}>Learner Name</p>
-            <input
-              ref={learnerInputRef}
-              className="db-input"
-              placeholder="Learner name"
-              value={learnerName}
-              onChange={(e) => handleLearnerSelection(e.target.value)}
-              list="learner-options"
-            />
-
-            <datalist id="learner-options">
-              {learners.map((learner) => (
-                <option key={learner.id} value={learner.name || ""} />
-              ))}
-            </datalist>
-          </div>
-
-          <div>
-            <p style={labelText}>Parent Phone Number</p>
-            <input
-              className="db-input"
-              placeholder="Parent phone number"
-              value={parentPhone}
-              onChange={(e) => setParentPhone(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <p style={labelText}>Amount</p>
-            <input
-              className="db-input"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <p style={labelText}>Payment Date</p>
-            <input
-              className="db-input"
-              type="date"
-              value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <p style={labelText}>Month</p>
-            <select
-              className="db-input"
-              value={paymentMonth}
-              onChange={(e) => setPaymentMonth(e.target.value)}
-            >
-              {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-                <option key={month} value={month}>
-                  Month {month}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <p style={labelText}>Year</p>
-            <input
-              className="db-input"
-              type="number"
-              placeholder="Payment year"
-              value={paymentYear}
-              onChange={(e) => setPaymentYear(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <p style={labelText}>Status</p>
-            <select
-              className="db-input"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              <option value="paid">Paid</option>
-              <option value="pending">Pending</option>
-              <option value="partial">Partial</option>
-              <option value="overdue">Overdue</option>
-            </select>
-          </div>
-        </div>
-
-        <button
-          className="db-button-primary"
-          style={{ width: "100%", marginTop: 10 }}
-          onClick={recordPayment}
-          disabled={loading}
-        >
-          {loading ? "Saving..." : "Record Payment"}
-        </button>
-      </div>
-
-      <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
-        <div style={sectionHeader}>
-          <div>
-            <h3 style={sectionTitle}>Monthly Payment Reminders</h3>
-            <p style={smallText}>
-              Schedule SMS reminders to parents of unpaid learners for the selected month.
-            </p>
-          </div>
-
-          <div style={{ marginTop: 12, marginBottom: 12 }}>
-            <p style={labelText}>Reminder Send Date</p>
-
-            <input
-              className="db-input"
-              type="date"
-              value={scheduledReminderDate}
-              min={todayDate}
-              onChange={(e) => setScheduledReminderDate(e.target.value)}
-              style={{ maxWidth: 240 }}
-            />
-          </div>
-
-          <button
-            type="button"
-            className="db-button-secondary"
-            onClick={() => setShowUnpaidLearners((prev) => !prev)}
-          >
-            {showUnpaidLearners ? "Hide" : `View Unpaid (${unpaidLearners.length})`}
-          </button>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-          <button
-            className="db-button-primary"
-            onClick={scheduleReminderMessages}
-            disabled={scheduling}
-          >
-            {scheduling
-              ? "Scheduling..."
-              : `Schedule Reminder Messages (${unpaidLearnersWithPhones.length})`}
-          </button>
-        </div>
-
-        {showUnpaidLearners ? (
-          <div style={{ marginTop: 14 }}>
-            {unpaidLearners.length === 0 ? (
-              <p className="db-helper">Everyone appears paid for the selected month.</p>
-            ) : (
-              <div style={{ display: "grid", gap: 8 }}>
-                {unpaidLearners.map((learner) => (
-                  <div key={learner.id} style={compactCard}>
-                    <div>
-                      <strong>{learner.name || "Unnamed learner"}</strong>
-                      <p style={smallText}>
-                        Parent Phone: {learner.parent_phone || "Not added"}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : null}
-      </div>
-
-      <div className="db-card db-card-lavender" style={{ padding: 16 }}>
-        <div style={sectionHeader}>
-          <div>
-            <h3 style={sectionTitle}>Payment History ({filteredPaymentHistory.length})</h3>
-            <p style={smallText}>Open only when you need to review payment records.</p>
-          </div>
-
-          <button
-            type="button"
-            className="db-button-secondary"
-            onClick={() => setShowPaymentHistory((prev) => !prev)}
-          >
-            {showPaymentHistory ? "Hide" : "View History"}
-          </button>
-        </div>
-
-        {showPaymentHistory ? (
-          <div style={{ marginTop: 14 }}>
-            <div style={formGrid}>
-              <div>
-                <p style={labelText}>From</p>
-                <input
-                  className="db-input"
-                  type="date"
-                  value={historyFromDate}
-                  onChange={(e) => setHistoryFromDate(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <p style={labelText}>To</p>
-                <input
-                  className="db-input"
-                  type="date"
-                  value={historyToDate}
-                  onChange={(e) => setHistoryToDate(e.target.value)}
-                />
-              </div>
+            <div>
+              <h2 className="db-page-title">Payments</h2>
+              <p className="db-page-subtitle">
+                Record payments and schedule SMS reminders for unpaid learners.
+              </p>
             </div>
 
-            {filteredPaymentHistory.length === 0 ? (
-              <p className="db-helper">No payments found for this period.</p>
-            ) : (
-              <>
+            <button
+              type="button"
+              className="db-button-primary"
+              onClick={() => setShowRecordForm((prev) => !prev)}
+            >
+              {showRecordForm ? "Close" : "Record Payment"}
+            </button>
+          </div>
+        </div>
+
+        <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+              alignItems: "center",
+              marginBottom: 14,
+            }}
+          >
+            <div>
+              <h3 style={sectionTitle}>Payment Month</h3>
+              <p style={smallText}>Choose the month used for paid and unpaid counts.</p>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <select
+                className="db-input"
+                value={selectedReminderMonth}
+                onChange={(e) => setSelectedReminderMonth(e.target.value)}
+                style={{ marginBottom: 0, minWidth: 140 }}
+              >
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                  <option key={month} value={month}>
+                    Month {month}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                className="db-input"
+                type="number"
+                placeholder="Year"
+                value={selectedReminderYear}
+                onChange={(e) => setSelectedReminderYear(e.target.value)}
+                style={{ marginBottom: 0, width: 120 }}
+              />
+            </div>
+          </div>
+
+          <div style={statsGrid}>
+            <InsightCard
+              label="Paid Learners"
+              value={paidLearners.length}
+              helper="Marked paid for selected month"
+              background="#EEF9EE"
+              border="#D3EDD4"
+            />
+
+            <InsightCard
+              label="Unpaid Learners"
+              value={unpaidLearners.length}
+              helper="Need payment follow-up"
+              background="#F8E8F0"
+              border="#EBC9D8"
+            />
+          </div>
+        </div>
+
+        <div
+          ref={formRef}
+          className="db-card db-card-green"
+          style={{
+            padding: 16,
+            marginBottom: 18,
+            display: showRecordForm ? "block" : "none",
+            border: highlightRecordForm ? "2px solid #7CCCF3" : "1px solid rgba(0,0,0,0.06)",
+            boxShadow: highlightRecordForm
+              ? "0 0 0 4px rgba(124, 204, 243, 0.18)"
+              : undefined,
+            transition: "all 0.2s ease",
+          }}
+        >
+          <h3 style={sectionTitle}>Record Payment</h3>
+
+          {lastSavedSuccess ? (
+            <div style={successBox}>
+              <p style={{ margin: 0, color: "#2D2A3E", fontSize: 14, fontWeight: 700 }}>
+                Payment recorded successfully.
+              </p>
+
+              {shouldShowBackToOverview ? (
+                <button
+                  type="button"
+                  className="db-button-primary"
+                  style={{ marginTop: 10 }}
+                  onClick={() => router.push(`/master/school/${schoolId}`)}
+                >
+                  Back to School Overview
+                </button>
+              ) : null}
+
+              {shouldShowBackToDashboard ? (
+                <button
+                  type="button"
+                  className="db-button-primary"
+                  style={{ marginTop: 10 }}
+                  onClick={() => router.push("/dashboard")}
+                >
+                  Back to Dashboard
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div style={formGrid}>
+            <div>
+              <p style={labelText}>Learner Name</p>
+              <input
+                ref={learnerInputRef}
+                className="db-input"
+                placeholder="Learner name"
+                value={learnerName}
+                onChange={(e) => handleLearnerSelection(e.target.value)}
+                list="learner-options"
+              />
+
+              <datalist id="learner-options">
+                {learners.map((learner) => (
+                  <option key={learner.id} value={learner.name || ""} />
+                ))}
+              </datalist>
+            </div>
+
+            <div>
+              <p style={labelText}>Parent Phone Number</p>
+              <input
+                className="db-input"
+                placeholder="Parent phone number"
+                value={parentPhone}
+                onChange={(e) => setParentPhone(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Amount</p>
+              <input
+                className="db-input"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Amount"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Payment Date</p>
+              <input
+                className="db-input"
+                type="date"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Month</p>
+              <select
+                className="db-input"
+                value={paymentMonth}
+                onChange={(e) => setPaymentMonth(e.target.value)}
+              >
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                  <option key={month} value={month}>
+                    Month {month}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <p style={labelText}>Year</p>
+              <input
+                className="db-input"
+                type="number"
+                placeholder="Payment year"
+                value={paymentYear}
+                onChange={(e) => setPaymentYear(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Status</p>
+              <select
+                className="db-input"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
+                <option value="paid">Paid</option>
+                <option value="pending">Pending</option>
+                <option value="partial">Partial</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
+          </div>
+
+          <button
+            className="db-button-primary"
+            style={{ width: "100%", marginTop: 10 }}
+            onClick={recordPayment}
+            disabled={loading}
+          >
+            {loading ? "Saving..." : "Record Payment"}
+          </button>
+        </div>
+
+        <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
+          <div style={sectionHeader}>
+            <div>
+              <h3 style={sectionTitle}>Monthly Payment Reminders</h3>
+              <p style={smallText}>
+                Schedule SMS reminders to parents of unpaid learners for the selected month.
+              </p>
+            </div>
+
+            <div style={{ marginTop: 12, marginBottom: 12 }}>
+              <p style={labelText}>Reminder Send Date</p>
+
+              <input
+                className="db-input"
+                type="date"
+                value={scheduledReminderDate}
+                min={todayDate}
+                onChange={(e) => setScheduledReminderDate(e.target.value)}
+                style={{ maxWidth: 240 }}
+              />
+            </div>
+
+            <button
+              type="button"
+              className="db-button-secondary"
+              onClick={() => setShowUnpaidLearners((prev) => !prev)}
+            >
+              {showUnpaidLearners ? "Hide" : `View Unpaid (${unpaidLearners.length})`}
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+            <button
+              className="db-button-primary"
+              onClick={scheduleReminderMessages}
+              disabled={scheduling}
+            >
+              {scheduling
+                ? "Scheduling..."
+                : `Schedule Reminder Messages (${unpaidLearnersWithPhones.length})`}
+            </button>
+          </div>
+
+          {showUnpaidLearners ? (
+            <div style={{ marginTop: 14 }}>
+              {unpaidLearners.length === 0 ? (
+                <p className="db-helper">Everyone appears paid for the selected month.</p>
+              ) : (
                 <div style={{ display: "grid", gap: 8 }}>
-                  {paginatedPaymentHistory.map((payment) => (
-                    <div key={payment.id} style={historyRow}>
+                  {unpaidLearners.map((learner) => (
+                    <div key={learner.id} style={compactCard}>
                       <div>
-                        <strong>{payment.learner_name || "Unnamed learner"}</strong>
+                        <strong>{learner.name || "Unnamed learner"}</strong>
                         <p style={smallText}>
-                          {payment.payment_date || "No date"} | Month{" "}
-                          {payment.payment_month || "-"} / {payment.payment_year || "-"}
+                          Parent Phone: {learner.parent_phone || "Not added"}
                         </p>
                       </div>
-
-                      <span style={pillBlue}>
-                        {payment.amount !== null && payment.amount !== undefined
-                          ? `R${Number(payment.amount).toFixed(2)}`
-                          : "No amount"}
-                      </span>
-
-                      <span style={pillNeutral}>{payment.status || "Not set"}</span>
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          ) : null}
+        </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginTop: 12,
-                    alignItems: "center",
-                    gap: 10,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <button
-                    type="button"
-                    className="db-button-secondary"
-                    disabled={paymentHistoryPage === 1}
-                    onClick={() =>
-                      setPaymentHistoryPage((prev) => Math.max(1, prev - 1))
-                    }
-                  >
-                    Previous
-                  </button>
+        <div className="db-card db-card-lavender" style={{ padding: 16 }}>
+          <div style={sectionHeader}>
+            <div>
+              <h3 style={sectionTitle}>Payment History ({filteredPaymentHistory.length})</h3>
+              <p style={smallText}>Open only when you need to review payment records.</p>
+            </div>
 
-                  <p style={smallText}>
-                    Page {paymentHistoryPage} of {totalPaymentHistoryPages}
-                  </p>
-
-                  <button
-                    type="button"
-                    className="db-button-secondary"
-                    disabled={paymentHistoryPage === totalPaymentHistoryPages}
-                    onClick={() =>
-                      setPaymentHistoryPage((prev) =>
-                        Math.min(totalPaymentHistoryPages, prev + 1)
-                      )
-                    }
-                  >
-                    Next
-                  </button>
-                </div>
-              </>
-            )}
+            <button
+              type="button"
+              className="db-button-secondary"
+              onClick={() => setShowPaymentHistory((prev) => !prev)}
+            >
+              {showPaymentHistory ? "Hide" : "View History"}
+            </button>
           </div>
-        ) : null}
+
+          {showPaymentHistory ? (
+            <div style={{ marginTop: 14 }}>
+              <div style={formGrid}>
+                <div>
+                  <p style={labelText}>From</p>
+                  <input
+                    className="db-input"
+                    type="date"
+                    value={historyFromDate}
+                    onChange={(e) => setHistoryFromDate(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <p style={labelText}>To</p>
+                  <input
+                    className="db-input"
+                    type="date"
+                    value={historyToDate}
+                    onChange={(e) => setHistoryToDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {filteredPaymentHistory.length === 0 ? (
+                <p className="db-helper">No payments found for this period.</p>
+              ) : (
+                <>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {paginatedPaymentHistory.map((payment) => (
+                      <div key={payment.id} style={historyRow}>
+                        <div>
+                          <strong>{payment.learner_name || "Unnamed learner"}</strong>
+                          <p style={smallText}>
+                            {payment.payment_date || "No date"} | Month{" "}
+                            {payment.payment_month || "-"} / {payment.payment_year || "-"}
+                          </p>
+                        </div>
+
+                        <span style={pillBlue}>
+                          {payment.amount !== null && payment.amount !== undefined
+                            ? `R${Number(payment.amount).toFixed(2)}`
+                            : "No amount"}
+                        </span>
+
+                        <span style={pillNeutral}>{payment.status || "Not set"}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginTop: 12,
+                      alignItems: "center",
+                      gap: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="db-button-secondary"
+                      disabled={paymentHistoryPage === 1}
+                      onClick={() =>
+                        setPaymentHistoryPage((prev) => Math.max(1, prev - 1))
+                      }
+                    >
+                      Previous
+                    </button>
+
+                    <p style={smallText}>
+                      Page {paymentHistoryPage} of {totalPaymentHistoryPages}
+                    </p>
+
+                    <button
+                      type="button"
+                      className="db-button-secondary"
+                      disabled={paymentHistoryPage === totalPaymentHistoryPages}
+                      onClick={() =>
+                        setPaymentHistoryPage((prev) =>
+                          Math.min(totalPaymentHistoryPages, prev + 1)
+                        )
+                      }
+                    >
+                      Next
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </SubscriptionGuard>
   );
 }
 

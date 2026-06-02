@@ -44,6 +44,27 @@ export async function POST(request: Request) {
       },
     });
 
+    const { data: existingRequest, error: existingRequestError } = await admin
+      .from("school_signup_requests")
+      .select("id, status, school_id")
+      .eq("id", requestId)
+      .single();
+
+    if (existingRequestError || !existingRequest) {
+      return NextResponse.json(
+        { error: "Signup request not found." },
+        { status: 404 }
+      );
+    }
+
+    if (existingRequest.status === "approved" && existingRequest.school_id) {
+      return NextResponse.json({
+        success: true,
+        schoolId: existingRequest.school_id,
+        message: "This signup request has already been approved.",
+      });
+    }
+
     const tempPassword = generateTempPassword();
 
     const { data: school, error: schoolError } = await admin

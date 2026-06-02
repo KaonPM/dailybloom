@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
@@ -546,6 +547,12 @@ export default function ClassroomsPage() {
             <p className="db-page-subtitle">
               Manage classrooms, age groups, assigned teachers, and learner placement.
             </p>
+
+            {schoolParam && schoolId ? (
+              <Link href={`/master/school/${schoolId}`} style={backButton}>
+                Back to School Overview
+              </Link>
+            ) : null}
           </div>
 
           <button
@@ -1037,4 +1044,17 @@ const pillNeutral = {
   fontSize: 12,
   color: "#2D2A3E",
   textAlign: "center" as const,
+};
+
+const backButton = {
+  display: "inline-block",
+  marginTop: 12,
+  textDecoration: "none",
+  background: "#FFFFFF",
+  color: "#2D2A3E",
+  border: "1px solid #E3D9CD",
+  borderRadius: 12,
+  padding: "10px 14px",
+  fontWeight: 700,
+  fontSize: 13,
 };

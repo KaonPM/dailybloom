@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
+import SubscriptionGuard from "../components/SubscriptionGuard";
 
 type LearnerRow = {
   id: string;
@@ -208,119 +209,121 @@ export default function LearnerRequirementsPage() {
   }
 
   return (
-    <div>
-      <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
-        <h2 className="db-page-title">Learner Requirements</h2>
-        <p className="db-page-subtitle">
-          View outstanding stationery and learner documents from one dashboard.
-        </p>
-      </div>
-
-      <div style={summaryGrid}>
-        <div className="db-card db-card-blue" style={summaryCard}>
-          <strong>Outstanding Stationery</strong>
-          <p style={summaryNumber}>{totalOutstandingStationery}</p>
+    <SubscriptionGuard schoolId={schoolId} featureKey="learner_requirements">
+      <div>
+        <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
+          <h2 className="db-page-title">Learner Requirements</h2>
+          <p className="db-page-subtitle">
+            View outstanding stationery and learner documents from one dashboard.
+          </p>
         </div>
 
-        <div className="db-card db-card-yellow" style={summaryCard}>
-          <strong>Outstanding Documents</strong>
-          <p style={summaryNumber}>{totalOutstandingDocuments}</p>
-        </div>
-
-        <div className="db-card db-card-green" style={summaryCard}>
-          <strong>Learners Affected</strong>
-          <p style={summaryNumber}>{affectedLearnerIds.size}</p>
-        </div>
-      </div>
-
-      <div className="db-card db-card-lavender" style={{ padding: 16, marginBottom: 18 }}>
-        <div style={filterGrid}>
-          <select
-            className="db-input"
-            value={selectedClassroomId}
-            onChange={(e) => setSelectedClassroomId(e.target.value)}
-          >
-            <option value="">All Classes</option>
-            {classrooms.map((classroom) => (
-              <option key={classroom.id} value={classroom.id}>
-                {classroom.classroom_name || "Unnamed class"}
-              </option>
-            ))}
-          </select>
-
-          <input
-            className="db-input"
-            placeholder="Search learner"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="db-card db-card-green" style={{ padding: 16, marginBottom: 18 }}>
-        <h3 style={sectionTitle}>Outstanding Stationery</h3>
-
-        {outstandingStationery.length === 0 ? (
-          <p className="db-helper">No outstanding stationery found.</p>
-        ) : (
-          <div style={{ display: "grid", gap: 10 }}>
-            {outstandingStationery.map((entry) => (
-              <div key={entry.learner.id} style={rowCard}>
-                <div>
-                  <strong>{entry.learner.name || "Unnamed learner"}</strong>
-                  <p style={smallText}>{entry.learner.class || "Unassigned class"}</p>
-                  <p style={smallText}>
-                    {entry.items
-                      .map((item) =>
-                        item.quantity
-                          ? `${item.quantity} ${item.item_name}`
-                          : item.item_name
-                      )
-                      .join(", ")}
-                  </p>
-                </div>
-
-                <Link
-                  href={learnerProfileHref(entry.learner.id)}
-                  className="db-button-secondary"
-                  style={linkButton}
-                >
-                  View Learner
-                </Link>
-              </div>
-            ))}
+        <div style={summaryGrid}>
+          <div className="db-card db-card-blue" style={summaryCard}>
+            <strong>Outstanding Stationery</strong>
+            <p style={summaryNumber}>{totalOutstandingStationery}</p>
           </div>
-        )}
-      </div>
 
-      <div className="db-card db-card-yellow" style={{ padding: 16 }}>
-        <h3 style={sectionTitle}>Outstanding Documents</h3>
-
-        {outstandingDocuments.length === 0 ? (
-          <p className="db-helper">No outstanding documents found.</p>
-        ) : (
-          <div style={{ display: "grid", gap: 10 }}>
-            {outstandingDocuments.map((entry) => (
-              <div key={entry.learner.id} style={rowCard}>
-                <div>
-                  <strong>{entry.learner.name || "Unnamed learner"}</strong>
-                  <p style={smallText}>{entry.learner.class || "Unassigned class"}</p>
-                  <p style={smallText}>{entry.missing.join(", ")}</p>
-                </div>
-
-                <Link
-                  href={learnerProfileHref(entry.learner.id)}
-                  className="db-button-secondary"
-                  style={linkButton}
-                >
-                  View Learner
-                </Link>
-              </div>
-            ))}
+          <div className="db-card db-card-yellow" style={summaryCard}>
+            <strong>Outstanding Documents</strong>
+            <p style={summaryNumber}>{totalOutstandingDocuments}</p>
           </div>
-        )}
+
+          <div className="db-card db-card-green" style={summaryCard}>
+            <strong>Learners Affected</strong>
+            <p style={summaryNumber}>{affectedLearnerIds.size}</p>
+          </div>
+        </div>
+
+        <div className="db-card db-card-lavender" style={{ padding: 16, marginBottom: 18 }}>
+          <div style={filterGrid}>
+            <select
+              className="db-input"
+              value={selectedClassroomId}
+              onChange={(e) => setSelectedClassroomId(e.target.value)}
+            >
+              <option value="">All Classes</option>
+              {classrooms.map((classroom) => (
+                <option key={classroom.id} value={classroom.id}>
+                  {classroom.classroom_name || "Unnamed class"}
+                </option>
+              ))}
+            </select>
+
+            <input
+              className="db-input"
+              placeholder="Search learner"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="db-card db-card-green" style={{ padding: 16, marginBottom: 18 }}>
+          <h3 style={sectionTitle}>Outstanding Stationery</h3>
+
+          {outstandingStationery.length === 0 ? (
+            <p className="db-helper">No outstanding stationery found.</p>
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              {outstandingStationery.map((entry) => (
+                <div key={entry.learner.id} style={rowCard}>
+                  <div>
+                    <strong>{entry.learner.name || "Unnamed learner"}</strong>
+                    <p style={smallText}>{entry.learner.class || "Unassigned class"}</p>
+                    <p style={smallText}>
+                      {entry.items
+                        .map((item) =>
+                          item.quantity
+                            ? `${item.quantity} ${item.item_name}`
+                            : item.item_name
+                        )
+                        .join(", ")}
+                    </p>
+                  </div>
+
+                  <Link
+                    href={learnerProfileHref(entry.learner.id)}
+                    className="db-button-secondary"
+                    style={linkButton}
+                  >
+                    View Learner
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="db-card db-card-yellow" style={{ padding: 16 }}>
+          <h3 style={sectionTitle}>Outstanding Documents</h3>
+
+          {outstandingDocuments.length === 0 ? (
+            <p className="db-helper">No outstanding documents found.</p>
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              {outstandingDocuments.map((entry) => (
+                <div key={entry.learner.id} style={rowCard}>
+                  <div>
+                    <strong>{entry.learner.name || "Unnamed learner"}</strong>
+                    <p style={smallText}>{entry.learner.class || "Unassigned class"}</p>
+                    <p style={smallText}>{entry.missing.join(", ")}</p>
+                  </div>
+
+                  <Link
+                    href={learnerProfileHref(entry.learner.id)}
+                    className="db-button-secondary"
+                    style={linkButton}
+                  >
+                    View Learner
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </SubscriptionGuard>
   );
 }
 

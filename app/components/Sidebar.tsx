@@ -670,35 +670,15 @@ export default function Sidebar() {
 
               {showWageFlowStaffManagement ? (
                 <a
-                  href="https://wageflow.lesedismartsolutions.co.za/login"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    textDecoration: "none",
-                    background:
-                      "linear-gradient(135deg, #F8E8F0 0%, #FFF8F2 100%)",
-                    color: "#2D2A3E",
-                    border: "1px solid #EBC9D8",
-                    padding: "12px 14px",
-                    borderRadius: "14px",
-                    fontSize: "14px",
-                    fontWeight: 700,
-                    display: "block",
-                  }}
+                   href="https://wageflow.lesedismartsolutions.co.za/login"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   style={navStyle({
+                   label: "Staff Management",
+                   href: "https://wageflow.lesedismartsolutions.co.za/login",
+              })}
                 >
-                  👥 Staff Management
-
-                  <span
-                    style={{
-                      display: "block",
-                      marginTop: "4px",
-                      fontSize: "11px",
-                      color: "#6D6888",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Bloom Elite benefit powered by WageFlow
-                  </span>
+                👥 Staff Management
                 </a>
               ) : null}
 

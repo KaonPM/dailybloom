@@ -44,6 +44,11 @@ export default function PrincipalsPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
 
+  const [expandedPrincipalId, setExpandedPrincipalId] = useState<string | null>(
+    null
+  );
+  const [visiblePrincipalCount, setVisiblePrincipalCount] = useState(5);
+
   useEffect(() => {
     loadPage();
   }, []);
@@ -136,6 +141,9 @@ export default function PrincipalsPage() {
       return matchesSchool && matchesStatus && matchesSearch;
     });
   }, [principals, selectedSchoolId, selectedStatus, searchTerm]);
+
+  const visiblePrincipals = filteredPrincipals.slice(0, visiblePrincipalCount);
+  const hasMorePrincipals = visiblePrincipalCount < filteredPrincipals.length;
 
   async function deactivateSchoolAccess(principal: PrincipalProfile) {
     if (!principal.school_id) {
@@ -324,56 +332,50 @@ export default function PrincipalsPage() {
         </p>
       </div>
 
-      <div className="db-grid-2" style={{ marginBottom: "24px" }}>
-        <div className="db-card db-card-blue" style={{ padding: "20px" }}>
-          <h3 style={sectionTitle}>Filters</h3>
+      <div className="db-card db-card-blue" style={{ padding: "20px", marginBottom: "24px" }}>
+        <h3 style={sectionTitle}>Filters</h3>
 
-          <input
-            className="db-input"
-            placeholder="Search by principal, email, or school"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <input
+          className="db-input"
+          placeholder="Search by principal, email, or school"
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setVisiblePrincipalCount(5);
+            setExpandedPrincipalId(null);
+          }}
+        />
 
-          <select
-            className="db-input"
-            value={selectedSchoolId}
-            onChange={(e) => setSelectedSchoolId(e.target.value)}
-          >
-            <option value="all">All Schools</option>
-            {schools.map((school) => (
-              <option key={school.id} value={String(school.id)}>
-                {school.school_name}
-              </option>
-            ))}
-          </select>
+        <select
+          className="db-input"
+          value={selectedSchoolId}
+          onChange={(e) => {
+            setSelectedSchoolId(e.target.value);
+            setVisiblePrincipalCount(5);
+            setExpandedPrincipalId(null);
+          }}
+        >
+          <option value="all">All Schools</option>
+          {schools.map((school) => (
+            <option key={school.id} value={String(school.id)}>
+              {school.school_name}
+            </option>
+          ))}
+        </select>
 
-          <select
-            className="db-input"
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-          >
-            <option value="all">All Statuses</option>
-            <option value="active">Active Schools</option>
-            <option value="inactive">Inactive Schools</option>
-          </select>
-        </div>
-
-        <div className="db-card db-card-green" style={{ padding: "20px" }}>
-          <h3 style={sectionTitle}>Actions</h3>
-
-          <p className="db-helper" style={{ marginBottom: "14px" }}>
-            School-level deactivation also affects all teachers linked to that school.
-          </p>
-
-          <button
-            className="db-button-primary"
-            style={{ width: "100%" }}
-            onClick={() => router.push("/master")}
-          >
-            Open Manual School Setup
-          </button>
-        </div>
+        <select
+          className="db-input"
+          value={selectedStatus}
+          onChange={(e) => {
+            setSelectedStatus(e.target.value);
+            setVisiblePrincipalCount(5);
+            setExpandedPrincipalId(null);
+          }}
+        >
+          <option value="all">All Statuses</option>
+          <option value="active">Active Schools</option>
+          <option value="inactive">Inactive Schools</option>
+        </select>
       </div>
 
       <div
@@ -389,139 +391,196 @@ export default function PrincipalsPage() {
         ) : filteredPrincipals.length === 0 ? (
           <p className="db-helper">No principals found.</p>
         ) : (
-          <div style={{ display: "grid", gap: "12px" }}>
-            {filteredPrincipals.map((principal) => {
-              const schoolIsActive = principal.schools?.is_active !== false;
-              const principalIsActive = principal.is_active !== false;
-              const effectiveActive = schoolIsActive && principalIsActive;
-              const isBusy = actionLoadingId === principal.id;
+          <>
+            <div style={{ display: "grid", gap: "12px" }}>
+              {visiblePrincipals.map((principal) => {
+                const schoolIsActive = principal.schools?.is_active !== false;
+                const principalIsActive = principal.is_active !== false;
+                const effectiveActive = schoolIsActive && principalIsActive;
+                const isBusy = actionLoadingId === principal.id;
 
-              const schoolPackage = principal.schools?.package_name || "Bloom";
-              const hasWageFlow =
-                schoolPackage === "Bloom Elite" ||
-                principal.schools?.wageflow_enabled === true;
+                const schoolPackage = principal.schools?.package_name || "Bloom";
+                const hasWageFlow =
+                  schoolPackage === "Bloom Elite" ||
+                  principal.schools?.wageflow_enabled === true;
 
-              return (
-                <div key={principal.id} className="db-list-card">
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      gap: "12px",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div>
-                      <strong style={{ fontSize: "17px" }}>
-                        {principal.full_name || "Unnamed Principal"}
-                      </strong>
-                      <p style={textStyle}>Email: {principal.email || "No email"}</p>
-                      <p style={textStyle}>
-                        School: {principal.schools?.school_name || "Not linked"}
-                      </p>
-                      <p style={textStyle}>Package: {schoolPackage}</p>
-                      <p style={textStyle}>
-                        WageFlow: {hasWageFlow ? "Enabled" : "Disabled"}
-                      </p>
-                      <p style={textStyle}>
-                        Principal Status: {principalIsActive ? "Active" : "Inactive"}
-                      </p>
-                      <p style={textStyle}>
-                        School Status: {schoolIsActive ? "Active" : "Inactive"}
-                      </p>
-                      <p style={textStyle}>
-                        Effective Access: {effectiveActive ? "Active" : "Blocked"}
-                      </p>
-                      <p style={textStyle}>
-                        Last Login:{" "}
-                        {principal.last_login_at
-                          ? new Date(principal.last_login_at).toLocaleString()
-                          : "Not tracked yet"}
-                      </p>
+                const isExpanded = expandedPrincipalId === principal.id;
 
-                      {hasWageFlow && effectiveActive ? (
-                        <a
-                          href="https://wageflow.lesedismartsolutions.co.za/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="db-button-primary"
-                          style={{
-                            ...smallButton,
-                            display: "inline-block",
-                            textDecoration: "none",
-                            marginTop: "12px",
-                          }}
-                        >
-                          Open WageFlow
-                        </a>
-                      ) : null}
-                    </div>
-
+                return (
+                  <div key={principal.id} className="db-list-card">
                     <div
                       style={{
                         display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: "12px",
                         flexWrap: "wrap",
-                        gap: "10px",
                       }}
                     >
-                      {effectiveActive ? (
+                      <div style={{ flex: 1, minWidth: "220px" }}>
+                        <strong style={{ fontSize: "17px" }}>
+                          {principal.full_name || "Unnamed Principal"}
+                        </strong>
+
+                        {isExpanded && (
+                          <div style={detailsPanel}>
+                            <p style={textStyle}>
+                              Email: {principal.email || "No email"}
+                            </p>
+                            <p style={textStyle}>
+                              School: {principal.schools?.school_name || "Not linked"}
+                            </p>
+                            <p style={textStyle}>Package: {schoolPackage}</p>
+                            <p style={textStyle}>
+                              WageFlow: {hasWageFlow ? "Enabled" : "Disabled"}
+                            </p>
+                            <p style={textStyle}>
+                              Principal Status:{" "}
+                              {principalIsActive ? "Active" : "Inactive"}
+                            </p>
+                            <p style={textStyle}>
+                              School Status: {schoolIsActive ? "Active" : "Inactive"}
+                            </p>
+                            <p style={textStyle}>
+                              Effective Access:{" "}
+                              {effectiveActive ? "Active" : "Blocked"}
+                            </p>
+                            <p style={textStyle}>
+                              Last Login:{" "}
+                              {principal.last_login_at
+                                ? new Date(principal.last_login_at).toLocaleString()
+                                : "Not tracked yet"}
+                            </p>
+
+                            {hasWageFlow && effectiveActive ? (
+                              <a
+                                href="https://wageflow.lesedismartsolutions.co.za/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="db-button-primary"
+                                style={{
+                                  ...smallButton,
+                                  display: "inline-block",
+                                  textDecoration: "none",
+                                  marginTop: "12px",
+                                }}
+                              >
+                                Open WageFlow
+                              </a>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "10px",
+                        }}
+                      >
                         <button
                           type="button"
                           className="db-button-primary"
                           style={smallButton}
-                          onClick={() => deactivateSchoolAccess(principal)}
-                          disabled={isBusy}
+                          onClick={() =>
+                            setExpandedPrincipalId(isExpanded ? null : principal.id)
+                          }
                         >
-                          {isBusy ? "Working..." : "Deactivate School Access"}
+                          {isExpanded ? "Hide" : "View"}
                         </button>
-                      ) : (
+
+                        {effectiveActive ? (
+                          <button
+                            type="button"
+                            className="db-button-primary"
+                            style={smallButton}
+                            onClick={() => deactivateSchoolAccess(principal)}
+                            disabled={isBusy}
+                          >
+                            {isBusy ? "Working..." : "Deactivate School Access"}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="db-button-primary"
+                            style={smallButton}
+                            onClick={() => reactivateSchoolAccess(principal)}
+                            disabled={isBusy}
+                          >
+                            {isBusy ? "Working..." : "Reactivate School Access"}
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           className="db-button-primary"
                           style={smallButton}
-                          onClick={() => reactivateSchoolAccess(principal)}
+                          onClick={() => removePrincipalFromSchool(principal.id)}
                           disabled={isBusy}
                         >
-                          {isBusy ? "Working..." : "Reactivate School Access"}
+                          {isBusy ? "Working..." : "Remove From School"}
                         </button>
-                      )}
 
-                      <button
-                        type="button"
-                        className="db-button-primary"
-                        style={smallButton}
-                        onClick={() => removePrincipalFromSchool(principal.id)}
-                        disabled={isBusy}
-                      >
-                        {isBusy ? "Working..." : "Remove From School"}
-                      </button>
+                        <button
+                          type="button"
+                          className="db-button-primary"
+                          style={smallButton}
+                          onClick={() => resendPrincipalAccess(principal)}
+                          disabled={isBusy}
+                        >
+                          {isBusy ? "Working..." : "Resend Invite"}
+                        </button>
 
-                      <button
-                        type="button"
-                        className="db-button-primary"
-                        style={smallButton}
-                        onClick={() => resendPrincipalAccess(principal)}
-                        disabled={isBusy}
-                      >
-                        {isBusy ? "Working..." : "Resend Invite"}
-                      </button>
-
-                      <button
-                        type="button"
-                        className="db-button-primary"
-                        style={smallButton}
-                        onClick={() => sendPasswordReset(principal)}
-                        disabled={isBusy}
-                      >
-                        {isBusy ? "Working..." : "Reset Password"}
-                      </button>
+                        <button
+                          type="button"
+                          className="db-button-primary"
+                          style={smallButton}
+                          onClick={() => sendPasswordReset(principal)}
+                          disabled={isBusy}
+                        >
+                          {isBusy ? "Working..." : "Reset Password"}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+
+            {hasMorePrincipals && (
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                  marginTop: "16px",
+                }}
+              >
+                <button
+                  type="button"
+                  className="db-button-primary"
+                  style={smallButton}
+                  onClick={() =>
+                    setVisiblePrincipalCount((current) => current + 5)
+                  }
+                >
+                  Load 5 More
+                </button>
+
+                <button
+                  type="button"
+                  className="db-button-primary"
+                  style={smallButton}
+                  onClick={() =>
+                    setVisiblePrincipalCount((current) => current + 10)
+                  }
+                >
+                  Load 10 More
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -539,6 +598,12 @@ const sectionTitle = {
 const textStyle = {
   margin: "6px 0 0 0",
   color: "var(--db-text-soft)",
+};
+
+const detailsPanel = {
+  marginTop: "12px",
+  paddingTop: "12px",
+  borderTop: "1px solid #F0E3D8",
 };
 
 const smallButton = {

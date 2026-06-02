@@ -173,6 +173,7 @@ export default function MasterPage() {
   const [showManageSchools, setShowManageSchools] = useState(false);
   const [manualSetupOpen, setManualSetupOpen] = useState(false);
   const [schoolSearch, setSchoolSearch] = useState("");
+  const [expandedSchoolId, setExpandedSchoolId] = useState<number | null>(null);
   const [visibleSchoolCount, setVisibleSchoolCount] = useState(5);
 
   const [stats, setStats] = useState<MasterStats>({
@@ -532,6 +533,7 @@ export default function MasterPage() {
   }, [schools, schoolSearch]);
 
   const visibleSchools = filteredSchools.slice(0, visibleSchoolCount);
+  const hasMoreSchools = visibleSchoolCount < filteredSchools.length;
   const currentView = searchParams.get("view") || "dashboard";
 
   if (loading) {
@@ -682,168 +684,206 @@ export default function MasterPage() {
               ) : (
                 <>
                   <div style={{ display: "grid", gap: "12px", marginTop: "14px" }}>
-                    {visibleSchools.map((school) => {
-                      const linkedPrincipals = principals.filter(
-                        (principal) => Number(principal.school_id) === Number(school.id)
-                      );
+                    {visibleSchools.map((school) => (
+                      <div
+                        key={school.id}
+                        style={{
+                          background: "#FFFFFF",
+                          border: "1px solid #F0E3D8",
+                          borderRadius: "18px",
+                          padding: "16px",
+                          boxShadow: "0 6px 16px rgba(45, 42, 62, 0.04)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: "12px",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <strong
+                            style={{
+                              color: "#2D2A3E",
+                              fontSize: "17px",
+                            }}
+                          >
+                            {school.school_name || "Unnamed School"}
+                          </strong>
 
-                      const hasApprovedPrincipal = linkedPrincipals.some((principal) => {
-                        const status = String(principal.approval_status || "").toLowerCase();
-                        return status === "approved" || status === "";
-                      });
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "8px",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedSchoolId(
+                                  expandedSchoolId === school.id ? null : school.id
+                                )
+                              }
+                              style={smallButton}
+                            >
+                              {expandedSchoolId === school.id ? "Hide" : "View"}
+                            </button>
 
-                      const missingItems: string[] = [];
-
-                      if (!school.logo_url) missingItems.push("logo");
-                      if (!school.primary_color) missingItems.push("primary colour");
-                      if (!school.secondary_color) missingItems.push("secondary colour");
-                      if (!school.emis_number) missingItems.push("NPO / registration number");
-                      if (!school.province) missingItems.push("province");
-                      if (!school.district) missingItems.push("district");
-                      if (!school.centre_type) missingItems.push("centre type");
-                      if (!school.registration_status) missingItems.push("registration status");
-                      if (!hasApprovedPrincipal) missingItems.push("approved principal");
-
-                      const schoolStatus = String(school.status || "active").toLowerCase();
-
-                      return (
-                        <div key={school.id} style={schoolListCard}>
-                          <div style={{ flex: 1, minWidth: "220px" }}>
-                            <strong style={listTitle}>
-                              {school.school_name || "Unnamed school"}
-                            </strong>
-
-                            <p style={helperText}>
-                              Package: {school.package_name || "Bloom"}
-                            </p>
-
-                            <p style={helperText}>
-                              NPO / Registration: {school.emis_number || "Not added"}
-                            </p>
-
-                            <p style={helperText}>
-                              Contact: {school.contact_number || "Not added"}
-                            </p>
-
-                            <p style={helperText}>
-                              Province / District: {school.province || "Not added"}{" "}
-                              {school.district ? `- ${school.district}` : ""}
-                            </p>
-
-                            <p style={helperText}>
-                              Centre Type: {school.centre_type || "Not added"}
-                            </p>
-
-                            <p style={helperText}>
-                              Registration: {school.registration_status || "Not added"}
-                            </p>
-
-                            <p style={helperText}>
-                              WageFlow:{" "}
-                              {school.package_name === "Bloom Elite" ||
-                              school.wageflow_enabled
-                                ? "Enabled"
-                                : "Disabled"}
-                            </p>
-
-                            <div style={{ marginTop: "12px" }}>
-                              <button
-                                type="button"
-                                style={statusButton}
-                                onClick={() =>
-                                  toggleWageFlowAddOn(
-                                    school.id,
-                                    Boolean(school.wageflow_enabled),
-                                    school.package_name
-                                  )
-                                }
-                                disabled={
-                                  updatingSchoolId === school.id ||
-                                  school.package_name === "Bloom Elite"
-                                }
-                              >
-                                {school.package_name === "Bloom Elite"
-                                  ? "Included in Elite"
-                                  : school.wageflow_enabled
-                                    ? "Disable WageFlow"
-                                    : "Enable WageFlow"}
-                              </button>
-                            </div>
-
-                            <p style={helperText}>
-                              Status:{" "}
-                              <span style={statusBadge(schoolStatus)}>
-                                {schoolStatus}
-                              </span>
-                            </p>
-
-                            <p style={helperText}>
-                              Missing:{" "}
-                              {missingItems.length ? missingItems.join(", ") : "none"}
-                            </p>
-                          </div>
-
-                          <div style={buttonWrap}>
                             <Link
                               href={`/master/school/${school.id}`}
-                              style={smallLinkButton}
+                              style={primarySmallButton}
                             >
                               Open School Overview
                             </Link>
 
                             <button
                               type="button"
-                              style={statusButton}
                               onClick={() => updateSchoolStatus(school.id, "active")}
                               disabled={updatingSchoolId === school.id}
+                              style={smallButton}
                             >
                               Activate
                             </button>
 
                             <button
                               type="button"
-                              style={statusButton}
-                              onClick={() => updateSchoolStatus(school.id, "suspended")}
+                              onClick={() =>
+                                updateSchoolStatus(school.id, "suspended")
+                              }
                               disabled={updatingSchoolId === school.id}
+                              style={smallButton}
                             >
                               Suspend
                             </button>
 
                             <button
                               type="button"
-                              style={statusButton}
                               onClick={() => updateSchoolStatus(school.id, "inactive")}
                               disabled={updatingSchoolId === school.id}
+                              style={smallButton}
                             >
                               Inactive
                             </button>
 
                             <button
                               type="button"
-                              style={dangerButton}
-                              onClick={() =>
-                                softDeleteSchool(school.id, school.school_name)
-                              }
+                              onClick={() => softDeleteSchool(school.id, school.school_name)}
                               disabled={updatingSchoolId === school.id}
+                              style={dangerSmallButton}
                             >
                               Soft Delete
                             </button>
                           </div>
                         </div>
-                      );
-                    })}
+
+                        {expandedSchoolId === school.id && (
+                          <div
+                            style={{
+                              marginTop: "14px",
+                              paddingTop: "14px",
+                              borderTop: "1px solid #F0E3D8",
+                              display: "grid",
+                              gap: "8px",
+                              color: "#5B5675",
+                              fontSize: "14px",
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            <p style={detailText}>
+                              <strong>Package:</strong>{" "}
+                              {school.package_name || "Not added"}
+                            </p>
+
+                            <p style={detailText}>
+                              <strong>NPO / Registration:</strong>{" "}
+                              {school.emis_number || "Not added"}
+                            </p>
+
+                            <p style={detailText}>
+                              <strong>Contact:</strong>{" "}
+                              {school.contact_number || "Not added"}
+                            </p>
+
+                            <p style={detailText}>
+                              <strong>Province / District:</strong>{" "}
+                              {school.province || "Not added"} /{" "}
+                              {school.district || "Not added"}
+                            </p>
+
+                            <p style={detailText}>
+                              <strong>Centre Type:</strong>{" "}
+                              {school.centre_type || "Not added"}
+                            </p>
+
+                            <p style={detailText}>
+                              <strong>Registration:</strong>{" "}
+                              {school.registration_status || "Not added"}
+                            </p>
+
+                            <p style={detailText}>
+                              <strong>WageFlow:</strong>{" "}
+                              {school.wageflow_enabled ? "Enabled" : "Disabled"}
+                            </p>
+
+                            <p style={detailText}>
+                              <strong>Status:</strong> {school.status || "Inactive"}
+                            </p>
+
+                            <p style={detailText}>
+                              <strong>Missing:</strong>{" "}
+                              {[
+                                !school.logo_url ? "logo" : null,
+                                !school.emis_number
+                                  ? "NPO / registration number"
+                                  : null,
+                                !school.province ? "province" : null,
+                                !school.district ? "district" : null,
+                                !school.centre_type ? "centre type" : null,
+                                !school.registration_status
+                                  ? "registration status"
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(", ") || "Nothing missing"}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
 
-                  {visibleSchoolCount < filteredSchools.length && (
-                    <button
-                      type="button"
-                      style={{ ...secondaryButton, marginTop: "14px" }}
-                      onClick={() =>
-                        setVisibleSchoolCount((current) => current + 5)
-                      }
+                  {hasMoreSchools && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                        marginTop: "16px",
+                      }}
                     >
-                      Show Next 5
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setVisibleSchoolCount((current) => current + 5)
+                        }
+                        style={smallButton}
+                      >
+                        Load 5 More
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setVisibleSchoolCount((current) => current + 10)
+                        }
+                        style={smallButton}
+                      >
+                        Load 10 More
+                      </button>
+                    </div>
                   )}
                 </>
               )}
@@ -912,7 +952,8 @@ export default function MasterPage() {
               </p>
 
               <p style={helperText}>
-                Principal: {selectedSignupRequest.principal_full_name || "Not added"}
+                Principal:{" "}
+                {selectedSignupRequest.principal_full_name || "Not added"}
               </p>
 
               <p style={helperText}>
@@ -1212,42 +1253,6 @@ function SectionCard({
   );
 }
 
-function statusBadge(status: string) {
-  const base = {
-    display: "inline-block",
-    padding: "4px 10px",
-    borderRadius: "999px",
-    fontSize: "12px",
-    fontWeight: 800,
-    textTransform: "capitalize" as const,
-  };
-
-  if (status === "active") {
-    return {
-      ...base,
-      background: "#EEF9EE",
-      color: "#2E6B35",
-      border: "1px solid #D3EDD4",
-    };
-  }
-
-  if (status === "suspended") {
-    return {
-      ...base,
-      background: "#FFF7D9",
-      color: "#8A6500",
-      border: "1px solid #F3E4A3",
-    };
-  }
-
-  return {
-    ...base,
-    background: "#F8E8F0",
-    color: "#8A3F5C",
-    border: "1px solid #EBC9D8",
-  };
-}
-
 const eyebrow = {
   margin: 0,
   color: "#6D6888",
@@ -1286,18 +1291,6 @@ const listCard = {
   padding: "16px",
 };
 
-const schoolListCard = {
-  background: "#FFFDFB",
-  border: "1px solid #F0E3D8",
-  borderRadius: "18px",
-  padding: "16px",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "16px",
-  flexWrap: "wrap" as const,
-};
-
 const listTitle = {
   display: "block",
   fontSize: "17px",
@@ -1305,43 +1298,39 @@ const listTitle = {
   fontWeight: 700,
 };
 
-const buttonWrap = {
-  display: "flex",
-  gap: "8px",
-  flexWrap: "wrap" as const,
-  justifyContent: "flex-end",
+const smallButton = {
+  background: "#FFFFFF",
+  color: "#2D2A3E",
+  border: "1px solid #E3D9CD",
+  borderRadius: "12px",
+  padding: "9px 12px",
+  fontWeight: 600,
+  cursor: "pointer",
 };
 
-const smallLinkButton = {
+const primarySmallButton = {
   textDecoration: "none",
   background: "#7CCCF3",
   color: "#2D2A3E",
-  padding: "10px 14px",
-  borderRadius: "12px",
-  fontWeight: 600,
   border: "1px solid #CBEAF7",
-  whiteSpace: "nowrap" as const,
+  borderRadius: "12px",
+  padding: "9px 12px",
+  fontWeight: 600,
   display: "inline-block",
 };
 
-const statusButton = {
-  border: "1px solid #E3D9CD",
-  background: "#FFFFFF",
-  color: "#5B5675",
+const dangerSmallButton = {
+  background: "#F8D7DA",
+  color: "#7A1F2B",
+  border: "1px solid #F1B5BD",
   borderRadius: "12px",
-  padding: "10px 12px",
-  fontWeight: 700,
+  padding: "9px 12px",
+  fontWeight: 600,
   cursor: "pointer",
 };
 
-const dangerButton = {
-  border: "1px solid #EBC9D8",
-  background: "#F8E8F0",
-  color: "#8A3F5C",
-  borderRadius: "12px",
-  padding: "10px 12px",
-  fontWeight: 800,
-  cursor: "pointer",
+const detailText = {
+  margin: 0,
 };
 
 const secondaryButton = {

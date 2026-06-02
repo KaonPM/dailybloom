@@ -31,6 +31,15 @@ type SetupItem = {
   helper: string;
 };
 
+const colourPresets = [
+  { name: "DailyBloom Sky", primary: "#7CCCF3", secondary: "#FFD76A" },
+  { name: "Soft Rose", primary: "#F8BBD0", secondary: "#FFF3B0" },
+  { name: "Mint Garden", primary: "#A8E6CF", secondary: "#FFD3B6" },
+  { name: "Lavender Calm", primary: "#CDB4DB", secondary: "#BDE0FE" },
+  { name: "Peach Glow", primary: "#FFB5A7", secondary: "#FCD5CE" },
+  { name: "Fresh Green", primary: "#B7E4C7", secondary: "#FFF1A8" },
+];
+
 export default function MasterSchoolOverviewPage() {
   const router = useRouter();
   const params = useParams();
@@ -48,6 +57,12 @@ export default function MasterSchoolOverviewPage() {
 
   const [principalCount, setPrincipalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [primaryColor, setPrimaryColor] = useState("#7CCCF3");
+  const [secondaryColor, setSecondaryColor] = useState("#FFD76A");
+  const [savingLogo, setSavingLogo] = useState(false);
+  const [savingColours, setSavingColours] = useState(false);
 
   const schoolId = Number(params?.id);
 
@@ -85,6 +100,9 @@ export default function MasterSchoolOverviewPage() {
     }
 
     setSchool(schoolData);
+    setPrimaryColor(schoolData.primary_color || "#7CCCF3");
+    setSecondaryColor(schoolData.secondary_color || "#FFD76A");
+
     await Promise.all([fetchSchoolStats(schoolId), fetchPrincipalCount(schoolId)]);
     setLoading(false);
   }
@@ -100,46 +118,14 @@ export default function MasterSchoolOverviewPage() {
       summariesResult,
       paymentsResult,
     ] = await Promise.all([
-      supabase
-        .from("learners")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
-
-      supabase
-        .from("teachers")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
-
-      supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId)
-        .eq("role", "teacher"),
-
-      supabase
-        .from("classrooms")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
-
-      supabase
-        .from("events")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
-
-      supabase
-        .from("classroom_activities")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
-
-      supabase
-        .from("summaries")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
-
-      supabase
-        .from("payments")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
+      supabase.from("learners").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
+      supabase.from("teachers").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
+      supabase.from("profiles").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId).eq("role", "teacher"),
+      supabase.from("classrooms").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
+      supabase.from("events").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
+      supabase.from("classroom_activities").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
+      supabase.from("summaries").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
+      supabase.from("payments").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
     ]);
 
     const teacherCount = Math.max(
@@ -168,28 +154,79 @@ export default function MasterSchoolOverviewPage() {
     setPrincipalCount(count || 0);
   }
 
+  async function uploadSchoolLogo() {
+    if (!school || !logoFile) {
+      alert("Please select a logo first.");
+      return;
+    }
+
+    setSavingLogo(true);
+
+    const fileExtension = logoFile.name.split(".").pop();
+    const filePath = `school-${school.id}/logo-${Date.now()}.${fileExtension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("school-logos")
+      .upload(filePath, logoFile, { upsert: true });
+
+    if (uploadError) {
+      alert(uploadError.message);
+      setSavingLogo(false);
+      return;
+    }
+
+    const { data } = supabase.storage.from("school-logos").getPublicUrl(filePath);
+
+    const { error: updateError } = await supabase
+      .from("schools")
+      .update({ logo_url: data.publicUrl })
+      .eq("id", school.id);
+
+    if (updateError) {
+      alert(updateError.message);
+      setSavingLogo(false);
+      return;
+    }
+
+    setSchool({ ...school, logo_url: data.publicUrl });
+    setLogoFile(null);
+    setSavingLogo(false);
+    alert("School logo updated.");
+  }
+
+  async function saveSchoolColours() {
+    if (!school) return;
+
+    setSavingColours(true);
+
+    const { error } = await supabase
+      .from("schools")
+      .update({
+        primary_color: primaryColor,
+        secondary_color: secondaryColor,
+      })
+      .eq("id", school.id);
+
+    if (error) {
+      alert(error.message);
+      setSavingColours(false);
+      return;
+    }
+
+    setSchool({
+      ...school,
+      primary_color: primaryColor,
+      secondary_color: secondaryColor,
+    });
+
+    setSavingColours(false);
+    alert("School colours updated.");
+  }
+
   const setupItems = useMemo<SetupItem[]>(() => {
     if (!school) return [];
 
     return [
-      {
-        label: "School logo added",
-        complete: Boolean(school.logo_url),
-        href: "/master?view=manage-schools",
-        helper: "Branding helps the school feel ready and identifiable.",
-      },
-      {
-        label: "Primary colour added",
-        complete: Boolean(school.primary_color),
-        href: "/master?view=manage-schools",
-        helper: "Brand colour is part of the school setup.",
-      },
-      {
-        label: "Secondary colour added",
-        complete: Boolean(school.secondary_color),
-        href: "/master?view=manage-schools",
-        helper: "Secondary colour completes the school theme.",
-      },
       {
         label: "Principal assigned",
         complete: principalCount > 0,
@@ -238,13 +275,7 @@ export default function MasterSchoolOverviewPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100%",
-        background: "#FFF8F2",
-        paddingBottom: "24px",
-      }}
-    >
+    <div style={{ minHeight: "100%", background: "#FFF8F2", paddingBottom: "24px" }}>
       <div
         style={{
           background: "linear-gradient(135deg, #F8E8F0 0%, #FFF8F2 100%)",
@@ -255,97 +286,32 @@ export default function MasterSchoolOverviewPage() {
           boxShadow: "0 10px 24px rgba(45, 42, 62, 0.06)",
         }}
       >
-        <p
-          style={{
-            margin: 0,
-            color: "#6D6888",
-            fontSize: "13px",
-            fontWeight: 700,
-          }}
-        >
+        <p style={{ margin: 0, color: "#6D6888", fontSize: "13px", fontWeight: 700 }}>
           School Overview
         </p>
 
-        <h1
-          style={{
-            margin: "8px 0 0 0",
-            fontSize: "34px",
-            fontWeight: 800,
-            color: "#2D2A3E",
-          }}
-        >
+        <h1 style={{ margin: "8px 0 0 0", fontSize: "34px", fontWeight: 800, color: "#2D2A3E" }}>
           {school.school_name}
         </h1>
 
-        <p
-          style={{
-            marginTop: "10px",
-            marginBottom: 0,
-            color: "#5B5675",
-            fontSize: "15px",
-            lineHeight: 1.6,
-          }}
-        >
+        <p style={{ marginTop: "10px", marginBottom: 0, color: "#5B5675", fontSize: "15px", lineHeight: 1.6 }}>
           Review this school’s records and open linked management pages from here.
         </p>
 
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            flexWrap: "wrap",
-            marginTop: "16px",
-          }}
-        >
-          <Link href="/master?view=manage-schools" style={topButton}>
-            Back to Master Dashboard
-          </Link>
-
-          <Link href="/onboarding" style={topButton}>
-            Open Onboarding Pipeline
-          </Link>
-
-          <Link href={`/classrooms?school=${school.id}`} style={topButtonBlue}>
-            Open Classrooms
-          </Link>
-
-          <Link href={`/children?school=${school.id}`} style={topButtonBlue}>
-            Open Learners
-          </Link>
-
-          <Link href={`/events?school=${school.id}`} style={topButtonBlue}>
-            Open Events
-          </Link>
-
-          <Link
-            href={`/classroom-activities?school=${school.id}`}
-            style={topButtonBlue}
-          >
-            Open Classroom Activities
-          </Link>
-
-          <Link href={`/summaries?school=${school.id}`} style={topButtonBlue}>
-            Open Summaries
-          </Link>
-
-          <Link href={`/broadcasts?school=${school.id}`} style={topButtonBlue}>
-            Open Broadcasts
-          </Link>
-
-          <Link href={`/payments?school=${school.id}`} style={topButtonBlue}>
-            Open Payments
-          </Link>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "16px" }}>
+          <Link href="/master?view=manage-schools" style={topButton}>Back to Master Dashboard</Link>
+          <Link href="/onboarding" style={topButton}>Open Onboarding Pipeline</Link>
+          <Link href={`/classrooms?school=${school.id}`} style={topButtonBlue}>Open Classrooms</Link>
+          <Link href={`/children?school=${school.id}`} style={topButtonBlue}>Open Learners</Link>
+          <Link href={`/events?school=${school.id}`} style={topButtonBlue}>Open Events</Link>
+          <Link href={`/classroom-activities?school=${school.id}`} style={topButtonBlue}>Open Classroom Activities</Link>
+          <Link href={`/summaries?school=${school.id}`} style={topButtonBlue}>Open Summaries</Link>
+          <Link href={`/broadcasts?school=${school.id}`} style={topButtonBlue}>Open Broadcasts</Link>
+          <Link href={`/payments?school=${school.id}`} style={topButtonBlue}>Open Payments</Link>
         </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: "14px",
-          marginBottom: "24px",
-        }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px", marginBottom: "24px" }}>
         <StatCard label="Learners" value={stats.learners} />
         <StatCard label="Teachers" value={stats.teachers} />
         <StatCard label="Classrooms" value={stats.classrooms} />
@@ -356,62 +322,98 @@ export default function MasterSchoolOverviewPage() {
         <StatCard label="Principals" value={principalCount} />
       </div>
 
-      <div
-        style={{
-          background: "#FFFFFF",
-          border: "1px solid #F0E3D8",
-          borderRadius: "24px",
-          padding: "20px",
-          boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
-        }}
-      >
+      <div style={mainCard}>
         <h3 style={sectionTitle}>School Readiness Checklist</h3>
 
         <div style={{ display: "grid", gap: "12px" }}>
-          {setupItems.map((item) => (
-            <div
-              key={item.label}
-              style={{
-                background: item.complete ? "#EEF9EE" : "#FFFDFB",
-                border: item.complete ? "1px solid #D3EDD4" : "1px solid #F0E3D8",
-                borderRadius: "18px",
-                padding: "16px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: "16px",
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ flex: 1, minWidth: "240px" }}>
-                <strong
+          <div style={readinessCard(Boolean(school.logo_url))}>
+            <div style={{ flex: 1, minWidth: "240px" }}>
+              <strong style={readinessTitle}>School logo added</strong>
+              <p style={helperText}>Upload or review the school logo directly here.</p>
+
+              {school.logo_url && (
+                <img
+                  src={school.logo_url}
+                  alt={`${school.school_name} logo`}
                   style={{
+                    width: "110px",
+                    height: "110px",
+                    objectFit: "cover",
+                    borderRadius: "18px",
+                    border: "1px solid #F0E3D8",
+                    marginTop: "12px",
                     display: "block",
-                    color: "#2D2A3E",
-                    fontSize: "16px",
                   }}
-                >
-                  {item.label}
-                </strong>
+                />
+              )}
+            </div>
+
+            <div style={{ display: "grid", gap: "10px", minWidth: "220px" }}>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) => setLogoFile(event.target.files?.[0] || null)}
+              />
+
+              <button onClick={uploadSchoolLogo} disabled={savingLogo} style={actionButton}>
+                {savingLogo ? "Uploading..." : school.logo_url ? "Change Logo" : "Save Logo"}
+              </button>
+            </div>
+          </div>
+
+          <div style={readinessCard(Boolean(school.primary_color && school.secondary_color))}>
+            <div style={{ flex: 1, minWidth: "240px" }}>
+              <strong style={readinessTitle}>School colours added</strong>
+              <p style={helperText}>Choose a colour set or select your own colours directly here.</p>
+            </div>
+
+            <div style={{ display: "grid", gap: "12px", width: "100%" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px" }}>
+                {colourPresets.map((preset) => (
+                  <button
+                    key={preset.name}
+                    onClick={() => {
+                      setPrimaryColor(preset.primary);
+                      setSecondaryColor(preset.secondary);
+                    }}
+                    style={presetButton}
+                  >
+                    <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                      <span style={colourSwatch(preset.primary)} />
+                      <span style={colourSwatch(preset.secondary)} />
+                    </div>
+                    <strong style={{ color: "#2D2A3E" }}>{preset.name}</strong>
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
+                <label style={labelStyle}>
+                  Primary Colour
+                  <input type="color" value={primaryColor} onChange={(event) => setPrimaryColor(event.target.value)} style={colourInput} />
+                </label>
+
+                <label style={labelStyle}>
+                  Secondary Colour
+                  <input type="color" value={secondaryColor} onChange={(event) => setSecondaryColor(event.target.value)} style={colourInput} />
+                </label>
+              </div>
+
+              <button onClick={saveSchoolColours} disabled={savingColours} style={actionButton}>
+                {savingColours ? "Saving..." : "Save Colours"}
+              </button>
+            </div>
+          </div>
+
+          {setupItems.map((item) => (
+            <div key={item.label} style={readinessCard(item.complete)}>
+              <div style={{ flex: 1, minWidth: "240px" }}>
+                <strong style={readinessTitle}>{item.label}</strong>
                 <p style={helperText}>{item.helper}</p>
               </div>
 
               <div style={{ flexShrink: 0 }}>
-                <Link
-                  href={item.href}
-                  style={{
-                    textDecoration: "none",
-                    background: item.complete ? "#FFFFFF" : "#7CCCF3",
-                    color: "#2D2A3E",
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    border: item.complete
-                      ? "1px solid #D3EDD4"
-                      : "1px solid #CBEAF7",
-                    fontWeight: 600,
-                    display: "inline-block",
-                  }}
-                >
+                <Link href={item.href} style={reviewButton(item.complete)}>
                   {item.complete ? "Review" : "Complete"}
                 </Link>
               </div>
@@ -425,38 +427,46 @@ export default function MasterSchoolOverviewPage() {
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div
-      style={{
-        background: "#FFFFFF",
-        border: "1px solid #F0E3D8",
-        borderRadius: "22px",
-        padding: "18px",
-        boxShadow: "0 8px 18px rgba(45, 42, 62, 0.05)",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: "#5B5675",
-          fontSize: "14px",
-          fontWeight: 700,
-        }}
-      >
-        {label}
-      </p>
-      <h2
-        style={{
-          margin: "8px 0 0 0",
-          color: "#2D2A3E",
-          fontSize: "30px",
-          fontWeight: 800,
-        }}
-      >
-        {value}
-      </h2>
+    <div style={statCard}>
+      <p style={{ margin: 0, color: "#5B5675", fontSize: "14px", fontWeight: 700 }}>{label}</p>
+      <h2 style={{ margin: "8px 0 0 0", color: "#2D2A3E", fontSize: "30px", fontWeight: 800 }}>{value}</h2>
     </div>
   );
 }
+
+const readinessCard = (complete: boolean) => ({
+  background: complete ? "#EEF9EE" : "#FFFDFB",
+  border: complete ? "1px solid #D3EDD4" : "1px solid #F0E3D8",
+  borderRadius: "18px",
+  padding: "16px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "16px",
+  flexWrap: "wrap" as const,
+});
+
+const readinessTitle = {
+  display: "block",
+  color: "#2D2A3E",
+  fontSize: "16px",
+};
+
+const mainCard = {
+  background: "#FFFFFF",
+  border: "1px solid #F0E3D8",
+  borderRadius: "24px",
+  padding: "20px",
+  boxShadow: "0 8px 20px rgba(45, 42, 62, 0.05)",
+};
+
+const statCard = {
+  background: "#FFFFFF",
+  border: "1px solid #F0E3D8",
+  borderRadius: "22px",
+  padding: "18px",
+  boxShadow: "0 8px 18px rgba(45, 42, 62, 0.05)",
+};
 
 const sectionTitle = {
   marginTop: 0,
@@ -494,3 +504,60 @@ const topButtonBlue = {
   fontWeight: 600,
   display: "inline-block",
 };
+
+const actionButton = {
+  background: "#7CCCF3",
+  color: "#2D2A3E",
+  border: "1px solid #CBEAF7",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  fontWeight: 700,
+  cursor: "pointer",
+  width: "fit-content",
+};
+
+const presetButton = {
+  border: "1px solid #F0E3D8",
+  borderRadius: "16px",
+  background: "#FFFFFF",
+  padding: "12px",
+  cursor: "pointer",
+  textAlign: "left" as const,
+};
+
+const colourSwatch = (colour: string) => ({
+  width: "34px",
+  height: "34px",
+  borderRadius: "10px",
+  background: colour,
+  border: "1px solid #E3D9CD",
+  display: "inline-block",
+});
+
+const labelStyle = {
+  display: "grid",
+  gap: "8px",
+  color: "#2D2A3E",
+  fontSize: "14px",
+  fontWeight: 700,
+};
+
+const colourInput = {
+  width: "100%",
+  height: "46px",
+  border: "1px solid #F0E3D8",
+  borderRadius: "12px",
+  background: "#FFFFFF",
+  padding: "4px",
+};
+
+const reviewButton = (complete: boolean) => ({
+  textDecoration: "none",
+  background: complete ? "#FFFFFF" : "#7CCCF3",
+  color: "#2D2A3E",
+  padding: "10px 14px",
+  borderRadius: "12px",
+  border: complete ? "1px solid #D3EDD4" : "1px solid #CBEAF7",
+  fontWeight: 600,
+  display: "inline-block",
+});

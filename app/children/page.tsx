@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -563,6 +564,12 @@ export default function LearnersPage() {
                   }.`
                 : "Manage learner records using DBE-ready identity, guardian and transition fields."}
             </p>
+
+            {schoolParam && schoolId ? (
+              <Link href={`/master/school/${schoolId}`} style={backButton}>
+                Back to School Overview
+              </Link>
+            ) : null}
           </div>
 
           {canAddLearner && activeFilter !== "birthdays-today" ? (
@@ -1054,3 +1061,16 @@ const learnerActionButton = {
   fontSize: 13,
   flex: "1 1 0",
 } as const;
+
+const backButton = {
+  display: "inline-block",
+  marginTop: 12,
+  textDecoration: "none",
+  background: "#FFFFFF",
+  color: "#2D2A3E",
+  border: "1px solid #E3D9CD",
+  borderRadius: 12,
+  padding: "10px 14px",
+  fontWeight: 700,
+  fontSize: 13,
+};

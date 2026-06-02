@@ -29,6 +29,7 @@ export default function MasterReportsPage() {
   const router = useRouter();
 
   const [reportType, setReportType] = useState("Schools Report");
+  const [revenueView, setRevenueView] = useState<"monthly" | "annual">("monthly");
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
@@ -151,11 +152,13 @@ export default function MasterReportsPage() {
     setRows(
       (data || []).map((item: any) => {
         const monthly = Number(item.monthly_price || 0);
+        const displayAmount = revenueView === "monthly" ? monthly : monthly * 12;
+
         return {
           school: item.schools?.school_name || `School ID ${item.school_id}`,
-          type: "Revenue",
+          type: revenueView === "monthly" ? "Monthly Revenue" : "Annual Revenue",
           detail: item.plan_name || "No plan",
-          value: `Monthly: R${monthly.toFixed(2)} | Annual: R${(monthly * 12).toFixed(2)}`,
+          value: `R${displayAmount.toFixed(2)}`,
           status: item.status || "Not set",
         };
       })
@@ -350,7 +353,12 @@ export default function MasterReportsPage() {
   }
 
   function buildFilename(extension: string) {
-    return `${reportType.toLowerCase().replace(/\s+/g, "-")}-${new Date()
+    const viewLabel =
+      reportType === "Revenue Report" ? `-${revenueView}` : "";
+
+    return `${reportType
+      .toLowerCase()
+      .replace(/\s+/g, "-")}${viewLabel}-${new Date()
       .toISOString()
       .split("T")[0]}.${extension}`;
   }
@@ -562,6 +570,22 @@ export default function MasterReportsPage() {
               ))}
             </select>
           </div>
+
+          {reportType === "Revenue Report" ? (
+            <div>
+              <p style={labelText}>Revenue View</p>
+              <select
+                className="db-input"
+                value={revenueView}
+                onChange={(event) =>
+                  setRevenueView(event.target.value as "monthly" | "annual")
+                }
+              >
+                <option value="monthly">Monthly Revenue</option>
+                <option value="annual">Annual Revenue</option>
+              </select>
+            </div>
+          ) : null}
         </div>
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
@@ -300,6 +301,12 @@ export default function ClassroomActivitiesPage() {
         <p className="db-page-subtitle">
           Plan activities, mark completion, track learner participation and manage follow-ups.
         </p>
+
+        {schoolParam && schoolId ? (
+          <Link href={`/master/school/${schoolId}`} style={backButton}>
+            Back to School Overview
+          </Link>
+        ) : null}
       </div>
 
       <div className="db-grid-3" style={{ marginBottom: "20px" }}>
@@ -863,4 +870,17 @@ const repeatBox = {
   borderRadius: "16px",
   border: "1px solid #e8e8e8",
   background: "#ffffff",
+};
+
+const backButton = {
+  display: "inline-block",
+  marginTop: 12,
+  textDecoration: "none",
+  background: "#FFFFFF",
+  color: "#2D2A3E",
+  border: "1px solid #E3D9CD",
+  borderRadius: 12,
+  padding: "10px 14px",
+  fontWeight: 700,
+  fontSize: 13,
 };

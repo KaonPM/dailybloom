@@ -75,6 +75,11 @@ export default function Sidebar() {
         href: "/billing",
         match: ["/billing"],
       },
+      {
+        label: "Platform Analytics",
+        href: "/master/analytics",
+        match: ["/master/analytics"],
+      },
     ],
     []
   );

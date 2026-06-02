@@ -4,7 +4,8 @@ import { schoolHasFeature } from "./package-access";
 export type NavigationItem = {
   label: string;
   href: string;
-  match: string[];
+  match?: string[];
+  view?: string;
   featureKey?: string;
 };
 

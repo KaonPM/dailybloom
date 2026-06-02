@@ -22,6 +22,7 @@ type ReportRow = {
 };
 
 const reportTypes = [
+  "School Analytics",
   "Learner Attendance",
   "Teacher Attendance",
   "Learner Register",
@@ -47,7 +48,7 @@ export default function ReportsPage() {
   const [teacherClassroom, setTeacherClassroom] = useState("");
 
   const [learners, setLearners] = useState<Learner[]>([]);
-  const [reportType, setReportType] = useState("Learner Attendance");
+  const [reportType, setReportType] = useState("School Analytics");
   const [scope, setScope] = useState("Entire School");
   const [selectedClassroom, setSelectedClassroom] = useState("");
   const [selectedLearner, setSelectedLearner] = useState("");
@@ -201,6 +202,7 @@ export default function ReportsPage() {
 
     setRunning(true);
 
+    if (reportType === "School Analytics") await runSchoolAnalyticsReport();
     if (reportType === "Learner Attendance") await runAttendanceReport();
     if (reportType === "Teacher Attendance") await runTeacherAttendanceReport();
     if (reportType === "Learner Register") await runLearnerRegisterReport();
@@ -311,18 +313,18 @@ export default function ReportsPage() {
         return true;
       })
       .map((item: any) => ({
-       date: "",
-       learner: item.name || item.legal_name || "Unnamed learner",
-       classroom: item.class || "Unassigned",
-       type: "Learner Register",
-       detail: `DOB: ${item.date_of_birth || "Not added"} | Gender: ${
-       item.gender || "Not added"
-      }`,
-       extra: `Guardian: ${item.guardian_name || "Not added"} | Phone: ${
-       item.parent_phone || "Not added"
-      } | Email: ${item.parent_email || "Not added"} | Receiving School: ${
-       item.receiving_school || "Not added"
-      }`,
+        date: "",
+        learner: item.name || item.legal_name || "Unnamed learner",
+        classroom: item.class || "Unassigned",
+        type: "Learner Register",
+        detail: `DOB: ${item.date_of_birth || "Not added"} | Gender: ${
+          item.gender || "Not added"
+        }`,
+        extra: `Guardian: ${item.guardian_name || "Not added"} | Phone: ${
+          item.parent_phone || "Not added"
+        } | Email: ${item.parent_email || "Not added"} | Receiving School: ${
+          item.receiving_school || "Not added"
+        }`,
       }));
 
     setReportRows(rows);
@@ -536,6 +538,228 @@ export default function ReportsPage() {
     setReportRows(rows);
   }
 
+  async function runSchoolAnalyticsReport() {
+    if (!schoolId) return;
+
+    const [
+      attendanceResult,
+      teacherAttendanceResult,
+      paymentsResult,
+      summariesResult,
+      requirementsResult,
+      documentsResult,
+    ] = await Promise.all([
+      supabase
+        .from("attendance")
+        .select("*")
+        .eq("school_id", schoolId)
+        .gte("attendance_date", fromDate)
+        .lte("attendance_date", toDate),
+
+      supabase
+        .from("teacher_attendance")
+        .select("*")
+        .eq("school_id", schoolId)
+        .gte("attendance_date", fromDate)
+        .lte("attendance_date", toDate),
+
+      supabase.from("payments").select("*").eq("school_id", schoolId),
+
+      supabase
+        .from("summaries")
+        .select("*")
+        .eq("school_id", schoolId)
+        .gte("created_at", `${fromDate} 00:00:00`)
+        .lte("created_at", `${toDate} 23:59:59`),
+
+      supabase
+        .from("learner_stationery_checklist")
+        .select("*")
+        .eq("school_id", schoolId),
+
+      supabase
+        .from("learner_documents")
+        .select("*")
+        .eq("school_id", schoolId),
+    ]);
+
+    if (attendanceResult.error) {
+      alert(attendanceResult.error.message);
+      return;
+    }
+
+    if (teacherAttendanceResult.error) {
+      alert(teacherAttendanceResult.error.message);
+      return;
+    }
+
+    if (paymentsResult.error) {
+      alert(paymentsResult.error.message);
+      return;
+    }
+
+    if (summariesResult.error) {
+      alert(summariesResult.error.message);
+      return;
+    }
+
+    if (requirementsResult.error) {
+      alert(requirementsResult.error.message);
+      return;
+    }
+
+    if (documentsResult.error) {
+      alert(documentsResult.error.message);
+      return;
+    }
+
+    const attendance = attendanceResult.data || [];
+    const teacherAttendance = teacherAttendanceResult.data || [];
+    const payments = paymentsResult.data || [];
+    const summaries = summariesResult.data || [];
+    const requirements = requirementsResult.data || [];
+    const documents = documentsResult.data || [];
+
+    const learnerPresent = attendance.filter(
+      (item: any) => String(item.status || "").toLowerCase() === "present"
+    ).length;
+
+    const learnerAbsent = attendance.filter(
+      (item: any) => String(item.status || "").toLowerCase() === "absent"
+    ).length;
+
+    const learnerAttendanceTotal = learnerPresent + learnerAbsent;
+
+    const learnerAttendanceRate =
+      learnerAttendanceTotal > 0
+        ? Math.round((learnerPresent / learnerAttendanceTotal) * 100)
+        : 0;
+
+    const teacherPresent = teacherAttendance.filter(
+      (item: any) => String(item.status || "").toLowerCase() === "present"
+    ).length;
+
+    const teacherAbsent = teacherAttendance.filter(
+      (item: any) => String(item.status || "").toLowerCase() === "absent"
+    ).length;
+
+    const teacherAttendanceTotal = teacherPresent + teacherAbsent;
+
+    const teacherAttendanceRate =
+      teacherAttendanceTotal > 0
+        ? Math.round((teacherPresent / teacherAttendanceTotal) * 100)
+        : 0;
+
+    const paidPayments = payments.filter(
+      (item: any) => String(item.status || "").toLowerCase() === "paid"
+    );
+
+    const unpaidPayments = payments.filter((item: any) =>
+      ["pending", "partial", "overdue"].includes(
+        String(item.status || "").toLowerCase()
+      )
+    );
+
+    const totalCollected = paidPayments.reduce(
+      (sum: number, item: any) => sum + Number(item.amount || 0),
+      0
+    );
+
+    const totalOutstanding = unpaidPayments.reduce(
+      (sum: number, item: any) => sum + Number(item.amount || 0),
+      0
+    );
+
+    const collectionRate =
+      payments.length > 0
+        ? Math.round((paidPayments.length / payments.length) * 100)
+        : 0;
+
+    const summariesSent = summaries.filter((item: any) => item.whatsapp_sent)
+      .length;
+
+    const summarySendRate =
+      summaries.length > 0
+        ? Math.round((summariesSent / summaries.length) * 100)
+        : 0;
+
+    const outstandingStationery = requirements.filter(
+      (item: any) => item.received === false
+    ).length;
+
+    const uploadedDocuments = documents.filter((item: any) => item.file_url)
+      .length;
+
+    const schoolHealthScore = Math.round(
+      (learnerAttendanceRate +
+        teacherAttendanceRate +
+        collectionRate +
+        summarySendRate) /
+        4
+    );
+
+    const rows: ReportRow[] = [
+      {
+        date: `${fromDate} to ${toDate}`,
+        learner: "Entire School",
+        classroom: "All",
+        type: "School Analytics",
+        detail: "School Health Score",
+        extra: `${schoolHealthScore}%`,
+      },
+      {
+        date: `${fromDate} to ${toDate}`,
+        learner: "Learners",
+        classroom: "All",
+        type: "Learner Attendance",
+        detail: "Learner Attendance Rate",
+        extra: `${learnerAttendanceRate}% | Present: ${learnerPresent} | Absent: ${learnerAbsent}`,
+      },
+      {
+        date: `${fromDate} to ${toDate}`,
+        learner: "Teachers",
+        classroom: "Staff",
+        type: "Teacher Attendance",
+        detail: "Teacher Attendance Rate",
+        extra: `${teacherAttendanceRate}% | Present: ${teacherPresent} | Absent: ${teacherAbsent}`,
+      },
+      {
+        date: `${fromDate} to ${toDate}`,
+        learner: "Payments",
+        classroom: "All",
+        type: "Payment Analytics",
+        detail: "Fee Collection",
+        extra: `Collection Rate: ${collectionRate}% | Collected: R${totalCollected.toFixed(
+          2
+        )} | Outstanding: R${totalOutstanding.toFixed(2)}`,
+      },
+      {
+        date: `${fromDate} to ${toDate}`,
+        learner: "Communication",
+        classroom: "All",
+        type: "Daily Summary Analytics",
+        detail: "Daily Summary Send Rate",
+        extra: `${summarySendRate}% | Sent: ${summariesSent} | Total: ${summaries.length}`,
+      },
+      {
+        date: `${fromDate} to ${toDate}`,
+        learner: "Requirements",
+        classroom: "All",
+        type: "Learner Requirements",
+        detail: "Outstanding Requirements",
+        extra: `Outstanding Stationery: ${outstandingStationery} | Uploaded Documents: ${uploadedDocuments}`,
+      },
+    ];
+
+    setReportRows(rows);
+  }
+
+  function buildExportFilename(extension: string) {
+    return `${reportType
+      .toLowerCase()
+      .replace(/\s+/g, "-")}-report-${fromDate}-to-${toDate}.${extension}`;
+  }
+
   function exportCsv() {
     if (reportRows.length === 0) {
       alert("No report results to export.");
@@ -557,12 +781,173 @@ export default function ReportsPage() {
     ];
 
     const csvContent = csvRows.join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
+    downloadBlob(csvContent, "text/csv;charset=utf-8;", buildExportFilename("csv"));
+  }
 
-    const filename = `${reportType
-      .toLowerCase()
-      .replace(/\s+/g, "-")}-report-${fromDate}-to-${toDate}.csv`;
+  function exportExcel() {
+    if (reportRows.length === 0) {
+      alert("No report results to export.");
+      return;
+    }
+
+    const rowsHtml = reportRows
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.date)}</td>
+            <td>${escapeHtml(row.learner)}</td>
+            <td>${escapeHtml(row.classroom)}</td>
+            <td>${escapeHtml(row.type)}</td>
+            <td>${escapeHtml(row.detail)}</td>
+            <td>${escapeHtml(row.extra)}</td>
+          </tr>
+        `
+      )
+      .join("");
+
+    const excelHtml = `
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+        </head>
+        <body>
+          <table border="1">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Learner</th>
+                <th>Classroom</th>
+                <th>Type</th>
+                <th>Detail</th>
+                <th>Extra</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    downloadBlob(
+      excelHtml,
+      "application/vnd.ms-excel;charset=utf-8;",
+      buildExportFilename("xls")
+    );
+  }
+
+  function exportPdf() {
+    if (reportRows.length === 0) {
+      alert("No report results to export.");
+      return;
+    }
+
+    const rowsHtml = reportRows
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.date)}</td>
+            <td>${escapeHtml(row.learner)}</td>
+            <td>${escapeHtml(row.classroom)}</td>
+            <td>${escapeHtml(row.type)}</td>
+            <td>${escapeHtml(row.detail)}</td>
+            <td>${escapeHtml(row.extra)}</td>
+          </tr>
+        `
+      )
+      .join("");
+
+    const printWindow = window.open("", "_blank");
+
+    if (!printWindow) {
+      alert("Could not open print window. Please allow pop-ups and try again.");
+      return;
+    }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${escapeHtml(reportType)} Report</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              padding: 24px;
+              color: #2D2A3E;
+            }
+
+            h1 {
+              margin: 0 0 6px 0;
+              font-size: 22px;
+            }
+
+            p {
+              margin: 0 0 18px 0;
+              color: #5B5675;
+              font-size: 13px;
+            }
+
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 11px;
+            }
+
+            th,
+            td {
+              border: 1px solid #D8D8D8;
+              padding: 7px;
+              text-align: left;
+              vertical-align: top;
+            }
+
+            th {
+              background: #EAF7FD;
+            }
+
+            @media print {
+              body {
+                padding: 12mm;
+              }
+            }
+          </style>
+        </head>
+
+        <body>
+          <h1>${escapeHtml(reportType)} Report</h1>
+          <p>${escapeHtml(fromDate)} to ${escapeHtml(toDate)}</p>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Learner</th>
+                <th>Classroom</th>
+                <th>Type</th>
+                <th>Detail</th>
+                <th>Extra</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <script>
+            window.onload = function () {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+  }
+
+  function downloadBlob(content: string, type: string, filename: string) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
 
     const link = document.createElement("a");
     link.href = url;
@@ -572,6 +957,15 @@ export default function ReportsPage() {
     document.body.removeChild(link);
 
     URL.revokeObjectURL(url);
+  }
+
+  function escapeHtml(value: string) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 
   if (loading) {
@@ -692,6 +1086,14 @@ export default function ReportsPage() {
 
           <button type="button" className="db-button-secondary" onClick={exportCsv}>
             Export CSV
+          </button>
+
+          <button type="button" className="db-button-secondary" onClick={exportExcel}>
+            Export Excel
+          </button>
+
+          <button type="button" className="db-button-secondary" onClick={exportPdf}>
+            Export PDF
           </button>
         </div>
       </div>

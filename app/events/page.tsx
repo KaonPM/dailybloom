@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
@@ -54,7 +55,6 @@ export default function EventsPage() {
 
     setSchoolId(context.schoolId);
     await fetchEvents(context.schoolId);
-
     setLoading(false);
   }
 
@@ -192,6 +192,12 @@ export default function EventsPage() {
             <p className="db-page-subtitle">
               View upcoming events first and add new events only when needed.
             </p>
+
+            {schoolParam && schoolId ? (
+              <Link href={`/master/school/${schoolId}`} style={backButton}>
+                Back to School Overview
+              </Link>
+            ) : null}
           </div>
 
           <button
@@ -240,20 +246,19 @@ export default function EventsPage() {
             <p style={labelText}>Short Description Optional</p>
             <textarea
               className="db-input"
-              rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add a short note about the event."
-              style={{ width: "100%", resize: "vertical" }}
+              placeholder="Add a short note about the event..."
+              style={{ minHeight: 90, resize: "vertical" }}
             />
           </div>
 
           <button
             type="button"
             className="db-button-primary"
+            style={{ width: "100%", marginTop: 12 }}
             onClick={saveEvent}
             disabled={saving}
-            style={{ width: "100%", marginTop: 12 }}
           >
             {saving ? "Saving..." : editingId ? "Update Event" : "Save Event"}
           </button>
@@ -264,7 +269,7 @@ export default function EventsPage() {
         <h3 style={sectionTitle}>Upcoming Events ({events.length})</h3>
 
         {events.length === 0 ? (
-          <p className="db-helper">No upcoming events planned yet.</p>
+          <p className="db-helper">No upcoming events added yet.</p>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
             {events.map((event) => {
@@ -278,11 +283,13 @@ export default function EventsPage() {
                     style={{
                       width: "100%",
                       display: "grid",
-                      gridTemplateColumns: "120px 1fr",
+                      gridTemplateColumns: "160px 1fr",
                       gap: 8,
                       alignItems: "center",
                       background: active ? "#EAF7FD" : "#FFFDFB",
-                      border: active ? "1px solid #CBEAF7" : "1px solid #F0E3D8",
+                      border: active
+                        ? "1px solid #CBEAF7"
+                        : "1px solid #F0E3D8",
                       borderRadius: 12,
                       padding: "10px 12px",
                       color: "#2D2A3E",
@@ -290,7 +297,10 @@ export default function EventsPage() {
                       textAlign: "left",
                     }}
                   >
-                    <span style={pillBlue}>{event.event_date || "No date"}</span>
+                    <span style={pillBlue}>
+                      {event.event_date || "No date"}
+                    </span>
+
                     <strong>{event.title || "Untitled event"}</strong>
                   </button>
 
@@ -304,9 +314,12 @@ export default function EventsPage() {
                         marginTop: 8,
                       }}
                     >
-                      <p style={smallText}>Event Details</p>
-                      <p style={detailText}>
-                        {event.description || "No description added."}
+                      <p style={smallText}>
+                        Date: {event.event_date || "Not added"}
+                      </p>
+
+                      <p style={smallText}>
+                        Description: {event.description || "No description added"}
                       </p>
 
                       <div
@@ -365,13 +378,6 @@ const smallText = {
   fontSize: 13,
 };
 
-const detailText = {
-  margin: "4px 0 0 0",
-  color: "#2D2A3E",
-  fontSize: 14,
-  lineHeight: 1.5,
-};
-
 const grid2 = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -386,4 +392,17 @@ const pillBlue = {
   fontSize: 12,
   color: "#2D2A3E",
   textAlign: "center" as const,
+};
+
+const backButton = {
+  display: "inline-block",
+  marginTop: 12,
+  textDecoration: "none",
+  background: "#FFFFFF",
+  color: "#2D2A3E",
+  border: "1px solid #E3D9CD",
+  borderRadius: 12,
+  padding: "10px 14px",
+  fontWeight: 700,
+  fontSize: 13,
 };

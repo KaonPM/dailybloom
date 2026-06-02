@@ -70,14 +70,31 @@ export default function OnboardingPage() {
       return;
     }
 
+    const { data: principals, error: principalsError } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, school_id")
+      .eq("role", "principal");
+
+    if (principalsError) {
+      alert(principalsError.message);
+      return;
+    }
+
     const merged = (schools || []).map((school: any) => {
-      const record = onboarding?.find((item: any) => item.school_id === school.id);
+      const record = onboarding?.find(
+        (item: any) => item.school_id === school.id
+      );
+
+      const principal = principals?.find(
+        (item: any) => item.school_id === school.id
+      );
 
       return {
         school_id: school.id,
         school_name: school.school_name,
-        principal_name: school.principal_name || "Not added",
-        principal_email: school.principal_email || "",
+        principal_name:
+          principal?.full_name || school.principal_name || "Not added",
+        principal_email: principal?.email || school.principal_email || "",
         package_name: school.package_name || school.package || "Not added",
         subscription_amount:
           school.subscription_amount || school.subscription || "Not added",
@@ -275,7 +292,12 @@ export default function OnboardingPage() {
                       </Link>
                     </td>
 
-                    <td style={tdStyle}>{row.principal_name}</td>
+                    <td style={tdStyle}>
+                      <strong>{row.principal_name}</strong>
+                      {row.principal_email ? (
+                        <p style={smallText}>{row.principal_email}</p>
+                      ) : null}
+                    </td>
 
                     <td style={tdStyle}>{row.package_name}</td>
 
@@ -339,7 +361,11 @@ export default function OnboardingPage() {
                         type="date"
                         value={row.setup_date}
                         onChange={(e) =>
-                          updateLocalRow(row.school_id, "setup_date", e.target.value)
+                          updateLocalRow(
+                            row.school_id,
+                            "setup_date",
+                            e.target.value
+                          )
                         }
                       />
                     </td>
@@ -359,7 +385,11 @@ export default function OnboardingPage() {
                               type="checkbox"
                               checked={row[field]}
                               onChange={(e) =>
-                                updateLocalRow(row.school_id, field, e.target.checked)
+                                updateLocalRow(
+                                  row.school_id,
+                                  field,
+                                  e.target.checked
+                                )
                               }
                             />
                             {label}
@@ -391,7 +421,9 @@ export default function OnboardingPage() {
                           onClick={() => saveRow(row)}
                           disabled={savingId === String(row.school_id)}
                         >
-                          {savingId === String(row.school_id) ? "Saving..." : "Save"}
+                          {savingId === String(row.school_id)
+                            ? "Saving..."
+                            : "Save"}
                         </button>
 
                         {row.onboarding_status === "Ready for activation" &&

@@ -20,6 +20,8 @@ type School = {
   logo_url?: string | null;
   primary_color?: string | null;
   secondary_color?: string | null;
+  package_name?: string | null;
+  wageflow_enabled?: boolean | null;
 };
 
 type NavItem = {
@@ -36,6 +38,7 @@ export default function Sidebar() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [school, setSchool] = useState<School | null>(null);
+  const [subscriptionPlan, setSubscriptionPlan] = useState("");
   const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -76,9 +79,9 @@ export default function Sidebar() {
         match: ["/billing"],
       },
       {
-       label: "Platform Reports",
-       href: "/master/reports",
-       match: ["/master/reports"],
+        label: "Platform Reports",
+        href: "/master/reports",
+        match: ["/master/reports"],
       },
       {
         label: "Platform Analytics",
@@ -244,6 +247,7 @@ export default function Sidebar() {
     if (!currentProfile) {
       setProfile(null);
       setSchool(null);
+      setSubscriptionPlan("");
       setFilteredQuickActionsNav([]);
       setFilteredSchoolManagementNav([]);
       setFilteredTeacherSchoolManagementNav([]);
@@ -279,23 +283,45 @@ export default function Sidebar() {
 
     if (!schoolId || Number.isNaN(schoolId)) {
       setSchool(null);
+      setSubscriptionPlan("");
       setLoading(false);
       return;
     }
 
-    const { data } = await supabase
-      .from("schools")
-      .select("id, school_name, logo_url, primary_color, secondary_color")
-      .eq("id", schoolId)
-      .single();
+    const [{ data: schoolData }, { data: subscriptionData }] = await Promise.all([
+      supabase
+        .from("schools")
+        .select(
+          "id, school_name, logo_url, primary_color, secondary_color, package_name, wageflow_enabled"
+        )
+        .eq("id", schoolId)
+        .single(),
 
-    setSchool(data || null);
+      supabase
+        .from("school_subscriptions")
+        .select("plan_name, status")
+        .eq("school_id", schoolId)
+        .maybeSingle(),
+    ]);
+
+    setSchool((schoolData || null) as School | null);
+    setSubscriptionPlan(
+      String(subscriptionData?.plan_name || schoolData?.package_name || "")
+    );
     setLoading(false);
   }
 
   const isMaster = profile?.role === "master";
   const isTeacher = profile?.role === "teacher";
   const showSchoolActions = Boolean(school) || !isMaster;
+
+  const isBloomElite =
+    String(subscriptionPlan || school?.package_name || "")
+      .trim()
+      .toLowerCase() === "bloom elite";
+
+  const showWageFlowStaffManagement =
+  !isTeacher && (isBloomElite || school?.wageflow_enabled === true);
 
   const dashboardHref = isMaster
     ? `/master/school/${school?.id || ""}`
@@ -641,6 +667,40 @@ export default function Sidebar() {
                     {item.label}
                   </Link>
                 ))}
+
+              {showWageFlowStaffManagement ? (
+                <a
+                  href="https://wageflow.lesedismartsolutions.co.za/login"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    textDecoration: "none",
+                    background:
+                      "linear-gradient(135deg, #F8E8F0 0%, #FFF8F2 100%)",
+                    color: "#2D2A3E",
+                    border: "1px solid #EBC9D8",
+                    padding: "12px 14px",
+                    borderRadius: "14px",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    display: "block",
+                  }}
+                >
+                  👥 Staff Management
+
+                  <span
+                    style={{
+                      display: "block",
+                      marginTop: "4px",
+                      fontSize: "11px",
+                      color: "#6D6888",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Bloom Elite benefit powered by WageFlow
+                  </span>
+                </a>
+              ) : null}
 
               {!isTeacher ? (
                 <>

@@ -63,6 +63,9 @@ export default function MasterSchoolOverviewPage() {
   const [secondaryColor, setSecondaryColor] = useState("#FFD76A");
   const [savingLogo, setSavingLogo] = useState(false);
   const [savingColours, setSavingColours] = useState(false);
+  const [openSetupPanel, setOpenSetupPanel] = useState<
+    "logo" | "colours" | null
+  >(null);
 
   const schoolId = Number(params?.id);
 
@@ -103,7 +106,11 @@ export default function MasterSchoolOverviewPage() {
     setPrimaryColor(schoolData.primary_color || "#7CCCF3");
     setSecondaryColor(schoolData.secondary_color || "#FFD76A");
 
-    await Promise.all([fetchSchoolStats(schoolId), fetchPrincipalCount(schoolId)]);
+    await Promise.all([
+      fetchSchoolStats(schoolId),
+      fetchPrincipalCount(schoolId),
+    ]);
+
     setLoading(false);
   }
 
@@ -118,14 +125,46 @@ export default function MasterSchoolOverviewPage() {
       summariesResult,
       paymentsResult,
     ] = await Promise.all([
-      supabase.from("learners").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
-      supabase.from("teachers").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
-      supabase.from("profiles").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId).eq("role", "teacher"),
-      supabase.from("classrooms").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
-      supabase.from("events").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
-      supabase.from("classroom_activities").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
-      supabase.from("summaries").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
-      supabase.from("payments").select("*", { count: "exact", head: true }).eq("school_id", currentSchoolId),
+      supabase
+        .from("learners")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
+
+      supabase
+        .from("teachers")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
+
+      supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId)
+        .eq("role", "teacher"),
+
+      supabase
+        .from("classrooms")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
+
+      supabase
+        .from("events")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
+
+      supabase
+        .from("classroom_activities")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
+
+      supabase
+        .from("summaries")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
+
+      supabase
+        .from("payments")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", currentSchoolId),
     ]);
 
     const teacherCount = Math.max(
@@ -175,7 +214,9 @@ export default function MasterSchoolOverviewPage() {
       return;
     }
 
-    const { data } = supabase.storage.from("school-logos").getPublicUrl(filePath);
+    const { data } = supabase.storage
+      .from("school-logos")
+      .getPublicUrl(filePath);
 
     const { error: updateError } = await supabase
       .from("schools")
@@ -191,6 +232,7 @@ export default function MasterSchoolOverviewPage() {
     setSchool({ ...school, logo_url: data.publicUrl });
     setLogoFile(null);
     setSavingLogo(false);
+    setOpenSetupPanel(null);
     alert("School logo updated.");
   }
 
@@ -220,6 +262,7 @@ export default function MasterSchoolOverviewPage() {
     });
 
     setSavingColours(false);
+    setOpenSetupPanel(null);
     alert("School colours updated.");
   }
 
@@ -275,7 +318,13 @@ export default function MasterSchoolOverviewPage() {
   }
 
   return (
-    <div style={{ minHeight: "100%", background: "#FFF8F2", paddingBottom: "24px" }}>
+    <div
+      style={{
+        minHeight: "100%",
+        background: "#FFF8F2",
+        paddingBottom: "24px",
+      }}
+    >
       <div
         style={{
           background: "linear-gradient(135deg, #F8E8F0 0%, #FFF8F2 100%)",
@@ -286,32 +335,97 @@ export default function MasterSchoolOverviewPage() {
           boxShadow: "0 10px 24px rgba(45, 42, 62, 0.06)",
         }}
       >
-        <p style={{ margin: 0, color: "#6D6888", fontSize: "13px", fontWeight: 700 }}>
+        <p
+          style={{
+            margin: 0,
+            color: "#6D6888",
+            fontSize: "13px",
+            fontWeight: 700,
+          }}
+        >
           School Overview
         </p>
 
-        <h1 style={{ margin: "8px 0 0 0", fontSize: "34px", fontWeight: 800, color: "#2D2A3E" }}>
+        <h1
+          style={{
+            margin: "8px 0 0 0",
+            fontSize: "34px",
+            fontWeight: 800,
+            color: "#2D2A3E",
+          }}
+        >
           {school.school_name}
         </h1>
 
-        <p style={{ marginTop: "10px", marginBottom: 0, color: "#5B5675", fontSize: "15px", lineHeight: 1.6 }}>
+        <p
+          style={{
+            marginTop: "10px",
+            marginBottom: 0,
+            color: "#5B5675",
+            fontSize: "15px",
+            lineHeight: 1.6,
+          }}
+        >
           Review this school’s records and open linked management pages from here.
         </p>
 
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "16px" }}>
-          <Link href="/master?view=manage-schools" style={topButton}>Back to Master Dashboard</Link>
-          <Link href="/onboarding" style={topButton}>Open Onboarding Pipeline</Link>
-          <Link href={`/classrooms?school=${school.id}`} style={topButtonBlue}>Open Classrooms</Link>
-          <Link href={`/children?school=${school.id}`} style={topButtonBlue}>Open Learners</Link>
-          <Link href={`/events?school=${school.id}`} style={topButtonBlue}>Open Events</Link>
-          <Link href={`/classroom-activities?school=${school.id}`} style={topButtonBlue}>Open Classroom Activities</Link>
-          <Link href={`/summaries?school=${school.id}`} style={topButtonBlue}>Open Summaries</Link>
-          <Link href={`/broadcasts?school=${school.id}`} style={topButtonBlue}>Open Broadcasts</Link>
-          <Link href={`/payments?school=${school.id}`} style={topButtonBlue}>Open Payments</Link>
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            flexWrap: "wrap",
+            marginTop: "16px",
+          }}
+        >
+          <Link href="/master?view=manage-schools" style={topButton}>
+            Back to Master Dashboard
+          </Link>
+
+          <Link href="/onboarding" style={topButton}>
+            Open Onboarding Pipeline
+          </Link>
+
+          <Link href={`/classrooms?school=${school.id}`} style={topButtonBlue}>
+            Open Classrooms
+          </Link>
+
+          <Link href={`/children?school=${school.id}`} style={topButtonBlue}>
+            Open Learners
+          </Link>
+
+          <Link href={`/events?school=${school.id}`} style={topButtonBlue}>
+            Open Events
+          </Link>
+
+          <Link
+            href={`/classroom-activities?school=${school.id}`}
+            style={topButtonBlue}
+          >
+            Open Classroom Activities
+          </Link>
+
+          <Link href={`/summaries?school=${school.id}`} style={topButtonBlue}>
+            Open Summaries
+          </Link>
+
+          <Link href={`/broadcasts?school=${school.id}`} style={topButtonBlue}>
+            Open Broadcasts
+          </Link>
+
+          <Link href={`/payments?school=${school.id}`} style={topButtonBlue}>
+            Open Payments
+          </Link>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px", marginBottom: "24px" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: "14px",
+          marginBottom: "24px",
+        }}
+      >
         <StatCard label="Learners" value={stats.learners} />
         <StatCard label="Teachers" value={stats.teachers} />
         <StatCard label="Classrooms" value={stats.classrooms} />
@@ -329,80 +443,169 @@ export default function MasterSchoolOverviewPage() {
           <div style={readinessCard(Boolean(school.logo_url))}>
             <div style={{ flex: 1, minWidth: "240px" }}>
               <strong style={readinessTitle}>School logo added</strong>
-              <p style={helperText}>Upload or review the school logo directly here.</p>
+              <p style={helperText}>
+                Upload or review the school logo directly here.
+              </p>
+            </div>
 
-              {school.logo_url && (
-                <img
-                  src={school.logo_url}
-                  alt={`${school.school_name} logo`}
-                  style={{
-                    width: "110px",
-                    height: "110px",
-                    objectFit: "cover",
-                    borderRadius: "18px",
-                    border: "1px solid #F0E3D8",
-                    marginTop: "12px",
-                    display: "block",
-                  }}
+            <button
+              type="button"
+              onClick={() =>
+                setOpenSetupPanel(openSetupPanel === "logo" ? null : "logo")
+              }
+              style={reviewButton(Boolean(school.logo_url))}
+            >
+              {school.logo_url ? "Review" : "Complete"}
+            </button>
+
+            {openSetupPanel === "logo" && (
+              <div style={inlinePanel}>
+                {school.logo_url && (
+                  <img
+                    src={school.logo_url}
+                    alt={`${school.school_name} logo`}
+                    style={{
+                      width: "110px",
+                      height: "110px",
+                      objectFit: "cover",
+                      borderRadius: "18px",
+                      border: "1px solid #F0E3D8",
+                      display: "block",
+                    }}
+                  />
+                )}
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) =>
+                    setLogoFile(event.target.files?.[0] || null)
+                  }
                 />
-              )}
-            </div>
 
-            <div style={{ display: "grid", gap: "10px", minWidth: "220px" }}>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(event) => setLogoFile(event.target.files?.[0] || null)}
-              />
-
-              <button onClick={uploadSchoolLogo} disabled={savingLogo} style={actionButton}>
-                {savingLogo ? "Uploading..." : school.logo_url ? "Change Logo" : "Save Logo"}
-              </button>
-            </div>
+                <button
+                  onClick={uploadSchoolLogo}
+                  disabled={savingLogo}
+                  style={actionButton}
+                >
+                  {savingLogo
+                    ? "Uploading..."
+                    : school.logo_url
+                    ? "Change Logo"
+                    : "Save Logo"}
+                </button>
+              </div>
+            )}
           </div>
 
-          <div style={readinessCard(Boolean(school.primary_color && school.secondary_color))}>
+          <div
+            style={readinessCard(
+              Boolean(school.primary_color && school.secondary_color)
+            )}
+          >
             <div style={{ flex: 1, minWidth: "240px" }}>
               <strong style={readinessTitle}>School colours added</strong>
-              <p style={helperText}>Choose a colour set or select your own colours directly here.</p>
+              <p style={helperText}>
+                Choose a colour set or select your own colours directly here.
+              </p>
             </div>
 
-            <div style={{ display: "grid", gap: "12px", width: "100%" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px" }}>
-                {colourPresets.map((preset) => (
-                  <button
-                    key={preset.name}
-                    onClick={() => {
-                      setPrimaryColor(preset.primary);
-                      setSecondaryColor(preset.secondary);
-                    }}
-                    style={presetButton}
-                  >
-                    <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
-                      <span style={colourSwatch(preset.primary)} />
-                      <span style={colourSwatch(preset.secondary)} />
-                    </div>
-                    <strong style={{ color: "#2D2A3E" }}>{preset.name}</strong>
-                  </button>
-                ))}
+            <button
+              type="button"
+              onClick={() =>
+                setOpenSetupPanel(
+                  openSetupPanel === "colours" ? null : "colours"
+                )
+              }
+              style={reviewButton(
+                Boolean(school.primary_color && school.secondary_color)
+              )}
+            >
+              {school.primary_color && school.secondary_color
+                ? "Review"
+                : "Complete"}
+            </button>
+
+            {openSetupPanel === "colours" && (
+              <div style={inlinePanel}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(150px, 1fr))",
+                    gap: "10px",
+                  }}
+                >
+                  {colourPresets.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => {
+                        setPrimaryColor(preset.primary);
+                        setSecondaryColor(preset.secondary);
+                      }}
+                      style={presetButton}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        <span style={colourSwatch(preset.primary)} />
+                        <span style={colourSwatch(preset.secondary)} />
+                      </div>
+
+                      <strong style={{ color: "#2D2A3E" }}>
+                        {preset.name}
+                      </strong>
+                    </button>
+                  ))}
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(180px, 1fr))",
+                    gap: "12px",
+                  }}
+                >
+                  <label style={labelStyle}>
+                    Primary Colour
+                    <input
+                      type="color"
+                      value={primaryColor}
+                      onChange={(event) =>
+                        setPrimaryColor(event.target.value)
+                      }
+                      style={colourInput}
+                    />
+                  </label>
+
+                  <label style={labelStyle}>
+                    Secondary Colour
+                    <input
+                      type="color"
+                      value={secondaryColor}
+                      onChange={(event) =>
+                        setSecondaryColor(event.target.value)
+                      }
+                      style={colourInput}
+                    />
+                  </label>
+                </div>
+
+                <button
+                  onClick={saveSchoolColours}
+                  disabled={savingColours}
+                  style={actionButton}
+                >
+                  {savingColours ? "Saving..." : "Save Colours"}
+                </button>
               </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
-                <label style={labelStyle}>
-                  Primary Colour
-                  <input type="color" value={primaryColor} onChange={(event) => setPrimaryColor(event.target.value)} style={colourInput} />
-                </label>
-
-                <label style={labelStyle}>
-                  Secondary Colour
-                  <input type="color" value={secondaryColor} onChange={(event) => setSecondaryColor(event.target.value)} style={colourInput} />
-                </label>
-              </div>
-
-              <button onClick={saveSchoolColours} disabled={savingColours} style={actionButton}>
-                {savingColours ? "Saving..." : "Save Colours"}
-              </button>
-            </div>
+            )}
           </div>
 
           {setupItems.map((item) => (
@@ -428,8 +631,27 @@ export default function MasterSchoolOverviewPage() {
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div style={statCard}>
-      <p style={{ margin: 0, color: "#5B5675", fontSize: "14px", fontWeight: 700 }}>{label}</p>
-      <h2 style={{ margin: "8px 0 0 0", color: "#2D2A3E", fontSize: "30px", fontWeight: 800 }}>{value}</h2>
+      <p
+        style={{
+          margin: 0,
+          color: "#5B5675",
+          fontSize: "14px",
+          fontWeight: 700,
+        }}
+      >
+        {label}
+      </p>
+
+      <h2
+        style={{
+          margin: "8px 0 0 0",
+          color: "#2D2A3E",
+          fontSize: "30px",
+          fontWeight: 800,
+        }}
+      >
+        {value}
+      </h2>
     </div>
   );
 }
@@ -450,6 +672,15 @@ const readinessTitle = {
   display: "block",
   color: "#2D2A3E",
   fontSize: "16px",
+};
+
+const inlinePanel = {
+  width: "100%",
+  marginTop: "12px",
+  paddingTop: "14px",
+  borderTop: "1px solid #F0E3D8",
+  display: "grid",
+  gap: "14px",
 };
 
 const mainCard = {
@@ -560,4 +791,5 @@ const reviewButton = (complete: boolean) => ({
   border: complete ? "1px solid #D3EDD4" : "1px solid #CBEAF7",
   fontWeight: 600,
   display: "inline-block",
+  cursor: "pointer",
 });

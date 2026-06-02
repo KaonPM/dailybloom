@@ -112,6 +112,12 @@ export default function Sidebar() {
         match: ["/master"],
       },
       {
+      label: "Manage Schools",
+      href: "/master?view=manage-schools",
+      match: ["/master"],
+      view: "manage-schools",
+      },
+      {
         label: "Principal Management",
         href: "/principals",
         match: ["/principals"],

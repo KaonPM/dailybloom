@@ -34,6 +34,7 @@ export default function MasterAnalyticsPage() {
   const [classroomsCount, setClassroomsCount] = useState(0);
   const [paymentsCount, setPaymentsCount] = useState(0);
   const [summariesCount, setSummariesCount] = useState(0);
+  const [showOverviewCards, setShowOverviewCards] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -206,19 +207,40 @@ export default function MasterAnalyticsPage() {
         </p>
       </div>
 
-      <div style={grid}>
-        <InsightCard title="Total Schools" value={analytics.totalSchools} helper="Schools on DailyBloom" />
-        <InsightCard title="Active Subscriptions" value={analytics.activeSchools} helper="Currently active schools" />
-        <InsightCard title="Trial Schools" value={analytics.trialSchools} helper="Schools on trial" />
-        <InsightCard title="Overdue Schools" value={analytics.overdueSchools} helper="Need billing follow-up" />
-        <InsightCard title="Cancelled Schools" value={analytics.cancelledSchools} helper="No longer active" />
-        <InsightCard title="Monthly Revenue" value={`R${analytics.expectedMonthlyRevenue.toFixed(2)}`} helper="Expected monthly revenue" />
-        <InsightCard title="Annual Revenue" value={`R${analytics.annualRevenue.toFixed(2)}`} helper="Projected annual revenue" />
-        <InsightCard title="Total Learners" value={learnersCount} helper="Across all schools" />
-        <InsightCard title="Total Teachers" value={teachersCount} helper="Across all schools" />
-        <InsightCard title="Classrooms" value={classroomsCount} helper="Across all schools" />
-        <InsightCard title="Payment Records" value={paymentsCount} helper="Total payment entries" />
-        <InsightCard title="Daily Summaries" value={summariesCount} helper="Total summaries saved" />
+      <div className="db-card db-card-blue" style={{ padding: 18 }}>
+        <div style={sectionHeader}>
+          <div>
+            <h3 style={sectionTitle}>Platform Overview</h3>
+            <p style={smallText}>
+              View schools, subscriptions, revenue and platform usage.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="db-button-secondary"
+            onClick={() => setShowOverviewCards((prev) => !prev)}
+          >
+            {showOverviewCards ? "Hide Overview" : "View Overview"}
+          </button>
+        </div>
+
+        {showOverviewCards ? (
+          <div style={{ ...grid, marginTop: 14 }}>
+            <InsightCard title="Total Schools" value={analytics.totalSchools} helper="Schools on DailyBloom" />
+            <InsightCard title="Active Subscriptions" value={analytics.activeSchools} helper="Currently active schools" />
+            <InsightCard title="Trial Schools" value={analytics.trialSchools} helper="Schools on trial" />
+            <InsightCard title="Overdue Schools" value={analytics.overdueSchools} helper="Need billing follow-up" />
+            <InsightCard title="Cancelled Schools" value={analytics.cancelledSchools} helper="No longer active" />
+            <InsightCard title="Monthly Revenue" value={`R${analytics.expectedMonthlyRevenue.toFixed(2)}`} helper="Expected monthly revenue" />
+            <InsightCard title="Annual Revenue" value={`R${analytics.annualRevenue.toFixed(2)}`} helper="Projected annual revenue" />
+            <InsightCard title="Total Learners" value={learnersCount} helper="Across all schools" />
+            <InsightCard title="Total Teachers" value={teachersCount} helper="Across all schools" />
+            <InsightCard title="Classrooms" value={classroomsCount} helper="Across all schools" />
+            <InsightCard title="Payment Records" value={paymentsCount} helper="Total payment entries" />
+            <InsightCard title="Daily Summaries" value={summariesCount} helper="Total summaries saved" />
+          </div>
+        ) : null}
       </div>
 
       <div className="db-card db-card-lavender" style={{ padding: 18, marginTop: 18 }}>
@@ -285,6 +307,14 @@ const grid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 12,
+};
+
+const sectionHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap" as const,
 };
 
 const sectionTitle = {

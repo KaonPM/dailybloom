@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
+const DAILYBLOOM_URL = "https://www.dailybloom.co.za";
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -93,10 +95,7 @@ export async function POST(request: Request) {
     });
 
     if (profileError) {
-      return NextResponse.json(
-        { error: profileError.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
 
     const { error: requestUpdateError } = await admin
@@ -160,7 +159,6 @@ async function sendPrincipalOnboardingEmail({
   const resendApiKey = process.env.RESEND_API_KEY;
   const fromEmail =
     process.env.DAILYBLOOM_FROM_EMAIL || "DailyBloom <onboarding@resend.dev>";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   if (!resendApiKey) {
     console.warn("RESEND_API_KEY is missing. Onboarding email was not sent.");
@@ -193,8 +191,8 @@ async function sendPrincipalOnboardingEmail({
       </div>
 
       <p style="color:#5B5675; line-height:1.6;">
-        Please log in here:
-        <a href="${appUrl}/login" style="color:#2D2A3E; font-weight:bold;">${appUrl}/login</a>
+        Please log in to DailyBloom here:
+        <a href="${DAILYBLOOM_URL}/login" style="color:#2D2A3E; font-weight:bold;">${DAILYBLOOM_URL}/login</a>
       </p>
 
       <p style="color:#5B5675; line-height:1.6;">
@@ -224,7 +222,7 @@ async function sendPrincipalOnboardingEmail({
 
       <p style="color:#5B5675; line-height:1.6;">
         To begin the onboarding process, please email the following information and supporting documents to
-        <strong>info@lesedismartsolutions.co.za</strong>.
+        <strong>info@dailybloom.co.za</strong>.
       </p>
 
       <ul style="color:#5B5675; line-height:1.8; padding-left:20px;">
@@ -233,8 +231,8 @@ async function sendPrincipalOnboardingEmail({
         <li>School logo</li>
         <li>Primary school colour</li>
         <li>Secondary school colour</li>
-        <li>School contact details (address, telephone number and email address)</li>
-        <li>Learner list or learner register (Excel, PDF or register copy)</li>
+        <li>School contact details, including address, telephone number and email address</li>
+        <li>Learner list or learner register, in Excel, PDF or register copy format</li>
         <li>Teacher list</li>
         <li>Classroom list</li>
         <li>Year planner or school events calendar</li>
@@ -263,7 +261,7 @@ async function sendPrincipalOnboardingEmail({
         <p style="margin:0; color:#5B5675; line-height:1.6;">
           Kaone Setae<br/>
           076 361 6044<br/>
-          info@lesedismartsolutions.co.za
+          info@dailybloom.co.za
         </p>
       </div>
 

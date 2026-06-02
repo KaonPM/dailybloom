@@ -217,6 +217,11 @@ export default function Sidebar() {
         match: ["/learner-requirements"],
       },
       {
+       label: "School Analytics",
+       href: "/analytics",
+       match: ["/analytics"],
+      },
+      {
         label: "Reports",
         href: "/reports",
         match: ["/reports"],

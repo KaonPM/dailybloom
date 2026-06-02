@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import { getAllowedNavigationItems } from "../lib/navigation-access";
 
 type Profile = {
   id?: string;
@@ -26,6 +27,7 @@ type NavItem = {
   href: string;
   match?: string[];
   view?: string;
+  featureKey?: string;
 };
 
 export default function Sidebar() {
@@ -37,72 +39,13 @@ export default function Sidebar() {
   const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const [filteredQuickActionsNav, setFilteredQuickActionsNav] = useState<NavItem[]>([]);
+  const [filteredSchoolManagementNav, setFilteredSchoolManagementNav] = useState<NavItem[]>([]);
+  const [filteredTeacherSchoolManagementNav, setFilteredTeacherSchoolManagementNav] = useState<NavItem[]>([]);
+
   const [dbeOpen, setDbeOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(true);
   const [schoolManagementOpen, setSchoolManagementOpen] = useState(false);
-
-  useEffect(() => {
-    const savedQuickActions = localStorage.getItem("db-quick-actions");
-
-    if (savedQuickActions !== null) {
-      setQuickActionsOpen(savedQuickActions === "true");
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("db-quick-actions", String(quickActionsOpen));
-  }, [quickActionsOpen]);
-
-  useEffect(() => {
-    loadSidebarContext();
-  }, [pathname, searchParams]);
-
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [pathname, searchParams]);
-
-  async function loadSidebarContext() {
-    setLoading(true);
-
-    const { profile: currentProfile } = await getCurrentProfile();
-
-    if (!currentProfile) {
-      setProfile(null);
-      setSchool(null);
-      setLoading(false);
-      return;
-    }
-
-    setProfile(currentProfile);
-
-    let schoolId: number | null = null;
-
-    const schoolFromQuery = searchParams.get("school");
-    const masterSchoolMatch = pathname.match(/^\/master\/school\/(\d+)$/);
-
-    if (schoolFromQuery) {
-      schoolId = Number(schoolFromQuery);
-    } else if (masterSchoolMatch?.[1]) {
-      schoolId = Number(masterSchoolMatch[1]);
-    } else if (currentProfile.role !== "master" && currentProfile.school_id) {
-      schoolId = Number(currentProfile.school_id);
-    }
-
-    if (!schoolId || Number.isNaN(schoolId)) {
-      setSchool(null);
-      setLoading(false);
-      return;
-    }
-
-    const { data } = await supabase
-      .from("schools")
-      .select("id, school_name, logo_url, primary_color, secondary_color")
-      .eq("id", schoolId)
-      .single();
-
-    setSchool(data || null);
-    setLoading(false);
-  }
 
   const masterNav = useMemo<NavItem[]>(
     () => [
@@ -112,10 +55,10 @@ export default function Sidebar() {
         match: ["/master"],
       },
       {
-      label: "Manage Schools",
-      href: "/master?view=manage-schools",
-      match: ["/master"],
-      view: "manage-schools",
+        label: "Manage Schools",
+        href: "/master?view=manage-schools",
+        match: ["/master"],
+        view: "manage-schools",
       },
       {
         label: "Principal Management",
@@ -123,9 +66,9 @@ export default function Sidebar() {
         match: ["/principals"],
       },
       {
-      label: "Onboarding Pipeline",
-      href: "/onboarding",
-      match: ["/onboarding"],
+        label: "Onboarding Pipeline",
+        href: "/onboarding",
+        match: ["/onboarding"],
       },
       {
         label: "Billing",
@@ -150,6 +93,7 @@ export default function Sidebar() {
         label: "💳 Record Payment",
         href: "/payments",
         match: ["/payments"],
+        featureKey: "payment_tracking",
       },
     ],
     []
@@ -192,9 +136,19 @@ export default function Sidebar() {
         match: ["/classroom-activities"],
       },
       { label: "Events", href: "/events", match: ["/events"] },
-      { label: "Summaries", href: "/summaries", match: ["/summaries"] },
+      {
+        label: "Summaries",
+        href: "/summaries",
+        match: ["/summaries"],
+        featureKey: "daily_summaries",
+      },
       { label: "Broadcasts", href: "/broadcasts", match: ["/broadcasts"] },
-      { label: "Payments", href: "/payments", match: ["/payments"] },
+      {
+        label: "Payments",
+        href: "/payments",
+        match: ["/payments"],
+        featureKey: "payment_tracking",
+      },
       { label: "Billing", href: "/billing", match: ["/billing"] },
       {
         label: "Communications",
@@ -215,11 +169,13 @@ export default function Sidebar() {
         label: "Learner Requirements",
         href: "/learner-requirements",
         match: ["/learner-requirements"],
+        featureKey: "learner_requirements",
       },
       {
-       label: "School Analytics",
-       href: "/analytics",
-       match: ["/analytics"],
+        label: "School Analytics",
+        href: "/analytics",
+        match: ["/analytics"],
+        featureKey: "advanced_school_analytics",
       },
       {
         label: "Reports",
@@ -239,11 +195,93 @@ export default function Sidebar() {
       },
       { label: "Learners", href: "/children", match: ["/children"] },
       { label: "Attendance", href: "/attendance", match: ["/attendance"] },
-      { label: "Summaries", href: "/summaries", match: ["/summaries"] },
+      {
+        label: "Summaries",
+        href: "/summaries",
+        match: ["/summaries"],
+        featureKey: "daily_summaries",
+      },
       { label: "Events", href: "/events", match: ["/events"] },
     ],
     []
   );
+
+  useEffect(() => {
+    const savedQuickActions = localStorage.getItem("db-quick-actions");
+
+    if (savedQuickActions !== null) {
+      setQuickActionsOpen(savedQuickActions === "true");
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("db-quick-actions", String(quickActionsOpen));
+  }, [quickActionsOpen]);
+
+  useEffect(() => {
+    loadSidebarContext();
+  }, [pathname, searchParams]);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname, searchParams]);
+
+  async function loadSidebarContext() {
+    setLoading(true);
+
+    const { profile: currentProfile } = await getCurrentProfile();
+
+    if (!currentProfile) {
+      setProfile(null);
+      setSchool(null);
+      setFilteredQuickActionsNav([]);
+      setFilteredSchoolManagementNav([]);
+      setFilteredTeacherSchoolManagementNav([]);
+      setLoading(false);
+      return;
+    }
+
+    setProfile(currentProfile);
+
+    let schoolId: number | null = null;
+
+    const schoolFromQuery = searchParams.get("school");
+    const masterSchoolMatch = pathname.match(/^\/master\/school\/(\d+)$/);
+
+    if (schoolFromQuery) {
+      schoolId = Number(schoolFromQuery);
+    } else if (masterSchoolMatch?.[1]) {
+      schoolId = Number(masterSchoolMatch[1]);
+    } else if (currentProfile.role !== "master" && currentProfile.school_id) {
+      schoolId = Number(currentProfile.school_id);
+    }
+
+    const [allowedQuickActions, allowedSchoolManagement, allowedTeacherManagement] =
+      await Promise.all([
+        getAllowedNavigationItems(schoolId, quickActionsNav),
+        getAllowedNavigationItems(schoolId, schoolManagementNav),
+        getAllowedNavigationItems(schoolId, teacherSchoolManagementNav),
+      ]);
+
+    setFilteredQuickActionsNav(allowedQuickActions);
+    setFilteredSchoolManagementNav(allowedSchoolManagement);
+    setFilteredTeacherSchoolManagementNav(allowedTeacherManagement);
+
+    if (!schoolId || Number.isNaN(schoolId)) {
+      setSchool(null);
+      setLoading(false);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("schools")
+      .select("id, school_name, logo_url, primary_color, secondary_color")
+      .eq("id", schoolId)
+      .single();
+
+    setSchool(data || null);
+    setLoading(false);
+  }
 
   const isMaster = profile?.role === "master";
   const isTeacher = profile?.role === "teacher";
@@ -563,7 +601,7 @@ export default function Sidebar() {
                   </button>
 
                   {quickActionsOpen &&
-                    quickActionsNav.map((item) => (
+                    filteredQuickActionsNav.map((item) => (
                       <Link
                         key={item.label}
                         href={item.href}
@@ -586,8 +624,8 @@ export default function Sidebar() {
 
               {schoolManagementOpen &&
                 (isTeacher
-                  ? teacherSchoolManagementNav
-                  : schoolManagementNav
+                  ? filteredTeacherSchoolManagementNav
+                  : filteredSchoolManagementNav
                 ).map((item) => (
                   <Link key={item.label} href={item.href} style={navStyle(item)}>
                     {item.label}

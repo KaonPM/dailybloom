@@ -46,6 +46,9 @@ export default function TeacherAttendancePage() {
   const [attendance, setAttendance] = useState<Record<string, AttendanceRow>>(
     {}
   );
+  const [openTeacherIds, setOpenTeacherIds] = useState<Record<string, boolean>>(
+    {}
+  );
 
   const [selectedDate, setSelectedDate] = useState(today);
   const [loading, setLoading] = useState(true);
@@ -195,7 +198,14 @@ export default function TeacherAttendancePage() {
     }
 
     await fetchAttendance(schoolId, selectedDate);
+
+    setOpenTeacherIds((prev) => ({
+      ...prev,
+      [teacher.id]: false,
+    }));
+
     setSavingTeacherId(null);
+    alert("Teacher attendance saved.");
   }
 
   async function markAllPresent() {
@@ -235,6 +245,20 @@ export default function TeacherAttendancePage() {
     }
 
     await fetchAttendance(schoolId, selectedDate);
+
+    const collapsedTeachers = teachers.reduce<Record<string, boolean>>(
+      (acc, teacher) => {
+        acc[teacher.id] = false;
+        return acc;
+      },
+      {}
+    );
+
+    setOpenTeacherIds((prev) => ({
+      ...prev,
+      ...collapsedTeachers,
+    }));
+
     alert("All teachers marked present.");
   }
 
@@ -325,6 +349,7 @@ export default function TeacherAttendancePage() {
           <div style={{ display: "grid", gap: 10 }}>
             {teachers.map((teacher) => {
               const record = getTeacherAttendance(teacher);
+              const isOpen = openTeacherIds[teacher.id] !== false || !record.id;
 
               return (
                 <div key={teacher.id} className="db-list-card">
@@ -337,72 +362,101 @@ export default function TeacherAttendancePage() {
                       <p style={smallText}>
                         {teacher.email || "No email added"}
                       </p>
+
+                      {!isOpen && record.notes ? (
+                        <p style={smallText}>{record.notes}</p>
+                      ) : null}
                     </div>
 
-                    <div style={statusPill(record.status)}>
-                      {record.status || "Not marked"}
-                    </div>
-                  </div>
-
-                  <div style={grid2}>
-                    <div>
-                      <p style={labelText}>Status</p>
-
-                      <div style={statusButtonGroup}>
-                        {attendanceStatuses.map((status) => {
-                          const isSelected = record.status === status;
-
-                          return (
-                            <button
-                              key={status}
-                              type="button"
-                              className={
-                                isSelected
-                                  ? "db-button-primary"
-                                  : "db-button-secondary"
-                              }
-                              style={statusButton}
-                              onClick={() =>
-                                updateLocalAttendance(teacher, "status", status)
-                              }
-                            >
-                              {status === "Late Arrival"
-                                ? "Late"
-                                : status === "Early Departure"
-                                ? "Early"
-                                : status}
-                            </button>
-                          );
-                        })}
+                    <div style={teacherActions}>
+                      <div style={statusPill(record.status)}>
+                        {record.status || "Not marked"}
                       </div>
-                    </div>
 
-                    <div>
-                      <p style={labelText}>Notes</p>
-                      <input
-                        className="db-input"
-                        placeholder="Optional note"
-                        value={record.notes || ""}
-                        onChange={(event) =>
-                          updateLocalAttendance(
-                            teacher,
-                            "notes",
-                            event.target.value
-                          )
-                        }
-                      />
+                      {record.id ? (
+                        <button
+                          type="button"
+                          className="db-button-secondary"
+                          onClick={() =>
+                            setOpenTeacherIds((prev) => ({
+                              ...prev,
+                              [teacher.id]: !isOpen,
+                            }))
+                          }
+                        >
+                          {isOpen ? "Collapse" : "Edit"}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    className="db-button-primary"
-                    style={{ marginTop: 10 }}
-                    onClick={() => saveTeacherAttendance(teacher)}
-                    disabled={savingTeacherId === teacher.id}
-                  >
-                    {savingTeacherId === teacher.id ? "Saving..." : "Save"}
-                  </button>
+                  {isOpen ? (
+                    <>
+                      <div style={grid2}>
+                        <div>
+                          <p style={labelText}>Status</p>
+
+                          <div style={statusButtonGroup}>
+                            {attendanceStatuses.map((status) => {
+                              const isSelected = record.status === status;
+
+                              return (
+                                <button
+                                  key={status}
+                                  type="button"
+                                  className={
+                                    isSelected
+                                      ? "db-button-primary"
+                                      : "db-button-secondary"
+                                  }
+                                  style={statusButton}
+                                  onClick={() =>
+                                    updateLocalAttendance(
+                                      teacher,
+                                      "status",
+                                      status
+                                    )
+                                  }
+                                >
+                                  {status === "Late Arrival"
+                                    ? "Late"
+                                    : status === "Early Departure"
+                                    ? "Early"
+                                    : status}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div>
+                          <p style={labelText}>Notes</p>
+                          <input
+                            className="db-input"
+                            placeholder="Optional note"
+                            value={record.notes || ""}
+                            onChange={(event) =>
+                              updateLocalAttendance(
+                                teacher,
+                                "notes",
+                                event.target.value
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="db-button-primary"
+                        style={{ marginTop: 10 }}
+                        onClick={() => saveTeacherAttendance(teacher)}
+                        disabled={savingTeacherId === teacher.id}
+                      >
+                        {savingTeacherId === teacher.id ? "Saving..." : "Save"}
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               );
             })}
@@ -490,6 +544,13 @@ const teacherRow = {
   justifyContent: "space-between",
   gap: 10,
   alignItems: "flex-start",
+  flexWrap: "wrap" as const,
+};
+
+const teacherActions = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
   flexWrap: "wrap" as const,
 };
 

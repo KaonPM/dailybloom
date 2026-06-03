@@ -89,20 +89,17 @@ export default function TeacherAttendancePage() {
     setSchoolId(context.schoolId);
 
     await Promise.all([
-      fetchTeachers(context.schoolId),
+      fetchTeachers(),
       fetchAttendance(context.schoolId, selectedDate),
     ]);
 
     setLoading(false);
   }
 
-  async function fetchTeachers(currentSchoolId: number) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, email, role, school_id")
-      .eq("school_id", currentSchoolId)
-      .eq("role", "teacher")
-      .order("full_name", { ascending: true });
+  async function fetchTeachers() {
+    const { data, error } = await supabase.rpc(
+      "get_school_teachers_for_attendance"
+    );
 
     if (error) {
       alert(error.message);
@@ -271,7 +268,10 @@ export default function TeacherAttendancePage() {
         </p>
       </div>
 
-      <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
+      <div
+        className="db-card db-card-blue"
+        style={{ padding: 16, marginBottom: 18 }}
+      >
         <div style={topRow}>
           <div>
             <p style={labelText}>Attendance Date</p>
@@ -334,7 +334,9 @@ export default function TeacherAttendancePage() {
                         {teacher.full_name || "Unnamed teacher"}
                       </strong>
 
-                      <p style={smallText}>{teacher.email || "No email added"}</p>
+                      <p style={smallText}>
+                        {teacher.email || "No email added"}
+                      </p>
                     </div>
 
                     <div style={statusPill(record.status)}>
@@ -345,24 +347,34 @@ export default function TeacherAttendancePage() {
                   <div style={grid2}>
                     <div>
                       <p style={labelText}>Status</p>
-                      <select
-                        className="db-input"
-                        value={record.status}
-                        onChange={(event) =>
-                          updateLocalAttendance(
-                            teacher,
-                            "status",
-                            event.target.value
-                          )
-                        }
-                      >
-                        <option value="">Select status</option>
-                        {attendanceStatuses.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
+
+                      <div style={statusButtonGroup}>
+                        {attendanceStatuses.map((status) => {
+                          const isSelected = record.status === status;
+
+                          return (
+                            <button
+                              key={status}
+                              type="button"
+                              className={
+                                isSelected
+                                  ? "db-button-primary"
+                                  : "db-button-secondary"
+                              }
+                              style={statusButton}
+                              onClick={() =>
+                                updateLocalAttendance(teacher, "status", status)
+                              }
+                            >
+                              {status === "Late Arrival"
+                                ? "Late"
+                                : status === "Early Departure"
+                                ? "Early"
+                                : status}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     <div>
@@ -413,6 +425,17 @@ const grid2 = {
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 10,
   marginTop: 10,
+};
+
+const statusButtonGroup = {
+  display: "flex",
+  flexWrap: "wrap" as const,
+  gap: 8,
+};
+
+const statusButton = {
+  minHeight: 38,
+  padding: "8px 12px",
 };
 
 const summaryGrid = {

@@ -16,12 +16,6 @@ export async function POST(request: Request) {
       /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
     if (!schoolId || !fullName || !email || !password) {
-      await sendLoginEmail({
-      toEmail: email,
-      fullName,
-      temporaryPassword: password,
-      roleLabel: "teacher",
-      });
       return NextResponse.json(
         { error: "Please complete teacher name, email, password, and school." },
         { status: 400 }
@@ -110,9 +104,16 @@ export async function POST(request: Request) {
       );
     }
 
+    await sendLoginEmail({
+      toEmail: email,
+      fullName,
+      temporaryPassword: password,
+      roleLabel: "teacher",
+    });
+
     return NextResponse.json({
       success: true,
-      message: "Teacher created successfully.",
+      message: "Teacher created successfully. Login email sent.",
     });
   } catch (error: any) {
     return NextResponse.json(

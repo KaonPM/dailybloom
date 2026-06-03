@@ -42,6 +42,7 @@ export default function TeachersPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   useEffect(() => {
     initPage();
@@ -140,7 +141,6 @@ export default function TeachersPage() {
         .from("profiles")
         .update({
           full_name: fullName.trim(),
-          email: email.trim().toLowerCase(),
           classroom_name: classroomName || null,
         })
         .eq("id", editingId);
@@ -193,7 +193,47 @@ export default function TeachersPage() {
     await loadTeachers(schoolId);
 
     setSaving(false);
-    alert("Teacher created.");
+    alert(result.message || "Teacher created. Login email sent.");
+  }
+
+  async function resendTeacherLogin(teacher: TeacherRow) {
+    if (!teacher.email) {
+      alert("This teacher does not have an email address.");
+      return;
+    }
+
+    const confirmed = confirm(
+      `Resend login email to ${teacher.full_name || teacher.email}? This will create a new temporary password.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setResendingId(teacher.id);
+
+      const response = await fetch("/api/resend-teacher-login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: teacher.email,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        alert(result.error || "Could not resend teacher login email.");
+        return;
+      }
+
+      alert(result.message || "Teacher login email resent.");
+    } catch (error: any) {
+      alert(error?.message || "Could not resend teacher login email.");
+    } finally {
+      setResendingId(null);
+    }
   }
 
   async function toggleTeacherStatus(teacher: TeacherRow) {
@@ -316,7 +356,14 @@ export default function TeachersPage() {
                 placeholder="teacher@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={editingId !== null}
               />
+
+              {editingId ? (
+                <p style={hintText}>
+                  Email cannot be edited here because login email is controlled by Supabase Auth.
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -445,6 +492,17 @@ export default function TeachersPage() {
                         <button
                           type="button"
                           className="db-button-secondary"
+                          onClick={() => resendTeacherLogin(teacher)}
+                          disabled={resendingId === teacher.id}
+                        >
+                          {resendingId === teacher.id
+                            ? "Sending..."
+                            : "Resend Login Email"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="db-button-secondary"
                           onClick={() => toggleTeacherStatus(teacher)}
                         >
                           {teacher.is_active === false ? "Activate" : "Deactivate"}
@@ -482,6 +540,12 @@ const labelText = {
   color: "#6D6888",
   fontSize: 13,
   fontWeight: 800,
+};
+
+const hintText = {
+  margin: "6px 0 0 0",
+  color: "#8A849E",
+  fontSize: 12,
 };
 
 const smallText = {

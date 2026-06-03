@@ -29,13 +29,11 @@ type LearnerRow = {
 type TeacherRow = {
   id: string;
   full_name?: string | null;
-  name?: string | null;
   email?: string | null;
 };
 
 type AttendanceRow = {
   id: number;
-  learner_id?: string | null;
   learner_name?: string | null;
   status?: string | null;
   attendance_date?: string | null;
@@ -144,13 +142,13 @@ export default function AnalyticsPage() {
 
       supabase
         .from("profiles")
-        .select("id, full_name, name, email")
+        .select("id, full_name, email")
         .eq("school_id", context.schoolId)
         .eq("role", "teacher"),
 
       supabase
         .from("attendance")
-        .select("id, learner_id, learner_name, status, attendance_date")
+        .select("id, learner_name, status, attendance_date")
         .eq("school_id", context.schoolId),
 
       supabase
@@ -160,9 +158,7 @@ export default function AnalyticsPage() {
 
       supabase
         .from("payments")
-        .select(
-          "id, learner_name, amount, status, payment_month, payment_year, payment_date"
-        )
+        .select("id, learner_name, amount, status, payment_month, payment_year, payment_date")
         .eq("school_id", context.schoolId),
 
       supabase
@@ -193,9 +189,7 @@ export default function AnalyticsPage() {
     setLearners((learnersResult.data || []) as LearnerRow[]);
     setTeachers((teachersResult.data || []) as TeacherRow[]);
     setAttendance((attendanceResult.data || []) as AttendanceRow[]);
-    setTeacherAttendance(
-      (teacherAttendanceResult.data || []) as TeacherAttendanceRow[]
-    );
+    setTeacherAttendance((teacherAttendanceResult.data || []) as TeacherAttendanceRow[]);
     setPayments((paymentsResult.data || []) as PaymentRow[]);
     setSummaries((summariesResult.data || []) as SummaryRow[]);
     setRequirements((requirementsResult.data || []) as RequirementRow[]);
@@ -206,9 +200,6 @@ export default function AnalyticsPage() {
 
   const analytics = useMemo(() => {
     const todayDate = new Date().toISOString().split("T")[0];
-
-    const totalLearners = learners.length;
-    const totalTeachers = teachers.length;
 
     const presentCount = attendance.filter(
       (item) => String(item.status || "").toLowerCase() === "present"
@@ -233,8 +224,7 @@ export default function AnalyticsPage() {
       (item) => String(item.status || "").toLowerCase() === "absent"
     ).length;
 
-    const totalTeacherAttendanceRecords =
-      teacherPresentCount + teacherAbsentCount;
+    const totalTeacherAttendanceRecords = teacherPresentCount + teacherAbsentCount;
 
     const teacherAttendanceRate =
       totalTeacherAttendanceRecords > 0
@@ -291,7 +281,7 @@ export default function AnalyticsPage() {
 
     const missingDocuments = learners.reduce((sum, learner) => {
       const learnerDocuments = documents.filter(
-        (document) => document.learner_id === learner.id
+        (document) => String(document.learner_id) === String(learner.id)
       );
 
       const missing = requiredDocuments.filter((requiredDocument) => {
@@ -327,8 +317,8 @@ export default function AnalyticsPage() {
     );
 
     return {
-      totalLearners,
-      totalTeachers,
+      totalLearners: learners.length,
+      totalTeachers: teachers.length,
       learnerAttendanceRate,
       teacherAttendanceRate,
       teachersPresentToday,
@@ -432,10 +422,7 @@ export default function AnalyticsPage() {
           </p>
         </div>
 
-        <div
-          className="db-card db-card-lavender"
-          style={{ padding: 20, marginBottom: 18 }}
-        >
+        <div className="db-card db-card-lavender" style={{ padding: 20, marginBottom: 18 }}>
           <h3 style={sectionTitle}>School Health Score</h3>
           <p style={healthScore}>{analytics.schoolHealthScore}%</p>
           <p style={smallText}>
@@ -501,10 +488,7 @@ export default function AnalyticsPage() {
           />
         </div>
 
-        <div
-          className="db-card db-card-yellow"
-          style={{ padding: 18, marginTop: 18 }}
-        >
+        <div className="db-card db-card-yellow" style={{ padding: 18, marginTop: 18 }}>
           <h3 style={sectionTitle}>Areas Needing Attention</h3>
 
           <ul style={listStyle}>

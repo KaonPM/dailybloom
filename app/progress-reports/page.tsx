@@ -381,7 +381,50 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    setAwards(data || []);
+    setAwards((data || []).filter((award: any) => !award.deleted_at));
+  }
+
+  async function deleteCertificate(award: any) {
+    if (!schoolId || !award?.id) return;
+
+    const reason = prompt("Please provide a reason for deleting this certificate.");
+
+    if (!reason || !reason.trim()) {
+      alert("Deletion reason is required.");
+      return;
+    }
+
+    const confirmed = confirm(
+      `Delete certificate for ${getLearnerName(award.learner_id)}?`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("achievement_awards")
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: profile?.id || null,
+        delete_reason: reason.trim(),
+      })
+      .eq("id", award.id)
+      .eq("school_id", schoolId);
+
+    if (error) {
+      alert(error.message);
+      setSaving(false);
+      return;
+    }
+
+    if (selectedAward?.id === award.id) {
+      setSelectedAward(null);
+    }
+
+    await fetchAwards(schoolId);
+    setSaving(false);
+    alert("Certificate deleted.");
   }
 
   function formatPeriodType(type: string) {
@@ -1287,6 +1330,24 @@ export default function ProgressReportsPage() {
         getLearnerName(selectedAward?.learner_id).replace(/\s+/g, "_") ||
         "Learner";
 
+      if (selectedAward?.id && schoolId) {
+        const reprintPayload = {
+          certificate_id: selectedAward.id,
+          school_id: schoolId,
+          learner_id: selectedAward.learner_id,
+          printed_at: new Date().toISOString(),
+          action: "download",
+        };
+
+        const { error: reprintError } = await supabase
+          .from("certificate_reprints")
+          .insert([reprintPayload]);
+
+        if (reprintError) {
+          console.warn("Certificate reprint audit failed:", reprintError.message);
+        }
+      }
+
       pdf.save(`${learnerName}_Certificate.pdf`);
     } catch (error) {
       if (certificateButtons) {
@@ -2044,6 +2105,15 @@ export default function ProgressReportsPage() {
                       }}
                     >
                       Download
+                    </button>
+
+                    <button
+                      className="db-button-primary"
+                      style={{ background: "#d9534f" }}
+                      onClick={() => deleteCertificate(award)}
+                      disabled={saving}
+                    >
+                      Delete
                     </button>
                     </div>
                   </div>

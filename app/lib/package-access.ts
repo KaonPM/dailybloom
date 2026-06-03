@@ -6,6 +6,12 @@ export async function schoolHasFeature(
 ) {
   if (!planName || !featureKey) return false;
 
+  const cleanPlanName = String(planName).trim().toLowerCase();
+
+  if (cleanPlanName === "bloom elite") {
+    return true;
+  }
+
   const { data, error } = await supabase
     .from("package_features")
     .select("id")

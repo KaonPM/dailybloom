@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { reportCategories } from "../lib/report-categories";
-import { awardTypes, awardCategories } from "../lib/award-types";
 import {
   gradeRRCategories,
   gradeRRRatingScale,
@@ -14,6 +13,40 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
 const reportLevels = ["NP", "PA", "A", "G", "VG"];
+
+const certificateTypes = [
+  "Certificate of Achievement",
+  "Certificate of Participation",
+  "Certificate of Excellence",
+  "Certificate of Good Progress",
+];
+
+const certificateReasonOptions: Record<string, string[]> = {
+  "Certificate of Achievement": [
+    "Having achieved above average",
+    "Outstanding academic achievement",
+    "Excellent classroom performance",
+    "Consistent hard work and dedication",
+  ],
+  "Certificate of Participation": [
+    "Active participation in class activities",
+    "Positive participation and teamwork",
+    "Enthusiastic involvement in school activities",
+    "Taking part with confidence and effort",
+  ],
+  "Certificate of Excellence": [
+    "Excellent achievement and effort",
+    "Outstanding excellence in learning",
+    "Exceptional progress and dedication",
+    "Excellent behaviour and leadership",
+  ],
+  "Certificate of Good Progress": [
+    "Good progress throughout the year",
+    "Steady improvement and commitment",
+    "Growing confidence and effort",
+    "Positive progress in learning",
+  ],
+};
 
 export default function ProgressReportsPage() {
   const router = useRouter();
@@ -65,6 +98,7 @@ export default function ProgressReportsPage() {
 
   const [assessmentPage, setAssessmentPage] = useState(1);
   const [reportPage, setReportPage] = useState(1);
+  const [awardPage, setAwardPage] = useState(1);
 
   const [teacherObservation, setTeacherObservation] = useState("");
   const [pendingDownload, setPendingDownload] = useState(false);
@@ -73,9 +107,10 @@ export default function ProgressReportsPage() {
   const [awards, setAwards] = useState<any[]>([]);
 
   const [selectedAwardLearnerId, setSelectedAwardLearnerId] = useState("");
+  const [selectedAwardClassroomId, setSelectedAwardClassroomId] = useState("");
+  const [selectedAwardTeacherId, setSelectedAwardTeacherId] = useState("");
   const [selectedAwardPeriodId, setSelectedAwardPeriodId] = useState("");
   const [selectedAwardType, setSelectedAwardType] = useState("");
-  const [selectedAwardCategory, setSelectedAwardCategory] = useState("General");
   const [awardReason, setAwardReason] = useState("");
   const [selectedAward, setSelectedAward] = useState<any>(null);
   const [pendingAwardDownload, setPendingAwardDownload] = useState(false);
@@ -223,15 +258,53 @@ export default function ProgressReportsPage() {
       .from("profiles")
       .select("*")
       .eq("school_id", currentSchoolId)
-      .eq("role", "teacher")
       .order("created_at", { ascending: false });
 
     if (error) {
-      alert(error.message);
+      const { data: rpcData, error: rpcError } = await supabase.rpc(
+        "get_school_teachers_for_attendance"
+      );
+
+      if (rpcError) {
+        alert(error.message);
+        return;
+      }
+
+      setTeachers(rpcData || []);
       return;
     }
 
-    setTeachers(data || []);
+    const teacherRows = (data || []).filter((item: any) => {
+      const role = String(item.role || "").toLowerCase();
+
+      return (
+        role.includes("teacher") ||
+        role.includes("practitioner") ||
+        role.includes("educator") ||
+        item.classroom_id ||
+        item.assigned_classroom_id ||
+        item.classroom ||
+        item.classroom_name ||
+        item.assigned_classroom ||
+        item.assigned_classroom_name
+      );
+    });
+
+    if (teacherRows.length > 0) {
+      setTeachers(teacherRows);
+      return;
+    }
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      "get_school_teachers_for_attendance"
+    );
+
+    if (rpcError) {
+      setTeachers(data || []);
+      return;
+    }
+
+    setTeachers(rpcData || []);
   }
 
   async function fetchLearners(currentSchoolId: number) {
@@ -382,26 +455,57 @@ export default function ProgressReportsPage() {
     if (
       !schoolId ||
       !selectedAwardLearnerId ||
+      !selectedAwardTeacherId ||
       !selectedAwardPeriodId ||
-      !selectedAwardType
+      !selectedAwardType ||
+      !awardReason
     ) {
-      alert("Please complete all award fields.");
+      alert("Please complete all certificate fields.");
       return;
     }
 
-    const certificateNumber = `DB-${new Date().getFullYear()}-${Date.now()}`;
+    const selectedTeacherName = selectedAwardTeacherId
+      ? getTeacherName(selectedAwardTeacherId)
+      : "";
+    const awardTeacherName =
+      selectedTeacherName &&
+      selectedTeacherName !== "Practitioner not recorded"
+        ? selectedTeacherName
+        : getAwardTeacherName(selectedAwardLearnerId);
+
+    setSaving(true);
+
+    const { data: existingAward, error: existingAwardError } = await supabase
+      .from("achievement_awards")
+      .select("id")
+      .eq("learner_id", selectedAwardLearnerId)
+      .eq("report_period_id", selectedAwardPeriodId)
+      .eq("award_name", selectedAwardType)
+      .maybeSingle();
+
+    if (existingAwardError) {
+      alert(existingAwardError.message);
+      setSaving(false);
+      return;
+    }
+
+    if (existingAward) {
+      alert("This certificate has already been issued.");
+      setSaving(false);
+      return;
+    }
 
     const { error } = await supabase.from("achievement_awards").insert([
       {
         school_id: schoolId,
         learner_id: selectedAwardLearnerId,
+        classroom_id: selectedAwardClassroomId || null,
+        teacher_id: selectedAwardTeacherId || null,
         report_period_id: selectedAwardPeriodId,
         award_name: selectedAwardType,
-        award_category: selectedAwardCategory,
         award_reason: awardReason || null,
-        teacher_name: teacherName,
+        teacher_name: awardTeacherName,
         principal_name: profile?.full_name || profile?.name || "Principal",
-        certificate_number: certificateNumber,
         award_year: new Date().getFullYear(),
         certificate_generated: true,
       },
@@ -409,18 +513,22 @@ export default function ProgressReportsPage() {
 
     if (error) {
       alert(error.message);
+      setSaving(false);
       return;
     }
 
     setSelectedAwardLearnerId("");
+    setSelectedAwardClassroomId("");
+    setSelectedAwardTeacherId("");
     setSelectedAwardPeriodId("");
     setSelectedAwardType("");
-    setSelectedAwardCategory("General");
     setAwardReason("");
 
     await fetchAwards(schoolId);
+    setAwardPage(1);
 
-    alert("Achievement award created.");
+    setSaving(false);
+    alert("Certificate created.");
   }
 
   function getClassroomName(classroomId: any) {
@@ -431,10 +539,56 @@ export default function ProgressReportsPage() {
   }
 
   function getLearnerName(learnerId: any) {
-    return (
-      learners.find((l) => String(l.id) === String(learnerId))?.name ||
-      "Learner not recorded"
+    const learner = learners.find((l) => String(l.id) === String(learnerId));
+
+    return learner?.legal_name || learner?.name || "Learner not recorded";
+  }
+
+  function getAwardTeacherName(learnerId: any, award?: any) {
+    if (
+      award?.teacher_name &&
+      award.teacher_name !== "Practitioner not recorded"
+    ) {
+      return award.teacher_name;
+    }
+
+    if (award?.teacher_id) {
+      const teacherName = getTeacherName(award.teacher_id);
+
+      if (teacherName !== "Practitioner not recorded") {
+        return teacherName;
+      }
+    }
+
+    const learner = learners.find((l) => String(l.id) === String(learnerId));
+
+    const classroomId = award?.classroom_id
+      ? String(award.classroom_id)
+      : getLearnerClassroomId(learner);
+
+    if (!classroomId) {
+      return "Practitioner not recorded";
+    }
+
+    const classroom = classrooms.find(
+      (c) => String(c.id) === String(classroomId)
     );
+
+    if (classroom?.teacher_id) {
+      return getTeacherName(classroom.teacher_id);
+    }
+
+    const teacherId = getClassroomTeacherId(classroomId);
+
+    if (teacherId) {
+      return getTeacherName(teacherId);
+    }
+
+    if (classroom?.teacher_name) {
+      return classroom.teacher_name;
+    }
+
+    return "Practitioner not recorded";
   }
 
   function getTeacherName(teacherId: any) {
@@ -446,6 +600,68 @@ export default function ProgressReportsPage() {
       teacher?.email ||
       "Practitioner not recorded"
     );
+  }
+
+  function getLearnerClassroomId(learner: any) {
+    if (!learner) return "";
+
+    if (learner.classroom_id) {
+      return String(learner.classroom_id);
+    }
+
+    const classroom = classrooms.find(
+      (item) =>
+        item.classroom_name === learner.class ||
+        String(item.id) === String(learner.class)
+    );
+
+    return classroom ? String(classroom.id) : "";
+  }
+
+  function getClassroomTeacherId(classroomId: any) {
+    if (!classroomId) return "";
+
+    const classroom = classrooms.find(
+      (item) => String(item.id) === String(classroomId)
+    );
+
+    if (classroom?.teacher_id) {
+      return String(classroom.teacher_id);
+    }
+
+    const teacher = teachers.find(
+      (item) =>
+        String(item.classroom_id) === String(classroomId) ||
+        String(item.assigned_classroom_id) === String(classroomId) ||
+        String(item.classroom) === String(classroom?.classroom_name) ||
+        String(item.classroom_name) === String(classroom?.classroom_name) ||
+        String(item.class) === String(classroom?.classroom_name) ||
+        String(item.assigned_classroom) === String(classroom?.classroom_name) ||
+        String(item.assigned_classroom_name) ===
+          String(classroom?.classroom_name)
+    );
+
+    return teacher ? String(teacher.id) : "";
+  }
+
+  function handleAwardLearnerChange(learnerId: string) {
+    setSelectedAwardLearnerId(learnerId);
+
+    if (!learnerId) {
+      setSelectedAwardClassroomId("");
+      setSelectedAwardTeacherId("");
+      return;
+    }
+
+    const learner = learners.find(
+      (item) => String(item.id) === String(learnerId)
+    );
+
+    const classroomId = getLearnerClassroomId(learner);
+    const teacherId = getClassroomTeacherId(classroomId);
+
+    setSelectedAwardClassroomId(classroomId);
+    setSelectedAwardTeacherId(teacherId);
   }
 
   function getPeriodTitle(periodId: any) {
@@ -555,6 +771,52 @@ export default function ProgressReportsPage() {
   const visibleReports = filteredReports.slice(
     (reportPage - 1) * pageSize,
     reportPage * pageSize
+  );
+
+  const uniqueAwards = useMemo<any[]>(() => {
+    const map = new Map<string, any>();
+
+    awards.forEach((award: any) => {
+      const key = `${award.learner_id || ""}-${
+        award.report_period_id || ""
+      }-${award.award_name || ""}`;
+
+      if (!map.has(key)) {
+        map.set(key, award);
+      }
+    });
+
+    return Array.from(map.values());
+  }, [awards]);
+
+  const filteredAwards = uniqueAwards.filter((award) => {
+    if (
+      selectedClassroomId &&
+      String(award.classroom_id) !== String(selectedClassroomId)
+    ) {
+      return false;
+    }
+
+    if (
+      selectedLearnerId &&
+      String(award.learner_id) !== String(selectedLearnerId)
+    ) {
+      return false;
+    }
+
+    if (
+      selectedPeriodId &&
+      String(award.report_period_id) !== String(selectedPeriodId)
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const visibleAwards = filteredAwards.slice(
+    (awardPage - 1) * pageSize,
+    awardPage * pageSize
   );
 
   async function openAssessmentReview(item: any) {
@@ -1025,7 +1287,7 @@ export default function ProgressReportsPage() {
         getLearnerName(selectedAward?.learner_id).replace(/\s+/g, "_") ||
         "Learner";
 
-      pdf.save(`${learnerName}_Achievement_Award.pdf`);
+      pdf.save(`${learnerName}_Certificate.pdf`);
     } catch (error) {
       if (certificateButtons) {
         certificateButtons.style.display = "flex";
@@ -1064,6 +1326,40 @@ export default function ProgressReportsPage() {
     }
 
     return `${age} ${age === 1 ? "year" : "years"}`;
+  }
+
+  const primaryColor = school?.primary_color || "#4f6fbd";
+  const secondaryColor = school?.secondary_color || "#D4AF37";
+
+  const selectedAwardLearnerName = selectedAward
+    ? getLearnerName(selectedAward.learner_id)
+    : "";
+
+  const selectedAwardTitle = selectedAward?.award_name || "";
+  const selectedAwardYear =
+    selectedAward?.award_year ||
+    (selectedAward?.created_at
+      ? new Date(selectedAward.created_at).getFullYear()
+      : new Date().getFullYear());
+  const selectedAwardSubtitle = selectedAwardTitle
+    .replace(/^Certificate\s+of\s+/i, "OF ")
+    .toUpperCase();
+  const selectedAwardReasonLine = selectedAward?.award_reason
+    ? selectedAward.award_reason.toUpperCase()
+    : "OUTSTANDING EFFORT";
+
+  let learnerNameSize = 44;
+
+  if (selectedAwardLearnerName.length > 30) {
+    learnerNameSize = 38;
+  }
+
+  if (selectedAwardLearnerName.length > 45) {
+    learnerNameSize = 32;
+  }
+
+  if (selectedAwardLearnerName.length > 60) {
+    learnerNameSize = 28;
   }
 
   if (loading) return <p>Loading...</p>;
@@ -1295,9 +1591,9 @@ export default function ProgressReportsPage() {
               }}
             >
               <option value="">All Learners</option>
-              {learners.map((learner) => (
+                {learners.map((learner) => (
                 <option key={learner.id} value={learner.id}>
-                  {learner.name}
+                  {learner.legal_name || learner.name}
                 </option>
               ))}
             </select>
@@ -1600,13 +1896,37 @@ export default function ProgressReportsPage() {
               <select
                 className="db-input"
                 value={selectedAwardLearnerId}
-                onChange={(e) => setSelectedAwardLearnerId(e.target.value)}
+                onChange={(e) => handleAwardLearnerChange(e.target.value)}
               >
                 <option value="">Select Learner</option>
 
                 {learners.map((learner) => (
                   <option key={learner.id} value={learner.id}>
-                    {learner.name}
+                    {learner.legal_name || learner.name}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                className="db-input"
+                value={
+                  selectedAwardClassroomId
+                    ? getClassroomName(selectedAwardClassroomId)
+                    : "Class will auto-fill"
+                }
+                readOnly
+              />
+
+              <select
+                className="db-input"
+                value={selectedAwardTeacherId}
+                onChange={(e) => setSelectedAwardTeacherId(e.target.value)}
+              >
+                <option value="">Select Teacher</option>
+
+                {teachers.map((teacher) => (
+                  <option key={teacher.id} value={teacher.id}>
+                    {teacher.full_name || teacher.name || teacher.email}
                   </option>
                 ))}
               </select>
@@ -1632,11 +1952,14 @@ export default function ProgressReportsPage() {
               <select
                 className="db-input"
                 value={selectedAwardType}
-                onChange={(e) => setSelectedAwardType(e.target.value)}
+                onChange={(e) => {
+                  setSelectedAwardType(e.target.value);
+                  setAwardReason("");
+                }}
               >
                 <option value="">Select Award</option>
 
-                {awardTypes.map((award) => (
+                {certificateTypes.map((award) => (
                   <option key={award} value={award}>
                     {award}
                   </option>
@@ -1645,30 +1968,35 @@ export default function ProgressReportsPage() {
 
               <select
                 className="db-input"
-                value={selectedAwardCategory}
-                onChange={(e) => setSelectedAwardCategory(e.target.value)}
-              >
-                {awardCategories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-
-              <textarea
-                className="db-input"
-                rows={3}
-                placeholder="Reason for award"
                 value={awardReason}
                 onChange={(e) => setAwardReason(e.target.value)}
                 style={{ gridColumn: "1 / -1" }}
-              />
+                disabled={!selectedAwardType}
+              >
+                <option value="">
+                  {selectedAwardType
+                    ? "Select reason for award"
+                    : "Select award type first"}
+                </option>
+
+                {(certificateReasonOptions[selectedAwardType] || []).map(
+                  (reason) => (
+                    <option key={reason} value={reason}>
+                      {reason}
+                    </option>
+                  )
+                )}
+              </select>
 
               <div style={{ gridColumn: "1 / -1" }}>
-              <button className="db-button-primary" onClick={createAward}>
-               Create Award
-              </button>
-             </div>
+                <button
+                  className="db-button-primary"
+                  onClick={createAward}
+                  disabled={saving}
+                >
+                  {saving ? "Creating..." : "Create Award"}
+                </button>
+              </div>
             </div>
 
             <div
@@ -1678,45 +2006,34 @@ export default function ProgressReportsPage() {
                 marginTop: "20px",
               }}
             >
-              {awards.map((award) => (
+              {visibleAwards.map((award) => (
                 <div key={award.id} className="db-list-card">
-                  <strong>{award.award_name}</strong>
-
-                  <p style={textStyle}>
-                    Learner: {getLearnerName(award.learner_id)}
-                  </p>
-
-                  <p style={textStyle}>
-                    Report Period:{" "}
-                    {award.report_period_id
-                      ? getPeriodTitle(award.report_period_id)
-                      : "Not linked"}
-                  </p>
-
-                  <p style={textStyle}>
-                    Award Date:{" "}
-                    {award.created_at
-                      ? new Date(award.created_at).toLocaleDateString()
-                      : "Not recorded"}
-                  </p>
-
-                  <p style={textStyle}>
-                    Certificate: {award.certificate_number}
-                  </p>
-
                   <div
                     style={{
                       display: "flex",
-                      gap: "10px",
-                      marginTop: "10px",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "12px",
                       flexWrap: "wrap",
                     }}
                   >
+                    <div>
+                      <strong>{getLearnerName(award.learner_id)}</strong>
+                      <p style={textStyle}>{award.award_name}</p>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                      }}
+                    >
                     <button
                       className="db-button-primary"
                       onClick={() => setSelectedAward(award)}
                     >
-                      View Certificate
+                      View
                     </button>
 
                     <button
@@ -1726,12 +2043,33 @@ export default function ProgressReportsPage() {
                         setPendingAwardDownload(true);
                       }}
                     >
-                      Download Certificate
+                      Download
                     </button>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
+
+            {filteredAwards.length > pageSize ? (
+              <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+                <button
+                  className="db-button-primary"
+                  disabled={awardPage === 1}
+                  onClick={() => setAwardPage((page) => Math.max(1, page - 1))}
+                >
+                  Previous
+                </button>
+
+                <button
+                  className="db-button-primary"
+                  disabled={awardPage * pageSize >= filteredAwards.length}
+                  onClick={() => setAwardPage((page) => page + 1)}
+                >
+                  Next
+                </button>
+              </div>
+            ) : null}
           </>
         )}
       </div>
@@ -1748,46 +2086,57 @@ export default function ProgressReportsPage() {
           <div
             style={{
               position: "relative",
-              minHeight: "620px",
-              border: "8px solid #D4AF37",
-              outline: `14px solid ${school?.primary_color || "#4f6fbd"}`,
-              padding: "42px",
+              minHeight: "690px",
+              border: `24px solid ${primaryColor}`,
+              background: "#FFFFFF",
               overflow: "hidden",
               textAlign: "center",
+              boxSizing: "border-box",
             }}
           >
             <div
               style={{
                 position: "absolute",
-                left: 0,
+                inset: "22px",
+                border: "1px solid rgba(212, 175, 55, 0.75)",
+                pointerEvents: "none",
+              }}
+            />
+
+            <div
+              style={{
+                position: "absolute",
+                left: "120px",
                 top: 0,
-                width: "34px",
+                width: "170px",
                 height: "100%",
-                background: school?.secondary_color || "#b53030",
+                background: secondaryColor,
               }}
             />
 
             <div
               style={{
                 position: "absolute",
-                right: 0,
-                top: 0,
-                width: "80px",
-                height: "80px",
-                background: school?.secondary_color || "#b53030",
-                clipPath: "polygon(100% 0, 0 0, 100% 100%)",
+                right: "-54px",
+                top: "-34px",
+                width: "260px",
+                height: "88px",
+                background: secondaryColor,
+                transform: "rotate(45deg)",
+                transformOrigin: "center",
               }}
             />
 
             <div
               style={{
                 position: "absolute",
-                right: 0,
-                bottom: 0,
-                width: "80px",
-                height: "80px",
-                background: school?.secondary_color || "#b53030",
-                clipPath: "polygon(100% 0, 0 100%, 100% 100%)",
+                right: "-54px",
+                bottom: "-34px",
+                width: "260px",
+                height: "88px",
+                background: secondaryColor,
+                transform: "rotate(-45deg)",
+                transformOrigin: "center",
               }}
             />
 
@@ -1798,111 +2147,158 @@ export default function ProgressReportsPage() {
                 style={{
                   position: "absolute",
                   top: "50%",
-                  left: "50%",
-                  width: "260px",
-                  height: "260px",
+                  left: "58%",
+                  width: "310px",
+                  height: "310px",
                   objectFit: "contain",
-                  opacity: 0.08,
+                  opacity: 0.12,
                   transform: "translate(-50%, -50%)",
                 }}
               />
             )}
 
-            <h1
-              style={{
-                margin: "10px 0 6px",
-                fontSize: "42px",
-                color: "#D4AF37",
-                letterSpacing: "2px",
-                fontWeight: 900,
-              }}
-            >
-              CERTIFICATE
-            </h1>
-
-            <h2
-              style={{
-                margin: "0 0 26px",
-                fontSize: "24px",
-                color: "#333",
-                fontWeight: 700,
-              }}
-            >
-              OF ACHIEVEMENT
-            </h2>
-
-            <p style={{ fontSize: "17px", color: "#555" }}>
-              This certificate is proudly presented to
-            </p>
-
-            <h2
-              style={{
-                margin: "24px 0",
-                fontSize: "44px",
-                color: "#D4AF37",
-                fontWeight: 800,
-                fontFamily: "Georgia, serif",
-              }}
-            >
-              {getLearnerName(selectedAward.learner_id)}
-            </h2>
-
-            <p style={{ fontSize: "18px", color: "#333" }}>For</p>
-
-            <h3
-              style={{
-                fontSize: "28px",
-                color: "#2D2A3E",
-                margin: "14px 0",
-              }}
-            >
-              {selectedAward.award_name}
-            </h3>
-
-            <p
-              style={{
-                maxWidth: "680px",
-                margin: "0 auto",
-                fontSize: "16px",
-                color: "#555",
-                lineHeight: 1.6,
-              }}
-            >
-              {selectedAward.award_reason ||
-                "In recognition of outstanding effort and achievement."}
-            </p>
-
-            <p style={{ marginTop: "28px", fontSize: "14px", color: "#555" }}>
-              {school?.school_name || "School Name"} | Certificate No:{" "}
-              {selectedAward.certificate_number}
-            </p>
-
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "80px",
-                marginTop: "70px",
+                position: "relative",
+                zIndex: 1,
+                padding: "74px 70px 44px 330px",
+                minHeight: "642px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                boxSizing: "border-box",
               }}
             >
               <div>
-                <p style={{ borderTop: "1px solid #333", paddingTop: "8px" }}>
-                  {selectedAward.teacher_name || teacherName}
+                <h1
+                  style={{
+                    margin: "0",
+                    fontSize: "66px",
+                    color: "#D4AF37",
+                    letterSpacing: "2px",
+                    fontWeight: 900,
+                    lineHeight: 1,
+                  }}
+                >
+                  CERTIFICATE
+                </h1>
+
+                <h2
+                  style={{
+                    margin: "10px auto 54px",
+                    fontSize: "34px",
+                    color: "#111",
+                    fontWeight: 400,
+                    letterSpacing: "1px",
+                  }}
+                >
+                  {selectedAwardSubtitle}
+                </h2>
+
+                <p
+                  style={{
+                    margin: "0 0 28px",
+                    fontSize: "18px",
+                    color: "#111",
+                    letterSpacing: "4px",
+                    fontWeight: 700,
+                  }}
+                >
+                  PROUDLY PRESENTED TO
                 </p>
-                <p style={{ fontSize: "13px", color: "#777" }}>
-                  Teacher Signature
+
+                <h2
+                  style={{
+                    margin: "0 auto 38px",
+                    fontSize: learnerNameSize + 18,
+                    color: "#D4AF37",
+                    fontWeight: 400,
+                    fontFamily: "Georgia, serif",
+                    fontStyle: "italic",
+                    maxWidth: "820px",
+                    lineHeight: 1.05,
+                    wordBreak: "break-word",
+                    whiteSpace: "normal",
+                    overflowWrap: "break-word",
+                  }}
+                >
+                  {selectedAwardLearnerName}
+                </h2>
+
+                <p
+                  style={{
+                    margin: "0 auto",
+                    maxWidth: "620px",
+                    fontSize: "18px",
+                    color: "#111",
+                    fontWeight: 800,
+                    fontStyle: "italic",
+                    lineHeight: 1.35,
+                  }}
+                >
+                  FOR {selectedAwardReasonLine}
+                  <br />
+                  YEAR {selectedAwardYear}
+                </p>
+
+                <p
+                  style={{
+                    marginTop: "34px",
+                    fontSize: "16px",
+                    color: "#333",
+                  }}
+                >
+                  {school?.school_name || "School Name"}
                 </p>
               </div>
 
-              <div>
-                <p style={{ borderTop: "1px solid #333", paddingTop: "8px" }}>
-                  {selectedAward.principal_name ||
-                    profile?.full_name ||
-                    "Principal"}
-                </p>
-                <p style={{ fontSize: "13px", color: "#777" }}>
-                  Principal Signature
-                </p>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "90px",
+                  alignItems: "end",
+                }}
+              >
+                <div>
+                  <p
+                    style={{
+                      borderBottom: `2px solid #D4AF37`,
+                      paddingBottom: "4px",
+                      margin: "0 auto 8px",
+                      maxWidth: "220px",
+                      color: "#111",
+                      fontSize: "16px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {getAwardTeacherName(selectedAward.learner_id, selectedAward)}
+                  </p>
+                  <p style={{ margin: 0, fontSize: "14px", color: "#111" }}>
+                    CLASS TEACHER
+                  </p>
+                </div>
+
+                <div>
+                  <p
+                    style={{
+                      borderBottom: `2px solid #D4AF37`,
+                      paddingBottom: "4px",
+                      margin: "0 auto 8px",
+                      maxWidth: "220px",
+                      color: "#111",
+                      fontSize: "16px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {selectedAward.principal_name ||
+                      profile?.full_name ||
+                      "Principal"}
+                  </p>
+                  <p style={{ margin: 0, fontSize: "14px", color: "#111" }}>
+                    PRINCIPAL
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -1965,7 +2361,9 @@ export default function ProgressReportsPage() {
                   {school?.school_name || "Preschool Name"}
                 </h1>
 
-                <h2 style={coverTitle}>{reportTitleUpper}</h2>
+                <h2 style={{ ...coverTitle, color: primaryColor }}>
+                  {reportTitleUpper}
+                </h2>
 
                 <p style={coverText}>{selectedClassroom.classroom_name}</p>
 
@@ -2000,7 +2398,8 @@ export default function ProgressReportsPage() {
 
                 <div style={learnerInfoBox}>
                   <p style={bookletText}>
-                    <strong>Name of Child:</strong> {selectedLearner.name}
+                    <strong>Name of Child:</strong>{" "}
+                    {selectedLearner.legal_name || selectedLearner.name}
                   </p>
 
                   <p style={bookletText}>

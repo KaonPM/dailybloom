@@ -53,9 +53,10 @@ export default function Sidebar() {
   const masterNav = useMemo<NavItem[]>(
     () => [
       {
-        label: "Master Dashboard",
-        href: "/master",
-        match: ["/master"],
+       label: "Master Dashboard",
+       href: "/master?view=dashboard",
+       match: ["/master"],
+       view: "dashboard",
       },
       {
         label: "Manage Schools",

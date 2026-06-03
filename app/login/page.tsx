@@ -92,7 +92,7 @@ export default function LoginPage() {
     }
 
     if (role === "master") {
-      router.push("/master?view=manage-schools");
+      router.push("/master?view=dashboard");
       setLoading(false);
       return;
     }

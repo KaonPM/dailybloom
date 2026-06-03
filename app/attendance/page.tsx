@@ -286,7 +286,10 @@ export default function AttendancePage() {
     }
   }
 
-  async function saveAttendance(learnersToSave = visibleLearners) {
+  async function saveAttendance(
+    learnersToSave = visibleLearners,
+    classroomToCollapse = ""
+  ) {
     if (!schoolId) return;
 
     const rows = learnersToSave
@@ -333,6 +336,10 @@ export default function AttendancePage() {
     }
 
     await loadTodayAttendance(schoolId);
+
+    if (classroomToCollapse && openClassroom === classroomToCollapse) {
+      setOpenClassroom("");
+    }
 
     setSaving(false);
     alert("Attendance saved.");
@@ -430,7 +437,10 @@ export default function AttendancePage() {
     (learner) => attendance[learner.name] === "absent"
   ).length;
 
-  const unmarkedCount = Math.max(visibleLearners.length - presentCount - absentCount, 0);
+  const unmarkedCount = Math.max(
+    visibleLearners.length - presentCount - absentCount,
+    0
+  );
 
   const viewLabel =
     role === "teacher"
@@ -450,7 +460,10 @@ export default function AttendancePage() {
         </p>
       </div>
 
-      <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
+      <div
+        className="db-card db-card-blue"
+        style={{ padding: 16, marginBottom: 18 }}
+      >
         <div
           style={{
             display: "grid",
@@ -492,7 +505,9 @@ export default function AttendancePage() {
                         gap: 8,
                         alignItems: "center",
                         background: active ? "#EAF7FD" : "#FFFDFB",
-                        border: active ? "1px solid #CBEAF7" : "1px solid #F0E3D8",
+                        border: active
+                          ? "1px solid #CBEAF7"
+                          : "1px solid #F0E3D8",
                         borderRadius: 14,
                         padding: "10px 12px",
                         color: "#2D2A3E",
@@ -528,7 +543,9 @@ export default function AttendancePage() {
                           <button
                             type="button"
                             className="db-button-secondary"
-                            onClick={() => markAllForClassroom(item.roomName, "present")}
+                            onClick={() =>
+                              markAllForClassroom(item.roomName, "present")
+                            }
                           >
                             Select All Present
                           </button>
@@ -536,7 +553,9 @@ export default function AttendancePage() {
                           <button
                             type="button"
                             className="db-button-secondary"
-                            onClick={() => markAllForClassroom(item.roomName, "absent")}
+                            onClick={() =>
+                              markAllForClassroom(item.roomName, "absent")
+                            }
                           >
                             Select All Absent
                           </button>
@@ -561,12 +580,16 @@ export default function AttendancePage() {
 
                         <button
                           type="button"
-                          onClick={() => saveAttendance(item.learners)}
+                          onClick={() =>
+                            saveAttendance(item.learners, item.roomName)
+                          }
                           disabled={saving}
                           className="db-button-primary"
                           style={{ width: "100%", marginTop: 10 }}
                         >
-                          {saving ? "Saving..." : `Save ${item.roomName} Attendance`}
+                          {saving
+                            ? "Saving..."
+                            : `Save ${item.roomName} Attendance`}
                         </button>
                       </div>
                     ) : null}
@@ -625,7 +648,10 @@ export default function AttendancePage() {
       )}
 
       {selectedLearnerName ? (
-        <div className="db-card db-card-yellow" style={{ padding: 16, marginTop: 18 }}>
+        <div
+          className="db-card db-card-yellow"
+          style={{ padding: 16, marginTop: 18 }}
+        >
           <h3 style={sectionTitle}>Learner Attendance History</h3>
           <p style={smallText}>Learner: {selectedLearnerName}</p>
 
@@ -701,7 +727,10 @@ export default function AttendancePage() {
         </div>
       ) : null}
 
-      <div className="db-card db-card-green" style={{ padding: 16, marginTop: 18 }}>
+      <div
+        className="db-card db-card-green"
+        style={{ padding: 16, marginTop: 18 }}
+      >
         <h3 style={sectionTitle}>Attendance History</h3>
         <p style={smallText}>View and export attendance for {viewLabel}.</p>
 
@@ -726,7 +755,11 @@ export default function AttendancePage() {
             />
           </div>
 
-          <button type="button" className="db-button-secondary" onClick={viewClassHistory}>
+          <button
+            type="button"
+            className="db-button-secondary"
+            onClick={viewClassHistory}
+          >
             View Attendance
           </button>
 
@@ -854,11 +887,15 @@ function AttendanceList({
                 <select
                   className="db-input"
                   value={absenceReasons[learner.name] || ""}
-                  onChange={(e) => updateAbsenceReason(learner.name, e.target.value)}
+                  onChange={(e) =>
+                    updateAbsenceReason(learner.name, e.target.value)
+                  }
                 >
                   <option value="">Select absence reason</option>
                   <option value="Sick">Sick</option>
-                  <option value="Family responsibility">Family responsibility</option>
+                  <option value="Family responsibility">
+                    Family responsibility
+                  </option>
                   <option value="Transport issue">Transport issue</option>
                   <option value="Weather">Weather</option>
                   <option value="No reason provided">No reason provided</option>

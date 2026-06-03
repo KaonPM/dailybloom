@@ -183,13 +183,18 @@ export default function LandingPage() {
                 isOpen={openPackage === "Bloom"}
                 onClick={() => setOpenPackage(openPackage === "Bloom" ? null : "Bloom")}
                 items={[
-                  "Learner profiles and parent contact records",
-                  "Daily attendance tracking",
-                  "Birthdays and school events",
-                  "Daily learner summaries",
-                  "Basic broadcasts",
-                  "Simple payment reminders",
-                  "Standard setup support",
+                  "Learner profiles and document storage",
+                  "Classrooms",
+                  "Attendance register",
+                  "Events calendar",
+                  "Daily summaries",
+                  "Broadcast messaging",
+                  "Payment reminders",
+                  "Achievement Awards",
+                  "Developmental Reports",
+                  "Grade RR Reports",
+                  "DBE compliance document storage",
+                  "School branding",
                 ]}
               />
 
@@ -205,12 +210,15 @@ export default function LandingPage() {
                 badge="Popular"
                 items={[
                   "Everything in Bloom",
-                  "Classroom-based organisation",
-                  "Principal overview dashboard",
-                  "Teacher daily workflows",
-                  "Export-ready school records",
-                  "Stronger parent communication tools",
-                  "Priority setup support",
+                  "Multiple classrooms",
+                  "Teacher management",
+                  "Advanced reporting dashboard",
+                  "Saved summaries",
+                  "Summary history",
+                  "Monthly report generation",
+                  "Parent communication tracking",
+                  "School performance insights",
+                  "Priority support",
                 ]}
               />
 
@@ -225,12 +233,12 @@ export default function LandingPage() {
                 onClick={() => setOpenPackage(openPackage === "Bloom Elite" ? null : "Bloom Elite")}
                 items={[
                   "Everything in Bloom Pro",
-                  "WageFlow payroll support",
-                  "Staff records",
-                  "HR notes and staff admin support",
-                  "Payslip-ready payroll records",
-                  "Premium onboarding",
-                  "Priority admin assistance",
+                  "Unlimited classrooms",
+                  "Unlimited staff accounts",
+                  "Advanced compliance tracking",
+                  "School-wide analytics",
+                  "WageFlow included",
+                  "Dedicated onboarding support",
                 ]}
               />
             </div>
@@ -240,10 +248,6 @@ export default function LandingPage() {
               <p style={paragraph(isMobile)}>
                 R599 once off. This includes onboarding, school setup, administrative configuration
                 and ongoing administrative assistance while your school remains subscribed.
-              </p>
-              <p style={paragraph(isMobile)}>
-                After the first six months from launch date, monthly package prices may increase per plan.
-                The setup fee remains R599.
               </p>
             </div>
           </div>

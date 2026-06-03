@@ -15,13 +15,15 @@ type TeacherRow = {
 };
 
 type AttendanceRow = {
-  id?: string;
+  id?: string | number;
   school_id: number;
   teacher_id: string;
   teacher_name: string;
   attendance_date: string;
   status: string;
   notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
 };
 
 const attendanceStatuses = [
@@ -50,19 +52,16 @@ export default function TeacherAttendancePage() {
     {}
   );
 
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [historyRows, setHistoryRows] = useState<AttendanceRow[]>([]);
+  const [historyFromDate, setHistoryFromDate] = useState(today);
+  const [historyToDate, setHistoryToDate] = useState(today);
+
   const [loading, setLoading] = useState(true);
   const [savingTeacherId, setSavingTeacherId] = useState<string | null>(null);
 
   useEffect(() => {
     loadPage();
   }, []);
-
-  useEffect(() => {
-    if (schoolId) {
-      fetchAttendance(schoolId, selectedDate);
-    }
-  }, [selectedDate, schoolId]);
 
   async function loadPage() {
     const { profile, error: profileError } = await getCurrentProfile();
@@ -93,7 +92,7 @@ export default function TeacherAttendancePage() {
 
     await Promise.all([
       fetchTeachers(),
-      fetchAttendance(context.schoolId, selectedDate),
+      fetchAttendance(context.schoolId, today),
     ]);
 
     setLoading(false);
@@ -139,7 +138,7 @@ export default function TeacherAttendancePage() {
         school_id: Number(schoolId),
         teacher_id: teacher.id,
         teacher_name: teacher.full_name || teacher.email || "Unnamed teacher",
-        attendance_date: selectedDate,
+        attendance_date: today,
         status: "",
         notes: "",
       }
@@ -178,7 +177,7 @@ export default function TeacherAttendancePage() {
       school_id: schoolId,
       teacher_id: teacher.id,
       teacher_name: teacher.full_name || teacher.email || "Unnamed teacher",
-      attendance_date: selectedDate,
+      attendance_date: today,
       status: record.status,
       notes: record.notes?.trim() || null,
       updated_at: new Date().toISOString(),
@@ -197,7 +196,7 @@ export default function TeacherAttendancePage() {
       return;
     }
 
-    await fetchAttendance(schoolId, selectedDate);
+    await fetchAttendance(schoolId, today);
 
     setOpenTeacherIds((prev) => ({
       ...prev,
@@ -216,9 +215,7 @@ export default function TeacherAttendancePage() {
       return;
     }
 
-    const confirmed = confirm(
-      `Mark all teachers as Present for ${selectedDate}?`
-    );
+    const confirmed = confirm(`Mark all teachers as Present for ${today}?`);
 
     if (!confirmed) return;
 
@@ -226,7 +223,7 @@ export default function TeacherAttendancePage() {
       school_id: schoolId,
       teacher_id: teacher.id,
       teacher_name: teacher.full_name || teacher.email || "Unnamed teacher",
-      attendance_date: selectedDate,
+      attendance_date: today,
       status: "Present",
       notes: null,
       updated_at: new Date().toISOString(),
@@ -244,7 +241,7 @@ export default function TeacherAttendancePage() {
       return;
     }
 
-    await fetchAttendance(schoolId, selectedDate);
+    await fetchAttendance(schoolId, today);
 
     const collapsedTeachers = teachers.reduce<Record<string, boolean>>(
       (acc, teacher) => {
@@ -260,6 +257,60 @@ export default function TeacherAttendancePage() {
     }));
 
     alert("All teachers marked present.");
+  }
+
+  async function viewAttendanceHistory() {
+    if (!schoolId) return;
+
+    const { data, error } = await supabase
+      .from("teacher_attendance")
+      .select("*")
+      .eq("school_id", schoolId)
+      .gte("attendance_date", historyFromDate)
+      .lte("attendance_date", historyToDate)
+      .order("attendance_date", { ascending: false })
+      .order("teacher_name", { ascending: true });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setHistoryRows((data || []) as AttendanceRow[]);
+  }
+
+  function exportCsv(filename: string, rows: AttendanceRow[]) {
+    if (rows.length === 0) {
+      alert("No records to export.");
+      return;
+    }
+
+    const headers = ["teacher_name", "status", "notes", "attendance_date"];
+
+    const csvRows = [
+      headers.join(","),
+      ...rows.map((row) =>
+        headers
+          .map((header) => {
+            const value = String((row as any)[header] || "");
+            return `"${value.replace(/"/g, '""')}"`;
+          })
+          .join(",")
+      ),
+    ];
+
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
   }
 
   const summary = useMemo(() => {
@@ -287,61 +338,30 @@ export default function TeacherAttendancePage() {
     <div>
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">Teacher Attendance</h2>
-        <p className="db-page-subtitle">
-          Record daily staff attendance for school management and reporting.
-        </p>
+        <p className="db-page-subtitle">Today: {today}</p>
       </div>
 
-      <div
-        className="db-card db-card-blue"
-        style={{ padding: 16, marginBottom: 18 }}
-      >
-        <div style={topRow}>
-          <div>
-            <p style={labelText}>Attendance Date</p>
-            <input
-              className="db-input"
-              type="date"
-              value={selectedDate}
-              onChange={(event) => setSelectedDate(event.target.value)}
-            />
-          </div>
-
-          <button
-            type="button"
-            className="db-button-primary"
-            onClick={markAllPresent}
-            style={{ minHeight: 44, alignSelf: "end" }}
-          >
-            Mark All Present
-          </button>
-        </div>
-      </div>
-
-      <div style={summaryGrid}>
-        <div className="db-card db-card-green" style={summaryCard}>
-          <span style={summaryLabel}>Present</span>
-          <strong style={summaryNumber}>{summary.present}</strong>
-        </div>
-
-        <div className="db-card db-card-yellow" style={summaryCard}>
-          <span style={summaryLabel}>Absent</span>
-          <strong style={summaryNumber}>{summary.absent}</strong>
-        </div>
-
-        <div className="db-card db-card-lavender" style={summaryCard}>
-          <span style={summaryLabel}>Leave</span>
-          <strong style={summaryNumber}>{summary.leave}</strong>
-        </div>
-
-        <div className="db-card db-card-blue" style={summaryCard}>
-          <span style={summaryLabel}>Late / Early</span>
-          <strong style={summaryNumber}>{summary.late}</strong>
+      <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
+        <div style={summaryGrid}>
+          <MiniStat label="Present" value={summary.present} />
+          <MiniStat label="Absent" value={summary.absent} />
+          <MiniStat label="Leave" value={summary.leave} />
+          <MiniStat label="Late / Early" value={summary.late} />
         </div>
       </div>
 
       <div className="db-card db-card-lavender" style={{ padding: 16 }}>
-        <h3 style={sectionTitle}>Teachers ({teachers.length})</h3>
+        <div style={sectionHeader}>
+          <h3 style={sectionTitle}>Attendance</h3>
+
+          <button
+            type="button"
+            className="db-button-secondary"
+            onClick={markAllPresent}
+          >
+            Mark All Present
+          </button>
+        </div>
 
         {teachers.length === 0 ? (
           <p className="db-helper">No teachers found for this school.</p>
@@ -349,7 +369,10 @@ export default function TeacherAttendancePage() {
           <div style={{ display: "grid", gap: 10 }}>
             {teachers.map((teacher) => {
               const record = getTeacherAttendance(teacher);
-              const isOpen = openTeacherIds[teacher.id] !== false || !record.id;
+              const isOpen =
+                openTeacherIds[teacher.id] === undefined
+                  ? !record.id
+                  : openTeacherIds[teacher.id];
 
               return (
                 <div key={teacher.id} className="db-list-card">
@@ -358,10 +381,6 @@ export default function TeacherAttendancePage() {
                       <strong style={{ fontSize: 16 }}>
                         {teacher.full_name || "Unnamed teacher"}
                       </strong>
-
-                      <p style={smallText}>
-                        {teacher.email || "No email added"}
-                      </p>
 
                       {!isOpen && record.notes ? (
                         <p style={smallText}>{record.notes}</p>
@@ -449,11 +468,13 @@ export default function TeacherAttendancePage() {
                       <button
                         type="button"
                         className="db-button-primary"
-                        style={{ marginTop: 10 }}
+                        style={{ width: "100%", marginTop: 10 }}
                         onClick={() => saveTeacherAttendance(teacher)}
                         disabled={savingTeacherId === teacher.id}
                       >
-                        {savingTeacherId === teacher.id ? "Saving..." : "Save"}
+                        {savingTeacherId === teacher.id
+                          ? "Saving..."
+                          : "Save Attendance"}
                       </button>
                     </>
                   ) : null}
@@ -463,15 +484,112 @@ export default function TeacherAttendancePage() {
           </div>
         )}
       </div>
+
+      <div
+        className="db-card db-card-green"
+        style={{ padding: 16, marginTop: 18 }}
+      >
+        <h3 style={sectionTitle}>Attendance History</h3>
+        <p style={smallText}>View and export teacher attendance records.</p>
+
+        <div style={dateGrid}>
+          <div>
+            <p style={labelText}>From</p>
+            <input
+              type="date"
+              className="db-input"
+              value={historyFromDate}
+              onChange={(e) => setHistoryFromDate(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <p style={labelText}>To</p>
+            <input
+              type="date"
+              className="db-input"
+              value={historyToDate}
+              onChange={(e) => setHistoryToDate(e.target.value)}
+            />
+          </div>
+
+          <button
+            type="button"
+            className="db-button-secondary"
+            onClick={viewAttendanceHistory}
+          >
+            View Attendance
+          </button>
+
+          <button
+            type="button"
+            className="db-button-secondary"
+            onClick={() =>
+              exportCsv("teacher-attendance.csv", historyRows)
+            }
+          >
+            Export CSV
+          </button>
+        </div>
+
+        {historyRows.length === 0 ? (
+          <p className="db-helper">No attendance history loaded.</p>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            {historyRows.map((row) => (
+              <div key={row.id} style={recordRow}>
+                <strong>{row.teacher_name}</strong>
+                <span>
+                  {row.attendance_date} - {row.status}
+                  {row.notes ? ` - ${row.notes}` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-const topRow = {
+function MiniStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div
+      style={{
+        background: "#FFFDFB",
+        border: "1px solid #F0E3D8",
+        borderRadius: 14,
+        padding: 12,
+      }}
+    >
+      <p style={labelText}>{label}</p>
+      <h3
+        style={{
+          margin: "4px 0 0 0",
+          color: "#2D2A3E",
+          fontSize: 24,
+          fontWeight: 800,
+        }}
+      >
+        {value}
+      </h3>
+    </div>
+  );
+}
+
+const summaryGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
   gap: 10,
-  alignItems: "end",
+};
+
+const sectionHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap" as const,
+  marginBottom: 10,
 };
 
 const grid2 = {
@@ -490,33 +608,6 @@ const statusButtonGroup = {
 const statusButton = {
   minHeight: 38,
   padding: "8px 12px",
-};
-
-const summaryGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-  gap: 10,
-  marginBottom: 18,
-};
-
-const summaryCard = {
-  padding: 14,
-  minHeight: 90,
-};
-
-const summaryLabel = {
-  display: "block",
-  color: "#6D6888",
-  fontSize: 13,
-  fontWeight: 800,
-};
-
-const summaryNumber = {
-  display: "block",
-  marginTop: 6,
-  color: "#2D2A3E",
-  fontSize: 28,
-  fontWeight: 800,
 };
 
 const sectionTitle = {
@@ -552,6 +643,26 @@ const teacherActions = {
   gap: 8,
   alignItems: "center",
   flexWrap: "wrap" as const,
+};
+
+const dateGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 10,
+  alignItems: "end",
+  margin: "12px 0",
+};
+
+const recordRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  background: "#FFFDFB",
+  border: "1px solid #F0E3D8",
+  borderRadius: 12,
+  padding: "10px 12px",
+  color: "#2D2A3E",
 };
 
 function statusPill(status: string) {

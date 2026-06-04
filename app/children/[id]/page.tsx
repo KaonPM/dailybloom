@@ -88,6 +88,7 @@ export default function LearnerProfilePage() {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [itemName, setItemName] = useState("");
   const [quantity, setQuantity] = useState("");
+  const [itemReceived, setItemReceived] = useState(false);
   const [editingItem, setEditingItem] = useState<ChecklistItem | null>(null);
 
   const [documents, setDocuments] = useState<LearnerDocument[]>([]);
@@ -198,21 +199,21 @@ export default function LearnerProfilePage() {
     const existing = (existingChecklist || []) as ChecklistItem[];
 
     const missingTemplates = stationeryTemplates.filter((template) => {
-    return !existing.some(
-    (item) =>
-      item.item_name?.toLowerCase() === template.item_name.toLowerCase()
-    );
+      return !existing.some(
+        (item) =>
+          item.item_name?.toLowerCase() === template.item_name.toLowerCase()
+      );
     });
 
     if (missingTemplates.length > 0) {
       const rowsToInsert = missingTemplates.map((template) => ({
-       school_id: currentSchoolId,
-       learner_id: currentLearnerId,
-       classroom_id: currentClassroomId,
-       stationery_item_id: null,
-       item_name: template.item_name,
-       quantity: template.quantity || null,
-       received: false,
+        school_id: currentSchoolId,
+        learner_id: currentLearnerId,
+        classroom_id: currentClassroomId,
+        stationery_item_id: null,
+        item_name: template.item_name,
+        quantity: template.quantity || null,
+        received: false,
       }));
 
       const { error: insertError } = await supabase
@@ -272,6 +273,7 @@ export default function LearnerProfilePage() {
   function resetItemForm() {
     setItemName("");
     setQuantity("");
+    setItemReceived(false);
     setEditingItem(null);
   }
 
@@ -291,6 +293,8 @@ export default function LearnerProfilePage() {
         .update({
           item_name: itemName.trim(),
           quantity: quantity.trim() || null,
+          received: itemReceived,
+          received_at: itemReceived ? new Date().toISOString() : null,
         })
         .eq("id", editingItem.id)
         .eq("school_id", schoolId)
@@ -330,6 +334,7 @@ export default function LearnerProfilePage() {
     setEditingItem(item);
     setItemName(item.item_name || "");
     setQuantity(item.quantity || "");
+    setItemReceived(item.received === true);
   }
 
   async function deleteRequirementItem(item: ChecklistItem) {
@@ -629,6 +634,7 @@ export default function LearnerProfilePage() {
           <h3 style={{ ...sectionTitle, margin: 0 }}>
             {classroomName} Requirements
           </h3>
+
           <p className="db-helper" style={{ marginTop: 4 }}>
             Track learner requirements and stationery received.
           </p>
@@ -743,6 +749,17 @@ export default function LearnerProfilePage() {
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
               />
+
+              {editingItem ? (
+                <label style={receivedToggleLabel}>
+                  <input
+                    type="checkbox"
+                    checked={itemReceived}
+                    onChange={(e) => setItemReceived(e.target.checked)}
+                  />
+                  Mark as received
+                </label>
+              ) : null}
 
               <button
                 type="button"
@@ -993,6 +1010,15 @@ const checkboxButton = {
   color: "#2D2A3E",
   fontWeight: 900 as const,
   cursor: "pointer",
+};
+
+const receivedToggleLabel = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  fontSize: 14,
+  color: "#2D2A3E",
+  fontWeight: 700,
 };
 
 const uploadedBadge = {

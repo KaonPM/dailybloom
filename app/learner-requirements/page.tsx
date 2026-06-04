@@ -7,8 +7,6 @@ import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 import SubscriptionGuard from "../components/SubscriptionGuard";
 
-type ViewMode = "overview" | "classChecklist" | "learnerChecklist";
-
 type LearnerRow = {
   id: string;
   name?: string | null;
@@ -19,6 +17,7 @@ type LearnerRow = {
 type ClassroomRow = {
   id: number;
   classroom_name?: string | null;
+  age_groups?: string[] | null;
 };
 
 type ChecklistRow = {
@@ -49,47 +48,11 @@ type DocumentRow = {
   file_url?: string | null;
 };
 
-const template0To2 = [
-  { item_name: "Birth Certificate", quantity: "1x", category: "Document" },
-  { item_name: "Immunisation Card", quantity: "1x", category: "Document" },
-  { item_name: "Toilet Rolls", quantity: "10x", category: "Hygiene" },
-  { item_name: "Tissue Box", quantity: "3x", category: "Hygiene" },
-  { item_name: "Wipes", quantity: "6x", category: "Hygiene" },
-  { item_name: "Vaseline", quantity: "3x", category: "Hygiene" },
-];
-
-const template2To6 = [
-  ...template0To2,
-  {
-    item_name: "Lifebuoy Soap / Sunlight Bar Soap",
-    quantity: "4x",
-    category: "Hygiene",
-  },
-  { item_name: "Flip File", quantity: "1x 20 pages", category: "Stationery" },
-  {
-    item_name: "College Book Exercise",
-    quantity: "1x 72 pages",
-    category: "Stationery",
-  },
-  { item_name: "Colouring Book", quantity: "1x", category: "Stationery" },
-  { item_name: "Typek", quantity: "1x", category: "Stationery" },
-  {
-    item_name: "Wax Crayons",
-    quantity: "1x box of 12",
-    category: "Stationery",
-  },
-  { item_name: "Long Pencils", quantity: "4x", category: "Stationery" },
-  { item_name: "Rubber / Eraser", quantity: "1x", category: "Stationery" },
-  { item_name: "Glue Stick / Pritt", quantity: "1x", category: "Stationery" },
-  { item_name: "Sharpener", quantity: "1x", category: "Stationery" },
-];
-
 export default function LearnerRequirementsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const schoolParam = searchParams.get("school");
 
-  const [viewMode, setViewMode] = useState<ViewMode>("overview");
 
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [learners, setLearners] = useState<LearnerRow[]>([]);
@@ -99,15 +62,12 @@ export default function LearnerRequirementsPage() {
   const [requirementItems, setRequirementItems] = useState<RequirementItemRow[]>([]);
 
   const [selectedClassroomId, setSelectedClassroomId] = useState("");
-  const [selectedLearnerId, setSelectedLearnerId] = useState("");
-
   const [newItemName, setNewItemName] = useState("");
   const [newQuantity, setNewQuantity] = useState("");
   const [newCategory, setNewCategory] = useState("Stationery");
 
   const [loading, setLoading] = useState(true);
   const [savingItem, setSavingItem] = useState(false);
-  const [loadingTemplate, setLoadingTemplate] = useState(false);
 
   useEffect(() => {
     loadPage();
@@ -144,7 +104,7 @@ export default function LearnerRequirementsPage() {
 
       supabase
         .from("classrooms")
-        .select("id, classroom_name")
+        .select("id, classroom_name, age_groups")
         .eq("school_id", context.schoolId)
         .order("classroom_name", { ascending: true }),
 
@@ -184,38 +144,6 @@ export default function LearnerRequirementsPage() {
     setLoading(false);
   }
 
-  async function preloadTemplate(templateType: "0_2" | "2_6") {
-    if (!schoolId) return alert("School not found.");
-    if (!selectedClassroomId) return alert("Please select a class first.");
-
-    setLoadingTemplate(true);
-
-    const templateItems = templateType === "0_2" ? template0To2 : template2To6;
-
-    const payload = templateItems.map((item) => ({
-      school_id: schoolId,
-      classroom_id: Number(selectedClassroomId),
-      item_name: item.item_name,
-      quantity: item.quantity,
-      category: item.category,
-      is_active: true,
-    }));
-
-    const { error } = await supabase
-      .from("classroom_requirement_items")
-      .upsert(payload, {
-        onConflict: "school_id,classroom_id,item_name",
-        ignoreDuplicates: true,
-      });
-
-    setLoadingTemplate(false);
-
-    if (error) return alert(error.message);
-
-    await loadPage();
-    alert("Checklist loaded successfully.");
-  }
-
   async function addRequirementItem() {
     if (!schoolId) return alert("School not found.");
     if (!selectedClassroomId) return alert("Please select a class first.");
@@ -249,76 +177,13 @@ export default function LearnerRequirementsPage() {
   }
 
   async function deleteRequirementItem(itemId: number) {
-    const confirmed = confirm("Delete this requirement from the class checklist?");
+    const confirmed = confirm("Delete this requirement from the requirements list?");
     if (!confirmed) return;
 
     const { error } = await supabase
       .from("classroom_requirement_items")
       .update({ is_active: false })
       .eq("id", itemId);
-
-    if (error) return alert(error.message);
-
-    await loadPage();
-  }
-
-  async function markRequirementReceived(requirement: RequirementItemRow) {
-    if (!schoolId) return alert("School not found.");
-    if (!selectedClassroomId) return alert("Please select a class first.");
-    if (!selectedLearnerId) return alert("Please select a learner first.");
-
-    const existingItem = checklist.find(
-      (item) =>
-        item.learner_id === selectedLearnerId &&
-        Number(item.stationery_item_id) === Number(requirement.id)
-    );
-
-    if (existingItem) {
-      const { error } = await supabase
-        .from("learner_stationery_checklist")
-        .update({
-          received: true,
-          received_at: new Date().toISOString(),
-        })
-        .eq("id", existingItem.id);
-
-      if (error) return alert(error.message);
-    } else {
-      const { error } = await supabase.from("learner_stationery_checklist").insert([
-        {
-          school_id: schoolId,
-          learner_id: selectedLearnerId,
-          classroom_id: Number(selectedClassroomId),
-          stationery_item_id: requirement.id,
-          item_name: requirement.item_name,
-          quantity: requirement.quantity || null,
-          received: true,
-          received_at: new Date().toISOString(),
-        },
-      ]);
-
-      if (error) return alert(error.message);
-    }
-
-    await loadPage();
-  }
-
-  async function markRequirementOutstanding(requirement: RequirementItemRow) {
-    const existingItem = checklist.find(
-      (item) =>
-        item.learner_id === selectedLearnerId &&
-        Number(item.stationery_item_id) === Number(requirement.id)
-    );
-
-    if (!existingItem) return;
-
-    const { error } = await supabase
-      .from("learner_stationery_checklist")
-      .update({
-        received: false,
-        received_at: null,
-      })
-      .eq("id", existingItem.id);
 
     if (error) return alert(error.message);
 
@@ -346,10 +211,6 @@ export default function LearnerRequirementsPage() {
     );
   }, [learners, selectedClassroomId]);
 
-  const selectedLearner = useMemo(() => {
-    return learners.find((learner) => learner.id === selectedLearnerId) || null;
-  }, [learners, selectedLearnerId]);
-
   const selectedClassRequirements = useMemo(() => {
     if (!selectedClassroomId) return [];
 
@@ -358,87 +219,62 @@ export default function LearnerRequirementsPage() {
     );
   }, [requirementItems, selectedClassroomId]);
 
-  const groupedClassRequirements = useMemo(() => {
-    const grouped: Record<string, RequirementItemRow[]> = {};
+  const assignedStationeryTemplate = selectedClassroom?.age_groups?.some(
+    (group) => group === "0-1 Years" || group === "1-2 Years"
+  )
+    ? "0-2 Years Template"
+    : "2-6 Years Template";
 
-    selectedClassRequirements.forEach((item) => {
-      const category = item.category || "Other";
+  const stationeryRequirements = selectedClassRequirements.filter(
+    (requirement) => requirement.category !== "Document"
+  );
 
-      if (!grouped[category]) {
-        grouped[category] = [];
-      }
+  const documentRequirements = selectedClassRequirements.filter(
+    (requirement) => requirement.category === "Document"
+  );
 
-      grouped[category].push(item);
-    });
-
-    return grouped;
-  }, [selectedClassRequirements]);
-
-  const selectedLearnerRequirementStatus = useMemo(() => {
-    if (!selectedLearnerId) return [];
-
-    return selectedClassRequirements.map((requirement) => {
-      const checklistItem = checklist.find(
+  const learnerChecklistOverview = classLearners.map((learner) => {
+    const learnerChecklist = checklist.filter(
+      (item) => item.learner_id === learner.id
+    );
+    const receivedStationeryCount = stationeryRequirements.filter((requirement) => {
+      return learnerChecklist.some(
         (item) =>
-          item.learner_id === selectedLearnerId &&
-          Number(item.stationery_item_id) === Number(requirement.id)
+          Number(item.stationery_item_id) === Number(requirement.id) &&
+          item.received === true
       );
-
-      return {
-        requirement,
-        checklistItem,
-        received: checklistItem?.received === true,
-      };
-    });
-  }, [selectedClassRequirements, checklist, selectedLearnerId]);
-
-  const outstandingItems = selectedLearnerRequirementStatus.filter(
-    (entry) => !entry.received
-  );
-
-  const receivedItems = selectedLearnerRequirementStatus.filter(
-    (entry) => entry.received
-  );
-
-  const selectedLearnerMissingDocuments = useMemo(() => {
-    if (!selectedLearnerId) return [];
-
-    const learnerDocuments = documents.filter(
-      (document) => document.learner_id === selectedLearnerId
-    );
-
-    const documentRequirements = selectedClassRequirements.filter(
-      (requirement) => requirement.category === "Document"
-    );
-
-    return documentRequirements.filter((requirement) => {
-      return !learnerDocuments.some(
+    }).length;
+    const uploadedDocumentCount = documentRequirements.filter((requirement) => {
+      return documents.some(
         (document) =>
-          document.document_type === requirement.item_name && document.file_url
+          document.learner_id === learner.id &&
+          document.document_type === requirement.item_name &&
+          document.file_url
       );
-    });
-  }, [documents, selectedLearnerId, selectedClassRequirements]);
+    }).length;
+    const receivedCount = receivedStationeryCount + uploadedDocumentCount;
+    const totalCount = stationeryRequirements.length + documentRequirements.length;
+    const outstandingCount = Math.max(totalCount - receivedCount, 0);
+    const progress =
+      totalCount > 0 ? Math.round((receivedCount / totalCount) * 100) : 0;
 
-  function scrollToPageTop() {
-    window.requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
-  }
+    return {
+      learner,
+      receivedCount,
+      outstandingCount,
+      totalCount,
+      progress,
+    };
+  });
 
-  function openClassChecklist() {
-    setViewMode("classChecklist");
-    scrollToPageTop();
-  }
-
-  function openLearnerChecklist() {
-    setViewMode("learnerChecklist");
-    scrollToPageTop();
-  }
-
-  function goToOverview() {
-    setViewMode("overview");
-    scrollToPageTop();
-  }
+  const classCompletedItems = learnerChecklistOverview.reduce(
+    (total, item) => total + item.receivedCount,
+    0
+  );
+  const classOutstandingItems = learnerChecklistOverview.reduce(
+    (total, item) => total + item.outstandingCount,
+    0
+  );
 
   if (loading) {
     return <p>Loading learner requirements...</p>;
@@ -450,8 +286,8 @@ export default function LearnerRequirementsPage() {
         <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
           <h2 className="db-page-title">Learner Requirements</h2>
           <p className="db-page-subtitle">
-            Select a class, then choose whether to manage the class checklist or
-            review a child’s checklist.
+            Manage required stationery, required documents, and learner
+            completion tracking.
           </p>
         </div>
 
@@ -466,8 +302,6 @@ export default function LearnerRequirementsPage() {
             value={selectedClassroomId}
             onChange={(e) => {
               setSelectedClassroomId(e.target.value);
-              setSelectedLearnerId("");
-              setViewMode("overview");
             }}
           >
             <option value="">Select Class</option>
@@ -477,418 +311,217 @@ export default function LearnerRequirementsPage() {
               </option>
             ))}
           </select>
+
+          {selectedClassroomId ? (
+            <div style={templateSummaryBox}>
+              <strong>Assigned Stationery Template</strong>
+              <p style={smallText}>{assignedStationeryTemplate}</p>
+
+              <strong>Assigned Documents Template</strong>
+              <p style={smallText}>Required Learner Documents</p>
+            </div>
+          ) : null}
         </div>
 
-        {viewMode !== "overview" && (
-          <div style={stickyBackBar}>
-            <button
-              type="button"
-              className="db-button-secondary"
-              onClick={goToOverview}
-              style={topBackButton}
-            >
-              &larr; Back to Class Overview
-            </button>
+            {selectedClassroomId ? (
+              <div
+                className="db-card db-card-blue"
+                style={{ padding: 16, marginBottom: 18 }}
+              >
+                <h3 style={sectionTitle}>Required Stationery</h3>
 
-            <strong style={currentViewLabel}>
-              {viewMode === "classChecklist"
-                ? "Class Checklist"
-                : "Child Checklist"}
-            </strong>
-          </div>
-        )}
+                {stationeryRequirements.length === 0 ? (
+                  <p className="db-helper">
+                    No stationery requirements loaded for this class yet.
+                  </p>
+                ) : (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {stationeryRequirements.map((item) => (
+                      <div key={item.id} style={checklistRow}>
+                        <div style={checkArea}>
+                          <span style={checkboxIcon}>☐</span>
 
-        {viewMode === "overview" && (
-          <>
-            <div style={summaryGrid}>
-              <div className="db-card db-card-blue" style={summaryCard}>
-                <strong>Class Checklist Items</strong>
-                <p style={summaryNumber}>{selectedClassRequirements.length}</p>
+                          <div>
+                            <strong>{item.item_name}</strong>
+                            <p style={smallText}>
+                              {item.quantity || "No quantity"} -{" "}
+                              {item.category || "Other"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          className="db-button-secondary"
+                          style={smallButton}
+                          onClick={() => deleteRequirementItem(item.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
+            ) : null}
 
-              <div className="db-card db-card-yellow" style={summaryCard}>
-                <strong>Learners in Class</strong>
-                <p style={summaryNumber}>{classLearners.length}</p>
+            {selectedClassroomId ? (
+              <div
+                className="db-card db-card-yellow"
+                style={{ padding: 16, marginBottom: 18 }}
+              >
+                <h3 style={sectionTitle}>Required Documents</h3>
+
+                {documentRequirements.length === 0 ? (
+                  <p className="db-helper">
+                    No document requirements loaded for this class yet.
+                  </p>
+                ) : (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {documentRequirements.map((item) => (
+                      <div key={item.id} style={checklistRow}>
+                        <div style={checkArea}>
+                          <span style={checkboxIcon}>☐</span>
+
+                          <div>
+                            <strong>{item.item_name}</strong>
+                            <p style={smallText}>
+                              {item.quantity || "No quantity"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          className="db-button-secondary"
+                          style={smallButton}
+                          onClick={() => deleteRequirementItem(item.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
+            ) : null}
 
-              <div className="db-card db-card-green" style={summaryCard}>
-                <strong>Selected Class</strong>
-                <p style={summaryLabel}>
-                  {selectedClassroom?.classroom_name || "None selected"}
-                </p>
-              </div>
-            </div>
+            {selectedClassroomId ? (
+              <div
+                className="db-card db-card-lavender"
+                style={{ padding: 16, marginBottom: 18 }}
+              >
+                <h3 style={sectionTitle}>Class Progress Summary</h3>
 
-            <div
-              className="db-card db-card-blue"
-              style={{ padding: 16, marginBottom: 18 }}
-            >
-              <h3 style={sectionTitle}>Class Overview</h3>
+                <div style={summaryGrid}>
+                  <div style={summaryCard}>
+                    <strong>Total Learners</strong>
+                    <p style={summaryNumber}>{classLearners.length}</p>
+                  </div>
 
-              {!selectedClassroomId ? (
-                <p className="db-helper">
-                  Select a class to open its checklist options.
-                </p>
-              ) : (
-                <div style={actionGrid}>
-                  <button
-                    type="button"
-                    className="db-button-primary"
-                    onClick={openClassChecklist}
-                    style={largeActionButton}
-                  >
-                    View Class Checklist
-                  </button>
+                  <div style={summaryCard}>
+                    <strong>Total Completed Items</strong>
+                    <p style={summaryNumber}>{classCompletedItems}</p>
+                  </div>
 
-                  <button
-                    type="button"
-                    className="db-button-secondary"
-                    onClick={openLearnerChecklist}
-                    style={largeActionButton}
-                  >
-                    View Child Checklist
-                  </button>
+                  <div style={summaryCard}>
+                    <strong>Total Outstanding Items</strong>
+                    <p style={summaryNumber}>{classOutstandingItems}</p>
+                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : null}
 
-            {selectedClassroomId && selectedClassRequirements.length > 0 ? (
+            {selectedClassroomId ? (
               <div
                 className="db-card db-card-green"
                 style={{ padding: 16, marginBottom: 18 }}
               >
-                <h3 style={sectionTitle}>Quick Preview</h3>
+                <h3 style={sectionTitle}>Learner Checklist Overview</h3>
 
-                <div style={{ display: "grid", gap: 12 }}>
-                  {Object.entries(groupedClassRequirements).map(
-                    ([category, items]) => (
-                      <div key={category} style={categoryBox}>
-                        <h4 style={categoryTitle}>{category}</h4>
+                {learnerChecklistOverview.length === 0 ? (
+                  <p className="db-helper">No learners found in this class.</p>
+                ) : (
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {learnerChecklistOverview.map((item) => (
+                      <div key={item.learner.id} style={categoryBox}>
+                        <div style={learnerProgressHeader}>
+                          <div>
+                            <strong>
+                              {item.learner.name || "Unnamed learner"}
+                            </strong>
+                            <p style={smallText}>
+                              Received: {item.receivedCount} / {item.totalCount} -{" "}
+                              Outstanding: {item.outstandingCount}
+                            </p>
+                          </div>
 
-                        <div style={{ display: "grid", gap: 8 }}>
-                          {items.slice(0, 4).map((item) => (
-                            <div key={item.id} style={previewRow}>
-                              <span style={checkboxIcon}>☐</span>
-                              <span>
-                                {item.quantity ? `${item.quantity} ` : ""}
-                                {item.item_name}
-                              </span>
-                            </div>
-                          ))}
+                          <Link
+                            href={learnerProfileHref(item.learner.id)}
+                            className="db-button-secondary"
+                            style={linkButton}
+                          >
+                            View Learner
+                          </Link>
                         </div>
 
-                        {items.length > 4 ? (
-                          <p style={smallText}>
-                            +{items.length - 4} more item(s)
-                          </p>
-                        ) : null}
+                        <div style={progressBar}>
+                          <div
+                            style={{
+                              ...progressFill,
+                              width: `${item.progress}%`,
+                            }}
+                          />
+                        </div>
                       </div>
-                    )
-                  )}
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {selectedClassroomId ? (
+              <div
+                className="db-card db-card-lavender"
+                style={{ padding: 16, marginBottom: 18 }}
+              >
+                <h3 style={sectionTitle}>Add Extra Requirement</h3>
+
+                <div style={filterGrid}>
+                  <input
+                    className="db-input"
+                    placeholder="Item name, e.g. Toilet Rolls"
+                    value={newItemName}
+                    onChange={(e) => setNewItemName(e.target.value)}
+                  />
+
+                  <input
+                    className="db-input"
+                    placeholder="Quantity, e.g. 10x"
+                    value={newQuantity}
+                    onChange={(e) => setNewQuantity(e.target.value)}
+                  />
+
+                  <select
+                    className="db-input"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                  >
+                    <option value="Document">Document</option>
+                    <option value="Stationery">Stationery</option>
+                    <option value="Hygiene">Hygiene</option>
+                    <option value="Other">Other</option>
+                  </select>
+
+                  <button
+                    className="db-button-primary"
+                    onClick={addRequirementItem}
+                    disabled={savingItem}
+                  >
+                    {savingItem ? "Adding..." : "Add Requirement"}
+                  </button>
                 </div>
               </div>
             ) : null}
-          </>
-        )}
 
-        {viewMode === "classChecklist" && (
-          <div
-            className="db-card db-card-blue"
-            style={{ padding: 16, marginBottom: 18 }}
-          >
-            <button
-              type="button"
-              className="db-button-secondary"
-              onClick={goToOverview}
-              style={internalBackButton}
-            >
-              &larr; Back to Class Overview
-            </button>
-
-            <h3 style={sectionTitle}>
-              {selectedClassroom
-                ? `${selectedClassroom.classroom_name} Checklist`
-                : "Class Checklist"}
-            </h3>
-
-            {!selectedClassroomId ? (
-              <p className="db-helper">Select a class first.</p>
-            ) : (
-              <>
-                <div style={templateGrid}>
-                  <button
-                    className="db-button-secondary"
-                    onClick={() => preloadTemplate("0_2")}
-                    disabled={loadingTemplate}
-                  >
-                    {loadingTemplate
-                      ? "Loading..."
-                      : "Load 0–2 Years Checklist"}
-                  </button>
-
-                  <button
-                    className="db-button-secondary"
-                    onClick={() => preloadTemplate("2_6")}
-                    disabled={loadingTemplate}
-                  >
-                    {loadingTemplate
-                      ? "Loading..."
-                      : "Load 2–6 Years Checklist"}
-                  </button>
-                </div>
-
-                {selectedClassRequirements.length === 0 ? (
-                  <p className="db-helper">
-                    No checklist items have been added for this class yet. Load a
-                    standard checklist or add items below.
-                  </p>
-                ) : (
-                  <div style={{ display: "grid", gap: 14, marginBottom: 16 }}>
-                    {Object.entries(groupedClassRequirements).map(
-                      ([category, items]) => (
-                        <div key={category} style={categoryBox}>
-                          <h4 style={categoryTitle}>{category}</h4>
-
-                          <div style={{ display: "grid", gap: 8 }}>
-                            {items.map((item) => (
-                              <div key={item.id} style={checklistRow}>
-                                <div style={checkArea}>
-                                  <span style={checkboxIcon}>☐</span>
-
-                                  <div>
-                                    <strong>{item.item_name}</strong>
-                                    <p style={smallText}>
-                                      {item.quantity || "No quantity"}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <button
-                                  className="db-button-secondary"
-                                  style={smallButton}
-                                  onClick={() =>
-                                    deleteRequirementItem(item.id)
-                                  }
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
-
-                <div style={addBox}>
-                  <h4 style={categoryTitle}>Add Item to This Checklist</h4>
-
-                  <div style={filterGrid}>
-                    <input
-                      className="db-input"
-                      placeholder="Item name, e.g. Toilet Rolls"
-                      value={newItemName}
-                      onChange={(e) => setNewItemName(e.target.value)}
-                    />
-
-                    <input
-                      className="db-input"
-                      placeholder="Quantity, e.g. 10x"
-                      value={newQuantity}
-                      onChange={(e) => setNewQuantity(e.target.value)}
-                    />
-
-                    <select
-                      className="db-input"
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value)}
-                    >
-                      <option value="Document">Document</option>
-                      <option value="Stationery">Stationery</option>
-                      <option value="Hygiene">Hygiene</option>
-                      <option value="Other">Other</option>
-                    </select>
-
-                    <button
-                      className="db-button-primary"
-                      onClick={addRequirementItem}
-                      disabled={savingItem}
-                    >
-                      {savingItem ? "Adding..." : "Add Requirement"}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {viewMode === "learnerChecklist" && (
-          <div
-            className="db-card db-card-green"
-            style={{ padding: 16, marginBottom: 18 }}
-          >
-            <button
-              type="button"
-              className="db-button-secondary"
-              onClick={goToOverview}
-              style={internalBackButton}
-            >
-              &larr; Back to Class Overview
-            </button>
-
-            <h3 style={sectionTitle}>Child Checklist View</h3>
-
-            {!selectedClassroomId ? (
-              <p className="db-helper">Select a class first.</p>
-            ) : (
-              <>
-                <select
-                  className="db-input"
-                  value={selectedLearnerId}
-                  onChange={(e) => setSelectedLearnerId(e.target.value)}
-                  style={{ marginBottom: 14 }}
-                >
-                  <option value="">Select Learner in This Class</option>
-                  {classLearners.map((learner) => (
-                    <option key={learner.id} value={learner.id}>
-                      {learner.name || "Unnamed learner"}
-                    </option>
-                  ))}
-                </select>
-
-                {!selectedLearnerId ? (
-                  <p className="db-helper">
-                    Select a learner to view the child’s checklist.
-                  </p>
-                ) : selectedClassRequirements.length === 0 ? (
-                  <p className="db-helper">
-                    This class has no checklist items yet.
-                  </p>
-                ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
-                    <div style={learnerHeaderCard}>
-                      <div>
-                        <p style={smallText}>Selected Child</p>
-                        <strong>
-                          {selectedLearner?.name || "Unnamed learner"}
-                        </strong>
-                        <p style={smallText}>
-                          This child is in{" "}
-                          {selectedClassroom?.classroom_name || "this class"}.
-                        </p>
-                      </div>
-
-                      <Link
-                        href={learnerProfileHref(selectedLearnerId)}
-                        className="db-button-secondary"
-                        style={linkButton}
-                      >
-                        View Learner
-                      </Link>
-                    </div>
-
-                    <div style={miniSummaryGrid}>
-                      <div style={miniSummaryCard}>
-                        <strong>Outstanding</strong>
-                        <p style={miniSummaryNumber}>
-                          {outstandingItems.length}
-                        </p>
-                      </div>
-
-                      <div style={miniSummaryCard}>
-                        <strong>Received</strong>
-                        <p style={miniSummaryNumber}>{receivedItems.length}</p>
-                      </div>
-                    </div>
-
-                    {selectedLearnerRequirementStatus.map((entry) => (
-                      <div key={entry.requirement.id} style={checklistRow}>
-                        <div style={checkArea}>
-                          <span
-                            style={
-                              entry.received ? receivedIcon : outstandingIcon
-                            }
-                          >
-                            {entry.received ? "✓" : "☐"}
-                          </span>
-
-                          <div>
-                            <strong>{entry.requirement.item_name}</strong>
-                            <p style={smallText}>
-                              {entry.requirement.quantity || "No quantity"} ·{" "}
-                              {entry.requirement.category || "Other"}
-                            </p>
-                            <p style={smallText}>
-                              Status:{" "}
-                              {entry.received ? "Received" : "Outstanding"}
-                            </p>
-                          </div>
-                        </div>
-
-                        {entry.received ? (
-                          <button
-                            className="db-button-secondary"
-                            style={smallButton}
-                            onClick={() =>
-                              markRequirementOutstanding(entry.requirement)
-                            }
-                          >
-                            Mark Outstanding
-                          </button>
-                        ) : (
-                          <button
-                            className="db-button-primary"
-                            style={smallButton}
-                            onClick={() =>
-                              markRequirementReceived(entry.requirement)
-                            }
-                          >
-                            Mark Received
-                          </button>
-                        )}
-                      </div>
-                    ))}
-
-                    {selectedLearnerMissingDocuments.length > 0 ? (
-                      <div style={categoryBox}>
-                        <h4 style={categoryTitle}>Outstanding Documents</h4>
-
-                        <div style={{ display: "grid", gap: 8 }}>
-                          {selectedLearnerMissingDocuments.map(
-                            (requirement) => (
-                              <div key={requirement.id} style={checklistRow}>
-                                <div style={checkArea}>
-                                  <span style={outstandingIcon}>☐</span>
-
-                                  <div>
-                                    <strong>{requirement.item_name}</strong>
-                                    <p style={smallText}>
-                                      Status: Outstanding
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <Link
-                                  href={learnerProfileHref(selectedLearnerId)}
-                                  className="db-button-secondary"
-                                  style={linkButton}
-                                >
-                                  Upload on Learner Profile
-                                </Link>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
       </div>
     </SubscriptionGuard>
   );
@@ -901,32 +534,34 @@ const summaryGrid = {
   marginBottom: 18,
 };
 
-const stickyBackBar = {
-  position: "sticky" as const,
-  top: 0,
-  zIndex: 20,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-  flexWrap: "wrap" as const,
-  background: "#FFFFFF",
-  border: "1px solid #E8E0D8",
+const templateSummaryBox = {
+  marginTop: 12,
+  background: "#FFFDFB",
+  border: "1px solid #F0E3D8",
   borderRadius: 14,
   padding: 12,
-  marginBottom: 18,
-  boxShadow: "0 8px 22px rgba(45, 42, 62, 0.08)",
 };
 
-const topBackButton = {
-  minHeight: 40,
-  padding: "9px 14px",
-  fontSize: 14,
-} as const;
+const learnerProgressHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+  flexWrap: "wrap" as const,
+  marginBottom: 10,
+};
 
-const currentViewLabel = {
-  color: "#2D2A3E",
-  fontSize: 14,
+const progressBar = {
+  height: 10,
+  borderRadius: 999,
+  background: "#ECE7DF",
+  overflow: "hidden",
+};
+
+const progressFill = {
+  height: "100%",
+  borderRadius: 999,
+  background: "#5E9F68",
 };
 
 const summaryCard = {
@@ -941,43 +576,11 @@ const summaryNumber = {
   color: "#2D2A3E",
 };
 
-const summaryLabel = {
-  margin: "8px 0 0 0",
-  fontSize: 16,
-  fontWeight: 700,
-  color: "#2D2A3E",
-};
-
-const actionGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 12,
-};
-
-const largeActionButton = {
-  minHeight: 56,
-  fontSize: 15,
-};
-
 const filterGrid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 10,
 };
-
-const templateGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 10,
-  marginBottom: 16,
-};
-
-const internalBackButton = {
-  marginBottom: 14,
-  minHeight: 36,
-  padding: "8px 12px",
-  fontSize: 13,
-} as const;
 
 const sectionTitle = {
   margin: "0 0 12px 0",
@@ -991,21 +594,6 @@ const categoryBox = {
   border: "1px solid #F0E3D8",
   borderRadius: 16,
   padding: 12,
-};
-
-const categoryTitle = {
-  margin: "0 0 10px 0",
-  color: "#2D2A3E",
-  fontSize: 16,
-  fontWeight: 800 as const,
-};
-
-const previewRow = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  color: "#2D2A3E",
-  fontSize: 14,
 };
 
 const checklistRow = {
@@ -1037,73 +625,6 @@ const checkboxIcon = {
   color: "#8A84A3",
   fontSize: 14,
   flexShrink: 0,
-};
-
-const receivedIcon = {
-  width: 24,
-  height: 24,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  border: "1px solid #9DCFA3",
-  borderRadius: 6,
-  color: "#166534",
-  fontSize: 14,
-  fontWeight: 800,
-  flexShrink: 0,
-};
-
-const outstandingIcon = {
-  width: 24,
-  height: 24,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  border: "1px solid #E8B4A0",
-  borderRadius: 6,
-  color: "#B45309",
-  fontSize: 14,
-  fontWeight: 800,
-  flexShrink: 0,
-};
-
-const addBox = {
-  background: "#FFFDFB",
-  border: "1px dashed #D8CBBF",
-  borderRadius: 16,
-  padding: 12,
-};
-
-const learnerHeaderCard = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 12,
-  alignItems: "center",
-  background: "#FFFFFF",
-  border: "1px solid #DDEEDC",
-  borderRadius: 14,
-  padding: "12px 14px",
-  flexWrap: "wrap" as const,
-};
-
-const miniSummaryGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-  gap: 10,
-};
-
-const miniSummaryCard = {
-  background: "#FFFDFB",
-  border: "1px solid #F0E3D8",
-  borderRadius: 14,
-  padding: 12,
-};
-
-const miniSummaryNumber = {
-  margin: "6px 0 0 0",
-  fontSize: 24,
-  fontWeight: 800,
-  color: "#2D2A3E",
 };
 
 const smallText = {

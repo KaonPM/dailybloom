@@ -467,6 +467,24 @@ export default function LearnerProfilePage() {
     return <p>Learner not found.</p>;
   }
 
+  const classroomName = learner.class || "Unassigned class";
+  const receivedRequirementCount = checklist.filter((item) => item.received).length;
+  const outstandingRequirementCount =
+    checklist.length - receivedRequirementCount;
+  const requirementProgress =
+    checklist.length > 0
+      ? Math.round((receivedRequirementCount / checklist.length) * 100)
+      : 0;
+  const uploadedDocumentCount = requiredDocuments.filter((documentType) => {
+    return Boolean(getDocument(documentType)?.file_url);
+  }).length;
+  const missingDocumentCount =
+    requiredDocuments.length - uploadedDocumentCount;
+  const documentProgress =
+    requiredDocuments.length > 0
+      ? Math.round((uploadedDocumentCount / requiredDocuments.length) * 100)
+      : 0;
+
   return (
     <div>
       <div className="db-soft-card" style={{ padding: 16, marginBottom: 16 }}>
@@ -598,55 +616,45 @@ export default function LearnerProfilePage() {
             }}
           >
             <div>
-              <h3 style={{ ...sectionTitle, margin: 0 }}>Requirements</h3>
+              <h3 style={{ ...sectionTitle, margin: 0 }}>
+                {classroomName} Requirements
+              </h3>
               <p className="db-helper" style={{ marginTop: 4 }}>
                 Track learner requirements and stationery received.
               </p>
             </div>
           </div>
 
-          <div style={formGrid}>
-            <input
-              className="db-input"
-              placeholder="Item name, e.g. Toilet Rolls"
-              value={itemName}
-              onChange={(e) => setItemName(e.target.value)}
-            />
+          {learner.classroom_id ? (
+            <div style={progressSummary}>
+              <div>
+                <strong>Received: {receivedRequirementCount} / {checklist.length} items</strong>
+                <p style={summaryText}>
+                  Outstanding: {outstandingRequirementCount} items
+                </p>
+              </div>
 
-            <input
-              className="db-input"
-              placeholder="Quantity, e.g. 10x"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-            />
+              <div style={progressBar} aria-label="Requirements progress">
+                <div
+                  style={{
+                    ...progressFill,
+                    width: `${requirementProgress}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
 
-            <button
-              type="button"
-              className="db-button-primary"
-              onClick={saveRequirementItem}
-              disabled={savingItem}
-            >
-              {savingItem
-                ? "Saving..."
-                : editingItem
-                ? "Update Item"
-                : "+ Add Item"}
-            </button>
-
-            {editingItem ? (
-              <button
-                type="button"
-                className="db-button-secondary"
-                onClick={resetItemForm}
-              >
-                Cancel
-              </button>
-            ) : null}
-          </div>
-
-          {checklist.length === 0 ? (
+          {!learner.classroom_id ? (
             <p className="db-helper" style={{ marginTop: 14 }}>
-              No stationery items found yet. Add the first item above.
+              This learner is not linked to a classroom yet. Link the learner to
+              a class first so the correct requirements can load automatically.
+            </p>
+          ) : checklist.length === 0 ? (
+            <p className="db-helper" style={{ marginTop: 14 }}>
+              No requirements template has been created for the {classroomName}
+              classroom yet. Go to Classroom Requirements and create a template
+              first.
             </p>
           ) : (
             <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
@@ -692,6 +700,64 @@ export default function LearnerProfilePage() {
               ))}
             </div>
           )}
+
+          <div
+            style={{
+              marginTop: 20,
+              paddingTop: 16,
+              borderTop: "1px solid #DDEFD8",
+            }}
+          >
+            <h4
+              style={{
+                margin: "0 0 10px 0",
+                color: "#2D2A3E",
+                fontSize: 15,
+                fontWeight: 800,
+              }}
+            >
+              {editingItem ? "Edit requirement item" : "Add extra requirement item"}
+            </h4>
+
+            <div style={formGrid}>
+              <input
+                className="db-input"
+                placeholder="Item name, e.g. Toilet Rolls"
+                value={itemName}
+                onChange={(e) => setItemName(e.target.value)}
+              />
+
+              <input
+                className="db-input"
+                placeholder="Quantity, e.g. 10x"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+              />
+
+              <button
+                type="button"
+                className="db-button-primary"
+                onClick={saveRequirementItem}
+                disabled={savingItem || !learner.classroom_id}
+              >
+                {savingItem
+                  ? "Saving..."
+                  : editingItem
+                  ? "Update Item"
+                  : "+ Add Item"}
+              </button>
+
+              {editingItem ? (
+                <button
+                  type="button"
+                  className="db-button-secondary"
+                  onClick={resetItemForm}
+                >
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+          </div>
         </div>
       )}
 
@@ -702,6 +768,24 @@ export default function LearnerProfilePage() {
           <p className="db-helper">
             Upload and manage required learner documents.
           </p>
+
+          <div style={progressSummary}>
+            <div>
+              <strong>
+                Uploaded: {uploadedDocumentCount} / {requiredDocuments.length} documents
+              </strong>
+              <p style={summaryText}>Missing: {missingDocumentCount} documents</p>
+            </div>
+
+            <div style={progressBar} aria-label="Document completion progress">
+              <div
+                style={{
+                  ...progressFill,
+                  width: `${documentProgress}%`,
+                }}
+              />
+            </div>
+          </div>
 
           <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
             {requiredDocuments.map((documentType) => {
@@ -722,6 +806,10 @@ export default function LearnerProfilePage() {
                   </div>
 
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <span style={uploaded ? uploadedBadge : missingBadge}>
+                      {uploaded ? "Uploaded" : "Missing"}
+                    </span>
+
                     <label className="db-button-secondary" style={smallButton}>
                       {isUploading ? "Uploading..." : uploaded ? "Replace" : "Upload"}
                       <input
@@ -815,6 +903,32 @@ const formGrid = {
   alignItems: "center",
 };
 
+const progressSummary = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 12,
+  alignItems: "center",
+  background: "#FFFDFB",
+  border: "1px solid #E8E0D8",
+  borderRadius: 12,
+  padding: "12px 14px",
+  marginTop: 12,
+  marginBottom: 14,
+};
+
+const progressBar = {
+  height: 10,
+  borderRadius: 999,
+  background: "#7CCCF3",
+  overflow: "hidden",
+};
+
+const progressFill = {
+  height: "100%",
+  borderRadius: 999,
+  background: "#7BC67E"
+};
+
 const infoBox = {
   background: "#FFFDFB",
   border: "1px solid #F0E3D8",
@@ -868,6 +982,32 @@ const checkboxButton = {
   color: "#2D2A3E",
   fontWeight: 900 as const,
   cursor: "pointer",
+};
+
+const uploadedBadge = {
+  minHeight: 30,
+  display: "inline-flex",
+  alignItems: "center",
+  borderRadius: 999,
+  padding: "5px 10px",
+  background: "#EAF8EE",
+  border: "1px solid #CDEED8",
+  color: "#166534",
+  fontSize: 12,
+  fontWeight: 800,
+};
+
+const missingBadge = {
+  minHeight: 30,
+  display: "inline-flex",
+  alignItems: "center",
+  borderRadius: 999,
+  padding: "5px 10px",
+  background: "#FFF0EE",
+  border: "1px solid #F2C4BC",
+  color: "#B42318",
+  fontSize: 12,
+  fontWeight: 800,
 };
 
 const smallButton = {

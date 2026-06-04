@@ -6,11 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 
+type TemplateKey = "0_2" | "2_6";
+
 type ClassroomRow = {
   id: number;
   school_id?: number | null;
   classroom_name?: string | null;
   age_groups?: string[] | null;
+  stationery_templates?: TemplateKey[] | null;
   created_at?: string | null;
 };
 
@@ -38,6 +41,11 @@ const ageGroupOptions = [
   "5-6 Years",
 ];
 
+const templateOptions: { key: TemplateKey; label: string }[] = [
+  { key: "0_2", label: "0-2 Years Template" },
+  { key: "2_6", label: "2-6 Years Template" },
+];
+
 export default function ClassroomsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -55,11 +63,10 @@ export default function ClassroomsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [classroomName, setClassroomName] = useState("");
   const [selectedAgeGroups, setSelectedAgeGroups] = useState<string[]>([]);
+  const [selectedTemplateKeys, setSelectedTemplateKeys] = useState<TemplateKey[]>([]);
 
   const [teacherToAssign, setTeacherToAssign] = useState("");
-  const [selectedLearnerId, setSelectedLearnerId] = useState<string | null>(
-    null
-  );
+  const [selectedLearnerId, setSelectedLearnerId] = useState<string | null>(null);
   const [moveLearnerToClassroomId, setMoveLearnerToClassroomId] = useState("");
 
   const [deleteTargetClassroom, setDeleteTargetClassroom] =
@@ -102,7 +109,7 @@ export default function ClassroomsPage() {
   async function fetchClassrooms(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("classrooms")
-      .select("id, school_id, classroom_name, age_groups, created_at")
+      .select("id, school_id, classroom_name, age_groups, stationery_templates, created_at")
       .eq("school_id", currentSchoolId)
       .order("classroom_name", { ascending: true });
 
@@ -160,18 +167,84 @@ export default function ClassroomsPage() {
       : "No age groups";
   }
 
+  function getRecommendedTemplates(ageGroups: string[]): TemplateKey[] {
+    const hasZeroToTwo = ageGroups.some(
+      (group) => group === "0-1 Years" || group === "1-2 Years"
+    );
+
+    const hasTwoToSix = ageGroups.some(
+      (group) =>
+        group === "2-3 Years" ||
+        group === "3-4 Years" ||
+        group === "4-5 Years" ||
+        group === "5-6 Years"
+    );
+
+    if (hasZeroToTwo && hasTwoToSix) return ["0_2", "2_6"];
+    if (hasZeroToTwo) return ["0_2"];
+    if (hasTwoToSix) return ["2_6"];
+
+    return [];
+  }
+
+  function getTemplateLabels(keys: TemplateKey[]) {
+    if (keys.length === 0) return "No template assigned";
+
+    return keys
+      .map((key) =>
+        key === "0_2" ? "0-2 Years Template" : "2-6 Years Template"
+      )
+      .join(" + ");
+  }
+
+  function getClassroomTemplateKeys(room: ClassroomRow) {
+    if (room.stationery_templates && room.stationery_templates.length > 0) {
+      return room.stationery_templates;
+    }
+
+    return getRecommendedTemplates(room.age_groups || []);
+  }
+
   function resetForm() {
     setClassroomName("");
     setSelectedAgeGroups([]);
+    setSelectedTemplateKeys([]);
     setEditingId(null);
   }
 
   function startEdit(room: ClassroomRow) {
+    const currentAgeGroups = room.age_groups || [];
+    const currentTemplates =
+      room.stationery_templates && room.stationery_templates.length > 0
+        ? room.stationery_templates
+        : getRecommendedTemplates(currentAgeGroups);
+
     setEditingId(room.id);
     setClassroomName(getClassroomName(room));
-    setSelectedAgeGroups(room.age_groups || []);
+    setSelectedAgeGroups(currentAgeGroups);
+    setSelectedTemplateKeys(currentTemplates);
     setSelectedClassroom(room);
     setShowForm(true);
+  }
+
+  function handleAgeGroupToggle(group: string, checked: boolean) {
+    const nextAgeGroups = checked
+      ? [...selectedAgeGroups, group]
+      : selectedAgeGroups.filter((item) => item !== group);
+
+    setSelectedAgeGroups(nextAgeGroups);
+    setSelectedTemplateKeys(getRecommendedTemplates(nextAgeGroups));
+  }
+
+  function toggleTemplateKey(key: TemplateKey, checked: boolean) {
+    if (checked) {
+      setSelectedTemplateKeys((prev) =>
+        prev.includes(key) ? prev : [...prev, key]
+      );
+      return;
+    }
+
+    setSelectedTemplateKeys((prev) => prev.filter((item) => item !== key));
   }
 
   async function saveClassroom() {
@@ -187,6 +260,11 @@ export default function ClassroomsPage() {
       return;
     }
 
+    if (selectedTemplateKeys.length === 0) {
+      alert("Please select at least one stationery template.");
+      return;
+    }
+
     setSaving(true);
 
     if (editingId) {
@@ -199,6 +277,7 @@ export default function ClassroomsPage() {
         .update({
           classroom_name: newName,
           age_groups: selectedAgeGroups,
+          stationery_templates: selectedTemplateKeys,
         })
         .eq("id", editingId);
 
@@ -232,6 +311,7 @@ export default function ClassroomsPage() {
         school_id: schoolId,
         classroom_name: newName,
         age_groups: selectedAgeGroups,
+        stationery_templates: selectedTemplateKeys,
       });
 
       setSaving(false);
@@ -239,15 +319,14 @@ export default function ClassroomsPage() {
       return;
     }
 
-    const { error } = await supabase
-      .from("classrooms")
-      .insert([
-        {
-          school_id: schoolId,
-          classroom_name: classroomName.trim(),
-          age_groups: selectedAgeGroups,
-        },
-      ]);
+    const { error } = await supabase.from("classrooms").insert([
+      {
+        school_id: schoolId,
+        classroom_name: classroomName.trim(),
+        age_groups: selectedAgeGroups,
+        stationery_templates: selectedTemplateKeys,
+      },
+    ]);
 
     if (error) {
       alert(error.message);
@@ -516,24 +595,6 @@ export default function ClassroomsPage() {
     ? learners.find((learner) => String(learner.id) === String(selectedLearnerId))
     : null;
 
-  const assignedTemplate = selectedAgeGroups.some(
-    (group) => group === "0-1 Years" || group === "1-2 Years"
-  )
-    ? "0-2 Years Template"
-    : "2-6 Years Template";
-
-  const deleteTargetName = deleteTargetClassroom
-    ? getClassroomName(deleteTargetClassroom)
-    : "";
-
-  const deleteTargetLearners = deleteTargetClassroom
-    ? learners.filter(
-        (learner) =>
-          learner.class === deleteTargetName ||
-          learner.classroom_id === deleteTargetClassroom.id
-      )
-    : [];
-
   if (loading) {
     return <p>Loading classrooms...</p>;
   }
@@ -541,15 +602,7 @@ export default function ClassroomsPage() {
   return (
     <div>
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
+        <div style={topHeader}>
           <div>
             <h2 className="db-page-title">Classrooms</h2>
             <p className="db-page-subtitle">
@@ -593,76 +646,51 @@ export default function ClassroomsPage() {
               />
             </div>
 
-            <div
-              style={{
-                border: "1px solid #ddd",
-                borderRadius: "12px",
-                padding: "14px",
-                background: "#fff",
-              }}
-            >
-              <p
-                style={{
-                  fontWeight: 700,
-                  margin: "0 0 10px 0",
-                  color: "#333",
-                }}
-              >
-                Select Age Groups
-              </p>
+            <div style={ageGroupBox}>
+              <p style={ageGroupTitle}>Select Age Groups</p>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: "10px",
-                }}
-              >
+              <div style={checkboxGrid}>
                 {ageGroupOptions.map((group) => (
-                  <label
-                    key={group}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      fontSize: "14px",
-                    }}
-                  >
+                  <label key={group} style={checkboxLabel}>
                     <input
                       type="checkbox"
                       checked={selectedAgeGroups.includes(group)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedAgeGroups((prev) => [...prev, group]);
-                        } else {
-                          setSelectedAgeGroups((prev) =>
-                            prev.filter((item) => item !== group)
-                          );
-                        }
-                      }}
+                      onChange={(e) =>
+                        handleAgeGroupToggle(group, e.target.checked)
+                      }
                     />
-
                     {group}
                   </label>
                 ))}
               </div>
 
               {selectedAgeGroups.length > 0 ? (
-                <div
-                  style={{
-                    marginTop: 12,
-                    background: "#FFFDFB",
-                    border: "1px solid #F0E3D8",
-                    borderRadius: 12,
-                    padding: 12,
-                  }}
-                >
-                  <strong>Assigned Stationery Template</strong>
+                <div style={templateBox}>
+                  <strong>Assigned Stationery Templates</strong>
+                  <p style={smallText}>{getTemplateLabels(selectedTemplateKeys)}</p>
 
-                  <p style={smallText}>{assignedTemplate}</p>
+                  <div style={{ marginTop: 10 }}>
+                    <strong>Manual Template Selection</strong>
 
-                  <strong>Assigned Documents Template</strong>
+                    <div style={templateCheckboxGrid}>
+                      {templateOptions.map((template) => (
+                        <label key={template.key} style={checkboxLabel}>
+                          <input
+                            type="checkbox"
+                            checked={selectedTemplateKeys.includes(template.key)}
+                            onChange={(e) =>
+                              toggleTemplateKey(template.key, e.target.checked)
+                            }
+                          />
+                          {template.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
 
+                  <strong style={{ display: "block", marginTop: 10 }}>
+                    Assigned Documents Template
+                  </strong>
                   <p style={smallText}>Required Learner Documents</p>
                 </div>
               ) : null}
@@ -686,14 +714,11 @@ export default function ClassroomsPage() {
       ) : null}
 
       {deleteTargetClassroom ? (
-        <div
-          className="db-card db-card-yellow"
-          style={{ padding: 16, marginBottom: 18 }}
-        >
+        <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
           <h3 style={sectionTitle}>Move Learners Before Deleting</h3>
 
           <p style={smallText}>
-            {deleteTargetName} has {deleteTargetLearners.length} learner(s).
+            {getClassroomName(deleteTargetClassroom)} has learners.
             Choose another classroom before deleting it.
           </p>
 
@@ -745,6 +770,7 @@ export default function ClassroomsPage() {
           <div style={{ display: "grid", gap: 8 }}>
             {classroomStats.map((item) => {
               const active = selectedClassroom?.id === item.room.id;
+              const roomTemplateKeys = getClassroomTemplateKeys(item.room);
 
               return (
                 <div key={item.room.id}>
@@ -759,7 +785,7 @@ export default function ClassroomsPage() {
                     style={{
                       width: "100%",
                       display: "grid",
-                      gridTemplateColumns: "1fr 180px 110px 110px",
+                      gridTemplateColumns: "1fr 210px 110px 110px",
                       gap: 8,
                       alignItems: "center",
                       background: active ? "#EAF7FD" : "#FFFDFB",
@@ -780,16 +806,9 @@ export default function ClassroomsPage() {
                   </button>
 
                   {active && selectedStats ? (
-                    <div
-                      style={{
-                        background: "#FFFDFB",
-                        border: "1px solid #F0E3D8",
-                        borderRadius: 12,
-                        padding: 12,
-                        marginTop: 8,
-                      }}
-                    >
+                    <div style={expandedCard}>
                       <h3 style={sectionTitle}>{selectedStats.roomName}</h3>
+
                       <p style={smallText}>
                         Age groups: {getAgeGroupsLabel(selectedStats.room)}
                       </p>
@@ -797,6 +816,20 @@ export default function ClassroomsPage() {
                       <div style={miniGrid}>
                         <MiniBlock label="Learners" value={selectedStats.learnerCount} />
                         <MiniBlock label="Teachers" value={selectedStats.teacherCount} />
+                      </div>
+
+                      <div style={{ marginTop: 14 }}>
+                        <p style={labelText}>Assigned Templates</p>
+
+                        <div style={compactRowWithAction}>
+                          <span>
+                            Stationery: {getTemplateLabels(roomTemplateKeys)}
+                          </span>
+                        </div>
+
+                        <div style={{ ...compactRowWithAction, marginTop: 6 }}>
+                          <span>Documents: Required Learner Documents</span>
+                        </div>
                       </div>
 
                       <div style={{ marginTop: 14 }}>
@@ -852,32 +885,6 @@ export default function ClassroomsPage() {
                       </div>
 
                       <div style={{ marginTop: 14 }}>
-                        <p style={labelText}>Assigned Templates</p>
-
-                        <div style={compactRowWithAction}>
-                          <span>
-                            Stationery:{" "}
-                            {selectedStats.room.age_groups?.some(
-                              (group) =>
-                                group === "0-1 Years" ||
-                                group === "1-2 Years"
-                            )
-                              ? "0-2 Years Template"
-                              : "2-6 Years Template"}
-                          </span>
-                        </div>
-
-                        <div
-                          style={{
-                            ...compactRowWithAction,
-                            marginTop: 6,
-                          }}
-                        >
-                          <span>Documents: Required Learner Documents</span>
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: 14 }}>
                         <p style={labelText}>Learners</p>
 
                         {selectedLearners.length === 0 ? (
@@ -912,15 +919,7 @@ export default function ClassroomsPage() {
                       </div>
 
                       {selectedLearner ? (
-                        <div
-                          style={{
-                            marginTop: 12,
-                            background: "#FFFFFF",
-                            border: "1px solid #F0E3D8",
-                            borderRadius: 12,
-                            padding: 12,
-                          }}
-                        >
+                        <div style={moveBox}>
                           <p style={labelText}>
                             Move {selectedLearner.name || "learner"} to another classroom
                           </p>
@@ -954,14 +953,7 @@ export default function ClassroomsPage() {
                         </div>
                       ) : null}
 
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 10,
-                          flexWrap: "wrap",
-                          marginTop: 12,
-                        }}
-                      >
+                      <div style={footerActions}>
                         <button
                           type="button"
                           className="db-button-secondary"
@@ -992,19 +984,20 @@ export default function ClassroomsPage() {
 
 function MiniBlock({ label, value }: { label: string; value: number }) {
   return (
-    <div
-      style={{
-        background: "#FFFFFF",
-        border: "1px solid #F0E3D8",
-        borderRadius: 12,
-        padding: 10,
-      }}
-    >
+    <div style={miniBlock}>
       <p style={smallText}>{label}</p>
       <strong style={{ color: "#2D2A3E", fontSize: 20 }}>{value}</strong>
     </div>
   );
 }
+
+const topHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+  flexWrap: "wrap" as const,
+};
 
 const sectionTitle = {
   margin: "0 0 10px 0",
@@ -1028,8 +1021,49 @@ const smallText = {
 
 const grid2 = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 10,
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gap: 14,
+};
+
+const ageGroupBox = {
+  border: "1px solid #ddd",
+  borderRadius: "12px",
+  padding: "14px",
+  background: "#fff",
+};
+
+const ageGroupTitle = {
+  fontWeight: 700,
+  margin: "0 0 10px 0",
+  color: "#333",
+};
+
+const checkboxGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+  gap: "10px",
+};
+
+const templateCheckboxGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "8px",
+  marginTop: 8,
+};
+
+const checkboxLabel = {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: "14px",
+};
+
+const templateBox = {
+  marginTop: 12,
+  background: "#FFFDFB",
+  border: "1px solid #F0E3D8",
+  borderRadius: 12,
+  padding: 12,
 };
 
 const miniGrid = {
@@ -1037,6 +1071,13 @@ const miniGrid = {
   gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
   gap: 8,
   marginTop: 12,
+};
+
+const miniBlock = {
+  background: "#FFFFFF",
+  border: "1px solid #F0E3D8",
+  borderRadius: 12,
+  padding: 10,
 };
 
 const actionGrid = {
@@ -1068,6 +1109,29 @@ const compactButton = {
   fontSize: 14,
   textAlign: "left" as const,
   cursor: "pointer",
+};
+
+const expandedCard = {
+  background: "#FFFDFB",
+  border: "1px solid #F0E3D8",
+  borderRadius: 12,
+  padding: 12,
+  marginTop: 8,
+};
+
+const moveBox = {
+  marginTop: 12,
+  background: "#FFFFFF",
+  border: "1px solid #F0E3D8",
+  borderRadius: 12,
+  padding: 12,
+};
+
+const footerActions = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap" as const,
+  marginTop: 12,
 };
 
 const pillAge = {

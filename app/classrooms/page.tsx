@@ -29,6 +29,14 @@ type TeacherRow = {
   is_active?: boolean | null;
 };
 
+type RequirementItemRow = {
+  id: number;
+  school_id: number;
+  classroom_id: number;
+  item_name: string;
+  quantity?: string | null;
+};
+
 const ageGroupOptions = [
   "0-1 Years",
   "1-2 Years",
@@ -47,6 +55,9 @@ export default function ClassroomsPage() {
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
   const [learners, setLearners] = useState<LearnerRow[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
+  const [requirementItems, setRequirementItems] = useState<RequirementItemRow[]>(
+    []
+  );
 
   const [selectedClassroom, setSelectedClassroom] =
     useState<ClassroomRow | null>(null);
@@ -61,6 +72,8 @@ export default function ClassroomsPage() {
     null
   );
   const [moveLearnerToClassroomId, setMoveLearnerToClassroomId] = useState("");
+  const [requirementItemName, setRequirementItemName] = useState("");
+  const [requirementQuantity, setRequirementQuantity] = useState("");
 
   const [deleteTargetClassroom, setDeleteTargetClassroom] =
     useState<ClassroomRow | null>(null);
@@ -96,6 +109,7 @@ export default function ClassroomsPage() {
       fetchClassrooms(currentSchoolId),
       fetchLearners(currentSchoolId),
       fetchTeachers(currentSchoolId),
+      fetchRequirementItems(currentSchoolId),
     ]);
   }
 
@@ -150,6 +164,21 @@ export default function ClassroomsPage() {
     setTeachers(result.teachers || []);
   }
 
+  async function fetchRequirementItems(currentSchoolId: number) {
+    const { data, error } = await supabase
+      .from("class_stationery_items")
+      .select("id, school_id, classroom_id, item_name, quantity")
+      .eq("school_id", currentSchoolId)
+      .order("item_name", { ascending: true });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setRequirementItems((data || []) as RequirementItemRow[]);
+  }
+
   function getClassroomName(room: ClassroomRow) {
     return room.classroom_name || "Unnamed classroom";
   }
@@ -172,6 +201,86 @@ export default function ClassroomsPage() {
     setSelectedAgeGroups(room.age_groups || []);
     setSelectedClassroom(room);
     setShowForm(true);
+  }
+
+  function getDefaultRequirementsForAgeGroups(ageGroups: string[]) {
+    const items = new Map<string, string>();
+
+    ageGroups.forEach((group) => {
+      if (group === "0-1 Years" || group === "1-2 Years") {
+        items.set("Nappies", "1 pack");
+        items.set("Wet wipes", "1 pack");
+        items.set("Change of clothes", "2 sets");
+        items.set("Barrier cream", "1");
+        items.set("Blanket", "1");
+      }
+
+      if (group === "2-3 Years" || group === "3-4 Years") {
+        items.set("Toilet rolls", "4");
+        items.set("Wet wipes", "1 pack");
+        items.set("Tissues", "2 boxes");
+        items.set("Change of clothes", "1 set");
+        items.set("Apron", "1");
+      }
+
+      if (group === "4-5 Years" || group === "5-6 Years") {
+        items.set("Pencils", "1 pack");
+        items.set("Crayons", "1 pack");
+        items.set("Glue stick", "2");
+        items.set("Scissors", "1");
+        items.set("Workbook", "1");
+        items.set("Tissues", "2 boxes");
+      }
+    });
+
+    return Array.from(items.entries()).map(([item_name, quantity]) => ({
+      item_name,
+      quantity,
+    }));
+  }
+
+  async function createDefaultClassroomRequirements(
+    currentSchoolId: number,
+    classroomId: number,
+    ageGroups: string[]
+  ) {
+    const defaultItems = getDefaultRequirementsForAgeGroups(ageGroups);
+
+    if (defaultItems.length === 0) return;
+
+    const { data: existingItems, error: existingError } = await supabase
+      .from("class_stationery_items")
+      .select("item_name")
+      .eq("school_id", currentSchoolId)
+      .eq("classroom_id", classroomId);
+
+    if (existingError) {
+      alert(existingError.message);
+      return;
+    }
+
+    const existingNames = new Set(
+      (existingItems || []).map((item) => item.item_name?.toLowerCase())
+    );
+
+    const rowsToInsert = defaultItems
+      .filter((item) => !existingNames.has(item.item_name.toLowerCase()))
+      .map((item) => ({
+        school_id: currentSchoolId,
+        classroom_id: classroomId,
+        item_name: item.item_name,
+        quantity: item.quantity,
+      }));
+
+    if (rowsToInsert.length === 0) return;
+
+    const { error } = await supabase
+      .from("class_stationery_items")
+      .insert(rowsToInsert);
+
+    if (error) {
+      alert(error.message);
+    }
   }
 
   async function saveClassroom() {
@@ -223,6 +332,12 @@ export default function ClassroomsPage() {
           .eq("classroom_name", oldName);
       }
 
+      await createDefaultClassroomRequirements(
+        schoolId,
+        editingId,
+        selectedAgeGroups
+      );
+
       resetForm();
       setShowForm(false);
       await refreshAll(schoolId);
@@ -239,13 +354,17 @@ export default function ClassroomsPage() {
       return;
     }
 
-    const { error } = await supabase.from("classrooms").insert([
-      {
-        school_id: schoolId,
-        classroom_name: classroomName.trim(),
-        age_groups: selectedAgeGroups,
-      },
-    ]);
+    const { data: createdClassroom, error } = await supabase
+      .from("classrooms")
+      .insert([
+        {
+          school_id: schoolId,
+          classroom_name: classroomName.trim(),
+          age_groups: selectedAgeGroups,
+        },
+      ])
+      .select()
+      .single();
 
     if (error) {
       alert(error.message);
@@ -253,12 +372,19 @@ export default function ClassroomsPage() {
       return;
     }
 
+    await createDefaultClassroomRequirements(
+      schoolId,
+      createdClassroom.id,
+      selectedAgeGroups
+    );
+
     resetForm();
     setShowForm(false);
     await fetchClassrooms(schoolId);
+    await fetchRequirementItems(schoolId);
 
     setSaving(false);
-    alert("Classroom added.");
+    alert("Classroom added with default requirements.");
   }
 
   async function assignTeacherToClassroom() {
@@ -312,6 +438,53 @@ export default function ClassroomsPage() {
 
     await fetchTeachers(schoolId);
     alert("Teacher removed from classroom.");
+  }
+
+  async function addRequirementItemToClassroom() {
+    if (!schoolId || !selectedClassroom) return;
+
+    if (!requirementItemName.trim()) {
+      alert("Please enter the requirement item.");
+      return;
+    }
+
+    const { error } = await supabase.from("class_stationery_items").insert([
+      {
+        school_id: schoolId,
+        classroom_id: selectedClassroom.id,
+        item_name: requirementItemName.trim(),
+        quantity: requirementQuantity.trim() || null,
+      },
+    ]);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setRequirementItemName("");
+    setRequirementQuantity("");
+    await fetchRequirementItems(schoolId);
+  }
+
+  async function deleteRequirementItem(item: RequirementItemRow) {
+    if (!schoolId) return;
+
+    const confirmed = confirm(`Delete ${item.item_name} from this classroom?`);
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("class_stationery_items")
+      .delete()
+      .eq("id", item.id)
+      .eq("school_id", schoolId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await fetchRequirementItems(schoolId);
   }
 
   async function moveLearnerToClassroom() {
@@ -375,6 +548,7 @@ export default function ClassroomsPage() {
 
     setDeleteTargetClassroom(null);
     await fetchClassrooms(schoolId);
+    await fetchRequirementItems(schoolId);
     alert("Classroom deleted.");
   }
 
@@ -513,6 +687,12 @@ export default function ClassroomsPage() {
   const selectedLearner = selectedLearnerId
     ? learners.find((learner) => String(learner.id) === String(selectedLearnerId))
     : null;
+
+  const selectedRequirementItems = selectedClassroom
+    ? requirementItems.filter(
+        (item) => Number(item.classroom_id) === Number(selectedClassroom.id)
+      )
+    : [];
 
   const deleteTargetName = deleteTargetClassroom
     ? getClassroomName(deleteTargetClassroom)
@@ -727,6 +907,8 @@ export default function ClassroomsPage() {
                       setSelectedLearnerId(null);
                       setMoveLearnerToClassroomId("");
                       setTeacherToAssign("");
+                      setRequirementItemName("");
+                      setRequirementQuantity("");
                     }}
                     style={{
                       width: "100%",
@@ -821,6 +1003,65 @@ export default function ClassroomsPage() {
                             ))}
                           </div>
                         )}
+                      </div>
+
+                      <div style={{ marginTop: 14 }}>
+                        <p style={labelText}>Classroom Requirements</p>
+
+                        {selectedRequirementItems.length === 0 ? (
+                          <p className="db-helper">
+                            No requirements yet. Add an item below or update the
+                            classroom age groups to create defaults.
+                          </p>
+                        ) : (
+                          <div style={{ display: "grid", gap: 6 }}>
+                            {selectedRequirementItems.map((item) => (
+                              <div key={item.id} style={compactRowWithAction}>
+                                <span>
+                                  {item.item_name}
+                                  {item.quantity ? ` (${item.quantity})` : ""}
+                                </span>
+
+                                <button
+                                  type="button"
+                                  className="db-button-secondary"
+                                  onClick={() => deleteRequirementItem(item)}
+                                  style={{ minHeight: 32, padding: "6px 10px" }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div style={{ ...actionGrid, marginTop: 10 }}>
+                          <input
+                            className="db-input"
+                            value={requirementItemName}
+                            onChange={(e) =>
+                              setRequirementItemName(e.target.value)
+                            }
+                            placeholder="Requirement item"
+                          />
+
+                          <input
+                            className="db-input"
+                            value={requirementQuantity}
+                            onChange={(e) =>
+                              setRequirementQuantity(e.target.value)
+                            }
+                            placeholder="Quantity"
+                          />
+
+                          <button
+                            type="button"
+                            className="db-button-secondary"
+                            onClick={addRequirementItemToClassroom}
+                          >
+                            Add Requirement
+                          </button>
+                        </div>
                       </div>
 
                       <div style={{ marginTop: 14 }}>

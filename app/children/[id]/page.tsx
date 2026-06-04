@@ -30,12 +30,14 @@ type LearnerRow = {
   notes?: string | null;
 };
 
-type StationeryItem = {
+type RequirementTemplateItem = {
   id: number;
   school_id: number;
   classroom_id: number;
   item_name: string;
   quantity?: string | null;
+  category?: string | null;
+  is_active?: boolean | null;
 };
 
 type ChecklistItem = {
@@ -61,7 +63,7 @@ type LearnerDocument = {
   uploaded_at?: string | null;
 };
 
-const requiredDocuments = [
+const fallbackRequiredDocuments = [
   "Birth Certificate",
   "Immunisation Card",
   "Parent / Guardian ID",
@@ -89,8 +91,10 @@ export default function LearnerProfilePage() {
   const [editingItem, setEditingItem] = useState<ChecklistItem | null>(null);
 
   const [documents, setDocuments] = useState<LearnerDocument[]>([]);
-  const [uploadingDocumentType, setUploadingDocumentType] =
-    useState<string>("");
+  const [documentRequirements, setDocumentRequirements] = useState<string[]>(
+    fallbackRequiredDocuments
+  );
+  const [uploadingDocumentType, setUploadingDocumentType] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [savingItem, setSavingItem] = useState(false);
@@ -136,6 +140,8 @@ export default function LearnerProfilePage() {
         currentLearner.id,
         Number(currentLearner.classroom_id)
       );
+    } else {
+      setDocumentRequirements(fallbackRequiredDocuments);
     }
 
     await fetchDocuments(context.schoolId, currentLearner.id);
@@ -149,16 +155,32 @@ export default function LearnerProfilePage() {
     currentClassroomId: number
   ) {
     const { data: templateItems, error: templateError } = await supabase
-      .from("class_stationery_items")
+      .from("classroom_requirement_items")
       .select("*")
       .eq("school_id", currentSchoolId)
       .eq("classroom_id", currentClassroomId)
-      .order("id", { ascending: true });
+      .eq("is_active", true)
+      .order("category", { ascending: true })
+      .order("item_name", { ascending: true });
 
     if (templateError) {
       alert(templateError.message);
       return;
     }
+
+    const allTemplates = (templateItems || []) as RequirementTemplateItem[];
+
+    const stationeryTemplates = allTemplates.filter(
+      (item) => item.category !== "Document"
+    );
+
+    const documentTemplates = allTemplates
+      .filter((item) => item.category === "Document")
+      .map((item) => item.item_name);
+
+    setDocumentRequirements(
+      documentTemplates.length > 0 ? documentTemplates : fallbackRequiredDocuments
+    );
 
     const { data: existingChecklist, error: checklistError } = await supabase
       .from("learner_stationery_checklist")
@@ -174,9 +196,8 @@ export default function LearnerProfilePage() {
     }
 
     const existing = (existingChecklist || []) as ChecklistItem[];
-    const templates = (templateItems || []) as StationeryItem[];
 
-    const missingTemplates = templates.filter((template) => {
+    const missingTemplates = stationeryTemplates.filter((template) => {
       return !existing.some(
         (item) => Number(item.stationery_item_id) === Number(template.id)
       );
@@ -280,19 +301,17 @@ export default function LearnerProfilePage() {
         return;
       }
     } else {
-      const { error } = await supabase
-        .from("learner_stationery_checklist")
-        .insert([
-          {
-            school_id: schoolId,
-            learner_id: learner.id,
-            classroom_id: learner.classroom_id,
-            stationery_item_id: null,
-            item_name: itemName.trim(),
-            quantity: quantity.trim() || null,
-            received: false,
-          },
-        ]);
+      const { error } = await supabase.from("learner_stationery_checklist").insert([
+        {
+          school_id: schoolId,
+          learner_id: learner.id,
+          classroom_id: learner.classroom_id,
+          stationery_item_id: null,
+          item_name: itemName.trim(),
+          quantity: quantity.trim() || null,
+          received: false,
+        },
+      ]);
 
       if (error) {
         alert(error.message);
@@ -469,20 +488,21 @@ export default function LearnerProfilePage() {
 
   const classroomName = learner.class || "Unassigned class";
   const receivedRequirementCount = checklist.filter((item) => item.received).length;
-  const outstandingRequirementCount =
-    checklist.length - receivedRequirementCount;
+  const outstandingRequirementCount = checklist.length - receivedRequirementCount;
   const requirementProgress =
     checklist.length > 0
       ? Math.round((receivedRequirementCount / checklist.length) * 100)
       : 0;
-  const uploadedDocumentCount = requiredDocuments.filter((documentType) => {
+
+  const uploadedDocumentCount = documentRequirements.filter((documentType) => {
     return Boolean(getDocument(documentType)?.file_url);
   }).length;
-  const missingDocumentCount =
-    requiredDocuments.length - uploadedDocumentCount;
+
+  const missingDocumentCount = documentRequirements.length - uploadedDocumentCount;
+
   const documentProgress =
-    requiredDocuments.length > 0
-      ? Math.round((uploadedDocumentCount / requiredDocuments.length) * 100)
+    documentRequirements.length > 0
+      ? Math.round((uploadedDocumentCount / documentRequirements.length) * 100)
       : 0;
 
   return (
@@ -605,30 +625,19 @@ export default function LearnerProfilePage() {
 
       {activeTab === "requirements" && (
         <div className="db-card db-card-green" style={{ padding: 16 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              alignItems: "center",
-              marginBottom: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <h3 style={{ ...sectionTitle, margin: 0 }}>
-                {classroomName} Requirements
-              </h3>
-              <p className="db-helper" style={{ marginTop: 4 }}>
-                Track learner requirements and stationery received.
-              </p>
-            </div>
-          </div>
+          <h3 style={{ ...sectionTitle, margin: 0 }}>
+            {classroomName} Requirements
+          </h3>
+          <p className="db-helper" style={{ marginTop: 4 }}>
+            Track learner requirements and stationery received.
+          </p>
 
           {learner.classroom_id ? (
             <div style={progressSummary}>
               <div>
-                <strong>Received: {receivedRequirementCount} / {checklist.length} items</strong>
+                <strong>
+                  Received: {receivedRequirementCount} / {checklist.length} items
+                </strong>
                 <p style={summaryText}>
                   Outstanding: {outstandingRequirementCount} items
                 </p>
@@ -652,9 +661,9 @@ export default function LearnerProfilePage() {
             </p>
           ) : checklist.length === 0 ? (
             <p className="db-helper" style={{ marginTop: 14 }}>
-              No requirements template has been created for the {classroomName}
-              classroom yet. Go to Classroom Requirements and create a template
-              first.
+              No requirements have been loaded for this learner yet. Please open
+              Learner Requirements, select the class, and add or confirm the
+              required stationery list.
             </p>
           ) : (
             <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
@@ -772,7 +781,8 @@ export default function LearnerProfilePage() {
           <div style={progressSummary}>
             <div>
               <strong>
-                Uploaded: {uploadedDocumentCount} / {requiredDocuments.length} documents
+                Uploaded: {uploadedDocumentCount} / {documentRequirements.length}{" "}
+                documents
               </strong>
               <p style={summaryText}>Missing: {missingDocumentCount} documents</p>
             </div>
@@ -788,7 +798,7 @@ export default function LearnerProfilePage() {
           </div>
 
           <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-            {requiredDocuments.map((documentType) => {
+            {documentRequirements.map((documentType) => {
               const document = getDocument(documentType);
               const uploaded = Boolean(document?.file_url);
               const isUploading = uploadingDocumentType === documentType;
@@ -926,7 +936,7 @@ const progressBar = {
 const progressFill = {
   height: "100%",
   borderRadius: 999,
-  background: "#7BC67E"
+  background: "#7BC67E",
 };
 
 const infoBox = {

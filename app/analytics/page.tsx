@@ -17,14 +17,13 @@ import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 import SubscriptionGuard from "../components/SubscriptionGuard";
 
-type PeriodFilter = "month" | "year" | "all";
+type PeriodFilter = "month" | "term" | "year" | "all";
 
 type LearnerRow = {
   id: string;
   name?: string | null;
   class?: string | null;
   classroom_id?: number | null;
-  date_of_birth?: string | null;
   created_at?: string | null;
 };
 
@@ -43,7 +42,6 @@ type AttendanceRow = {
 
 type TeacherAttendanceRow = {
   id: number;
-  school_id?: number | null;
   teacher_id?: string | null;
   attendance_date?: string | null;
   status?: string | null;
@@ -51,7 +49,6 @@ type TeacherAttendanceRow = {
 
 type PaymentRow = {
   id: number;
-  learner_name?: string | null;
   amount?: number | null;
   status?: string | null;
   payment_month?: number | null;
@@ -61,7 +58,6 @@ type PaymentRow = {
 
 type SummaryRow = {
   id: number;
-  learner_name?: string | null;
   whatsapp_sent?: boolean | null;
   created_at?: string | null;
 };
@@ -100,9 +96,7 @@ export default function AnalyticsPage() {
   const [learners, setLearners] = useState<LearnerRow[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
-  const [teacherAttendance, setTeacherAttendance] = useState<
-    TeacherAttendanceRow[]
-  >([]);
+  const [teacherAttendance, setTeacherAttendance] = useState<TeacherAttendanceRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [summaries, setSummaries] = useState<SummaryRow[]>([]);
   const [requirements, setRequirements] = useState<RequirementRow[]>([]);
@@ -141,7 +135,7 @@ export default function AnalyticsPage() {
     ] = await Promise.all([
       supabase
         .from("learners")
-        .select("id, name, class, classroom_id, date_of_birth, created_at")
+        .select("id, name, class, classroom_id, created_at")
         .eq("school_id", context.schoolId)
         .or("is_deleted.is.null,is_deleted.eq.false"),
 
@@ -158,17 +152,17 @@ export default function AnalyticsPage() {
 
       supabase
         .from("teacher_attendance")
-        .select("id, school_id, teacher_id, attendance_date, status")
+        .select("id, teacher_id, attendance_date, status")
         .eq("school_id", context.schoolId),
 
       supabase
         .from("payments")
-        .select("id, learner_name, amount, status, payment_month, payment_year, payment_date")
+        .select("id, amount, status, payment_month, payment_year, payment_date")
         .eq("school_id", context.schoolId),
 
       supabase
         .from("summaries")
-        .select("id, learner_name, whatsapp_sent, created_at")
+        .select("id, whatsapp_sent, created_at")
         .eq("school_id", context.schoolId),
 
       supabase
@@ -194,9 +188,7 @@ export default function AnalyticsPage() {
     setLearners((learnersResult.data || []) as LearnerRow[]);
     setTeachers((teachersResult.data || []) as TeacherRow[]);
     setAttendance((attendanceResult.data || []) as AttendanceRow[]);
-    setTeacherAttendance(
-      (teacherAttendanceResult.data || []) as TeacherAttendanceRow[]
-    );
+    setTeacherAttendance((teacherAttendanceResult.data || []) as TeacherAttendanceRow[]);
     setPayments((paymentsResult.data || []) as PaymentRow[]);
     setSummaries((summariesResult.data || []) as SummaryRow[]);
     setRequirements((requirementsResult.data || []) as RequirementRow[]);
@@ -236,35 +228,34 @@ export default function AnalyticsPage() {
   }, [summaries, periodFilter]);
 
   const analytics = useMemo(() => {
-    const presentCount = filteredAttendance.filter(
+    const learnerPresent = filteredAttendance.filter(
       (item) => String(item.status || "").toLowerCase() === "present"
     ).length;
 
-    const absentCount = filteredAttendance.filter(
+    const learnerAbsent = filteredAttendance.filter(
       (item) => String(item.status || "").toLowerCase() === "absent"
     ).length;
 
-    const totalAttendanceRecords = presentCount + absentCount;
+    const learnerAttendanceTotal = learnerPresent + learnerAbsent;
 
     const learnerAttendanceRate =
-      totalAttendanceRecords > 0
-        ? Math.round((presentCount / totalAttendanceRecords) * 100)
+      learnerAttendanceTotal > 0
+        ? Math.round((learnerPresent / learnerAttendanceTotal) * 100)
         : 0;
 
-    const teacherPresentCount = filteredTeacherAttendance.filter(
+    const teacherPresent = filteredTeacherAttendance.filter(
       (item) => String(item.status || "").toLowerCase() === "present"
     ).length;
 
-    const teacherAbsentCount = filteredTeacherAttendance.filter(
+    const teacherAbsent = filteredTeacherAttendance.filter(
       (item) => String(item.status || "").toLowerCase() === "absent"
     ).length;
 
-    const totalTeacherAttendanceRecords =
-      teacherPresentCount + teacherAbsentCount;
+    const teacherAttendanceTotal = teacherPresent + teacherAbsent;
 
     const teacherAttendanceRate =
-      totalTeacherAttendanceRecords > 0
-        ? Math.round((teacherPresentCount / totalTeacherAttendanceRecords) * 100)
+      teacherAttendanceTotal > 0
+        ? Math.round((teacherPresent / teacherAttendanceTotal) * 100)
         : 0;
 
     const paidPayments = filteredPayments.filter(
@@ -320,26 +311,27 @@ export default function AnalyticsPage() {
       return sum + missing.length;
     }, 0);
 
+    const totalRequiredDocuments = learners.length * requiredDocuments.length;
+
     const documentCompletionRate =
-      learners.length > 0
-        ? Math.max(
-            0,
-            Math.round(
-              ((learners.length * requiredDocuments.length - missingDocuments) /
-                (learners.length * requiredDocuments.length)) *
-                100
-            )
+      totalRequiredDocuments > 0
+        ? Math.round(
+            ((totalRequiredDocuments - missingDocuments) /
+              totalRequiredDocuments) *
+              100
           )
         : 0;
 
+    const healthInputs = [
+      learnerAttendanceRate,
+      teacherAttendanceRate,
+      collectionRate,
+      summarySendRate,
+      documentCompletionRate,
+    ];
+
     const schoolHealthScore = Math.round(
-      (
-        learnerAttendanceRate +
-        teacherAttendanceRate +
-        collectionRate +
-        summarySendRate +
-        documentCompletionRate
-      ) / 5
+      healthInputs.reduce((sum, value) => sum + value, 0) / healthInputs.length
     );
 
     return {
@@ -347,20 +339,17 @@ export default function AnalyticsPage() {
       totalTeachers: teachers.length,
       learnerAttendanceRate,
       teacherAttendanceRate,
-      schoolHealthScore,
       collectionRate,
       summarySendRate,
       documentCompletionRate,
       totalCollected,
       totalOutstanding,
+      unpaidCount: unpaidPayments.length,
+      learnerAbsent,
+      teacherAbsent,
       outstandingStationery,
       missingDocuments,
-      learnerAbsentCount: absentCount,
-      teacherAbsentCount,
-      unpaidCount: unpaidPayments.length,
-      attendanceRecords: totalAttendanceRecords,
-      paymentRecords: filteredPayments.length,
-      summaryRecords: filteredSummaries.length,
+      schoolHealthScore,
     };
   }, [
     learners,
@@ -374,11 +363,11 @@ export default function AnalyticsPage() {
   ]);
 
   const learnerAttendanceTrend = useMemo(() => {
-    return buildAttendanceTrend(attendance, "attendance_date");
+    return buildAttendanceTrend(attendance);
   }, [attendance]);
 
   const teacherAttendanceTrend = useMemo(() => {
-    return buildAttendanceTrend(teacherAttendance, "attendance_date");
+    return buildAttendanceTrend(teacherAttendance);
   }, [teacherAttendance]);
 
   const feeCollectionTrend = useMemo(() => {
@@ -399,7 +388,6 @@ export default function AnalyticsPage() {
       }
 
       const entry = monthMap.get(monthKey);
-
       if (!entry) return;
 
       entry.total += 1;
@@ -434,12 +422,7 @@ export default function AnalyticsPage() {
     });
   }, [learners]);
 
-  const periodLabel =
-    periodFilter === "month"
-      ? "This Month"
-      : periodFilter === "year"
-      ? "This Year"
-      : "All Time";
+  const periodLabel = getPeriodLabel(periodFilter);
 
   if (loading) {
     return <p>Loading school analytics...</p>;
@@ -456,7 +439,10 @@ export default function AnalyticsPage() {
           </p>
         </div>
 
-        <div className="db-card db-card-lavender" style={{ padding: 16, marginBottom: 18 }}>
+        <div
+          className="db-card db-card-lavender"
+          style={{ padding: 16, marginBottom: 18 }}
+        >
           <h3 style={sectionTitle}>Snapshot Period</h3>
 
           <div style={filterGrid}>
@@ -470,6 +456,18 @@ export default function AnalyticsPage() {
               onClick={() => setPeriodFilter("month")}
             >
               This Month
+            </button>
+
+            <button
+              type="button"
+              className={
+                periodFilter === "term"
+                  ? "db-button-primary"
+                  : "db-button-secondary"
+              }
+              onClick={() => setPeriodFilter("term")}
+            >
+              This Term
             </button>
 
             <button
@@ -498,7 +496,10 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        <div className="db-card db-card-lavender" style={{ padding: 20, marginBottom: 18 }}>
+        <div
+          className="db-card db-card-lavender"
+          style={{ padding: 20, marginBottom: 18 }}
+        >
           <h3 style={sectionTitle}>School Health Score</h3>
           <p style={healthScore}>{analytics.schoolHealthScore}%</p>
           <p style={smallText}>
@@ -508,114 +509,39 @@ export default function AnalyticsPage() {
         </div>
 
         <div style={grid}>
-          <InsightCard
-            title="Learners"
-            value={analytics.totalLearners}
-            helper="Current active learners"
-          />
-          <InsightCard
-            title="Teachers"
-            value={analytics.totalTeachers}
-            helper="Current active teachers"
-          />
-          <InsightCard
-            title="Learner Attendance Rate"
-            value={`${analytics.learnerAttendanceRate}%`}
-            helper={`${periodLabel} learner present vs absent records`}
-          />
-          <InsightCard
-            title="Teacher Attendance Rate"
-            value={`${analytics.teacherAttendanceRate}%`}
-            helper={`${periodLabel} teacher present vs absent records`}
-          />
-          <InsightCard
-            title="Collection Rate"
-            value={`${analytics.collectionRate}%`}
-            helper={`${periodLabel} paid payment records`}
-          />
-          <InsightCard
-            title="Daily Summary Send Rate"
-            value={`${analytics.summarySendRate}%`}
-            helper={`${periodLabel} summaries marked as sent`}
-          />
-          <InsightCard
-            title="Document Completion"
-            value={`${analytics.documentCompletionRate}%`}
-            helper="Current required documents uploaded"
-          />
-          <InsightCard
-            title="Fees Collected"
-            value={`R${analytics.totalCollected.toFixed(2)}`}
-            helper={`${periodLabel} paid records total`}
-          />
-          <InsightCard
-            title="Outstanding Fees"
-            value={`R${analytics.totalOutstanding.toFixed(2)}`}
-            helper={`${periodLabel} pending, partial and overdue records`}
-          />
-          <InsightCard
-            title="Unpaid Records"
-            value={analytics.unpaidCount}
-            helper={`${periodLabel} payment records needing follow-up`}
-          />
-          <InsightCard
-            title="Learner Absence Records"
-            value={analytics.learnerAbsentCount}
-            helper={`${periodLabel} learner absence records`}
-          />
-          <InsightCard
-            title="Teacher Absence Records"
-            value={analytics.teacherAbsentCount}
-            helper={`${periodLabel} teacher absence records`}
-          />
-          <InsightCard
-            title="Outstanding Stationery"
-            value={analytics.outstandingStationery}
-            helper="Current items not yet received"
-          />
-          <InsightCard
-            title="Missing Documents"
-            value={analytics.missingDocuments}
-            helper="Current required learner documents missing"
-          />
+          <InsightCard title="Learners" value={analytics.totalLearners} helper="Current active learners" />
+          <InsightCard title="Teachers" value={analytics.totalTeachers} helper="Current active teachers" />
+          <InsightCard title="Learner Attendance Rate" value={`${analytics.learnerAttendanceRate}%`} helper={`${periodLabel} learner attendance records`} />
+          <InsightCard title="Teacher Attendance Rate" value={`${analytics.teacherAttendanceRate}%`} helper={`${periodLabel} teacher attendance records`} />
+          <InsightCard title="Collection Rate" value={`${analytics.collectionRate}%`} helper={`${periodLabel} paid payment records`} />
+          <InsightCard title="Daily Summary Send Rate" value={`${analytics.summarySendRate}%`} helper={`${periodLabel} summaries marked as sent`} />
+          <InsightCard title="Document Completion" value={`${analytics.documentCompletionRate}%`} helper="Current learner documents uploaded" />
+          <InsightCard title="Fees Collected" value={`R${analytics.totalCollected.toFixed(2)}`} helper={`${periodLabel} paid records total`} />
+          <InsightCard title="Outstanding Fees" value={`R${analytics.totalOutstanding.toFixed(2)}`} helper={`${periodLabel} pending, partial and overdue records`} />
+          <InsightCard title="Unpaid Records" value={analytics.unpaidCount} helper={`${periodLabel} payment records needing follow-up`} />
+          <InsightCard title="Learner Absence Records" value={analytics.learnerAbsent} helper={`${periodLabel} learner absence records`} />
+          <InsightCard title="Teacher Absence Records" value={analytics.teacherAbsent} helper={`${periodLabel} teacher absence records`} />
+          <InsightCard title="Outstanding Stationery" value={analytics.outstandingStationery} helper="Current items not yet received" />
+          <InsightCard title="Missing Documents" value={analytics.missingDocuments} helper="Current required learner documents missing" />
         </div>
 
         <div className="db-card db-card-blue" style={{ padding: 18, marginTop: 18 }}>
           <h3 style={sectionTitle}>Attendance Trends</h3>
 
           <div style={chartGrid}>
-            <AnalyticsChart
-              title="Learner Attendance Trend"
-              data={learnerAttendanceTrend}
-              suffix="%"
-            />
-
-            <AnalyticsChart
-              title="Teacher Attendance Trend"
-              data={teacherAttendanceTrend}
-              suffix="%"
-            />
+            <AnalyticsChart title="Learner Attendance Trend" data={learnerAttendanceTrend} suffix="%" />
+            <AnalyticsChart title="Teacher Attendance Trend" data={teacherAttendanceTrend} suffix="%" />
           </div>
         </div>
 
         <div className="db-card db-card-green" style={{ padding: 18, marginTop: 18 }}>
           <h3 style={sectionTitle}>Financial Trend</h3>
-
-          <AnalyticsChart
-            title="Fee Collection Rate"
-            data={feeCollectionTrend}
-            suffix="%"
-            chartType="bar"
-          />
+          <AnalyticsChart title="Fee Collection Rate" data={feeCollectionTrend} suffix="%" chartType="bar" />
         </div>
 
         <div className="db-card db-card-yellow" style={{ padding: 18, marginTop: 18 }}>
           <h3 style={sectionTitle}>School Growth</h3>
-
-          <AnalyticsChart
-            title="Learner Growth Trend"
-            data={learnerGrowthTrend}
-          />
+          <AnalyticsChart title="Learner Growth Trend" data={learnerGrowthTrend} />
         </div>
 
         <div className="db-card db-card-yellow" style={{ padding: 18, marginTop: 18 }}>
@@ -625,23 +551,18 @@ export default function AnalyticsPage() {
             {analytics.missingDocuments > 0 && (
               <li>{analytics.missingDocuments} learner document(s) still missing.</li>
             )}
-
             {analytics.outstandingStationery > 0 && (
               <li>{analytics.outstandingStationery} stationery item(s) still outstanding.</li>
             )}
-
             {analytics.unpaidCount > 0 && (
               <li>{analytics.unpaidCount} payment record(s) need follow-up for {periodLabel.toLowerCase()}.</li>
             )}
-
-            {analytics.learnerAbsentCount > 0 && (
-              <li>{analytics.learnerAbsentCount} learner absence record(s) captured for {periodLabel.toLowerCase()}.</li>
+            {analytics.learnerAbsent > 0 && (
+              <li>{analytics.learnerAbsent} learner absence record(s) captured for {periodLabel.toLowerCase()}.</li>
             )}
-
-            {analytics.teacherAbsentCount > 0 && (
-              <li>{analytics.teacherAbsentCount} teacher absence record(s) captured for {periodLabel.toLowerCase()}.</li>
+            {analytics.teacherAbsent > 0 && (
+              <li>{analytics.teacherAbsent} teacher absence record(s) captured for {periodLabel.toLowerCase()}.</li>
             )}
-
             {analytics.schoolHealthScore >= 80 && (
               <li>The school is performing well overall for this snapshot.</li>
             )}
@@ -715,14 +636,12 @@ function AnalyticsChart({
 }
 
 function buildAttendanceTrend(
-  rows: Array<{ status?: string | null; attendance_date?: string | null }>,
-  dateKey: "attendance_date"
+  rows: Array<{ status?: string | null; attendance_date?: string | null }>
 ) {
   const monthMap = new Map<string, { present: number; absent: number }>();
 
   rows.forEach((row) => {
-    const monthKey = getMonthKey(row[dateKey] || "");
-
+    const monthKey = getMonthKey(row.attendance_date || "");
     if (!monthKey) return;
 
     if (!monthMap.has(monthKey)) {
@@ -730,7 +649,6 @@ function buildAttendanceTrend(
     }
 
     const entry = monthMap.get(monthKey);
-
     if (!entry) return;
 
     const status = String(row.status || "").toLowerCase();
@@ -755,25 +673,53 @@ function buildAttendanceTrend(
 function isWithinSelectedPeriod(dateValue: string, period: PeriodFilter) {
   if (period === "all") return true;
 
-  const monthKey = getMonthKey(dateValue);
-
-  if (!monthKey) return false;
+  const date = getDateFromValue(dateValue);
+  if (!date) return false;
 
   const today = new Date();
-  const currentYear = String(today.getFullYear());
-  const currentMonth = `${today.getFullYear()}-${String(
-    today.getMonth() + 1
-  ).padStart(2, "0")}`;
 
   if (period === "month") {
-    return monthKey === currentMonth;
+    return (
+      date.getFullYear() === today.getFullYear() &&
+      date.getMonth() === today.getMonth()
+    );
   }
 
   if (period === "year") {
-    return monthKey.startsWith(currentYear);
+    return date.getFullYear() === today.getFullYear();
+  }
+
+  if (period === "term") {
+    const currentTerm = getSchoolTerm(today);
+    const recordTerm = getSchoolTerm(date);
+
+    return (
+      date.getFullYear() === today.getFullYear() &&
+      recordTerm === currentTerm
+    );
   }
 
   return true;
+}
+
+function getSchoolTerm(date: Date) {
+  const month = date.getMonth() + 1;
+
+  if (month >= 1 && month <= 3) return 1;
+  if (month >= 4 && month <= 6) return 2;
+  if (month >= 7 && month <= 9) return 3;
+
+  return 4;
+}
+
+function getDateFromValue(value: string) {
+  if (!value) return null;
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date;
 }
 
 function getMonthKey(dateValue: string) {
@@ -809,6 +755,14 @@ function getLastSixMonthKeys() {
   }
 
   return months;
+}
+
+function getPeriodLabel(period: PeriodFilter) {
+  if (period === "month") return "This Month";
+  if (period === "term") return "This Term";
+  if (period === "year") return "This Year";
+
+  return "All Time";
 }
 
 const grid = {

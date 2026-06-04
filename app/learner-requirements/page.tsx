@@ -7,6 +7,8 @@ import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 import SubscriptionGuard from "../components/SubscriptionGuard";
 
+type TemplateKey = "0_2" | "2_6";
+
 type LearnerRow = {
   id: string;
   name?: string | null;
@@ -18,6 +20,7 @@ type ClassroomRow = {
   id: number;
   classroom_name?: string | null;
   age_groups?: string[] | null;
+  stationery_templates?: TemplateKey[] | null;
 };
 
 type ChecklistRow = {
@@ -104,7 +107,7 @@ export default function LearnerRequirementsPage() {
 
       supabase
         .from("classrooms")
-        .select("id, classroom_name, age_groups")
+        .select("id, classroom_name, age_groups, stationery_templates")
         .eq("school_id", context.schoolId)
         .order("classroom_name", { ascending: true }),
 
@@ -219,11 +222,40 @@ export default function LearnerRequirementsPage() {
     );
   }, [requirementItems, selectedClassroomId]);
 
-  const assignedStationeryTemplate = selectedClassroom?.age_groups?.some(
+  const selectedAgeGroups = selectedClassroom?.age_groups || [];
+  const hasZeroToTwo = selectedAgeGroups.some(
     (group) => group === "0-1 Years" || group === "1-2 Years"
-  )
-    ? "0-2 Years Template"
-    : "2-6 Years Template";
+  );
+  const hasTwoToSix = selectedAgeGroups.some(
+    (group) =>
+      group === "2-3 Years" ||
+      group === "3-4 Years" ||
+      group === "4-5 Years" ||
+      group === "5-6 Years"
+  );
+  const recommendedTemplateKeys: TemplateKey[] =
+    hasZeroToTwo && hasTwoToSix
+      ? ["0_2", "2_6"]
+      : hasZeroToTwo
+      ? ["0_2"]
+      : hasTwoToSix
+      ? ["2_6"]
+      : [];
+
+  const assignedTemplateKeys =
+    selectedClassroom?.stationery_templates &&
+    selectedClassroom.stationery_templates.length > 0
+      ? selectedClassroom.stationery_templates
+      : recommendedTemplateKeys;
+
+  const assignedStationeryTemplate =
+    assignedTemplateKeys.length === 0
+      ? "No template assigned"
+      : assignedTemplateKeys
+          .map((key) =>
+            key === "0_2" ? "0-2 Years Template" : "2-6 Years Template"
+          )
+          .join(" + ");
 
   const stationeryRequirements = selectedClassRequirements.filter(
     (requirement) => requirement.category !== "Document"

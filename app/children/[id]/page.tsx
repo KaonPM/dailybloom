@@ -95,10 +95,13 @@ export default function LearnerProfilePage() {
   const [documentRequirements, setDocumentRequirements] = useState<string[]>(
     fallbackRequiredDocuments
   );
+  const [newDocumentRequirement, setNewDocumentRequirement] = useState("");
   const [uploadingDocumentType, setUploadingDocumentType] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [savingItem, setSavingItem] = useState(false);
+  const [savingDocumentRequirement, setSavingDocumentRequirement] =
+    useState(false);
 
   useEffect(() => {
     loadLearnerProfile();
@@ -172,7 +175,11 @@ export default function LearnerProfilePage() {
     const allTemplates = (templateItems || []) as RequirementTemplateItem[];
 
     const stationeryTemplates = allTemplates.filter(
-      (item) => item.category !== "Document"
+      (item) =>
+        item.category === "Stationery" ||
+        item.category === "Hygiene" ||
+        item.category === "Other" ||
+        !item.category
     );
 
     const documentTemplates = allTemplates
@@ -197,12 +204,14 @@ export default function LearnerProfilePage() {
     }
 
     const existing = (existingChecklist || []) as ChecklistItem[];
+    const normalizeName = (value: string) =>
+      value.trim().toLowerCase().replace(/\s+/g, " ");
+    const existingNames = new Set(
+      existing.map((item) => normalizeName(item.item_name || ""))
+    );
 
     const missingTemplates = stationeryTemplates.filter((template) => {
-      return !existing.some(
-        (item) =>
-          item.item_name?.toLowerCase() === template.item_name.toLowerCase()
-      );
+      return !existingNames.has(normalizeName(template.item_name));
     });
 
     if (missingTemplates.length > 0) {
@@ -383,7 +392,13 @@ export default function LearnerProfilePage() {
   }
 
   function getDocument(documentType: string) {
-    return documents.find((document) => document.document_type === documentType);
+    if (!learner) return undefined;
+
+    return documents.find(
+      (document) =>
+        document.learner_id === learner.id &&
+        document.document_type === documentType
+    );
   }
 
   async function handleDocumentUpload(
@@ -482,6 +497,53 @@ export default function LearnerProfilePage() {
     }
 
     await fetchDocuments(schoolId, learner.id);
+  }
+
+  async function addDocumentRequirement() {
+    if (!learner || !schoolId) return;
+
+    if (!learner.classroom_id) {
+      alert("Link this learner to a classroom before adding document requirements.");
+      return;
+    }
+
+    const documentName = newDocumentRequirement.trim();
+
+    if (!documentName) {
+      alert("Please enter the document name.");
+      return;
+    }
+
+    setSavingDocumentRequirement(true);
+
+    const { error } = await supabase.from("classroom_requirement_items").upsert(
+      [
+        {
+          school_id: schoolId,
+          classroom_id: Number(learner.classroom_id),
+          item_name: documentName,
+          quantity: null,
+          category: "Document",
+          is_active: true,
+        },
+      ],
+      { onConflict: "school_id,classroom_id,item_name" }
+    );
+
+    setSavingDocumentRequirement(false);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setNewDocumentRequirement("");
+
+    await syncAndFetchChecklist(
+      schoolId,
+      learner.id,
+      Number(learner.classroom_id)
+    );
   }
 
   if (loading) {
@@ -877,6 +939,45 @@ export default function LearnerProfilePage() {
                 </div>
               );
             })}
+          </div>
+
+          <div
+            style={{
+              marginTop: 20,
+              paddingTop: 16,
+              borderTop: "1px solid #EFE3C6",
+            }}
+          >
+            <h4
+              style={{
+                margin: "0 0 10px 0",
+                color: "#2D2A3E",
+                fontSize: 15,
+                fontWeight: 800,
+              }}
+            >
+              Add extra document requirement
+            </h4>
+
+            <div style={formGrid}>
+              <input
+                className="db-input"
+                placeholder="Document name, e.g. Proof of Address"
+                value={newDocumentRequirement}
+                onChange={(event) =>
+                  setNewDocumentRequirement(event.target.value)
+                }
+              />
+
+              <button
+                type="button"
+                className="db-button-primary"
+                onClick={addDocumentRequirement}
+                disabled={savingDocumentRequirement || !learner.classroom_id}
+              >
+                {savingDocumentRequirement ? "Adding..." : "+ Add Document"}
+              </button>
+            </div>
           </div>
         </div>
       )}

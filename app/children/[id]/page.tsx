@@ -198,20 +198,21 @@ export default function LearnerProfilePage() {
     const existing = (existingChecklist || []) as ChecklistItem[];
 
     const missingTemplates = stationeryTemplates.filter((template) => {
-      return !existing.some(
-        (item) => Number(item.stationery_item_id) === Number(template.id)
-      );
+    return !existing.some(
+    (item) =>
+      item.item_name?.toLowerCase() === template.item_name.toLowerCase()
+    );
     });
 
     if (missingTemplates.length > 0) {
       const rowsToInsert = missingTemplates.map((template) => ({
-        school_id: currentSchoolId,
-        learner_id: currentLearnerId,
-        classroom_id: currentClassroomId,
-        stationery_item_id: template.id,
-        item_name: template.item_name,
-        quantity: template.quantity || null,
-        received: false,
+       school_id: currentSchoolId,
+       learner_id: currentLearnerId,
+       classroom_id: currentClassroomId,
+       stationery_item_id: null,
+       item_name: template.item_name,
+       quantity: template.quantity || null,
+       received: false,
       }));
 
       const { error: insertError } = await supabase

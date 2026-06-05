@@ -683,59 +683,21 @@ export default function MasterPage() {
             border="#CBEAF7"
           />
 
-          <Link href="/billing" style={{ textDecoration: "none" }}>
-            <div
-              style={{
-                background: "#FFF7D9",
-                border: "1px solid #F3E4A3",
-                borderRadius: "18px",
-                padding: "14px",
-                boxShadow: "0 6px 14px rgba(45, 42, 62, 0.05)",
-                cursor: "pointer",
-              }}
-            >
-              <p
-                style={{
-                  margin: 0,
-                  color: "#5B5675",
-                  fontSize: "13px",
-                  fontWeight: 700,
-                }}
-              >
-                Billing
-              </p>
+          <StatLinkCard
+            label="Billing"
+            value="Subscriptions"
+            href="/billing"
+            background="#FFF7D9"
+            border="#F3E4A3"
+          />
 
-              <h2
-                style={{
-                  margin: "6px 0 0 0",
-                  color: "#2D2A3E",
-                  fontSize: "22px",
-                  fontWeight: 800,
-                }}
-              >
-                Subscriptions
-              </h2>
-
-              <p
-                style={{
-                  margin: "6px 0 0 0",
-                  color: "#6D6888",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                }}
-              >
-                Manage DailyBloom billing
-              </p>
-            </div>
-          </Link>
-
-          <Link
+          <StatLinkCard
+            label="Impact & Sponsorship"
+            value="Reports"
             href="/master/impact"
-            className="db-button-primary"
-            style={smallButton}
-          >
-            Impact & Sponsorship
-          </Link>
+            background="#F8E8F0"
+            border="#EBC9D8"
+          />
         </div>
       )}
 
@@ -1358,7 +1320,7 @@ function StatLinkCard({
   border,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   href: string;
   background: string;
   border: string;

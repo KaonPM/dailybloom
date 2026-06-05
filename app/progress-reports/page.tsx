@@ -119,6 +119,12 @@ function makeAssessmentKey(categoryKey: string, indicatorKey: string) {
   return `${categoryKey}::${indicatorKey}`;
 }
 
+function normalizeMatchValue(value: any) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
 export default function ProgressReportsPage() {
   const router = useRouter();
 
@@ -1093,7 +1099,9 @@ export default function ProgressReportsPage() {
     const map = new Map();
 
     allAssessments.forEach((item) => {
-      const key = `${item.classroom_id}-${item.teacher_id}-${item.learner_id}-${item.report_period_id}`;
+      const key = `${item.classroom_id}-${item.teacher_id}-${item.learner_id}-${
+        item.report_period_id
+      }-${item.report_type || "developmental"}`;
 
       if (!map.has(key)) {
         map.set(key, {
@@ -1101,6 +1109,7 @@ export default function ProgressReportsPage() {
           teacher_id: item.teacher_id,
           learner_id: item.learner_id,
           report_period_id: item.report_period_id,
+          report_type: item.report_type || "developmental",
           updated_at: item.updated_at,
           status: item.status,
           count: 1,
@@ -1138,6 +1147,13 @@ export default function ProgressReportsPage() {
     if (
       selectedPeriodId &&
       String(item.report_period_id) !== String(selectedPeriodId)
+    ) {
+      return false;
+    }
+
+    if (
+      reportType &&
+      String(item.report_type || "developmental") !== String(reportType)
     ) {
       return false;
     }
@@ -1265,10 +1281,10 @@ export default function ProgressReportsPage() {
     const period = periods.find(
       (periodItem) => String(periodItem.id) === String(item.report_period_id)
     );
+    const assessmentReportType =
+      item.report_type || period?.report_template || reportType;
 
-    if (period?.report_template) {
-      setReportType(period.report_template as "developmental" | "grade-rr");
-    }
+    setReportType(assessmentReportType as "developmental" | "grade-rr");
 
     const { data, error } = await supabase
       .from("learner_assessments")
@@ -1276,6 +1292,7 @@ export default function ProgressReportsPage() {
       .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
       .eq("teacher_id", item.teacher_id)
+      .eq("report_type", assessmentReportType)
       .in("status", principalAssessmentStatusFilters)
       .order("updated_at", { ascending: false });
 
@@ -1300,7 +1317,7 @@ export default function ProgressReportsPage() {
       .select("*")
       .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
-      .eq("report_type", period?.report_template || reportType)
+      .eq("report_type", assessmentReportType)
       .maybeSingle();
 
     if (reportError) {
@@ -1333,6 +1350,7 @@ export default function ProgressReportsPage() {
       .select("*")
       .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
+      .eq("report_type", savedReportType)
       .in("status", principalAssessmentStatusFilters)
       .order("updated_at", { ascending: false });
 
@@ -2250,7 +2268,9 @@ export default function ProgressReportsPage() {
             ) : (
               <div style={{ display: "grid", gap: "10px", marginTop: "14px" }}>
                 {visibleAssessments.map((item) => {
-                  const key = `${item.classroom_id}-${item.teacher_id}-${item.learner_id}-${item.report_period_id}`;
+                  const key = `${item.classroom_id}-${item.teacher_id}-${
+                    item.learner_id
+                  }-${item.report_period_id}-${item.report_type || "developmental"}`;
                   const isExpanded = expandedAssessmentKey === key;
 
                   return (
@@ -2292,6 +2312,12 @@ export default function ProgressReportsPage() {
                           </p>
                           <p style={textStyle}>
                             Period: {getPeriodTitle(item.report_period_id)}
+                          </p>
+                          <p style={textStyle}>
+                            Type:{" "}
+                            {formatReportTemplate(
+                              item.report_type || "developmental"
+                            )}
                           </p>
                           <p style={textStyle}>Observation items: {item.count}</p>
 
@@ -3474,8 +3500,17 @@ function ReportSkillTable({
     category?.sections?.flatMap((section: any) => section.indicators || []) ||
     [];
 
-  const categoryAssessments = reviewAssessments.filter(
-    (item) => item.category === categoryKey
+  const categoryMatchValues = [
+    categoryKey,
+    category?.key,
+    category?.label,
+    category?.name,
+  ]
+    .filter(Boolean)
+    .map(normalizeMatchValue);
+
+  const categoryAssessments = reviewAssessments.filter((item) =>
+    categoryMatchValues.includes(normalizeMatchValue(item.category))
   );
 
   function getLevelCode(level: any) {
@@ -3532,11 +3567,29 @@ function ReportSkillTable({
   }
 
   function getIndicatorLevel(indicator: any) {
-    const assessment = categoryAssessments.find(
-      (item) =>
-        item.indicator_key === indicator.key ||
-        item.indicator_label === indicator.label
-    );
+    const indicatorMatchValues = [
+      indicator.key,
+      indicator.label,
+      indicator.name,
+      indicator.text,
+    ]
+      .filter(Boolean)
+      .map(normalizeMatchValue);
+
+    const assessment = categoryAssessments.find((item) => {
+      const assessmentMatchValues = [
+        item.indicator_key,
+        item.indicator_label,
+        item.indicator,
+        item.label,
+      ]
+        .filter(Boolean)
+        .map(normalizeMatchValue);
+
+      return assessmentMatchValues.some((value) =>
+        indicatorMatchValues.includes(value)
+      );
+    });
 
     return normalizeLevel(getAssessmentValue(assessment));
   }

@@ -34,6 +34,12 @@ type SponsorProgramme = {
   status?: string | null;
 };
 
+type MaybeSponsorProgrammeRelation =
+  | SponsorProgramme
+  | SponsorProgramme[]
+  | null
+  | undefined;
+
 type PrincipalItem = {
   id: string;
   full_name?: string | null;
@@ -151,6 +157,14 @@ const registrationStatuses = [
   "Unregistered",
 ];
 
+function normalizeSponsorProgramme(
+  sponsorProgrammes: MaybeSponsorProgrammeRelation
+) {
+  return Array.isArray(sponsorProgrammes)
+    ? sponsorProgrammes[0] || null
+    : sponsorProgrammes || null;
+}
+
 export default function MasterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -239,7 +253,12 @@ export default function MasterPage() {
       return;
     }
 
-    const rows = (data || []) as SchoolItem[];
+    const rows = (data || []).map((school: any) => ({
+      ...school,
+      sponsor_programmes: normalizeSponsorProgramme(
+        school.sponsor_programmes
+      ),
+    })) as SchoolItem[];
     setSchools(rows);
 
     setStats((prev) => ({
@@ -285,7 +304,12 @@ export default function MasterPage() {
       return;
     }
 
-    const rows = (data || []) as SignupRequestItem[];
+    const rows = (data || []).map((request: any) => ({
+      ...request,
+      sponsor_programmes: normalizeSponsorProgramme(
+        request.sponsor_programmes
+      ),
+    })) as SignupRequestItem[];
     setSignupRequests(rows);
 
     const pendingCount = rows.filter(

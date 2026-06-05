@@ -19,6 +19,12 @@ type SponsorProgramme = {
   created_at?: string | null;
 };
 
+type MaybeSponsorProgrammeRelation =
+  | SponsorProgramme
+  | SponsorProgramme[]
+  | null
+  | undefined;
+
 type SchoolRow = {
   id: number;
   school_name?: string | null;
@@ -30,6 +36,14 @@ type SchoolScopedRow = {
   school_id?: number | null;
   status?: string | null;
 };
+
+function normalizeSponsorProgramme(
+  sponsorProgrammes: MaybeSponsorProgrammeRelation
+) {
+  return Array.isArray(sponsorProgrammes)
+    ? sponsorProgrammes[0] || null
+    : sponsorProgrammes || null;
+}
 
 export default function ImpactSponsorshipDashboard() {
   const router = useRouter();
@@ -97,7 +111,14 @@ export default function ImpactSponsorshipDashboard() {
       .order("created_at", { ascending: false });
 
     if (!error) {
-      setSchools(data || []);
+      const rows = (data || []).map((school: any) => ({
+        ...school,
+        sponsor_programmes: normalizeSponsorProgramme(
+          school.sponsor_programmes
+        ),
+      })) as SchoolRow[];
+
+      setSchools(rows);
     }
   }
 
@@ -165,7 +186,7 @@ export default function ImpactSponsorshipDashboard() {
   }
 
   const sponsoredSchools = useMemo(() => {
-    return schools.filter((school) => school.sponsor_programme_id !== null);
+    return schools.filter((school) => school.sponsor_programme_id);
   }, [schools]);
 
   const schoolsForSponsor = useMemo(() => {

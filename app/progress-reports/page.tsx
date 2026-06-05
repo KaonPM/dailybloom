@@ -48,8 +48,15 @@ const certificateReasonOptions: Record<string, string[]> = {
   ],
 };
 
-const reviewStatusFilters = [
+const teacherAssessmentStatusFilters = [
   "draft",
+  "submitted",
+  "reviewed",
+  "locked",
+  "generated",
+];
+
+const principalAssessmentStatusFilters = [
   "submitted",
   "reviewed",
   "locked",
@@ -65,6 +72,14 @@ function getAssessmentValue(assessment: any) {
     assessment?.selected_rating ||
     assessment?.value ||
     ""
+  );
+}
+
+function getCategoryIndicators(category: any) {
+  return (
+    category?.indicators ||
+    category?.sections?.flatMap((section: any) => section.indicators || []) ||
+    []
   );
 }
 
@@ -98,6 +113,10 @@ function normalizeLatestAssessments(assessments: any[]) {
   });
 
   return Array.from(latestByIndicator.values());
+}
+
+function makeAssessmentKey(categoryKey: string, indicatorKey: string) {
+  return `${categoryKey}::${indicatorKey}`;
 }
 
 export default function ProgressReportsPage() {
@@ -138,8 +157,10 @@ export default function ProgressReportsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [showFilter, setShowFilter] = useState(false);
-  const [showAssessments, setShowAssessments] = useState(true);
-  const [showGeneratedReports, setShowGeneratedReports] = useState(true);
+  const [showPeriodManagement, setShowPeriodManagement] = useState(false);
+  const [showTeacherChecklist, setShowTeacherChecklist] = useState(false);
+  const [showAssessments, setShowAssessments] = useState(false);
+  const [showGeneratedReports, setShowGeneratedReports] = useState(false);
 
   const [expandedAssessmentKey, setExpandedAssessmentKey] = useState<
     string | null
@@ -153,9 +174,12 @@ export default function ProgressReportsPage() {
   const [awardPage, setAwardPage] = useState(1);
 
   const [teacherObservation, setTeacherObservation] = useState("");
+  const [teacherRatings, setTeacherRatings] = useState<Record<string, string>>(
+    {}
+  );
   const [pendingDownload, setPendingDownload] = useState(false);
 
-  const [showAwards, setShowAwards] = useState(true);
+  const [showAwards, setShowAwards] = useState(false);
   const [awards, setAwards] = useState<any[]>([]);
 
   const [selectedAwardLearnerId, setSelectedAwardLearnerId] = useState("");
@@ -228,6 +252,14 @@ export default function ProgressReportsPage() {
     return () => window.cancelAnimationFrame(frame);
   }, [pendingAwardDownload, selectedAward]);
 
+  useEffect(() => {
+    if (!profile || profile.role !== "teacher") {
+      return;
+    }
+
+    fetchTeacherSavedRatings();
+  }, [profile, selectedLearnerId, selectedPeriodId, reportType]);
+
   async function loadPage() {
     const { profile, error } = await getCurrentProfile();
 
@@ -266,6 +298,14 @@ export default function ProgressReportsPage() {
 
     setProfile(profile);
     setSchoolId(currentSchoolId);
+
+    if (profile.role === "teacher") {
+      setSelectedTeacherId(String(profile.id || ""));
+
+      if (profile.classroom_id) {
+        setSelectedClassroomId(String(profile.classroom_id));
+      }
+    }
 
     await fetchSchool(currentSchoolId);
     await fetchClassrooms(currentSchoolId);
@@ -402,7 +442,7 @@ export default function ProgressReportsPage() {
       .from("learner_assessments")
       .select("*")
       .eq("school_id", currentSchoolId)
-      .in("status", reviewStatusFilters)
+      .in("status", principalAssessmentStatusFilters)
       .order("updated_at", { ascending: false });
 
     if (error) {
@@ -532,6 +572,199 @@ export default function ProgressReportsPage() {
     await fetchPeriods(schoolId);
 
     alert("Progress report period created.");
+  }
+
+  async function fetchTeacherSavedRatings() {
+    if (
+      !schoolId ||
+      !profile?.id ||
+      profile.role !== "teacher" ||
+      !selectedLearnerId ||
+      !selectedPeriodId
+    ) {
+      setTeacherRatings({});
+      setTeacherObservation("");
+      setTeacherComment("");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("learner_assessments")
+      .select("*")
+      .eq("school_id", schoolId)
+      .eq("teacher_id", profile.id)
+      .eq("learner_id", selectedLearnerId)
+      .eq("report_period_id", Number(selectedPeriodId))
+      .eq("report_type", reportType)
+      .in("status", teacherAssessmentStatusFilters)
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const latestAssessments = normalizeLatestAssessments(data || []);
+    const nextRatings: Record<string, string> = {};
+
+    latestAssessments.forEach((assessment) => {
+      const indicatorKey =
+        assessment.indicator_key || assessment.indicator_label || "";
+
+      if (!assessment.category || !indicatorKey) {
+        return;
+      }
+
+      nextRatings[makeAssessmentKey(assessment.category, indicatorKey)] =
+        getAssessmentValue(assessment);
+    });
+
+    const observation =
+      latestAssessments.find((assessment: any) => assessment.teacher_comment)
+        ?.teacher_comment || "";
+
+    setTeacherRatings(nextRatings);
+    setTeacherObservation(observation);
+    setTeacherComment(observation);
+  }
+
+  function handleTeacherRatingChange(
+    categoryKey: string,
+    indicatorKey: string,
+    level: string
+  ) {
+    setTeacherRatings((current) => ({
+      ...current,
+      [makeAssessmentKey(categoryKey, indicatorKey)]: level,
+    }));
+  }
+
+  async function saveTeacherChecklist(status: "draft" | "submitted") {
+    const selectedLearnerForSave = learners.find(
+      (learner) => String(learner.id) === String(selectedLearnerId)
+    );
+    const effectiveClassroomId =
+      selectedClassroomId ||
+      getLearnerClassroomId(selectedLearnerForSave) ||
+      (isTeacher ? teacherClassroomIds[0] || "" : "");
+
+    if (
+      !schoolId ||
+      !profile?.id ||
+      !effectiveClassroomId ||
+      !selectedLearnerId ||
+      !selectedPeriodId
+    ) {
+      alert(
+        isTeacher
+          ? "Please select learner and term/report period. If this continues, check that the learner is linked to your class."
+          : "Please select class, learner and report period."
+      );
+      return;
+    }
+
+    const selectedRows = activeCategories.flatMap((category: any) => {
+      return getCategoryIndicators(category)
+        .map((indicator: any) => {
+          const indicatorKey = indicator.key || indicator.label;
+          const level =
+            teacherRatings[makeAssessmentKey(category.key, indicatorKey)];
+
+          if (!level) {
+            return null;
+          }
+
+          return {
+            category,
+            indicator,
+            indicatorKey,
+            level,
+          };
+        })
+        .filter(Boolean);
+    });
+
+    if (selectedRows.length === 0) {
+      alert("Please select at least one checklist rating.");
+      return;
+    }
+
+    setSaving(true);
+
+    for (const row of selectedRows as any[]) {
+      const { data: existingFull, error: existingFullError } = await supabase
+        .from("learner_assessments")
+        .select("id, status")
+        .eq("school_id", schoolId)
+        .eq("classroom_id", Number(effectiveClassroomId))
+        .eq("teacher_id", profile.id)
+        .eq("learner_id", selectedLearnerId)
+        .eq("report_period_id", Number(selectedPeriodId))
+        .eq("report_type", reportType)
+        .eq("category", row.category.key)
+        .eq("indicator_key", row.indicatorKey)
+        .maybeSingle();
+
+      if (existingFullError) {
+        alert(existingFullError.message);
+        setSaving(false);
+        return;
+      }
+
+      if (
+        existingFull?.status === "reviewed" ||
+        existingFull?.status === "locked" ||
+        existingFull?.status === "generated"
+      ) {
+        alert(
+          "This checklist has already been reviewed or locked and cannot be edited."
+        );
+        setSaving(false);
+        return;
+      }
+
+      const payload = {
+        school_id: schoolId,
+        classroom_id: Number(effectiveClassroomId),
+        teacher_id: profile.id,
+        learner_id: selectedLearnerId,
+        report_period_id: Number(selectedPeriodId),
+        report_type: reportType,
+        category: row.category.key,
+        indicator_key: row.indicatorKey,
+        indicator_label: row.indicator.label || row.indicatorKey,
+        level: row.level,
+        teacher_comment: teacherObservation || null,
+        status,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = existingFull?.id
+        ? await supabase
+            .from("learner_assessments")
+            .update(payload)
+            .eq("id", existingFull.id)
+        : await supabase.from("learner_assessments").insert([payload]);
+
+      if (error) {
+        alert(error.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    await fetchTeacherSavedRatings();
+
+    if (schoolId) {
+      await fetchAllAssessments(schoolId);
+    }
+
+    setSaving(false);
+    alert(
+      status === "submitted"
+        ? "Checklist submitted to principal."
+        : "Checklist draft saved."
+    );
   }
 
   async function updatePeriodStatus(
@@ -711,10 +944,23 @@ export default function ProgressReportsPage() {
       return String(learner.classroom_id);
     }
 
+    const learnerClassNames = [
+      learner.class,
+      learner.classroom,
+      learner.classroom_name,
+      learner.class_name,
+      learner.assigned_classroom,
+      learner.assigned_classroom_name,
+    ]
+      .filter(Boolean)
+      .map((item: any) => String(item).trim().toLowerCase());
+
     const classroom = classrooms.find(
       (item) =>
-        item.classroom_name === learner.class ||
-        String(item.id) === String(learner.class)
+        learnerClassNames.includes(
+          String(item.classroom_name || "").trim().toLowerCase()
+        ) ||
+        learnerClassNames.includes(String(item.id || "").trim().toLowerCase())
     );
 
     return classroom ? String(classroom.id) : "";
@@ -744,6 +990,71 @@ export default function ProgressReportsPage() {
     );
 
     return teacher ? String(teacher.id) : "";
+  }
+
+  function getTeacherClassroomIds() {
+    if (!profile) return [];
+
+    const classroomIds = new Set<string>();
+    const teacherId = String(profile.id || "");
+    const teacherEmail = String(profile.email || "").toLowerCase();
+    const teacherNames = [
+      profile.full_name,
+      profile.name,
+      profile.teacher_name,
+      profile.display_name,
+    ]
+      .filter(Boolean)
+      .map((item: any) => String(item).trim().toLowerCase());
+
+    if (profile.classroom_id) {
+      classroomIds.add(String(profile.classroom_id));
+    }
+
+    if (profile.assigned_classroom_id) {
+      classroomIds.add(String(profile.assigned_classroom_id));
+    }
+
+    const profileClassNames = [
+      profile.classroom,
+      profile.classroom_name,
+      profile.assigned_classroom,
+      profile.assigned_classroom_name,
+      profile.class,
+    ]
+      .filter(Boolean)
+      .map((item: any) => String(item).trim().toLowerCase());
+
+    classrooms.forEach((classroom) => {
+      const classroomId = String(classroom.id || "");
+      const classroomName = String(classroom.classroom_name || "")
+        .trim()
+        .toLowerCase();
+      const classroomTeacherName = String(classroom.teacher_name || "")
+        .trim()
+        .toLowerCase();
+      const classroomTeacherEmail = String(classroom.teacher_email || "")
+        .trim()
+        .toLowerCase();
+
+      if (!classroomId) return;
+
+      if (
+        String(classroom.teacher_id || "") === teacherId ||
+        String(classroom.practitioner_id || "") === teacherId ||
+        (teacherEmail && classroomTeacherEmail === teacherEmail) ||
+        (classroomTeacherName &&
+          teacherNames.some((teacherName) => teacherName === classroomTeacherName)) ||
+        (classroomName &&
+          profileClassNames.some(
+            (profileClassName) => profileClassName === classroomName
+          ))
+      ) {
+        classroomIds.add(classroomId);
+      }
+    });
+
+    return Array.from(classroomIds);
   }
 
   function handleAwardLearnerChange(learnerId: string) {
@@ -923,8 +1234,27 @@ export default function ProgressReportsPage() {
 
   const isTeacher = profile?.role === "teacher";
   const isPrincipal = profile?.role === "principal";
+  const isPrincipalView = !isTeacher;
 
-  const visiblePeriods = periods;
+  const visiblePeriods = isTeacher
+    ? periods.filter((period) => period.status !== "archived")
+    : periods;
+
+  const teacherClassroomIds = isTeacher ? getTeacherClassroomIds() : [];
+
+  const learnerOptions = learners.filter((learner) => {
+    const learnerClassroomId = String(getLearnerClassroomId(learner));
+
+    if (isTeacher && teacherClassroomIds.length > 0) {
+      return teacherClassroomIds.includes(learnerClassroomId);
+    }
+
+    if (selectedClassroomId) {
+      return learnerClassroomId === String(selectedClassroomId);
+    }
+
+    return true;
+  });
 
   async function openAssessmentReview(item: any) {
     setSelectedClassroomId(String(item.classroom_id || ""));
@@ -946,7 +1276,7 @@ export default function ProgressReportsPage() {
       .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
       .eq("teacher_id", item.teacher_id)
-      .in("status", reviewStatusFilters)
+      .in("status", principalAssessmentStatusFilters)
       .order("updated_at", { ascending: false });
 
     if (error) {
@@ -1003,7 +1333,7 @@ export default function ProgressReportsPage() {
       .select("*")
       .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
-      .in("status", reviewStatusFilters)
+      .in("status", principalAssessmentStatusFilters)
       .order("updated_at", { ascending: false });
 
     if (error) {
@@ -1178,7 +1508,12 @@ export default function ProgressReportsPage() {
     }
 
     if (!reviewAssessments.length) {
-      alert("No submitted observation found.");
+      alert("No submitted checklist ratings found for this learner and period.");
+      return;
+    }
+
+    if (!reviewAssessments.some((assessment) => getAssessmentValue(assessment))) {
+      alert("No submitted checklist ratings found for this learner and period.");
       return;
     }
 
@@ -1520,86 +1855,110 @@ export default function ProgressReportsPage() {
         </div>
       )}
 
-      <div
-        className="db-card db-card-blue no-print"
-        style={{ padding: "20px", marginBottom: "24px" }}
-      >
-        <h3 style={sectionTitle}>Report Period Management</h3>
-
-        {visiblePeriods.length === 0 ? (
-          <p className="db-helper">No report periods created yet.</p>
-        ) : (
-          <div style={{ display: "grid", gap: "12px" }}>
-            {visiblePeriods.map((period) => (
-              <div key={period.id} className="db-list-card">
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "12px",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div>
-                    <strong>{period.title}</strong>
-                    <p style={textStyle}>
-                      {formatReportTemplate(
-                        period.report_template || "developmental"
-                      )}
-                    </p>
-                    <span style={periodStatusStyle(period.status || "open")}>
-                      Status: {period.status || "open"}
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "10px",
-                      flexWrap: "wrap",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    {(period.status || "open") === "open" ? (
-                      <button
-                        className="db-button-primary"
-                        onClick={() => updatePeriodStatus(period.id, "closed")}
-                      >
-                        Close Period
-                      </button>
-                    ) : null}
-
-                    {period.status === "closed" ? (
-                      <>
-                        <button
-                          className="db-button-primary"
-                          onClick={() => updatePeriodStatus(period.id, "open")}
-                        >
-                          Reopen
-                        </button>
-
-                        <button
-                          className="db-button-primary"
-                          style={{ background: "#777" }}
-                          onClick={() =>
-                            updatePeriodStatus(period.id, "archived")
-                          }
-                        >
-                          Archive
-                        </button>
-                      </>
-                    ) : null}
-
-                    {period.status === "archived" ? (
-                      <span style={pillGrey}>Archived</span>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            ))}
+      {isPrincipal && (
+        <div
+          className="db-card db-card-blue no-print"
+          style={{ padding: "20px", marginBottom: "24px" }}
+        >
+          <div
+            onClick={() => setShowPeriodManagement(!showPeriodManagement)}
+            style={collapsibleHeader}
+          >
+            <h3 style={{ ...sectionTitle, margin: 0 }}>
+              Report Period Management
+            </h3>
+            <span style={chevron}>{showPeriodManagement ? "-" : "+"}</span>
           </div>
-        )}
-      </div>
+
+          {showPeriodManagement && (
+            <>
+              {visiblePeriods.length === 0 ? (
+                <p className="db-helper" style={{ marginTop: "14px" }}>
+                  No report periods created yet.
+                </p>
+              ) : (
+                <div
+                  style={{ display: "grid", gap: "12px", marginTop: "14px" }}
+                >
+                  {visiblePeriods.map((period) => (
+                    <div key={period.id} className="db-list-card">
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div>
+                          <strong>{period.title}</strong>
+                          <p style={textStyle}>
+                            {formatReportTemplate(
+                              period.report_template || "developmental"
+                            )}
+                          </p>
+                          <span
+                            style={periodStatusStyle(period.status || "open")}
+                          >
+                            Status: {period.status || "open"}
+                          </span>
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "10px",
+                            flexWrap: "wrap",
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          {(period.status || "open") === "open" ? (
+                            <button
+                              className="db-button-primary"
+                              onClick={() =>
+                                updatePeriodStatus(period.id, "closed")
+                              }
+                            >
+                              Close Period
+                            </button>
+                          ) : null}
+
+                          {period.status === "closed" ? (
+                            <>
+                              <button
+                                className="db-button-primary"
+                                onClick={() =>
+                                  updatePeriodStatus(period.id, "open")
+                                }
+                              >
+                                Reopen
+                              </button>
+
+                              <button
+                                className="db-button-primary"
+                                style={{ background: "#777" }}
+                                onClick={() =>
+                                  updatePeriodStatus(period.id, "archived")
+                                }
+                              >
+                                Archive
+                              </button>
+                            </>
+                          ) : null}
+
+                          {period.status === "archived" ? (
+                            <span style={pillGrey}>Archived</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {isPrincipal && showCreateModal && (
         <div style={modalOverlay} className="no-print">
@@ -1682,52 +2041,68 @@ export default function ProgressReportsPage() {
               <option value="grade-rr">Grade RR Progress Report</option>
             </select>
 
-            <select
-              className="db-input"
-              value={selectedClassroomId}
-              onChange={(e) => {
-                setSelectedClassroomId(e.target.value);
-                setAssessmentPage(1);
-                setReportPage(1);
-              }}
-            >
-              <option value="">All Classes</option>
-              {classrooms.map((classroom) => (
-                <option key={classroom.id} value={classroom.id}>
-                  {classroom.classroom_name}
-                </option>
-              ))}
-            </select>
+            {!isTeacher && (
+              <select
+                className="db-input"
+                value={selectedClassroomId}
+                onChange={(e) => {
+                  setSelectedClassroomId(e.target.value);
+                  setAssessmentPage(1);
+                  setReportPage(1);
+                }}
+              >
+                <option value="">All Classes</option>
+                {classrooms.map((classroom) => (
+                  <option key={classroom.id} value={classroom.id}>
+                    {classroom.classroom_name}
+                  </option>
+                ))}
+              </select>
+            )}
 
-            <select
-              className="db-input"
-              value={selectedTeacherId}
-              onChange={(e) => {
-                setSelectedTeacherId(e.target.value);
-                setAssessmentPage(1);
-              }}
-            >
-              <option value="">All Practitioners / Teachers</option>
-              {teachers.map((teacher) => (
-                <option key={teacher.id} value={teacher.id}>
-                  {teacher.full_name || teacher.name || teacher.email}
-                </option>
-              ))}
-            </select>
+            {!isTeacher && (
+              <select
+                className="db-input"
+                value={selectedTeacherId}
+                onChange={(e) => {
+                  setSelectedTeacherId(e.target.value);
+                  setAssessmentPage(1);
+                }}
+              >
+                <option value="">All Practitioners / Teachers</option>
+                {teachers.map((teacher) => (
+                  <option key={teacher.id} value={teacher.id}>
+                    {teacher.full_name || teacher.name || teacher.email}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <select
               className="db-input"
               value={selectedLearnerId}
               onChange={(e) => {
-                setSelectedLearnerId(e.target.value);
+                const learnerId = e.target.value;
+                const learner = learners.find(
+                  (item) => String(item.id) === String(learnerId)
+                );
+                const learnerClassroomId = getLearnerClassroomId(learner);
+
+                setSelectedLearnerId(learnerId);
+
+                if (isTeacher && learnerClassroomId) {
+                  setSelectedClassroomId(learnerClassroomId);
+                }
+
                 setAssessmentPage(1);
                 setReportPage(1);
               }}
             >
               <option value="">All Learners</option>
-                {learners.map((learner) => (
+              {learnerOptions.map((learner) => (
                 <option key={learner.id} value={learner.id}>
-                  {learner.legal_name || learner.name}
+                  {learner.legal_name || learner.name} -{" "}
+                  {getClassroomName(getLearnerClassroomId(learner))}
                 </option>
               ))}
             </select>
@@ -1754,7 +2129,7 @@ export default function ProgressReportsPage() {
                 }
               }}
             >
-              <option value="">All Report Periods</option>
+              <option value="">All Terms / Report Periods</option>
               {visiblePeriods.map((period) => (
                 <option key={period.id} value={period.id}>
                   {period.title} ({formatPeriodType(period.report_type)} -{" "}
@@ -1767,10 +2142,95 @@ export default function ProgressReportsPage() {
         )}
       </div>
 
-      <div
-        className="db-card db-card-lavender no-print"
-        style={{ padding: "20px", marginBottom: "24px" }}
-      >
+      {isTeacher && (
+        <div
+          className="db-card db-card-blue no-print"
+          style={{ padding: "20px", marginBottom: "24px" }}
+        >
+          <div
+            onClick={() => setShowTeacherChecklist(!showTeacherChecklist)}
+            style={collapsibleHeader}
+          >
+            <h3 style={{ ...sectionTitle, margin: 0 }}>
+              Complete Learner Progress Checklist
+            </h3>
+            <span style={chevron}>{showTeacherChecklist ? "-" : "+"}</span>
+          </div>
+
+          {showTeacherChecklist && (
+            <div style={{ marginTop: "14px" }}>
+              <p style={textStyle}>
+                Complete the actual report checklist for this learner. Your
+                ratings and remarks will be submitted to the principal for review
+                and final report generation.
+              </p>
+
+              {!selectedLearnerId || !selectedPeriodId ? (
+                <p className="db-helper" style={{ marginTop: "14px" }}>
+                  Please select learner and term/report period in the filters
+                  above.
+                </p>
+              ) : (
+                <>
+                  <TeacherChecklistCapture
+                    categories={activeCategories}
+                    ratingScale={activeRatingScale}
+                    teacherRatings={teacherRatings}
+                    onRatingChange={handleTeacherRatingChange}
+                  />
+
+                  <textarea
+                    className="db-input"
+                    rows={3}
+                    placeholder="Practitioner remarks"
+                    value={teacherObservation}
+                    onChange={(event) => {
+                      setTeacherObservation(event.target.value);
+                      setTeacherComment(event.target.value);
+                    }}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      marginTop: "14px",
+                    }}
+                  />
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                      flexWrap: "wrap",
+                      marginTop: "12px",
+                    }}
+                  >
+                    <button
+                      className="db-button-primary"
+                      onClick={() => saveTeacherChecklist("draft")}
+                      disabled={saving}
+                    >
+                      {saving ? "Saving..." : "Save Draft"}
+                    </button>
+
+                    <button
+                      className="db-button-primary"
+                      onClick={() => saveTeacherChecklist("submitted")}
+                      disabled={saving}
+                    >
+                      {saving ? "Submitting..." : "Submit to Principal"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isPrincipalView && (
+        <div
+          className="db-card db-card-lavender no-print"
+          style={{ padding: "20px", marginBottom: "24px" }}
+        >
         <div
           onClick={() => setShowAssessments(!showAssessments)}
           style={collapsibleHeader}
@@ -1869,12 +2329,14 @@ export default function ProgressReportsPage() {
             </div>
           </>
         )}
-      </div>
+        </div>
+      )}
 
-      <div
-        className="db-card db-card-yellow no-print"
-        style={{ padding: "20px", marginBottom: "24px" }}
-      >
+      {isPrincipalView && (
+        <div
+          className="db-card db-card-yellow no-print"
+          style={{ padding: "20px", marginBottom: "24px" }}
+        >
         <div
           onClick={() => setShowGeneratedReports(!showGeneratedReports)}
           style={collapsibleHeader}
@@ -2006,7 +2468,8 @@ export default function ProgressReportsPage() {
             </div>
           </>
         )}
-      </div>
+        </div>
+      )}
 
       {!isTeacher && (
         <div
@@ -2668,19 +3131,23 @@ export default function ProgressReportsPage() {
                     "No practitioner remarks added."}
                 </p>
 
-                <h3 style={bookletSectionTitle}>Principal Comments</h3>
+                {!isTeacher && (
+                  <>
+                    <h3 style={bookletSectionTitle}>Principal Comments</h3>
 
-                <textarea
-                  className="db-input no-print compact-textarea"
-                  rows={3}
-                  placeholder="Type principal comments"
-                  value={principalComment}
-                  onChange={(e) => setPrincipalComment(e.target.value)}
-                  style={{ width: "100%", boxSizing: "border-box" }}
-                />
-                <p className="print-only" style={remarksBox}>
-                  {principalComment || "No principal comments added."}
-                </p>
+                    <textarea
+                      className="db-input no-print compact-textarea"
+                      rows={3}
+                      placeholder="Type principal comments"
+                      value={principalComment}
+                      onChange={(e) => setPrincipalComment(e.target.value)}
+                      style={{ width: "100%", boxSizing: "border-box" }}
+                    />
+                    <p className="print-only" style={remarksBox}>
+                      {principalComment || "No principal comments added."}
+                    </p>
+                  </>
+                )}
 
                 <div style={signatureGrid}>
                   <p style={bookletLine}>Teacher's Name: {teacherName}</p>
@@ -2736,7 +3203,7 @@ export default function ProgressReportsPage() {
                 Back
               </button>
 
-              {!generatedReport && (
+              {!isTeacher && !generatedReport && (
                 <>
                   <button
                     className="db-button-primary"
@@ -2756,7 +3223,7 @@ export default function ProgressReportsPage() {
                 </>
               )}
 
-              {generatedReport && (
+              {!isTeacher && generatedReport && (
                 <button
                   className="db-button-primary"
                   onClick={saveChangesAndReturn}
@@ -2870,6 +3337,121 @@ export default function ProgressReportsPage() {
           }
         }
       `}</style>
+    </div>
+  );
+}
+
+function TeacherChecklistCapture({
+  categories,
+  ratingScale,
+  teacherRatings,
+  onRatingChange,
+}: {
+  categories: any[];
+  ratingScale: any[];
+  teacherRatings: Record<string, string>;
+  onRatingChange: (
+    categoryKey: string,
+    indicatorKey: string,
+    level: string
+  ) => void;
+}) {
+  function getLevelCode(level: any) {
+    if (typeof level === "string") {
+      return level.includes(" - ") ? level.split(" - ")[0] : level;
+    }
+
+    return (
+      level?.code ||
+      level?.value ||
+      level?.level ||
+      level?.label ||
+      String(level || "")
+    );
+  }
+
+  const levels = ratingScale.map((level) => getLevelCode(level));
+
+  return (
+    <div style={{ display: "grid", gap: "14px", marginTop: "16px" }}>
+      {categories.map((category: any) => {
+        const indicators = getCategoryIndicators(category);
+
+        return (
+          <div key={category.key} className="db-list-card">
+            <strong>{category.label}</strong>
+
+            {category.description ? (
+              <p style={textStyle}>{category.description}</p>
+            ) : null}
+
+            {indicators.length === 0 ? (
+              <p className="db-helper">No indicators configured.</p>
+            ) : (
+              <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
+                {indicators.map((indicator: any) => {
+                  const indicatorKey = indicator.key || indicator.label;
+                  const selectedLevel =
+                    teacherRatings[
+                      makeAssessmentKey(category.key, indicatorKey)
+                    ] || "";
+
+                  return (
+                    <div
+                      key={`${category.key}-${indicatorKey}`}
+                      style={{
+                        borderTop: "1px solid #eee",
+                        paddingTop: "10px",
+                      }}
+                    >
+                      <p style={{ ...textStyle, color: "var(--db-text)" }}>
+                        {indicator.label}
+                      </p>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                          marginTop: "8px",
+                        }}
+                      >
+                        {levels.map((level) => (
+                          <label
+                            key={`${category.key}-${indicatorKey}-${level}`}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              color: "var(--db-text-soft)",
+                              fontSize: "13px",
+                              fontWeight: 700,
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name={`${category.key}-${indicatorKey}`}
+                              checked={selectedLevel === level}
+                              onChange={() =>
+                                onRatingChange(
+                                  category.key,
+                                  indicatorKey,
+                                  level
+                                )
+                              }
+                            />
+                            {level}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

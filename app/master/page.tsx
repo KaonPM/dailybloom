@@ -296,7 +296,7 @@ export default function MasterPage() {
   async function fetchSignupRequests() {
     const { data, error } = await supabase
       .from("school_signup_requests")
-      .select("*")
+      .select("*, sponsor_programmes(id, sponsor_name, programme_name)")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -605,6 +605,9 @@ export default function MasterPage() {
 
   const visibleSchools = filteredSchools.slice(0, visibleSchoolCount);
   const hasMoreSchools = visibleSchoolCount < filteredSchools.length;
+  const selectedSponsor = sponsorProgrammes.find(
+    (item) => String(item.id) === sponsorProgrammeId
+  );
   const currentView = searchParams.get("view") || "dashboard";
 
   if (loading) {
@@ -1018,6 +1021,13 @@ export default function MasterPage() {
                         Email: {request.principal_email || "Not added"}
                       </p>
 
+                      {request.is_sponsored && request.sponsor_programmes && (
+                        <p style={helperText}>
+                          Sponsor: {request.sponsor_programmes.sponsor_name} -{" "}
+                          {request.sponsor_programmes.programme_name}
+                        </p>
+                      )}
+
                       <p style={helperText}>Status: {request.status || "pending"}</p>
 
                       <p style={helperText}>
@@ -1299,6 +1309,15 @@ export default function MasterPage() {
                   </option>
                 ))}
               </select>
+            )}
+
+            {selectedSponsor && (
+              <div style={{ ...listCard, marginBottom: "12px" }}>
+                <strong style={listTitle}>{selectedSponsor.sponsor_name}</strong>
+                <p style={helperText}>
+                  Programme: {selectedSponsor.programme_name}
+                </p>
+              </div>
             )}
 
             <input

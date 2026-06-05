@@ -439,47 +439,51 @@ export default function TeacherDashboardPage() {
       learnerMap.set(Number(learner.id), learner);
     });
 
-    const [documentsRes, stationeryRes] = await Promise.all([
-      supabase
-        .from("learner_documents")
-        .select("learner_id, document_name, received")
-        .eq("school_id", schoolId)
-        .in("learner_id", learnerIds),
-
+    const [stationeryRes, otherRequirementsRes] = await Promise.all([
       supabase
         .from("learner_stationery_checklist")
         .select("learner_id, item_name, received")
         .eq("school_id", schoolId)
         .in("learner_id", learnerIds),
-    ]);
 
-    if (documentsRes.error) {
-      alert(documentsRes.error.message);
-      return;
-    }
+      supabase
+        .from("learner_other_requirements")
+        .select("learner_id, requirement_name, completed")
+        .eq("school_id", schoolId)
+        .in("learner_id", learnerIds),
+    ]);
 
     if (stationeryRes.error) {
       alert(stationeryRes.error.message);
       return;
     }
 
+    if (otherRequirementsRes.error) {
+      alert(otherRequirementsRes.error.message);
+      return;
+    }
+
     const missingByLearner = new Map<number, string[]>();
-
-    (documentsRes.data || []).forEach((item: any) => {
-      if (item.received === true) return;
-
-      const learnerId = Number(item.learner_id);
-      const currentItems = missingByLearner.get(learnerId) || [];
-      currentItems.push(item.document_name || "Unnamed document");
-      missingByLearner.set(learnerId, currentItems);
-    });
 
     (stationeryRes.data || []).forEach((item: any) => {
       if (item.received === true) return;
 
       const learnerId = Number(item.learner_id);
       const currentItems = missingByLearner.get(learnerId) || [];
+
       currentItems.push(item.item_name || "Unnamed item");
+
+      missingByLearner.set(learnerId, currentItems);
+    });
+
+    (otherRequirementsRes.data || []).forEach((item: any) => {
+      if (item.completed === true) return;
+
+      const learnerId = Number(item.learner_id);
+      const currentItems = missingByLearner.get(learnerId) || [];
+
+      currentItems.push(item.requirement_name || "Unnamed requirement");
+
       missingByLearner.set(learnerId, currentItems);
     });
 
@@ -764,8 +768,8 @@ export default function TeacherDashboardPage() {
             lineHeight: 1.6,
           }}
         >
-          Learners in your classroom with missing documents, stationery, or
-          hygiene items.
+          Learners in your classroom with missing documents, stationery,
+          hygiene or other requirements.
         </p>
 
         {outstandingRequirements.length === 0 ? (

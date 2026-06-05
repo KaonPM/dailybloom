@@ -1151,13 +1151,6 @@ export default function ProgressReportsPage() {
       return false;
     }
 
-    if (
-      reportType &&
-      String(item.report_type || "developmental") !== String(reportType)
-    ) {
-      return false;
-    }
-
     return true;
   });
 
@@ -1284,9 +1277,7 @@ export default function ProgressReportsPage() {
     const assessmentReportType =
       item.report_type || period?.report_template || reportType;
 
-    setReportType(assessmentReportType as "developmental" | "grade-rr");
-
-    const { data, error } = await supabase
+    const { data: exactData, error: exactError } = await supabase
       .from("learner_assessments")
       .select("*")
       .eq("learner_id", item.learner_id)
@@ -1296,12 +1287,38 @@ export default function ProgressReportsPage() {
       .in("status", principalAssessmentStatusFilters)
       .order("updated_at", { ascending: false });
 
-    if (error) {
-      alert(error.message);
+    if (exactError) {
+      alert(exactError.message);
       return;
     }
 
-    const latestAssessments = normalizeLatestAssessments(data || []);
+    let assessmentRows = exactData || [];
+
+    if (assessmentRows.length === 0) {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from("learner_assessments")
+        .select("*")
+        .eq("learner_id", item.learner_id)
+        .eq("report_period_id", Number(item.report_period_id))
+        .eq("teacher_id", item.teacher_id)
+        .in("status", principalAssessmentStatusFilters)
+        .order("updated_at", { ascending: false });
+
+      if (fallbackError) {
+        alert(fallbackError.message);
+        return;
+      }
+
+      assessmentRows = fallbackData || [];
+    }
+
+    const resolvedReportType =
+      assessmentRows.find((assessment: any) => assessment.report_type)
+        ?.report_type || assessmentReportType;
+
+    setReportType(resolvedReportType as "developmental" | "grade-rr");
+
+    const latestAssessments = normalizeLatestAssessments(assessmentRows);
 
     setReviewAssessments(latestAssessments);
 
@@ -1345,7 +1362,7 @@ export default function ProgressReportsPage() {
     setSelectedLearnerId(String(item.learner_id || ""));
     setSelectedPeriodId(String(item.report_period_id || ""));
 
-    const { data, error } = await supabase
+    const { data: exactData, error: exactError } = await supabase
       .from("learner_assessments")
       .select("*")
       .eq("learner_id", item.learner_id)
@@ -1354,12 +1371,31 @@ export default function ProgressReportsPage() {
       .in("status", principalAssessmentStatusFilters)
       .order("updated_at", { ascending: false });
 
-    if (error) {
-      alert(error.message);
+    if (exactError) {
+      alert(exactError.message);
       return;
     }
 
-    const latestAssessments = normalizeLatestAssessments(data || []);
+    let assessmentRows = exactData || [];
+
+    if (assessmentRows.length === 0) {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from("learner_assessments")
+        .select("*")
+        .eq("learner_id", item.learner_id)
+        .eq("report_period_id", Number(item.report_period_id))
+        .in("status", principalAssessmentStatusFilters)
+        .order("updated_at", { ascending: false });
+
+      if (fallbackError) {
+        alert(fallbackError.message);
+        return;
+      }
+
+      assessmentRows = fallbackData || [];
+    }
+
+    const latestAssessments = normalizeLatestAssessments(assessmentRows);
 
     setReviewAssessments(latestAssessments);
 

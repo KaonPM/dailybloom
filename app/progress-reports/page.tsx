@@ -157,8 +157,10 @@ export default function ProgressReportsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [showFilter, setShowFilter] = useState(false);
-  const [showAssessments, setShowAssessments] = useState(true);
-  const [showGeneratedReports, setShowGeneratedReports] = useState(true);
+  const [showPeriodManagement, setShowPeriodManagement] = useState(false);
+  const [showTeacherChecklist, setShowTeacherChecklist] = useState(false);
+  const [showAssessments, setShowAssessments] = useState(false);
+  const [showGeneratedReports, setShowGeneratedReports] = useState(false);
 
   const [expandedAssessmentKey, setExpandedAssessmentKey] = useState<
     string | null
@@ -177,7 +179,7 @@ export default function ProgressReportsPage() {
   );
   const [pendingDownload, setPendingDownload] = useState(false);
 
-  const [showAwards, setShowAwards] = useState(true);
+  const [showAwards, setShowAwards] = useState(false);
   const [awards, setAwards] = useState<any[]>([]);
 
   const [selectedAwardLearnerId, setSelectedAwardLearnerId] = useState("");
@@ -645,7 +647,11 @@ export default function ProgressReportsPage() {
       !selectedLearnerId ||
       !selectedPeriodId
     ) {
-      alert("Please select class, learner and report period.");
+      alert(
+        isTeacher
+          ? "Please select learner and term/report period."
+          : "Please select class, learner and report period."
+      );
       return;
     }
 
@@ -1148,6 +1154,15 @@ export default function ProgressReportsPage() {
   const visiblePeriods = isTeacher
     ? periods.filter((period) => period.status !== "archived")
     : periods;
+
+  const learnerOptions =
+    isTeacher && selectedClassroomId
+      ? learners.filter(
+          (learner) =>
+            String(getLearnerClassroomId(learner)) ===
+            String(selectedClassroomId)
+        )
+      : learners;
 
   async function openAssessmentReview(item: any) {
     setSelectedClassroomId(String(item.classroom_id || ""));
@@ -1748,88 +1763,110 @@ export default function ProgressReportsPage() {
         </div>
       )}
 
-      <div
-        className="db-card db-card-blue no-print"
-        style={{ padding: "20px", marginBottom: "24px" }}
-      >
-        <h3 style={sectionTitle}>Report Period Management</h3>
-
-        {visiblePeriods.length === 0 ? (
-          <p className="db-helper">No report periods created yet.</p>
-        ) : (
-          <div style={{ display: "grid", gap: "12px" }}>
-            {visiblePeriods.map((period) => (
-              <div key={period.id} className="db-list-card">
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "12px",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div>
-                    <strong>{period.title}</strong>
-                    <p style={textStyle}>
-                      {formatReportTemplate(
-                        period.report_template || "developmental"
-                      )}
-                    </p>
-                    <span style={periodStatusStyle(period.status || "open")}>
-                      Status: {period.status || "open"}
-                    </span>
-                  </div>
-
-                  {!isTeacher && (
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "10px",
-                        flexWrap: "wrap",
-                        alignItems: "flex-start",
-                      }}
-                    >
-                      {(period.status || "open") === "open" ? (
-                        <button
-                          className="db-button-primary"
-                          onClick={() => updatePeriodStatus(period.id, "closed")}
-                        >
-                          Close Period
-                        </button>
-                      ) : null}
-
-                      {period.status === "closed" ? (
-                        <>
-                          <button
-                            className="db-button-primary"
-                            onClick={() => updatePeriodStatus(period.id, "open")}
-                          >
-                            Reopen
-                          </button>
-
-                          <button
-                            className="db-button-primary"
-                            style={{ background: "#777" }}
-                            onClick={() =>
-                              updatePeriodStatus(period.id, "archived")
-                            }
-                          >
-                            Archive
-                          </button>
-                        </>
-                      ) : null}
-
-                      {period.status === "archived" ? (
-                        <span style={pillGrey}>Archived</span>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+      {isPrincipal && (
+        <div
+          className="db-card db-card-blue no-print"
+          style={{ padding: "20px", marginBottom: "24px" }}
+        >
+          <div
+            onClick={() => setShowPeriodManagement(!showPeriodManagement)}
+            style={collapsibleHeader}
+          >
+            <h3 style={{ ...sectionTitle, margin: 0 }}>
+              Report Period Management
+            </h3>
+            <span style={chevron}>{showPeriodManagement ? "-" : "+"}</span>
           </div>
-        )}
-      </div>
+
+          {showPeriodManagement && (
+            <>
+              {visiblePeriods.length === 0 ? (
+                <p className="db-helper" style={{ marginTop: "14px" }}>
+                  No report periods created yet.
+                </p>
+              ) : (
+                <div
+                  style={{ display: "grid", gap: "12px", marginTop: "14px" }}
+                >
+                  {visiblePeriods.map((period) => (
+                    <div key={period.id} className="db-list-card">
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div>
+                          <strong>{period.title}</strong>
+                          <p style={textStyle}>
+                            {formatReportTemplate(
+                              period.report_template || "developmental"
+                            )}
+                          </p>
+                          <span
+                            style={periodStatusStyle(period.status || "open")}
+                          >
+                            Status: {period.status || "open"}
+                          </span>
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "10px",
+                            flexWrap: "wrap",
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          {(period.status || "open") === "open" ? (
+                            <button
+                              className="db-button-primary"
+                              onClick={() =>
+                                updatePeriodStatus(period.id, "closed")
+                              }
+                            >
+                              Close Period
+                            </button>
+                          ) : null}
+
+                          {period.status === "closed" ? (
+                            <>
+                              <button
+                                className="db-button-primary"
+                                onClick={() =>
+                                  updatePeriodStatus(period.id, "open")
+                                }
+                              >
+                                Reopen
+                              </button>
+
+                              <button
+                                className="db-button-primary"
+                                style={{ background: "#777" }}
+                                onClick={() =>
+                                  updatePeriodStatus(period.id, "archived")
+                                }
+                              >
+                                Archive
+                              </button>
+                            </>
+                          ) : null}
+
+                          {period.status === "archived" ? (
+                            <span style={pillGrey}>Archived</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {isPrincipal && showCreateModal && (
         <div style={modalOverlay} className="no-print">
@@ -1912,38 +1949,42 @@ export default function ProgressReportsPage() {
               <option value="grade-rr">Grade RR Progress Report</option>
             </select>
 
-            <select
-              className="db-input"
-              value={selectedClassroomId}
-              onChange={(e) => {
-                setSelectedClassroomId(e.target.value);
-                setAssessmentPage(1);
-                setReportPage(1);
-              }}
-            >
-              <option value="">All Classes</option>
-              {classrooms.map((classroom) => (
-                <option key={classroom.id} value={classroom.id}>
-                  {classroom.classroom_name}
-                </option>
-              ))}
-            </select>
+            {!isTeacher && (
+              <select
+                className="db-input"
+                value={selectedClassroomId}
+                onChange={(e) => {
+                  setSelectedClassroomId(e.target.value);
+                  setAssessmentPage(1);
+                  setReportPage(1);
+                }}
+              >
+                <option value="">All Classes</option>
+                {classrooms.map((classroom) => (
+                  <option key={classroom.id} value={classroom.id}>
+                    {classroom.classroom_name}
+                  </option>
+                ))}
+              </select>
+            )}
 
-            <select
-              className="db-input"
-              value={selectedTeacherId}
-              onChange={(e) => {
-                setSelectedTeacherId(e.target.value);
-                setAssessmentPage(1);
-              }}
-            >
-              <option value="">All Practitioners / Teachers</option>
-              {teachers.map((teacher) => (
-                <option key={teacher.id} value={teacher.id}>
-                  {teacher.full_name || teacher.name || teacher.email}
-                </option>
-              ))}
-            </select>
+            {!isTeacher && (
+              <select
+                className="db-input"
+                value={selectedTeacherId}
+                onChange={(e) => {
+                  setSelectedTeacherId(e.target.value);
+                  setAssessmentPage(1);
+                }}
+              >
+                <option value="">All Practitioners / Teachers</option>
+                {teachers.map((teacher) => (
+                  <option key={teacher.id} value={teacher.id}>
+                    {teacher.full_name || teacher.name || teacher.email}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <select
               className="db-input"
@@ -1955,7 +1996,7 @@ export default function ProgressReportsPage() {
               }}
             >
               <option value="">All Learners</option>
-                {learners.map((learner) => (
+              {learnerOptions.map((learner) => (
                 <option key={learner.id} value={learner.id}>
                   {learner.legal_name || learner.name}
                 </option>
@@ -1984,7 +2025,7 @@ export default function ProgressReportsPage() {
                 }
               }}
             >
-              <option value="">All Report Periods</option>
+              <option value="">All Terms / Report Periods</option>
               {visiblePeriods.map((period) => (
                 <option key={period.id} value={period.id}>
                   {period.title} ({formatPeriodType(period.report_type)} -{" "}
@@ -2002,68 +2043,81 @@ export default function ProgressReportsPage() {
           className="db-card db-card-blue no-print"
           style={{ padding: "20px", marginBottom: "24px" }}
         >
-          <h3 style={sectionTitle}>Complete Learner Progress Checklist</h3>
-          <p style={textStyle}>
-            Complete the actual report checklist for this learner. Your ratings
-            and remarks will be submitted to the principal for review and final
-            report generation.
-          </p>
+          <div
+            onClick={() => setShowTeacherChecklist(!showTeacherChecklist)}
+            style={collapsibleHeader}
+          >
+            <h3 style={{ ...sectionTitle, margin: 0 }}>
+              Complete Learner Progress Checklist
+            </h3>
+            <span style={chevron}>{showTeacherChecklist ? "-" : "+"}</span>
+          </div>
 
-          {!selectedClassroomId || !selectedLearnerId || !selectedPeriodId ? (
-            <p className="db-helper" style={{ marginTop: "14px" }}>
-              Please select class, learner and report period in the filters
-              above.
-            </p>
-          ) : (
-            <>
-              <TeacherChecklistCapture
-                categories={activeCategories}
-                ratingScale={activeRatingScale}
-                teacherRatings={teacherRatings}
-                onRatingChange={handleTeacherRatingChange}
-              />
+          {showTeacherChecklist && (
+            <div style={{ marginTop: "14px" }}>
+              <p style={textStyle}>
+                Complete the actual report checklist for this learner. Your
+                ratings and remarks will be submitted to the principal for review
+                and final report generation.
+              </p>
 
-              <textarea
-                className="db-input"
-                rows={3}
-                placeholder="Practitioner remarks"
-                value={teacherObservation}
-                onChange={(event) => {
-                  setTeacherObservation(event.target.value);
-                  setTeacherComment(event.target.value);
-                }}
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  marginTop: "14px",
-                }}
-              />
+              {!selectedLearnerId || !selectedPeriodId ? (
+                <p className="db-helper" style={{ marginTop: "14px" }}>
+                  Please select learner and term/report period in the filters
+                  above.
+                </p>
+              ) : (
+                <>
+                  <TeacherChecklistCapture
+                    categories={activeCategories}
+                    ratingScale={activeRatingScale}
+                    teacherRatings={teacherRatings}
+                    onRatingChange={handleTeacherRatingChange}
+                  />
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  flexWrap: "wrap",
-                  marginTop: "12px",
-                }}
-              >
-                <button
-                  className="db-button-primary"
-                  onClick={() => saveTeacherChecklist("draft")}
-                  disabled={saving}
-                >
-                  {saving ? "Saving..." : "Save Draft"}
-                </button>
+                  <textarea
+                    className="db-input"
+                    rows={3}
+                    placeholder="Practitioner remarks"
+                    value={teacherObservation}
+                    onChange={(event) => {
+                      setTeacherObservation(event.target.value);
+                      setTeacherComment(event.target.value);
+                    }}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      marginTop: "14px",
+                    }}
+                  />
 
-                <button
-                  className="db-button-primary"
-                  onClick={() => saveTeacherChecklist("submitted")}
-                  disabled={saving}
-                >
-                  {saving ? "Submitting..." : "Submit to Principal"}
-                </button>
-              </div>
-            </>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                      flexWrap: "wrap",
+                      marginTop: "12px",
+                    }}
+                  >
+                    <button
+                      className="db-button-primary"
+                      onClick={() => saveTeacherChecklist("draft")}
+                      disabled={saving}
+                    >
+                      {saving ? "Saving..." : "Save Draft"}
+                    </button>
+
+                    <button
+                      className="db-button-primary"
+                      onClick={() => saveTeacherChecklist("submitted")}
+                      disabled={saving}
+                    >
+                      {saving ? "Submitting..." : "Submit to Principal"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       )}

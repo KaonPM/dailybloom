@@ -15,6 +15,8 @@ export async function POST(request: Request) {
       principalEmail,
       primaryColor,
       secondaryColor,
+      isSponsored,
+      sponsorProgrammeId,
     } = body;
 
     const packageSelected =
@@ -75,6 +77,11 @@ export async function POST(request: Request) {
         secondary_color: secondaryColor || "#FFD76A",
         logo_url: null,
         package_name: packageSelected,
+        is_sponsored: Boolean(isSponsored),
+        sponsor_programme_id:
+          isSponsored && sponsorProgrammeId
+            ? Number(sponsorProgrammeId)
+            : null,
       })
       .select("id, school_name")
       .single();

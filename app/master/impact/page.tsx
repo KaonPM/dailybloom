@@ -5,16 +5,57 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { getCurrentProfile } from "../../lib/auth";
 
+type SponsorProgramme = {
+  id: number;
+  sponsor_name: string;
+  programme_name: string;
+  sponsor_type?: string | null;
+  contact_person?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  funding_focus?: string | null;
+  reporting_cycle?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+};
+
+type MaybeSponsorProgrammeRelation =
+  | SponsorProgramme
+  | SponsorProgramme[]
+  | null
+  | undefined;
+
+type SchoolRow = {
+  id: number;
+  school_name?: string | null;
+  sponsor_programme_id?: number | null;
+  sponsor_programmes?: SponsorProgramme | null;
+};
+
+type SchoolScopedRow = {
+  school_id?: number | null;
+  status?: string | null;
+};
+
+function normalizeSponsorProgramme(
+  sponsorProgrammes: MaybeSponsorProgrammeRelation
+) {
+  return Array.isArray(sponsorProgrammes)
+    ? sponsorProgrammes[0] || null
+    : sponsorProgrammes || null;
+}
+
 export default function ImpactSponsorshipDashboard() {
   const router = useRouter();
 
   const [checkingAccess, setCheckingAccess] = useState(true);
-  const [schools, setSchools] = useState<any[]>([]);
-  const [sponsors, setSponsors] = useState<any[]>([]);
-  const [learners, setLearners] = useState<any[]>([]);
-  const [attendance, setAttendance] = useState<any[]>([]);
-  const [summaries, setSummaries] = useState<any[]>([]);
-  const [selectedSponsorProgrammeId, setSelectedSponsorProgrammeId] = useState("");
+  const [schools, setSchools] = useState<SchoolRow[]>([]);
+  const [sponsors, setSponsors] = useState<SponsorProgramme[]>([]);
+  const [learners, setLearners] = useState<SchoolScopedRow[]>([]);
+  const [attendance, setAttendance] = useState<SchoolScopedRow[]>([]);
+  const [summaries, setSummaries] = useState<SchoolScopedRow[]>([]);
+  const [selectedSponsorProgrammeId, setSelectedSponsorProgrammeId] =
+    useState("");
 
   const [programmeName, setProgrammeName] = useState("");
   const [sponsorName, setSponsorName] = useState("");
@@ -36,9 +77,7 @@ export default function ImpactSponsorshipDashboard() {
       return;
     }
 
-    const canAccessImpactDashboard = profile?.role === "master";
-
-    if (!canAccessImpactDashboard) {
+    if (profile?.role !== "master") {
       router.push("/dashboard");
       return;
     }
@@ -60,7 +99,9 @@ export default function ImpactSponsorshipDashboard() {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (!error) setSponsors(data || []);
+    if (!error) {
+      setSponsors(data || []);
+    }
   }
 
   async function fetchSchools() {
@@ -69,35 +110,44 @@ export default function ImpactSponsorshipDashboard() {
       .select("*, sponsor_programmes(*)")
       .order("created_at", { ascending: false });
 
-    if (!error) setSchools(data || []);
+    if (!error) {
+      const rows = (data || []).map((school: any) => ({
+        ...school,
+        sponsor_programmes: normalizeSponsorProgramme(
+          school.sponsor_programmes
+        ),
+      })) as SchoolRow[];
+
+      setSchools(rows);
+    }
   }
 
   async function fetchLearners() {
-    const { data, error } = await supabase
-      .from("learners")
-      .select("*");
+    const { data, error } = await supabase.from("learners").select("*");
 
-    if (!error) setLearners(data || []);
+    if (!error) {
+      setLearners(data || []);
+    }
   }
 
   async function fetchAttendance() {
-    const { data, error } = await supabase
-      .from("attendance")
-      .select("*");
+    const { data, error } = await supabase.from("attendance").select("*");
 
-    if (!error) setAttendance(data || []);
+    if (!error) {
+      setAttendance(data || []);
+    }
   }
 
   async function fetchSummaries() {
-    const { data, error } = await supabase
-      .from("daily_summaries")
-      .select("*");
+    const { data, error } = await supabase.from("daily_summaries").select("*");
 
-    if (!error) setSummaries(data || []);
+    if (!error) {
+      setSummaries(data || []);
+    }
   }
 
   async function createSponsorProgramme() {
-    if (!sponsorName || !programmeName) {
+    if (!sponsorName.trim() || !programmeName.trim()) {
       alert("Please add sponsor name and programme name.");
       return;
     }
@@ -106,12 +156,12 @@ export default function ImpactSponsorshipDashboard() {
 
     const { error } = await supabase.from("sponsor_programmes").insert([
       {
-        sponsor_name: sponsorName,
-        programme_name: programmeName,
+        sponsor_name: sponsorName.trim(),
+        programme_name: programmeName.trim(),
         sponsor_type: sponsorType,
-        funding_focus: fundingFocus,
-        contact_person: contactPerson,
-        contact_email: contactEmail,
+        funding_focus: fundingFocus.trim() || null,
+        contact_person: contactPerson.trim() || null,
+        contact_email: contactEmail.trim() || null,
         reporting_cycle: "Quarterly",
         status: "Active",
       },
@@ -136,37 +186,44 @@ export default function ImpactSponsorshipDashboard() {
   }
 
   const sponsoredSchools = useMemo(() => {
-    return schools.filter((school) => school.sponsor_programme_id !== null);
+    return schools.filter((school) => school.sponsor_programme_id);
   }, [schools]);
 
   const schoolsForSponsor = useMemo(() => {
-    if (!selectedSponsorProgrammeId) return sponsoredSchools;
+    if (!selectedSponsorProgrammeId) {
+      return sponsoredSchools;
+    }
 
     return schools.filter(
       (school) =>
-        String(school.sponsor_programme_id) === String(selectedSponsorProgrammeId)
+        String(school.sponsor_programme_id) ===
+        String(selectedSponsorProgrammeId)
     );
   }, [schools, sponsoredSchools, selectedSponsorProgrammeId]);
 
-  const sponsoredSchoolIds = schoolsForSponsor.map((school) => school.id);
+  const sponsoredSchoolIds = useMemo(
+    () => schoolsForSponsor.map((school) => school.id),
+    [schoolsForSponsor]
+  );
 
   const learnersSupported = learners.filter((learner) =>
-    sponsoredSchoolIds.includes(learner.school_id)
+    sponsoredSchoolIds.includes(Number(learner.school_id))
   );
 
   const attendanceRecords = attendance.filter((record) =>
-    sponsoredSchoolIds.includes(record.school_id)
+    sponsoredSchoolIds.includes(Number(record.school_id))
   );
 
   const progressReportsGenerated = summaries.filter((summary) =>
-    sponsoredSchoolIds.includes(summary.school_id)
+    sponsoredSchoolIds.includes(Number(summary.school_id))
   );
 
   const attendanceRate =
     attendanceRecords.length === 0
       ? 0
       : Math.round(
-          (attendanceRecords.filter((item) => item.status === "present").length /
+          (attendanceRecords.filter((item) => item.status === "present")
+            .length /
             attendanceRecords.length) *
             100
         );
@@ -177,11 +234,14 @@ export default function ImpactSponsorshipDashboard() {
 
   return (
     <div>
-      <div className="db-soft-card" style={{ padding: "22px", marginBottom: "24px" }}>
+      <div
+        className="db-soft-card"
+        style={{ padding: "22px", marginBottom: "24px" }}
+      >
         <h1 className="db-page-title">Impact & Sponsorship Dashboard</h1>
         <p className="db-page-subtitle">
-          Track sponsored school reach, learner support, training progress, attendance trends,
-          parent engagement and quarterly sponsor reporting.
+          Track sponsored school reach, learner support, training progress,
+          attendance trends, parent engagement and quarterly sponsor reporting.
         </p>
       </div>
 
@@ -192,19 +252,24 @@ export default function ImpactSponsorshipDashboard() {
         <Metric title="Attendance Rate" value={`${attendanceRate}%`} />
       </div>
 
-      <div className="db-card db-card-blue" style={{ padding: "20px", marginBottom: "24px" }}>
+      <div
+        className="db-card db-card-blue"
+        style={{ padding: "20px", marginBottom: "24px" }}
+      >
         <h2 style={sectionTitle}>Overview</h2>
         <p style={textStyle}>
-          This view is designed for internal reporting to sponsors, CSI partners,
-          foundations and government departments. It shows which schools are funded,
-          how many learners are reached and what operational support DailyBloom is
-          helping schools deliver.
+          This view is designed for internal reporting to sponsors, CSI
+          partners, foundations and government departments. It shows which
+          schools are funded, how many learners are reached and what operational
+          support DailyBloom is helping schools deliver.
         </p>
 
         <select
           className="db-input"
           value={selectedSponsorProgrammeId}
-          onChange={(e) => setSelectedSponsorProgrammeId(e.target.value)}
+          onChange={(event) =>
+            setSelectedSponsorProgrammeId(event.target.value)
+          }
         >
           <option value="">All sponsor programmes</option>
           {sponsors.map((sponsor) => (
@@ -223,20 +288,20 @@ export default function ImpactSponsorshipDashboard() {
             className="db-input"
             placeholder="Sponsor name"
             value={sponsorName}
-            onChange={(e) => setSponsorName(e.target.value)}
+            onChange={(event) => setSponsorName(event.target.value)}
           />
 
           <input
             className="db-input"
             placeholder="Programme name"
             value={programmeName}
-            onChange={(e) => setProgrammeName(e.target.value)}
+            onChange={(event) => setProgrammeName(event.target.value)}
           />
 
           <select
             className="db-input"
             value={sponsorType}
-            onChange={(e) => setSponsorType(e.target.value)}
+            onChange={(event) => setSponsorType(event.target.value)}
           >
             <option>CSI Partner</option>
             <option>Foundation</option>
@@ -249,21 +314,21 @@ export default function ImpactSponsorshipDashboard() {
             className="db-input"
             placeholder="Funding focus, for example ECD admin support"
             value={fundingFocus}
-            onChange={(e) => setFundingFocus(e.target.value)}
+            onChange={(event) => setFundingFocus(event.target.value)}
           />
 
           <input
             className="db-input"
             placeholder="Contact person"
             value={contactPerson}
-            onChange={(e) => setContactPerson(e.target.value)}
+            onChange={(event) => setContactPerson(event.target.value)}
           />
 
           <input
             className="db-input"
             placeholder="Contact email"
             value={contactEmail}
-            onChange={(e) => setContactEmail(e.target.value)}
+            onChange={(event) => setContactEmail(event.target.value)}
           />
 
           <button
@@ -281,18 +346,28 @@ export default function ImpactSponsorshipDashboard() {
 
           <ReportLine label="Schools onboarded" value={schoolsForSponsor.length} />
           <ReportLine label="Learners supported" value={learnersSupported.length} />
-          <ReportLine label="Attendance records captured" value={attendanceRecords.length} />
-          <ReportLine label="Progress reports generated" value={progressReportsGenerated.length} />
+          <ReportLine
+            label="Attendance records captured"
+            value={attendanceRecords.length}
+          />
+          <ReportLine
+            label="Progress reports generated"
+            value={progressReportsGenerated.length}
+          />
           <ReportLine label="Reporting cycle" value="Quarterly" />
 
           <p style={{ ...textStyle, marginTop: "16px" }}>
-            Use this section to prepare manual sponsor updates and government-ready
-            summaries showing reach, usage and school-level impact.
+            Use this section to prepare manual sponsor updates and
+            government-ready summaries showing reach, usage and school-level
+            impact.
           </p>
         </div>
       </div>
 
-      <div className="db-card db-card-yellow" style={{ padding: "20px", marginBottom: "24px" }}>
+      <div
+        className="db-card db-card-yellow"
+        style={{ padding: "20px", marginBottom: "24px" }}
+      >
         <h2 style={sectionTitle}>Sponsor Programmes</h2>
 
         {sponsors.length === 0 ? (
@@ -303,16 +378,25 @@ export default function ImpactSponsorshipDashboard() {
               <div key={sponsor.id} className="db-list-card">
                 <strong>{sponsor.sponsor_name}</strong>
                 <p style={textStyle}>Programme: {sponsor.programme_name}</p>
-                <p style={textStyle}>Type: {sponsor.sponsor_type || "Not set"}</p>
-                <p style={textStyle}>Focus: {sponsor.funding_focus || "Not set"}</p>
-                <p style={textStyle}>Reporting: {sponsor.reporting_cycle || "Quarterly"}</p>
+                <p style={textStyle}>
+                  Type: {sponsor.sponsor_type || "Not set"}
+                </p>
+                <p style={textStyle}>
+                  Focus: {sponsor.funding_focus || "Not set"}
+                </p>
+                <p style={textStyle}>
+                  Reporting: {sponsor.reporting_cycle || "Quarterly"}
+                </p>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <div className="db-card db-card-blue" style={{ padding: "20px", marginBottom: "24px" }}>
+      <div
+        className="db-card db-card-blue"
+        style={{ padding: "20px", marginBottom: "24px" }}
+      >
         <h2 style={sectionTitle}>Sponsored Schools</h2>
 
         {schoolsForSponsor.length === 0 ? (
@@ -326,7 +410,8 @@ export default function ImpactSponsorshipDashboard() {
                   Sponsor: {school.sponsor_programmes?.sponsor_name || "Not linked"}
                 </p>
                 <p style={textStyle}>
-                  Programme: {school.sponsor_programmes?.programme_name || "Not linked"}
+                  Programme:{" "}
+                  {school.sponsor_programmes?.programme_name || "Not linked"}
                 </p>
               </div>
             ))}
@@ -346,8 +431,8 @@ export default function ImpactSponsorshipDashboard() {
         <div className="db-card db-card-lavender" style={{ padding: "20px" }}>
           <h2 style={sectionTitle}>Success Stories</h2>
           <p style={textStyle}>
-            Capture school stories, before-and-after admin improvements,
-            parent communication wins and learner support outcomes.
+            Capture school stories, before-and-after admin improvements, parent
+            communication wins and learner support outcomes.
           </p>
         </div>
       </div>
@@ -361,7 +446,13 @@ function Metric({ title, value }: { title: string; value: string | number }) {
       <p style={{ margin: 0, color: "var(--db-text-soft)", fontSize: "13px" }}>
         {title}
       </p>
-      <h2 style={{ margin: "8px 0 0", fontSize: "30px", color: "var(--db-text)" }}>
+      <h2
+        style={{
+          margin: "8px 0 0",
+          fontSize: "30px",
+          color: "var(--db-text)",
+        }}
+      >
         {value}
       </h2>
     </div>

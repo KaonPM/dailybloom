@@ -678,9 +678,9 @@ export default function ProgressReportsPage() {
     setSaving(true);
 
     for (const row of selectedRows as any[]) {
-      const { data: existing, error: existingError } = await supabase
+      const { data: existingFull, error: existingFullError } = await supabase
         .from("learner_assessments")
-        .select("id")
+        .select("id, status")
         .eq("school_id", schoolId)
         .eq("classroom_id", Number(selectedClassroomId))
         .eq("teacher_id", profile.id)
@@ -691,8 +691,20 @@ export default function ProgressReportsPage() {
         .eq("indicator_key", row.indicatorKey)
         .maybeSingle();
 
-      if (existingError) {
-        alert(existingError.message);
+      if (existingFullError) {
+        alert(existingFullError.message);
+        setSaving(false);
+        return;
+      }
+
+      if (
+        existingFull?.status === "reviewed" ||
+        existingFull?.status === "locked" ||
+        existingFull?.status === "generated"
+      ) {
+        alert(
+          "This checklist has already been reviewed or locked and cannot be edited."
+        );
         setSaving(false);
         return;
       }
@@ -714,11 +726,11 @@ export default function ProgressReportsPage() {
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = existing?.id
+      const { error } = existingFull?.id
         ? await supabase
             .from("learner_assessments")
             .update(payload)
-            .eq("id", existing.id)
+            .eq("id", existingFull.id)
         : await supabase.from("learner_assessments").insert([payload]);
 
       if (error) {
@@ -1131,8 +1143,11 @@ export default function ProgressReportsPage() {
 
   const isTeacher = profile?.role === "teacher";
   const isPrincipal = profile?.role === "principal";
+  const isPrincipalView = !isTeacher;
 
-  const visiblePeriods = periods;
+  const visiblePeriods = isTeacher
+    ? periods.filter((period) => period.status !== "archived")
+    : periods;
 
   async function openAssessmentReview(item: any) {
     setSelectedClassroomId(String(item.classroom_id || ""));
@@ -1765,48 +1780,50 @@ export default function ProgressReportsPage() {
                     </span>
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "10px",
-                      flexWrap: "wrap",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    {(period.status || "open") === "open" ? (
-                      <button
-                        className="db-button-primary"
-                        onClick={() => updatePeriodStatus(period.id, "closed")}
-                      >
-                        Close Period
-                      </button>
-                    ) : null}
-
-                    {period.status === "closed" ? (
-                      <>
+                  {!isTeacher && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      {(period.status || "open") === "open" ? (
                         <button
                           className="db-button-primary"
-                          onClick={() => updatePeriodStatus(period.id, "open")}
+                          onClick={() => updatePeriodStatus(period.id, "closed")}
                         >
-                          Reopen
+                          Close Period
                         </button>
+                      ) : null}
 
-                        <button
-                          className="db-button-primary"
-                          style={{ background: "#777" }}
-                          onClick={() =>
-                            updatePeriodStatus(period.id, "archived")
-                          }
-                        >
-                          Archive
-                        </button>
-                      </>
-                    ) : null}
+                      {period.status === "closed" ? (
+                        <>
+                          <button
+                            className="db-button-primary"
+                            onClick={() => updatePeriodStatus(period.id, "open")}
+                          >
+                            Reopen
+                          </button>
 
-                    {period.status === "archived" ? (
-                      <span style={pillGrey}>Archived</span>
-                    ) : null}
-                  </div>
+                          <button
+                            className="db-button-primary"
+                            style={{ background: "#777" }}
+                            onClick={() =>
+                              updatePeriodStatus(period.id, "archived")
+                            }
+                          >
+                            Archive
+                          </button>
+                        </>
+                      ) : null}
+
+                      {period.status === "archived" ? (
+                        <span style={pillGrey}>Archived</span>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -1985,10 +2002,11 @@ export default function ProgressReportsPage() {
           className="db-card db-card-blue no-print"
           style={{ padding: "20px", marginBottom: "24px" }}
         >
-          <h3 style={sectionTitle}>Teacher Checklist Capture</h3>
+          <h3 style={sectionTitle}>Complete Learner Progress Checklist</h3>
           <p style={textStyle}>
-            Select the learner, report period and report type, then capture the
-            checklist ratings for principal review.
+            Complete the actual report checklist for this learner. Your ratings
+            and remarks will be submitted to the principal for review and final
+            report generation.
           </p>
 
           {!selectedClassroomId || !selectedLearnerId || !selectedPeriodId ? (
@@ -2008,13 +2026,17 @@ export default function ProgressReportsPage() {
               <textarea
                 className="db-input"
                 rows={3}
-                placeholder="Teacher remarks"
+                placeholder="Practitioner remarks"
                 value={teacherObservation}
                 onChange={(event) => {
                   setTeacherObservation(event.target.value);
                   setTeacherComment(event.target.value);
                 }}
-                style={{ width: "100%", boxSizing: "border-box" }}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  marginTop: "14px",
+                }}
               />
 
               <div
@@ -2046,10 +2068,11 @@ export default function ProgressReportsPage() {
         </div>
       )}
 
-      <div
-        className="db-card db-card-lavender no-print"
-        style={{ padding: "20px", marginBottom: "24px" }}
-      >
+      {isPrincipalView && (
+        <div
+          className="db-card db-card-lavender no-print"
+          style={{ padding: "20px", marginBottom: "24px" }}
+        >
         <div
           onClick={() => setShowAssessments(!showAssessments)}
           style={collapsibleHeader}
@@ -2148,12 +2171,14 @@ export default function ProgressReportsPage() {
             </div>
           </>
         )}
-      </div>
+        </div>
+      )}
 
-      <div
-        className="db-card db-card-yellow no-print"
-        style={{ padding: "20px", marginBottom: "24px" }}
-      >
+      {isPrincipalView && (
+        <div
+          className="db-card db-card-yellow no-print"
+          style={{ padding: "20px", marginBottom: "24px" }}
+        >
         <div
           onClick={() => setShowGeneratedReports(!showGeneratedReports)}
           style={collapsibleHeader}
@@ -2285,7 +2310,8 @@ export default function ProgressReportsPage() {
             </div>
           </>
         )}
-      </div>
+        </div>
+      )}
 
       {!isTeacher && (
         <div
@@ -3245,7 +3271,8 @@ function TeacherChecklistCapture({
                             }}
                           >
                             <input
-                              type="checkbox"
+                              type="radio"
+                              name={`${category.key}-${indicatorKey}`}
                               checked={selectedLevel === level}
                               onChange={() =>
                                 onRatingChange(

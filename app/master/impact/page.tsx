@@ -41,8 +41,19 @@ type SchoolScopedRow = {
   created_at?: string | null;
 };
 
+type SchoolRelation =
+  | {
+      school_name?: string | null;
+    }
+  | {
+      school_name?: string | null;
+    }[]
+  | null
+  | undefined;
+
 type TrainingRecord = {
   id: number;
+  sponsor_programme_id?: number | null;
   school_id: number;
   training_date: string;
   training_type: string;
@@ -54,18 +65,9 @@ type TrainingRecord = {
   } | null;
 };
 
-type SchoolRelation =
-  | {
-      school_name?: string | null;
-    }
-  | {
-      school_name?: string | null;
-    }[]
-  | null
-  | undefined;
-
 type SuccessStory = {
   id: number;
+  sponsor_programme_id?: number | null;
   school_id: number;
   story_date: string;
   title: string;
@@ -79,15 +81,35 @@ type SuccessStory = {
 
 type GeneratedReport = {
   sponsorProgramme: string;
+  schoolScope: string;
   reportingPeriod: string;
   schoolsSupported: number;
   learnersSupported: number;
   attendanceRecords: number;
+  attendanceRate: number;
   progressReportsGenerated: number;
   trainingSessions: number;
   trainingAttendees: number;
   successStories: number;
 };
+
+const periodTypes = ["Month", "Quarter", "Semester", "Annual"];
+const monthOptions = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const quarterOptions = ["Q1", "Q2", "Q3", "Q4"];
+const semesterOptions = ["Semester 1", "Semester 2"];
 
 function normalizeSponsorProgramme(
   sponsorProgrammes: MaybeSponsorProgrammeRelation
@@ -100,8 +122,6 @@ function normalizeSponsorProgramme(
 function normalizeSchoolRelation(schools: SchoolRelation) {
   return Array.isArray(schools) ? schools[0] || null : schools || null;
 }
-
-const quarterOptions = ["Q1", "Q2", "Q3", "Q4"];
 
 function getCurrentQuarter() {
   return `Q${Math.floor(new Date().getMonth() / 3) + 1}`;
@@ -117,25 +137,51 @@ function getRecordDate(record: SchoolScopedRow) {
   );
 }
 
-function isInQuarter(dateValue: string | null | undefined, quarter: string, year: string) {
-  if (!dateValue) {
-    return true;
-  }
+function isInSelectedPeriod({
+  dateValue,
+  periodType,
+  month,
+  quarter,
+  semester,
+  year,
+}: {
+  dateValue: string | null | undefined;
+  periodType: string;
+  month: string;
+  quarter: string;
+  semester: string;
+  year: string;
+}) {
+  if (!dateValue) return true;
 
   const date = new Date(dateValue);
 
-  if (Number.isNaN(date.getTime())) {
-    return true;
+  if (Number.isNaN(date.getTime())) return true;
+
+  if (date.getFullYear() !== Number(year)) return false;
+
+  if (periodType === "Annual") return true;
+
+  if (periodType === "Month") {
+    return date.getMonth() === Number(month);
   }
 
-  const quarterNumber = Number(quarter.replace("Q", ""));
-  const startMonth = (quarterNumber - 1) * 3;
+  if (periodType === "Quarter") {
+    const quarterNumber = Number(quarter.replace("Q", ""));
+    const startMonth = (quarterNumber - 1) * 3;
 
-  return (
-    date.getFullYear() === Number(year) &&
-    date.getMonth() >= startMonth &&
-    date.getMonth() < startMonth + 3
-  );
+    return date.getMonth() >= startMonth && date.getMonth() < startMonth + 3;
+  }
+
+  if (periodType === "Semester") {
+    if (semester === "Semester 1") {
+      return date.getMonth() >= 0 && date.getMonth() <= 5;
+    }
+
+    return date.getMonth() >= 6 && date.getMonth() <= 11;
+  }
+
+  return true;
 }
 
 export default function ImpactSponsorshipDashboard() {
@@ -149,10 +195,11 @@ export default function ImpactSponsorshipDashboard() {
   const [summaries, setSummaries] = useState<SchoolScopedRow[]>([]);
   const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([]);
   const [successStories, setSuccessStories] = useState<SuccessStory[]>([]);
+
   const [selectedSponsorProgrammeId, setSelectedSponsorProgrammeId] =
     useState("");
-
   const [showSponsorForm, setShowSponsorForm] = useState(false);
+
   const [programmeName, setProgrammeName] = useState("");
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorType, setSponsorType] = useState("CSI Partner");
@@ -163,7 +210,10 @@ export default function ImpactSponsorshipDashboard() {
 
   const [reportSponsorProgrammeId, setReportSponsorProgrammeId] = useState("");
   const [reportSchoolId, setReportSchoolId] = useState("");
+  const [reportPeriodType, setReportPeriodType] = useState("Quarter");
+  const [reportMonth, setReportMonth] = useState(String(new Date().getMonth()));
   const [reportQuarter, setReportQuarter] = useState(getCurrentQuarter());
+  const [reportSemester, setReportSemester] = useState("Semester 1");
   const [reportYear, setReportYear] = useState(String(new Date().getFullYear()));
   const [generatedReport, setGeneratedReport] =
     useState<GeneratedReport | null>(null);
@@ -183,6 +233,9 @@ export default function ImpactSponsorshipDashboard() {
   const [storySummary, setStorySummary] = useState("");
   const [storyOutcome, setStoryOutcome] = useState("");
   const [savingStory, setSavingStory] = useState(false);
+
+  const [sponsorPage, setSponsorPage] = useState(0);
+  const [schoolPage, setSchoolPage] = useState(0);
 
   useEffect(() => {
     loadPage();
@@ -334,6 +387,7 @@ export default function ImpactSponsorshipDashboard() {
     setContactEmail("");
 
     await fetchSponsors();
+
     setSavingSponsor(false);
     setShowSponsorForm(false);
     alert("Sponsor programme created.");
@@ -345,11 +399,16 @@ export default function ImpactSponsorshipDashboard() {
       return;
     }
 
+    const selectedSchool = schools.find(
+      (school) => String(school.id) === String(trainingSchoolId)
+    );
+
     setSavingTraining(true);
 
     const { error } = await supabase.from("impact_training_records").insert([
       {
         school_id: Number(trainingSchoolId),
+        sponsor_programme_id: selectedSchool?.sponsor_programme_id || null,
         training_date: trainingDate,
         training_type: trainingType.trim(),
         attendees_count: trainingAttendees ? Number(trainingAttendees) : 0,
@@ -370,6 +429,7 @@ export default function ImpactSponsorshipDashboard() {
     setTrainingNotes("");
 
     await fetchTrainingRecords();
+
     setSavingTraining(false);
     setShowTrainingForm(false);
     alert("Training record saved.");
@@ -381,11 +441,16 @@ export default function ImpactSponsorshipDashboard() {
       return;
     }
 
+    const selectedSchool = schools.find(
+      (school) => String(school.id) === String(storySchoolId)
+    );
+
     setSavingStory(true);
 
     const { error } = await supabase.from("impact_success_stories").insert([
       {
         school_id: Number(storySchoolId),
+        sponsor_programme_id: selectedSchool?.sponsor_programme_id || null,
         story_date: storyDate,
         title: storyTitle.trim(),
         summary: storySummary.trim() || null,
@@ -406,6 +471,7 @@ export default function ImpactSponsorshipDashboard() {
     setStoryOutcome("");
 
     await fetchSuccessStories();
+
     setSavingStory(false);
     setShowStoryForm(false);
     alert("Success story saved.");
@@ -485,7 +551,29 @@ export default function ImpactSponsorshipDashboard() {
             100
         );
 
-  function generateQuarterlyReport() {
+  const visibleSponsors = sponsors.slice(sponsorPage * 5, sponsorPage * 5 + 5);
+  const visibleSponsoredSchools = schoolsForSponsor.slice(
+    schoolPage * 5,
+    schoolPage * 5 + 5
+  );
+
+  function getReportingPeriodLabel() {
+    if (reportPeriodType === "Month") {
+      return `${monthOptions[Number(reportMonth)]} ${reportYear}`;
+    }
+
+    if (reportPeriodType === "Quarter") {
+      return `${reportQuarter} ${reportYear}`;
+    }
+
+    if (reportPeriodType === "Semester") {
+      return `${reportSemester} ${reportYear}`;
+    }
+
+    return `Annual ${reportYear}`;
+  }
+
+  function generateReport() {
     const reportLearners = learners.filter((learner) =>
       reportSchoolIds.includes(Number(learner.school_id))
     );
@@ -493,39 +581,82 @@ export default function ImpactSponsorshipDashboard() {
     const reportAttendance = attendance.filter(
       (record) =>
         reportSchoolIds.includes(Number(record.school_id)) &&
-        isInQuarter(getRecordDate(record), reportQuarter, reportYear)
+        isInSelectedPeriod({
+          dateValue: getRecordDate(record),
+          periodType: reportPeriodType,
+          month: reportMonth,
+          quarter: reportQuarter,
+          semester: reportSemester,
+          year: reportYear,
+        })
     );
+
+    const presentAttendance = reportAttendance.filter(
+      (record) => record.status === "present"
+    ).length;
 
     const reportSummaries = summaries.filter(
       (summary) =>
         reportSchoolIds.includes(Number(summary.school_id)) &&
-        isInQuarter(getRecordDate(summary), reportQuarter, reportYear)
+        isInSelectedPeriod({
+          dateValue: getRecordDate(summary),
+          periodType: reportPeriodType,
+          month: reportMonth,
+          quarter: reportQuarter,
+          semester: reportSemester,
+          year: reportYear,
+        })
     );
 
     const reportTraining = trainingRecords.filter(
       (record) =>
         reportSchoolIds.includes(Number(record.school_id)) &&
-        isInQuarter(record.training_date, reportQuarter, reportYear)
+        isInSelectedPeriod({
+          dateValue: record.training_date,
+          periodType: reportPeriodType,
+          month: reportMonth,
+          quarter: reportQuarter,
+          semester: reportSemester,
+          year: reportYear,
+        })
     );
 
     const reportStories = successStories.filter(
       (story) =>
         reportSchoolIds.includes(Number(story.school_id)) &&
-        isInQuarter(story.story_date, reportQuarter, reportYear)
+        isInSelectedPeriod({
+          dateValue: story.story_date,
+          periodType: reportPeriodType,
+          month: reportMonth,
+          quarter: reportQuarter,
+          semester: reportSemester,
+          year: reportYear,
+        })
     );
 
     const selectedSponsor = sponsors.find(
       (sponsor) => String(sponsor.id) === String(reportSponsorProgrammeId)
     );
 
+    const selectedSchool = schools.find(
+      (school) => String(school.id) === String(reportSchoolId)
+    );
+
     setGeneratedReport({
       sponsorProgramme: selectedSponsor
         ? `${selectedSponsor.sponsor_name} - ${selectedSponsor.programme_name}`
         : "All sponsor programmes",
-      reportingPeriod: `${reportQuarter} ${reportYear}`,
+      schoolScope: selectedSchool
+        ? selectedSchool.school_name || "Selected school"
+        : "All sponsored schools",
+      reportingPeriod: getReportingPeriodLabel(),
       schoolsSupported: reportSchools.length,
       learnersSupported: reportLearners.length,
       attendanceRecords: reportAttendance.length,
+      attendanceRate:
+        reportAttendance.length === 0
+          ? 0
+          : Math.round((presentAttendance / reportAttendance.length) * 100),
       progressReportsGenerated: reportSummaries.length,
       trainingSessions: reportTraining.length,
       trainingAttendees: reportTraining.reduce(
@@ -536,6 +667,64 @@ export default function ImpactSponsorshipDashboard() {
     });
   }
 
+  function getReportRows() {
+    if (!generatedReport) return [];
+
+    return [
+      ["Sponsor Programme", generatedReport.sponsorProgramme],
+      ["School Scope", generatedReport.schoolScope],
+      ["Reporting Period", generatedReport.reportingPeriod],
+      ["Schools Supported", generatedReport.schoolsSupported],
+      ["Learners Supported", generatedReport.learnersSupported],
+      ["Attendance Records", generatedReport.attendanceRecords],
+      ["Attendance Rate", `${generatedReport.attendanceRate}%`],
+      ["Progress Reports Generated", generatedReport.progressReportsGenerated],
+      ["Training Sessions", generatedReport.trainingSessions],
+      ["Training Attendees", generatedReport.trainingAttendees],
+      ["Success Stories", generatedReport.successStories],
+    ];
+  }
+
+  function exportExcel() {
+    if (!generatedReport) {
+      alert("Please generate a report first.");
+      return;
+    }
+
+    const rows = getReportRows();
+    const csv = rows
+      .map((row) =>
+        row
+          .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
+          .join(",")
+      )
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `dailybloom-impact-report-${generatedReport.reportingPeriod.replaceAll(
+      " ",
+      "-"
+    )}.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportPdf() {
+    if (!generatedReport) {
+      alert("Please generate a report first.");
+      return;
+    }
+
+    window.print();
+  }
+
   if (checkingAccess) {
     return <p>Loading...</p>;
   }
@@ -544,14 +733,96 @@ export default function ImpactSponsorshipDashboard() {
     <div>
       <div
         className="db-soft-card"
-        style={{ padding: "22px", marginBottom: "24px" }}
+        style={{
+          padding: "22px",
+          marginBottom: "24px",
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "16px",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+        }}
       >
-        <h1 className="db-page-title">Impact & Sponsorship Dashboard</h1>
-        <p className="db-page-subtitle">
-          Track sponsored school reach, learner support, training progress,
-          attendance trends, parent engagement and quarterly sponsor reporting.
-        </p>
+        <div>
+          <h1 className="db-page-title">Impact & Sponsorship Dashboard</h1>
+          <p className="db-page-subtitle">
+            Pull sponsor-ready reports, track sponsored schools, capture
+            training records and record success stories.
+          </p>
+        </div>
+
+        <button
+          className="db-button-primary"
+          onClick={() => setShowSponsorForm((current) => !current)}
+        >
+          {showSponsorForm ? "Close Sponsor Form" : "+ Create Sponsor Programme"}
+        </button>
       </div>
+
+      {showSponsorForm && (
+        <div
+          className="db-card db-card-green"
+          style={{ padding: "20px", marginBottom: "24px" }}
+        >
+          <h2 style={sectionTitle}>Create Sponsor Programme</h2>
+
+          <input
+            className="db-input"
+            placeholder="Sponsor name"
+            value={sponsorName}
+            onChange={(event) => setSponsorName(event.target.value)}
+          />
+
+          <input
+            className="db-input"
+            placeholder="Programme name"
+            value={programmeName}
+            onChange={(event) => setProgrammeName(event.target.value)}
+          />
+
+          <select
+            className="db-input"
+            value={sponsorType}
+            onChange={(event) => setSponsorType(event.target.value)}
+          >
+            <option>CSI Partner</option>
+            <option>Foundation</option>
+            <option>Government Department</option>
+            <option>Corporate Sponsor</option>
+            <option>NGO Partner</option>
+          </select>
+
+          <input
+            className="db-input"
+            placeholder="Funding focus, for example ECD admin support"
+            value={fundingFocus}
+            onChange={(event) => setFundingFocus(event.target.value)}
+          />
+
+          <input
+            className="db-input"
+            placeholder="Contact person"
+            value={contactPerson}
+            onChange={(event) => setContactPerson(event.target.value)}
+          />
+
+          <input
+            className="db-input"
+            placeholder="Contact email"
+            value={contactEmail}
+            onChange={(event) => setContactEmail(event.target.value)}
+          />
+
+          <button
+            className="db-button-primary"
+            style={{ width: "100%" }}
+            onClick={createSponsorProgramme}
+            disabled={savingSponsor}
+          >
+            {savingSponsor ? "Saving..." : "Save Sponsor Programme"}
+          </button>
+        </div>
+      )}
 
       <div className="db-grid-4" style={{ marginBottom: "24px" }}>
         <Metric title="Sponsor Programmes" value={sponsors.length} />
@@ -561,117 +832,19 @@ export default function ImpactSponsorshipDashboard() {
       </div>
 
       <div
-        className="db-card db-card-blue"
+        className="db-card db-card-lavender"
         style={{ padding: "20px", marginBottom: "24px" }}
       >
-        <h2 style={sectionTitle}>Overview</h2>
-        <p style={textStyle}>
-          This view is designed for internal reporting to sponsors, CSI
-          partners, foundations and government departments. It shows which
-          schools are funded, how many learners are reached and what operational
-          support DailyBloom is helping schools deliver.
-        </p>
+        <h2 style={sectionTitle}>Report Summary</h2>
 
-        <select
-          className="db-input"
-          value={selectedSponsorProgrammeId}
-          onChange={(event) =>
-            setSelectedSponsorProgrammeId(event.target.value)
-          }
-        >
-          <option value="">All sponsor programmes</option>
-          {sponsors.map((sponsor) => (
-            <option key={sponsor.id} value={sponsor.id}>
-              {sponsor.sponsor_name} - {sponsor.programme_name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="db-grid-2" style={{ marginBottom: "24px" }}>
-        <div className="db-card db-card-green" style={{ padding: "20px" }}>
-          <button
-            className="db-button-primary"
-            style={{ width: "100%" }}
-            onClick={() => setShowSponsorForm((current) => !current)}
-          >
-            {showSponsorForm
-              ? "Close Sponsor Form"
-              : "+ Create Sponsor Programme"}
-          </button>
-
-          {showSponsorForm && (
-            <div style={{ marginTop: "16px" }}>
-              <h2 style={sectionTitle}>Create Sponsor Programme</h2>
-
-              <input
-                className="db-input"
-                placeholder="Sponsor name"
-                value={sponsorName}
-                onChange={(event) => setSponsorName(event.target.value)}
-              />
-
-              <input
-                className="db-input"
-                placeholder="Programme name"
-                value={programmeName}
-                onChange={(event) => setProgrammeName(event.target.value)}
-              />
-
-              <select
-                className="db-input"
-                value={sponsorType}
-                onChange={(event) => setSponsorType(event.target.value)}
-              >
-                <option>CSI Partner</option>
-                <option>Foundation</option>
-                <option>Government Department</option>
-                <option>Corporate Sponsor</option>
-                <option>NGO Partner</option>
-              </select>
-
-              <input
-                className="db-input"
-                placeholder="Funding focus, for example ECD admin support"
-                value={fundingFocus}
-                onChange={(event) => setFundingFocus(event.target.value)}
-              />
-
-              <input
-                className="db-input"
-                placeholder="Contact person"
-                value={contactPerson}
-                onChange={(event) => setContactPerson(event.target.value)}
-              />
-
-              <input
-                className="db-input"
-                placeholder="Contact email"
-                value={contactEmail}
-                onChange={(event) => setContactEmail(event.target.value)}
-              />
-
-              <button
-                className="db-button-primary"
-                style={{ width: "100%" }}
-                onClick={createSponsorProgramme}
-                disabled={savingSponsor}
-              >
-                {savingSponsor ? "Saving..." : "Save Sponsor Programme"}
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="db-card db-card-lavender" style={{ padding: "20px" }}>
-          <h2 style={sectionTitle}>Quarterly Report Summary</h2>
-
+        <div className="db-grid-2">
           <select
             className="db-input"
             value={reportSponsorProgrammeId}
             onChange={(event) => {
               setReportSponsorProgrammeId(event.target.value);
               setReportSchoolId("");
+              setGeneratedReport(null);
             }}
           >
             <option value="">All sponsor programmes</option>
@@ -685,7 +858,10 @@ export default function ImpactSponsorshipDashboard() {
           <select
             className="db-input"
             value={reportSchoolId}
-            onChange={(event) => setReportSchoolId(event.target.value)}
+            onChange={(event) => {
+              setReportSchoolId(event.target.value);
+              setGeneratedReport(null);
+            }}
           >
             <option value="">All sponsored schools</option>
             {reportSchools.map((school) => (
@@ -694,12 +870,49 @@ export default function ImpactSponsorshipDashboard() {
               </option>
             ))}
           </select>
+        </div>
 
-          <div className="db-grid-2" style={{ marginBottom: "12px" }}>
+        <div className="db-grid-4" style={{ marginBottom: "12px" }}>
+          <select
+            className="db-input"
+            value={reportPeriodType}
+            onChange={(event) => {
+              setReportPeriodType(event.target.value);
+              setGeneratedReport(null);
+            }}
+          >
+            {periodTypes.map((period) => (
+              <option key={period} value={period}>
+                {period}
+              </option>
+            ))}
+          </select>
+
+          {reportPeriodType === "Month" && (
+            <select
+              className="db-input"
+              value={reportMonth}
+              onChange={(event) => {
+                setReportMonth(event.target.value);
+                setGeneratedReport(null);
+              }}
+            >
+              {monthOptions.map((month, index) => (
+                <option key={month} value={index}>
+                  {month}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {reportPeriodType === "Quarter" && (
             <select
               className="db-input"
               value={reportQuarter}
-              onChange={(event) => setReportQuarter(event.target.value)}
+              onChange={(event) => {
+                setReportQuarter(event.target.value);
+                setGeneratedReport(null);
+              }}
             >
               {quarterOptions.map((quarter) => (
                 <option key={quarter} value={quarter}>
@@ -707,85 +920,72 @@ export default function ImpactSponsorshipDashboard() {
                 </option>
               ))}
             </select>
+          )}
 
-            <input
+          {reportPeriodType === "Semester" && (
+            <select
               className="db-input"
-              placeholder="Year"
-              value={reportYear}
-              onChange={(event) => setReportYear(event.target.value)}
-            />
-          </div>
+              value={reportSemester}
+              onChange={(event) => {
+                setReportSemester(event.target.value);
+                setGeneratedReport(null);
+              }}
+            >
+              {semesterOptions.map((semester) => (
+                <option key={semester} value={semester}>
+                  {semester}
+                </option>
+              ))}
+            </select>
+          )}
 
-          <button
-            className="db-button-primary"
-            style={{ width: "100%", marginBottom: "14px" }}
-            onClick={generateQuarterlyReport}
-          >
+          <input
+            className="db-input"
+            placeholder="Year"
+            value={reportYear}
+            onChange={(event) => {
+              setReportYear(event.target.value);
+              setGeneratedReport(null);
+            }}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <button className="db-button-primary" onClick={generateReport}>
             Generate Report
           </button>
 
-          <ReportLine label="Schools onboarded" value={schoolsForSponsor.length} />
-          <ReportLine label="Learners supported" value={learnersSupported.length} />
-          <ReportLine
-            label="Attendance records captured"
-            value={attendanceRecords.length}
-          />
-          <ReportLine
-            label="Progress reports generated"
-            value={progressReportsGenerated.length}
-          />
-          <ReportLine label="Reporting cycle" value="Quarterly" />
+          <button style={secondaryButton} onClick={exportPdf}>
+            Export PDF
+          </button>
 
-          <p style={{ ...textStyle, marginTop: "16px" }}>
-            Use this section to prepare manual sponsor updates and
-            government-ready summaries showing reach, usage and school-level
-            impact.
-          </p>
-
-          {generatedReport && (
-            <div className="db-list-card" style={{ marginTop: "16px" }}>
-              <h3 style={{ ...sectionTitle, fontSize: "18px" }}>
-                Quarterly Impact Report
-              </h3>
-              <ReportLine
-                label="Sponsor Programme"
-                value={generatedReport.sponsorProgramme}
-              />
-              <ReportLine
-                label="Reporting Period"
-                value={generatedReport.reportingPeriod}
-              />
-              <ReportLine
-                label="Schools Supported"
-                value={generatedReport.schoolsSupported}
-              />
-              <ReportLine
-                label="Learners Supported"
-                value={generatedReport.learnersSupported}
-              />
-              <ReportLine
-                label="Attendance Records"
-                value={generatedReport.attendanceRecords}
-              />
-              <ReportLine
-                label="Progress Reports Generated"
-                value={generatedReport.progressReportsGenerated}
-              />
-              <ReportLine
-                label="Training Sessions"
-                value={generatedReport.trainingSessions}
-              />
-              <ReportLine
-                label="Training Attendees"
-                value={generatedReport.trainingAttendees}
-              />
-              <ReportLine
-                label="Success Stories"
-                value={generatedReport.successStories}
-              />
-            </div>
-          )}
+          <button style={secondaryButton} onClick={exportExcel}>
+            Export Excel
+          </button>
         </div>
+
+        {generatedReport && (
+          <div className="db-list-card" style={{ marginTop: "16px" }}>
+            <h3 style={{ ...sectionTitle, fontSize: "18px" }}>
+              Generated Impact Report
+            </h3>
+
+            {getReportRows().map(([label, value]) => (
+              <ReportLine key={label} label={String(label)} value={value} />
+            ))}
+
+            <p style={{ ...textStyle, marginTop: "16px" }}>
+              During this period, DailyBloom supported{" "}
+              {generatedReport.schoolsSupported} sponsored school(s), reaching{" "}
+              {generatedReport.learnersSupported} learner(s), capturing{" "}
+              {generatedReport.attendanceRecords} attendance record(s), and
+              generating {generatedReport.progressReportsGenerated} progress
+              report record(s). The report also includes{" "}
+              {generatedReport.trainingSessions} training session(s) and{" "}
+              {generatedReport.successStories} success story record(s).
+            </p>
+          </div>
+        )}
       </div>
 
       <div
@@ -797,23 +997,32 @@ export default function ImpactSponsorshipDashboard() {
         {sponsors.length === 0 ? (
           <p className="db-helper">No sponsor programmes created yet.</p>
         ) : (
-          <div style={{ display: "grid", gap: "12px" }}>
-            {sponsors.map((sponsor) => (
-              <div key={sponsor.id} className="db-list-card">
-                <strong>{sponsor.sponsor_name}</strong>
-                <p style={textStyle}>Programme: {sponsor.programme_name}</p>
-                <p style={textStyle}>
-                  Type: {sponsor.sponsor_type || "Not set"}
-                </p>
-                <p style={textStyle}>
-                  Focus: {sponsor.funding_focus || "Not set"}
-                </p>
-                <p style={textStyle}>
-                  Reporting: {sponsor.reporting_cycle || "Quarterly"}
-                </p>
-              </div>
-            ))}
-          </div>
+          <>
+            <div style={{ display: "grid", gap: "12px" }}>
+              {visibleSponsors.map((sponsor) => (
+                <div key={sponsor.id} className="db-list-card">
+                  <strong>{sponsor.sponsor_name}</strong>
+                  <p style={textStyle}>Programme: {sponsor.programme_name}</p>
+                  <p style={textStyle}>
+                    Type: {sponsor.sponsor_type || "Not set"}
+                  </p>
+                  <p style={textStyle}>
+                    Focus: {sponsor.funding_focus || "Not set"}
+                  </p>
+                  <p style={textStyle}>
+                    Reporting: {sponsor.reporting_cycle || "Quarterly"}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <PaginationButtons
+              currentPage={sponsorPage}
+              totalItems={sponsors.length}
+              onPrevious={() => setSponsorPage((current) => current - 1)}
+              onNext={() => setSponsorPage((current) => current + 1)}
+            />
+          </>
         )}
       </div>
 
@@ -823,23 +1032,49 @@ export default function ImpactSponsorshipDashboard() {
       >
         <h2 style={sectionTitle}>Sponsored Schools</h2>
 
+        <select
+          className="db-input"
+          value={selectedSponsorProgrammeId}
+          onChange={(event) => {
+            setSelectedSponsorProgrammeId(event.target.value);
+            setSchoolPage(0);
+          }}
+        >
+          <option value="">All sponsor programmes</option>
+          {sponsors.map((sponsor) => (
+            <option key={sponsor.id} value={sponsor.id}>
+              {sponsor.sponsor_name} - {sponsor.programme_name}
+            </option>
+          ))}
+        </select>
+
         {schoolsForSponsor.length === 0 ? (
           <p className="db-helper">No sponsored schools linked yet.</p>
         ) : (
-          <div style={{ display: "grid", gap: "12px" }}>
-            {schoolsForSponsor.map((school) => (
-              <div key={school.id} className="db-list-card">
-                <strong>{school.school_name}</strong>
-                <p style={textStyle}>
-                  Sponsor: {school.sponsor_programmes?.sponsor_name || "Not linked"}
-                </p>
-                <p style={textStyle}>
-                  Programme:{" "}
-                  {school.sponsor_programmes?.programme_name || "Not linked"}
-                </p>
-              </div>
-            ))}
-          </div>
+          <>
+            <div style={{ display: "grid", gap: "12px" }}>
+              {visibleSponsoredSchools.map((school) => (
+                <div key={school.id} className="db-list-card">
+                  <strong>{school.school_name}</strong>
+                  <p style={textStyle}>
+                    Sponsor:{" "}
+                    {school.sponsor_programmes?.sponsor_name || "Not linked"}
+                  </p>
+                  <p style={textStyle}>
+                    Programme:{" "}
+                    {school.sponsor_programmes?.programme_name || "Not linked"}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <PaginationButtons
+              currentPage={schoolPage}
+              totalItems={schoolsForSponsor.length}
+              onPrevious={() => setSchoolPage((current) => current - 1)}
+              onNext={() => setSchoolPage((current) => current + 1)}
+            />
+          </>
         )}
       </div>
 
@@ -1060,12 +1295,51 @@ function ReportLine({ label, value }: { label: string; value: string | number })
       style={{
         display: "flex",
         justifyContent: "space-between",
+        gap: "14px",
         borderBottom: "1px solid #eee",
         padding: "10px 0",
       }}
     >
       <span style={{ color: "var(--db-text-soft)" }}>{label}</span>
-      <strong>{value}</strong>
+      <strong style={{ textAlign: "right" }}>{value}</strong>
+    </div>
+  );
+}
+
+function PaginationButtons({
+  currentPage,
+  totalItems,
+  onPrevious,
+  onNext,
+}: {
+  currentPage: number;
+  totalItems: number;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  const hasPrevious = currentPage > 0;
+  const hasNext = (currentPage + 1) * 5 < totalItems;
+
+  if (!hasPrevious && !hasNext) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: "10px",
+        justifyContent: "flex-end",
+        marginTop: "14px",
+      }}
+    >
+      <button style={secondaryButton} onClick={onPrevious} disabled={!hasPrevious}>
+        Previous
+      </button>
+
+      <button style={secondaryButton} onClick={onNext} disabled={!hasNext}>
+        Next
+      </button>
     </div>
   );
 }
@@ -1082,4 +1356,14 @@ const textStyle = {
   margin: "6px 0 0 0",
   color: "var(--db-text-soft)",
   lineHeight: 1.6,
+};
+
+const secondaryButton = {
+  border: "1px solid #E3D9CD",
+  background: "#FFFFFF",
+  color: "#5B5675",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  fontWeight: 600,
+  cursor: "pointer",
 };

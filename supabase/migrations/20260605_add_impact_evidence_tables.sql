@@ -3,7 +3,7 @@ create table if not exists impact_training_records (
   school_id bigint not null references schools(id),
   training_date date not null,
   training_type text not null,
-  attendees integer default 0,
+  attendees_count integer default 0,
   notes text,
   created_at timestamp with time zone default now()
 );

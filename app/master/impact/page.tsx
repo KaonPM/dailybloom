@@ -46,7 +46,7 @@ type TrainingRecord = {
   school_id: number;
   training_date: string;
   training_type: string;
-  attendees?: number | null;
+  attendees_count?: number | null;
   notes?: string | null;
   created_at?: string | null;
   schools?: {
@@ -352,7 +352,7 @@ export default function ImpactSponsorshipDashboard() {
         school_id: Number(trainingSchoolId),
         training_date: trainingDate,
         training_type: trainingType.trim(),
-        attendees: trainingAttendees ? Number(trainingAttendees) : 0,
+        attendees_count: trainingAttendees ? Number(trainingAttendees) : 0,
         notes: trainingNotes.trim() || null,
       },
     ]);
@@ -529,7 +529,7 @@ export default function ImpactSponsorshipDashboard() {
       progressReportsGenerated: reportSummaries.length,
       trainingSessions: reportTraining.length,
       trainingAttendees: reportTraining.reduce(
-        (total, record) => total + Number(record.attendees || 0),
+        (total, record) => total + Number(record.attendees_count || 0),
         0
       ),
       successStories: reportStories.length,
@@ -928,7 +928,7 @@ export default function ImpactSponsorshipDashboard() {
                   </p>
                   <p style={textStyle}>Date: {record.training_date}</p>
                   <p style={textStyle}>
-                    Attendees: {Number(record.attendees || 0)}
+                    Attendees: {Number(record.attendees_count || 0)}
                   </p>
                   {record.notes && <p style={textStyle}>Notes: {record.notes}</p>}
                 </div>

@@ -43,6 +43,7 @@ export default function Sidebar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [filteredQuickActionsNav, setFilteredQuickActionsNav] = useState<NavItem[]>([]);
+  const [filteredTeacherQuickActionsNav, setFilteredTeacherQuickActionsNav] = useState<NavItem[]>([]);
   const [filteredSchoolManagementNav, setFilteredSchoolManagementNav] = useState<NavItem[]>([]);
   const [filteredTeacherSchoolManagementNav, setFilteredTeacherSchoolManagementNav] = useState<NavItem[]>([]);
 
@@ -53,10 +54,10 @@ export default function Sidebar() {
   const masterNav = useMemo<NavItem[]>(
     () => [
       {
-       label: "Master Dashboard",
-       href: "/master?view=dashboard",
-       match: ["/master"],
-       view: "dashboard",
+        label: "Master Dashboard",
+        href: "/master?view=dashboard",
+        match: ["/master"],
+        view: "dashboard",
       },
       {
         label: "Manage Schools",
@@ -113,6 +114,38 @@ export default function Sidebar() {
         href: "/payments",
         match: ["/payments"],
         featureKey: "payment_tracking",
+      },
+    ],
+    []
+  );
+
+  const teacherQuickActionsNav = useMemo<NavItem[]>(
+    () => [
+      {
+        label: "Take Attendance",
+        href: "/attendance",
+        match: ["/attendance"],
+      },
+      {
+        label: "Daily Summaries",
+        href: "/summaries",
+        match: ["/summaries"],
+        featureKey: "daily_summaries",
+      },
+      {
+        label: "View Learners",
+        href: "/children",
+        match: ["/children"],
+      },
+      {
+        label: "Today’s Activities",
+        href: "/classroom-activities",
+        match: ["/classroom-activities"],
+      },
+      {
+        label: "Progress Reports",
+        href: "/progress-reports",
+        match: ["/progress-reports"],
       },
     ],
     []
@@ -206,41 +239,41 @@ export default function Sidebar() {
   );
 
   const teacherSchoolManagementNav = useMemo<NavItem[]>(
-  () => [
-    {
-      label: "Classroom Activities",
-      href: "/classroom-activities",
-      match: ["/classroom-activities"],
-    },
-    {
-      label: "Learners",
-      href: "/children",
-      match: ["/children"],
-    },
-    {
-      label: "Attendance",
-      href: "/attendance",
-      match: ["/attendance"],
-    },
-    {
-      label: "Daily Summaries",
-      href: "/summaries",
-      match: ["/summaries"],
-      featureKey: "daily_summaries",
-    },
-    {
-      label: "Events",
-      href: "/events",
-      match: ["/events"],
-    },
-    {
-      label: "Progress Reports",
-      href: "/progress-reports",
-      match: ["/progress-reports"],
-    },
-  ],
-  []
-);
+    () => [
+      {
+        label: "Classroom Activities",
+        href: "/classroom-activities",
+        match: ["/classroom-activities"],
+      },
+      {
+        label: "Learners",
+        href: "/children",
+        match: ["/children"],
+      },
+      {
+        label: "Attendance",
+        href: "/attendance",
+        match: ["/attendance"],
+      },
+      {
+        label: "Daily Summaries",
+        href: "/summaries",
+        match: ["/summaries"],
+        featureKey: "daily_summaries",
+      },
+      {
+        label: "Events",
+        href: "/events",
+        match: ["/events"],
+      },
+      {
+        label: "Progress Reports",
+        href: "/progress-reports",
+        match: ["/progress-reports"],
+      },
+    ],
+    []
+  );
 
   useEffect(() => {
     const savedQuickActions = localStorage.getItem("db-quick-actions");
@@ -272,6 +305,7 @@ export default function Sidebar() {
       setSchool(null);
       setSubscriptionPlan("");
       setFilteredQuickActionsNav([]);
+      setFilteredTeacherQuickActionsNav([]);
       setFilteredSchoolManagementNav([]);
       setFilteredTeacherSchoolManagementNav([]);
       setLoading(false);
@@ -293,14 +327,20 @@ export default function Sidebar() {
       schoolId = Number(currentProfile.school_id);
     }
 
-    const [allowedQuickActions, allowedSchoolManagement, allowedTeacherManagement] =
-      await Promise.all([
-        getAllowedNavigationItems(schoolId, quickActionsNav),
-        getAllowedNavigationItems(schoolId, schoolManagementNav),
-        getAllowedNavigationItems(schoolId, teacherSchoolManagementNav),
-      ]);
+    const [
+      allowedQuickActions,
+      allowedTeacherQuickActions,
+      allowedSchoolManagement,
+      allowedTeacherManagement,
+    ] = await Promise.all([
+      getAllowedNavigationItems(schoolId, quickActionsNav),
+      getAllowedNavigationItems(schoolId, teacherQuickActionsNav),
+      getAllowedNavigationItems(schoolId, schoolManagementNav),
+      getAllowedNavigationItems(schoolId, teacherSchoolManagementNav),
+    ]);
 
     setFilteredQuickActionsNav(allowedQuickActions);
+    setFilteredTeacherQuickActionsNav(allowedTeacherQuickActions);
     setFilteredSchoolManagementNav(allowedSchoolManagement);
     setFilteredTeacherSchoolManagementNav(allowedTeacherManagement);
 
@@ -336,14 +376,14 @@ export default function Sidebar() {
 
   const isMaster = profile?.role === "master";
   const isTeacher = profile?.role === "teacher";
+  const showSchoolActions = Boolean(school) || !isMaster;
 
   useEffect(() => {
-  if (isTeacher) {
-    setSchoolManagementOpen(true);
-  }
+    if (isTeacher) {
+      setQuickActionsOpen(true);
+      setSchoolManagementOpen(false);
+    }
   }, [isTeacher]);
-
-  const showSchoolActions = Boolean(school) || !isMaster;
 
   const isBloomElite =
     String(subscriptionPlan || school?.package_name || "")
@@ -351,7 +391,7 @@ export default function Sidebar() {
       .toLowerCase() === "bloom elite";
 
   const showWageFlowStaffManagement =
-  !isTeacher && (isBloomElite || school?.wageflow_enabled === true);
+    !isTeacher && (isBloomElite || school?.wageflow_enabled === true);
 
   const dashboardHref = isMaster
     ? `/master/school/${school?.id || ""}`
@@ -411,6 +451,10 @@ export default function Sidebar() {
       gap: "10px",
     };
   }
+
+  const visibleQuickActionsNav = isTeacher
+    ? filteredTeacherQuickActionsNav
+    : filteredQuickActionsNav;
 
   return (
     <aside className="db-sidebar-shell">
@@ -655,29 +699,21 @@ export default function Sidebar() {
                 Dashboard
               </Link>
 
-              {!isTeacher ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setQuickActionsOpen((prev) => !prev)}
-                    style={collapsibleButtonStyle("#22C55E")}
-                  >
-                    <span>🌱 Quick Actions</span>
-                    <span>{quickActionsOpen ? "⌄" : "›"}</span>
-                  </button>
+              <button
+                type="button"
+                onClick={() => setQuickActionsOpen((prev) => !prev)}
+                style={collapsibleButtonStyle("#22C55E")}
+              >
+                <span>🌱 Quick Actions</span>
+                <span>{quickActionsOpen ? "⌄" : "›"}</span>
+              </button>
 
-                  {quickActionsOpen &&
-                    filteredQuickActionsNav.map((item) => (
-                      <Link
-                        key={item.label}
-                        href={item.href}
-                        style={navStyle(item)}
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
-                </>
-              ) : null}
+              {quickActionsOpen &&
+                visibleQuickActionsNav.map((item) => (
+                  <Link key={item.label} href={item.href} style={navStyle(item)}>
+                    {item.label}
+                  </Link>
+                ))}
 
               <button
                 type="button"
@@ -699,18 +735,18 @@ export default function Sidebar() {
                 ))}
 
               {showWageFlowStaffManagement ? (
-              <a
-                href="https://wageflow.lesedismartsolutions.co.za/login"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                ...collapsibleButtonStyle("#7C3AED"),
-                textDecoration: "none",
-              }}
-              >
-              <span>👥 Staff Management</span>
-              <span>›</span>
-              </a>
+                <a
+                  href="https://wageflow.lesedismartsolutions.co.za/login"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    ...collapsibleButtonStyle("#7C3AED"),
+                    textDecoration: "none",
+                  }}
+                >
+                  <span>👥 Staff Management</span>
+                  <span>›</span>
+                </a>
               ) : null}
 
               {!isTeacher ? (
@@ -726,11 +762,7 @@ export default function Sidebar() {
 
                   {dbeOpen &&
                     dbeNav.map((item) => (
-                      <Link
-                        key={item.label}
-                        href={item.href}
-                        style={navStyle(item)}
-                      >
+                      <Link key={item.label} href={item.href} style={navStyle(item)}>
                         {item.label}
                       </Link>
                     ))}

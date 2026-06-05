@@ -734,7 +734,6 @@ export default function ProgressReportsPage() {
         indicator_key: row.indicatorKey,
         indicator_label: row.indicator.label || row.indicatorKey,
         level: row.level,
-        rating: row.level,
         teacher_comment: teacherObservation || null,
         status,
         updated_at: new Date().toISOString(),

@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { supabase } from "../lib/supabase";
+
+type SponsorProgramme = {
+  id: number;
+  sponsor_name: string;
+  programme_name: string;
+};
 
 const packages = [
   {
@@ -32,6 +39,12 @@ export default function SignUpPage() {
 
   const [packageSelected, setPackageSelected] = useState("Bloom");
 
+  const [isSponsored, setIsSponsored] = useState(false);
+  const [sponsorProgrammeId, setSponsorProgrammeId] = useState("");
+  const [sponsorProgrammes, setSponsorProgrammes] = useState<
+    SponsorProgramme[]
+  >([]);
+
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [permissionToContact, setPermissionToContact] = useState(false);
@@ -39,8 +52,24 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function handleSignUp(e: React.FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    fetchSponsorProgrammes();
+  }, []);
+
+  async function fetchSponsorProgrammes() {
+    const { data, error } = await supabase
+      .from("sponsor_programmes")
+      .select("*")
+      .eq("status", "Active")
+      .order("sponsor_name", { ascending: true });
+
+    if (!error) {
+      setSponsorProgrammes(data || []);
+    }
+  }
+
+  async function handleSignUp(event: FormEvent) {
+    event.preventDefault();
     setMessage("");
 
     if (
@@ -55,6 +84,11 @@ export default function SignUpPage() {
       !packageSelected
     ) {
       setMessage("Please complete all required fields.");
+      return;
+    }
+
+    if (isSponsored && !sponsorProgrammeId) {
+      setMessage("Please select the sponsor programme for this school.");
       return;
     }
 
@@ -80,6 +114,9 @@ export default function SignUpPage() {
         principal_phone: principalPhone.trim(),
 
         package_selected: packageSelected,
+        is_sponsored: isSponsored,
+        sponsor_programme_id:
+          isSponsored && sponsorProgrammeId ? Number(sponsorProgrammeId) : null,
         accepted_terms: true,
         accepted_privacy: true,
         permission_to_contact: true,
@@ -104,6 +141,8 @@ export default function SignUpPage() {
     setPrincipalEmail("");
     setPrincipalPhone("");
     setPackageSelected("Bloom");
+    setIsSponsored(false);
+    setSponsorProgrammeId("");
     setAcceptedTerms(false);
     setAcceptedPrivacy(false);
     setPermissionToContact(false);
@@ -133,7 +172,7 @@ export default function SignUpPage() {
             fontSize: "14px",
           }}
         >
-          ← Back to Home
+          {"<- Back to Home"}
         </Link>
 
         <div
@@ -211,7 +250,7 @@ export default function SignUpPage() {
 
             <select
               value={province}
-              onChange={(e) => setProvince(e.target.value)}
+              onChange={(event) => setProvince(event.target.value)}
               style={inputStyle}
             >
               <option value="">Select Province</option>
@@ -225,6 +264,32 @@ export default function SignUpPage() {
               <option value="North West">North West</option>
               <option value="Western Cape">Western Cape</option>
             </select>
+
+            <Checkbox
+              checked={isSponsored}
+              onChange={(checked) => {
+                setIsSponsored(checked);
+                if (!checked) {
+                  setSponsorProgrammeId("");
+                }
+              }}
+              label="School is part of a sponsored programme"
+            />
+
+            {isSponsored && (
+              <select
+                value={sponsorProgrammeId}
+                onChange={(event) => setSponsorProgrammeId(event.target.value)}
+                style={inputStyle}
+              >
+                <option value="">Select sponsor</option>
+                {sponsorProgrammes.map((programme) => (
+                  <option key={programme.id} value={programme.id}>
+                    {programme.sponsor_name} - {programme.programme_name}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <SectionTitle title="Principal Details" />
 
@@ -273,7 +338,7 @@ export default function SignUpPage() {
                     name="package"
                     value={item.name}
                     checked={packageSelected === item.name}
-                    onChange={(e) => setPackageSelected(e.target.value)}
+                    onChange={(event) => setPackageSelected(event.target.value)}
                     style={{ marginTop: "4px" }}
                   />
 
@@ -424,7 +489,7 @@ function Input({
       type={type}
       placeholder={placeholder}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(event) => onChange(event.target.value)}
       style={inputStyle}
     />
   );
@@ -437,7 +502,7 @@ function Checkbox({
 }: {
   checked: boolean;
   onChange: (value: boolean) => void;
-  label: React.ReactNode;
+  label: ReactNode;
 }) {
   return (
     <label
@@ -454,7 +519,7 @@ function Checkbox({
       <input
         type="checkbox"
         checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
+        onChange={(event) => onChange(event.target.checked)}
         style={{ marginTop: "3px" }}
       />
       <span>{label}</span>
@@ -462,7 +527,7 @@ function Checkbox({
   );
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%",
   height: "46px",
   padding: "0 14px",
@@ -475,7 +540,7 @@ const inputStyle: React.CSSProperties = {
   background: "#FFFFFF",
 };
 
-const linkStyle: React.CSSProperties = {
+const linkStyle: CSSProperties = {
   color: "#F66BA0",
   fontWeight: 700,
   textDecoration: "none",

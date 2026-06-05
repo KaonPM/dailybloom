@@ -89,6 +89,11 @@ export default function Sidebar() {
         href: "/master/analytics",
         match: ["/master/analytics"],
       },
+      {
+        label: "Impact & Sponsorship",
+        href: "/master/impact",
+        match: ["/master/impact"],
+      },
     ],
     []
   );

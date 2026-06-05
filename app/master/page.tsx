@@ -22,7 +22,23 @@ type SchoolItem = {
   district?: string | null;
   centre_type?: string | null;
   registration_status?: string | null;
+  is_sponsored?: boolean | null;
+  sponsor_programme_id?: number | null;
+  sponsor_programmes?: SponsorProgramme | null;
 };
+
+type SponsorProgramme = {
+  id: number;
+  sponsor_name: string;
+  programme_name: string;
+  status?: string | null;
+};
+
+type MaybeSponsorProgrammeRelation =
+  | SponsorProgramme
+  | SponsorProgramme[]
+  | null
+  | undefined;
 
 type PrincipalItem = {
   id: string;
@@ -40,6 +56,9 @@ type SignupRequestItem = {
   status?: string | null;
   created_at?: string | null;
   school_id?: number | null;
+  is_sponsored?: boolean | null;
+  sponsor_programme_id?: number | null;
+  sponsor_programmes?: SponsorProgramme | null;
 };
 
 type MasterStats = {
@@ -138,6 +157,14 @@ const registrationStatuses = [
   "Unregistered",
 ];
 
+function normalizeSponsorProgramme(
+  sponsorProgrammes: MaybeSponsorProgrammeRelation
+) {
+  return Array.isArray(sponsorProgrammes)
+    ? sponsorProgrammes[0] || null
+    : sponsorProgrammes || null;
+}
+
 export default function MasterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -158,6 +185,11 @@ export default function MasterPage() {
   const [district, setDistrict] = useState("");
   const [centreType, setCentreType] = useState("");
   const [registrationStatus, setRegistrationStatus] = useState("");
+  const [isSponsored, setIsSponsored] = useState(false);
+  const [sponsorProgrammeId, setSponsorProgrammeId] = useState("");
+  const [sponsorProgrammes, setSponsorProgrammes] = useState<
+    SponsorProgramme[]
+  >([]);
 
   const [principalFullName, setPrincipalFullName] = useState("");
   const [principalEmail, setPrincipalEmail] = useState("");
@@ -198,7 +230,12 @@ export default function MasterPage() {
       return;
     }
 
-    await Promise.all([fetchSchools(), fetchPrincipals(), fetchSignupRequests()]);
+    await Promise.all([
+      fetchSchools(),
+      fetchPrincipals(),
+      fetchSignupRequests(),
+      fetchSponsorProgrammes(),
+    ]);
     setLoading(false);
   }
 
@@ -206,7 +243,7 @@ export default function MasterPage() {
     const { data, error } = await supabase
       .from("schools")
       .select(
-        "id, school_name, primary_color, secondary_color, logo_url, status, deleted_at, package_name, wageflow_enabled, emis_number, contact_number, province, district, centre_type, registration_status"
+        "id, school_name, primary_color, secondary_color, logo_url, status, deleted_at, package_name, wageflow_enabled, emis_number, contact_number, province, district, centre_type, registration_status, is_sponsored, sponsor_programme_id, sponsor_programmes(id, sponsor_name, programme_name)"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -216,13 +253,30 @@ export default function MasterPage() {
       return;
     }
 
-    const rows = (data || []) as SchoolItem[];
+    const rows = (data || []).map((school: any) => ({
+      ...school,
+      sponsor_programmes: normalizeSponsorProgramme(
+        school.sponsor_programmes
+      ),
+    })) as SchoolItem[];
     setSchools(rows);
 
     setStats((prev) => ({
       ...prev,
       totalSchools: rows.length,
     }));
+  }
+
+  async function fetchSponsorProgrammes() {
+    const { data, error } = await supabase
+      .from("sponsor_programmes")
+      .select("*")
+      .eq("status", "Active")
+      .order("sponsor_name", { ascending: true });
+
+    if (!error) {
+      setSponsorProgrammes((data || []) as SponsorProgramme[]);
+    }
   }
 
   async function fetchPrincipals() {
@@ -242,7 +296,7 @@ export default function MasterPage() {
   async function fetchSignupRequests() {
     const { data, error } = await supabase
       .from("school_signup_requests")
-      .select("*")
+      .select("*, sponsor_programmes(id, sponsor_name, programme_name)")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -250,7 +304,12 @@ export default function MasterPage() {
       return;
     }
 
-    const rows = (data || []) as SignupRequestItem[];
+    const rows = (data || []).map((request: any) => ({
+      ...request,
+      sponsor_programmes: normalizeSponsorProgramme(
+        request.sponsor_programmes
+      ),
+    })) as SignupRequestItem[];
     setSignupRequests(rows);
 
     const pendingCount = rows.filter(
@@ -275,6 +334,11 @@ export default function MasterPage() {
       return;
     }
 
+    if (isSponsored && !sponsorProgrammeId) {
+      alert("Please select the sponsor programme for this school.");
+      return;
+    }
+
     setSavingSchool(true);
 
     const { data: schoolData, error } = await supabase
@@ -292,6 +356,9 @@ export default function MasterPage() {
           secondary_color: secondaryColor,
           logo_url: logoUrl || null,
           package_name: packageName,
+          is_sponsored: isSponsored,
+          sponsor_programme_id:
+            isSponsored && sponsorProgrammeId ? Number(sponsorProgrammeId) : null,
           wageflow_enabled:
             packageName === "Bloom Elite" ? true : wageflowEnabled,
         },
@@ -341,6 +408,8 @@ export default function MasterPage() {
     setDistrict("");
     setCentreType("");
     setRegistrationStatus("");
+    setIsSponsored(false);
+    setSponsorProgrammeId("");
     setPrincipalFullName("");
     setPrincipalEmail("");
 
@@ -497,6 +566,8 @@ export default function MasterPage() {
         principalEmail: request.principal_email,
         primaryColor: "#7CCCF3",
         secondaryColor: "#FFD76A",
+        isSponsored: Boolean(request.is_sponsored),
+        sponsorProgrammeId: request.sponsor_programme_id || null,
       }),
     });
 
@@ -534,6 +605,9 @@ export default function MasterPage() {
 
   const visibleSchools = filteredSchools.slice(0, visibleSchoolCount);
   const hasMoreSchools = visibleSchoolCount < filteredSchools.length;
+  const selectedSponsor = sponsorProgrammes.find(
+    (item) => String(item.id) === sponsorProgrammeId
+  );
   const currentView = searchParams.get("view") || "dashboard";
 
   if (loading) {
@@ -653,6 +727,14 @@ export default function MasterPage() {
                 Manage DailyBloom billing
               </p>
             </div>
+          </Link>
+
+          <Link
+            href="/master/impact"
+            className="db-button-primary"
+            style={smallButton}
+          >
+            Impact & Sponsorship
           </Link>
         </div>
       )}
@@ -798,6 +880,15 @@ export default function MasterPage() {
                             </p>
 
                             <p style={detailText}>
+                              <strong>Sponsor:</strong>{" "}
+                              {school.is_sponsored
+                                ? school.sponsor_programmes
+                                  ? `${school.sponsor_programmes.sponsor_name} - ${school.sponsor_programmes.programme_name}`
+                                  : "Sponsored, programme not linked"
+                                : "Not sponsored"}
+                            </p>
+
+                            <p style={detailText}>
                               <strong>NPO / Registration:</strong>{" "}
                               {school.emis_number || "Not added"}
                             </p>
@@ -929,6 +1020,13 @@ export default function MasterPage() {
                       <p style={helperText}>
                         Email: {request.principal_email || "Not added"}
                       </p>
+
+                      {request.is_sponsored && request.sponsor_programmes && (
+                        <p style={helperText}>
+                          Sponsor: {request.sponsor_programmes.sponsor_name} -{" "}
+                          {request.sponsor_programmes.programme_name}
+                        </p>
+                      )}
 
                       <p style={helperText}>Status: {request.status || "pending"}</p>
 
@@ -1174,6 +1272,53 @@ export default function MasterPage() {
               />
               Enable WageFlow Add-on
             </label>
+
+            <label
+              style={{
+                display: "flex",
+                gap: "10px",
+                alignItems: "center",
+                marginBottom: "12px",
+                color: "#5B5675",
+                fontWeight: 600,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={isSponsored}
+                onChange={(e) => {
+                  setIsSponsored(e.target.checked);
+                  if (!e.target.checked) {
+                    setSponsorProgrammeId("");
+                  }
+                }}
+              />
+              This school is sponsored
+            </label>
+
+            {isSponsored && (
+              <select
+                className="db-input"
+                value={sponsorProgrammeId}
+                onChange={(e) => setSponsorProgrammeId(e.target.value)}
+              >
+                <option value="">Select sponsor programme</option>
+                {sponsorProgrammes.map((programme) => (
+                  <option key={programme.id} value={programme.id}>
+                    {programme.sponsor_name} - {programme.programme_name}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {selectedSponsor && (
+              <div style={{ ...listCard, marginBottom: "12px" }}>
+                <strong style={listTitle}>{selectedSponsor.sponsor_name}</strong>
+                <p style={helperText}>
+                  Programme: {selectedSponsor.programme_name}
+                </p>
+              </div>
+            )}
 
             <input
               className="db-input"

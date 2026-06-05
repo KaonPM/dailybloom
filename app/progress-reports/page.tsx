@@ -48,6 +48,58 @@ const certificateReasonOptions: Record<string, string[]> = {
   ],
 };
 
+const reviewStatusFilters = [
+  "draft",
+  "submitted",
+  "reviewed",
+  "locked",
+  "generated",
+];
+
+function getAssessmentValue(assessment: any) {
+  return (
+    assessment?.level ||
+    assessment?.rating ||
+    assessment?.assessment_level ||
+    assessment?.selected_level ||
+    assessment?.selected_rating ||
+    assessment?.value ||
+    ""
+  );
+}
+
+function getAssessmentTimestamp(assessment: any) {
+  const value = assessment?.updated_at || assessment?.created_at || "";
+  const timestamp = value ? new Date(value).getTime() : 0;
+
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function normalizeLatestAssessments(assessments: any[]) {
+  const latestByIndicator = new Map<string, any>();
+
+  assessments.forEach((assessment) => {
+    const key = [
+      assessment.category || "",
+      assessment.indicator_key || assessment.indicator_label || "",
+    ].join("::");
+
+    const current = latestByIndicator.get(key);
+    const assessmentHasValue = Boolean(getAssessmentValue(assessment));
+    const currentHasValue = Boolean(getAssessmentValue(current));
+
+    if (
+      !current ||
+      (assessmentHasValue && !currentHasValue) ||
+      getAssessmentTimestamp(assessment) >= getAssessmentTimestamp(current)
+    ) {
+      latestByIndicator.set(key, assessment);
+    }
+  });
+
+  return Array.from(latestByIndicator.values());
+}
+
 export default function ProgressReportsPage() {
   const router = useRouter();
 
@@ -184,7 +236,11 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    if (profile.role !== "principal" && profile.role !== "master") {
+    if (
+      profile.role !== "principal" &&
+      profile.role !== "master" &&
+      profile.role !== "teacher"
+    ) {
       router.push("/dashboard");
       return;
     }
@@ -196,7 +252,7 @@ export default function ProgressReportsPage() {
 
     if (!profile.school_id) {
       alert("No school linked to this account.");
-      router.push("/dashboard");
+      router.push(profile.role === "teacher" ? "/teacher" : "/dashboard");
       return;
     }
 
@@ -218,7 +274,10 @@ export default function ProgressReportsPage() {
     await fetchPeriods(currentSchoolId);
     await fetchAllAssessments(currentSchoolId);
     await fetchGeneratedReports(currentSchoolId);
-    await fetchAwards(currentSchoolId);
+
+    if (profile.role !== "teacher") {
+      await fetchAwards(currentSchoolId);
+    }
 
     setLoading(false);
   }
@@ -343,7 +402,7 @@ export default function ProgressReportsPage() {
       .from("learner_assessments")
       .select("*")
       .eq("school_id", currentSchoolId)
-      .in("status", ["submitted", "reviewed"])
+      .in("status", reviewStatusFilters)
       .order("updated_at", { ascending: false });
 
     if (error) {
@@ -862,6 +921,11 @@ export default function ProgressReportsPage() {
     awardPage * pageSize
   );
 
+  const isTeacher = profile?.role === "teacher";
+  const isPrincipal = profile?.role === "principal";
+
+  const visiblePeriods = periods;
+
   async function openAssessmentReview(item: any) {
     setSelectedClassroomId(String(item.classroom_id || ""));
     setSelectedTeacherId(String(item.teacher_id || ""));
@@ -881,17 +945,21 @@ export default function ProgressReportsPage() {
       .select("*")
       .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
-      .eq("teacher_id", item.teacher_id);
+      .eq("teacher_id", item.teacher_id)
+      .in("status", reviewStatusFilters)
+      .order("updated_at", { ascending: false });
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    setReviewAssessments(data || []);
+    const latestAssessments = normalizeLatestAssessments(data || []);
+
+    setReviewAssessments(latestAssessments);
 
     const observation =
-      (data || []).find((assessment: any) => assessment.teacher_comment)
+      latestAssessments.find((assessment: any) => assessment.teacher_comment)
         ?.teacher_comment || "";
 
     setTeacherObservation(observation);
@@ -935,17 +1003,20 @@ export default function ProgressReportsPage() {
       .select("*")
       .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
-      .in("status", ["locked", "generated", "reviewed", "submitted"]);
+      .in("status", reviewStatusFilters)
+      .order("updated_at", { ascending: false });
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    setReviewAssessments(data || []);
+    const latestAssessments = normalizeLatestAssessments(data || []);
+
+    setReviewAssessments(latestAssessments);
 
     const observation =
-      (data || []).find((assessment: any) => assessment.teacher_comment)
+      latestAssessments.find((assessment: any) => assessment.teacher_comment)
         ?.teacher_comment || "";
 
     setTeacherObservation(observation);
@@ -955,8 +1026,8 @@ export default function ProgressReportsPage() {
     setOpeningDate(item.opening_date || "");
     setClosingDate(item.closing_date || "");
 
-    if (data && data.length > 0) {
-      setSelectedTeacherId(String(data[0].teacher_id || ""));
+    if (latestAssessments.length > 0) {
+      setSelectedTeacherId(String(latestAssessments[0].teacher_id || ""));
     }
 
     window.requestAnimationFrame(() => {
@@ -1438,14 +1509,16 @@ export default function ProgressReportsPage() {
         </p>
       </div>
 
-      <div className="no-print" style={{ marginBottom: "24px" }}>
-        <button
-          className="db-button-primary"
-          onClick={() => setShowCreateModal(true)}
-        >
-          + Create Progress Report Period
-        </button>
-      </div>
+      {isPrincipal && (
+        <div className="no-print" style={{ marginBottom: "24px" }}>
+          <button
+            className="db-button-primary"
+            onClick={() => setShowCreateModal(true)}
+          >
+            + Create Progress Report Period
+          </button>
+        </div>
+      )}
 
       <div
         className="db-card db-card-blue no-print"
@@ -1453,11 +1526,11 @@ export default function ProgressReportsPage() {
       >
         <h3 style={sectionTitle}>Report Period Management</h3>
 
-        {periods.length === 0 ? (
+        {visiblePeriods.length === 0 ? (
           <p className="db-helper">No report periods created yet.</p>
         ) : (
           <div style={{ display: "grid", gap: "12px" }}>
-            {periods.map((period) => (
+            {visiblePeriods.map((period) => (
               <div key={period.id} className="db-list-card">
                 <div
                   style={{
@@ -1528,7 +1601,7 @@ export default function ProgressReportsPage() {
         )}
       </div>
 
-      {showCreateModal && (
+      {isPrincipal && showCreateModal && (
         <div style={modalOverlay} className="no-print">
           <div style={modalBox}>
             <h3 style={{ ...sectionTitle, marginBottom: "18px" }}>
@@ -1668,7 +1741,7 @@ export default function ProgressReportsPage() {
                 setAssessmentPage(1);
                 setReportPage(1);
 
-                const selectedReportPeriod = periods.find(
+                const selectedReportPeriod = visiblePeriods.find(
                   (period) => String(period.id) === String(periodId)
                 );
 
@@ -1682,7 +1755,7 @@ export default function ProgressReportsPage() {
               }}
             >
               <option value="">All Report Periods</option>
-              {periods.map((period) => (
+              {visiblePeriods.map((period) => (
                 <option key={period.id} value={period.id}>
                   {period.title} ({formatPeriodType(period.report_type)} -{" "}
                   {formatReportTemplate(period.report_template || "developmental")}
@@ -1703,7 +1776,7 @@ export default function ProgressReportsPage() {
           style={collapsibleHeader}
         >
           <h3 style={{ ...sectionTitle, margin: 0 }}>
-            Practitioner Submitted Observations
+            Practitioner Observations
           </h3>
           <span style={chevron}>{showAssessments ? "-" : "+"}</span>
         </div>
@@ -1712,7 +1785,7 @@ export default function ProgressReportsPage() {
           <>
             {visibleAssessments.length === 0 ? (
               <p className="db-helper" style={{ marginTop: "14px" }}>
-                No submitted practitioner observations found.
+                No practitioner observations found.
               </p>
             ) : (
               <div style={{ display: "grid", gap: "10px", marginTop: "14px" }}>
@@ -1935,10 +2008,11 @@ export default function ProgressReportsPage() {
         )}
       </div>
 
-      <div
-        className="db-card db-card-yellow no-print"
-        style={{ padding: "20px", marginBottom: "24px" }}
-      >
+      {!isTeacher && (
+        <div
+          className="db-card db-card-yellow no-print"
+          style={{ padding: "20px", marginBottom: "24px" }}
+        >
         <div onClick={() => setShowAwards(!showAwards)} style={collapsibleHeader}>
           <h3 style={{ ...sectionTitle, margin: 0 }}>Achievement Awards</h3>
           <span style={chevron}>{showAwards ? "-" : "+"}</span>
@@ -2142,9 +2216,10 @@ export default function ProgressReportsPage() {
             ) : null}
           </>
         )}
-      </div>
+        </div>
+      )}
 
-      {selectedAward && (
+      {!isTeacher && selectedAward && (
         <div
           className="db-card db-card-lavender award-certificate-print-area"
           style={{
@@ -2881,7 +2956,7 @@ function ReportSkillTable({
         item.indicator_label === indicator.label
     );
 
-    return normalizeLevel(assessment?.level || "");
+    return normalizeLevel(getAssessmentValue(assessment));
   }
 
   if (indicators.length === 0) {

@@ -824,12 +824,42 @@ export default function ImpactSponsorshipDashboard() {
         </div>
       )}
 
-      <div className="db-grid-4" style={{ marginBottom: "24px" }}>
-        <Metric title="Sponsor Programmes" value={sponsors.length} />
-        <Metric title="Sponsored Schools" value={schoolsForSponsor.length} />
-        <Metric title="Learners Supported" value={learnersSupported.length} />
-        <Metric title="Attendance Rate" value={`${attendanceRate}%`} />
-      </div>
+      <div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: "14px",
+    marginBottom: "24px",
+   }}
+>
+  <Metric
+    title="Sponsor Programmes"
+    value={sponsors.length}
+    background="#EAF7FD"
+    border="#CBEAF7"
+  />
+
+  <Metric
+    title="Sponsored Schools"
+    value={schoolsForSponsor.length}
+    background="#EAF8EE"
+    border="#CBEFD6"
+  />
+
+  <Metric
+    title="Learners Supported"
+    value={learnersSupported.length}
+    background="#FFF7D9"
+    border="#F3E4A3"
+  />
+
+  <Metric
+    title="Attendance Rate"
+    value={`${attendanceRate}%`}
+    background="#F8E8F0"
+    border="#EBC9D8"
+  />
+</div>
 
       <div
         className="db-card db-card-lavender"
@@ -1270,17 +1300,45 @@ export default function ImpactSponsorshipDashboard() {
   );
 }
 
-function Metric({ title, value }: { title: string; value: string | number }) {
+function Metric({
+  title,
+  value,
+  background,
+  border,
+}: {
+  title: string;
+  value: string | number;
+  background: string;
+  border: string;
+}) {
   return (
-    <div className="db-card db-card-white" style={{ padding: "18px" }}>
-      <p style={{ margin: 0, color: "var(--db-text-soft)", fontSize: "13px" }}>
+    <div
+      style={{
+        background,
+        border: `1px solid ${border}`,
+        borderRadius: "22px",
+        padding: "18px",
+        boxShadow: "0 8px 18px rgba(45, 42, 62, 0.05)",
+        minHeight: "112px",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          color: "#5B5675",
+          fontSize: "14px",
+          fontWeight: 700,
+        }}
+      >
         {title}
       </p>
+
       <h2
         style={{
-          margin: "8px 0 0",
-          fontSize: "30px",
-          color: "var(--db-text)",
+          margin: "10px 0 0 0",
+          color: "#2D2A3E",
+          fontSize: "32px",
+          fontWeight: 800,
         }}
       >
         {value}

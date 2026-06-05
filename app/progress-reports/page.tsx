@@ -640,16 +640,24 @@ export default function ProgressReportsPage() {
   }
 
   async function saveTeacherChecklist(status: "draft" | "submitted") {
+    const selectedLearnerForSave = learners.find(
+      (learner) => String(learner.id) === String(selectedLearnerId)
+    );
+    const effectiveClassroomId =
+      selectedClassroomId ||
+      getLearnerClassroomId(selectedLearnerForSave) ||
+      (isTeacher ? teacherClassroomIds[0] || "" : "");
+
     if (
       !schoolId ||
       !profile?.id ||
-      !selectedClassroomId ||
+      !effectiveClassroomId ||
       !selectedLearnerId ||
       !selectedPeriodId
     ) {
       alert(
         isTeacher
-          ? "Please select learner and term/report period."
+          ? "Please select learner and term/report period. If this continues, check that the learner is linked to your class."
           : "Please select class, learner and report period."
       );
       return;
@@ -688,7 +696,7 @@ export default function ProgressReportsPage() {
         .from("learner_assessments")
         .select("id, status")
         .eq("school_id", schoolId)
-        .eq("classroom_id", Number(selectedClassroomId))
+        .eq("classroom_id", Number(effectiveClassroomId))
         .eq("teacher_id", profile.id)
         .eq("learner_id", selectedLearnerId)
         .eq("report_period_id", Number(selectedPeriodId))
@@ -717,7 +725,7 @@ export default function ProgressReportsPage() {
 
       const payload = {
         school_id: schoolId,
-        classroom_id: Number(selectedClassroomId),
+        classroom_id: Number(effectiveClassroomId),
         teacher_id: profile.id,
         learner_id: selectedLearnerId,
         report_period_id: Number(selectedPeriodId),
@@ -937,10 +945,23 @@ export default function ProgressReportsPage() {
       return String(learner.classroom_id);
     }
 
+    const learnerClassNames = [
+      learner.class,
+      learner.classroom,
+      learner.classroom_name,
+      learner.class_name,
+      learner.assigned_classroom,
+      learner.assigned_classroom_name,
+    ]
+      .filter(Boolean)
+      .map((item: any) => String(item).trim().toLowerCase());
+
     const classroom = classrooms.find(
       (item) =>
-        item.classroom_name === learner.class ||
-        String(item.id) === String(learner.class)
+        learnerClassNames.includes(
+          String(item.classroom_name || "").trim().toLowerCase()
+        ) ||
+        learnerClassNames.includes(String(item.id || "").trim().toLowerCase())
     );
 
     return classroom ? String(classroom.id) : "";
@@ -970,6 +991,71 @@ export default function ProgressReportsPage() {
     );
 
     return teacher ? String(teacher.id) : "";
+  }
+
+  function getTeacherClassroomIds() {
+    if (!profile) return [];
+
+    const classroomIds = new Set<string>();
+    const teacherId = String(profile.id || "");
+    const teacherEmail = String(profile.email || "").toLowerCase();
+    const teacherNames = [
+      profile.full_name,
+      profile.name,
+      profile.teacher_name,
+      profile.display_name,
+    ]
+      .filter(Boolean)
+      .map((item: any) => String(item).trim().toLowerCase());
+
+    if (profile.classroom_id) {
+      classroomIds.add(String(profile.classroom_id));
+    }
+
+    if (profile.assigned_classroom_id) {
+      classroomIds.add(String(profile.assigned_classroom_id));
+    }
+
+    const profileClassNames = [
+      profile.classroom,
+      profile.classroom_name,
+      profile.assigned_classroom,
+      profile.assigned_classroom_name,
+      profile.class,
+    ]
+      .filter(Boolean)
+      .map((item: any) => String(item).trim().toLowerCase());
+
+    classrooms.forEach((classroom) => {
+      const classroomId = String(classroom.id || "");
+      const classroomName = String(classroom.classroom_name || "")
+        .trim()
+        .toLowerCase();
+      const classroomTeacherName = String(classroom.teacher_name || "")
+        .trim()
+        .toLowerCase();
+      const classroomTeacherEmail = String(classroom.teacher_email || "")
+        .trim()
+        .toLowerCase();
+
+      if (!classroomId) return;
+
+      if (
+        String(classroom.teacher_id || "") === teacherId ||
+        String(classroom.practitioner_id || "") === teacherId ||
+        (teacherEmail && classroomTeacherEmail === teacherEmail) ||
+        (classroomTeacherName &&
+          teacherNames.some((teacherName) => teacherName === classroomTeacherName)) ||
+        (classroomName &&
+          profileClassNames.some(
+            (profileClassName) => profileClassName === classroomName
+          ))
+      ) {
+        classroomIds.add(classroomId);
+      }
+    });
+
+    return Array.from(classroomIds);
   }
 
   function handleAwardLearnerChange(learnerId: string) {
@@ -1155,14 +1241,21 @@ export default function ProgressReportsPage() {
     ? periods.filter((period) => period.status !== "archived")
     : periods;
 
-  const learnerOptions =
-    isTeacher && selectedClassroomId
-      ? learners.filter(
-          (learner) =>
-            String(getLearnerClassroomId(learner)) ===
-            String(selectedClassroomId)
-        )
-      : learners;
+  const teacherClassroomIds = isTeacher ? getTeacherClassroomIds() : [];
+
+  const learnerOptions = learners.filter((learner) => {
+    const learnerClassroomId = String(getLearnerClassroomId(learner));
+
+    if (isTeacher && teacherClassroomIds.length > 0) {
+      return teacherClassroomIds.includes(learnerClassroomId);
+    }
+
+    if (selectedClassroomId) {
+      return learnerClassroomId === String(selectedClassroomId);
+    }
+
+    return true;
+  });
 
   async function openAssessmentReview(item: any) {
     setSelectedClassroomId(String(item.classroom_id || ""));
@@ -1990,7 +2083,18 @@ export default function ProgressReportsPage() {
               className="db-input"
               value={selectedLearnerId}
               onChange={(e) => {
-                setSelectedLearnerId(e.target.value);
+                const learnerId = e.target.value;
+                const learner = learners.find(
+                  (item) => String(item.id) === String(learnerId)
+                );
+                const learnerClassroomId = getLearnerClassroomId(learner);
+
+                setSelectedLearnerId(learnerId);
+
+                if (isTeacher && learnerClassroomId) {
+                  setSelectedClassroomId(learnerClassroomId);
+                }
+
                 setAssessmentPage(1);
                 setReportPage(1);
               }}
@@ -1998,7 +2102,8 @@ export default function ProgressReportsPage() {
               <option value="">All Learners</option>
               {learnerOptions.map((learner) => (
                 <option key={learner.id} value={learner.id}>
-                  {learner.legal_name || learner.name}
+                  {learner.legal_name || learner.name} -{" "}
+                  {getClassroomName(getLearnerClassroomId(learner))}
                 </option>
               ))}
             </select>

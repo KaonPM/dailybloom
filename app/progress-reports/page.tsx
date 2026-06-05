@@ -48,6 +48,58 @@ const certificateReasonOptions: Record<string, string[]> = {
   ],
 };
 
+const reviewStatusFilters = [
+  "draft",
+  "submitted",
+  "reviewed",
+  "locked",
+  "generated",
+];
+
+function getAssessmentValue(assessment: any) {
+  return (
+    assessment?.level ||
+    assessment?.rating ||
+    assessment?.assessment_level ||
+    assessment?.selected_level ||
+    assessment?.selected_rating ||
+    assessment?.value ||
+    ""
+  );
+}
+
+function getAssessmentTimestamp(assessment: any) {
+  const value = assessment?.updated_at || assessment?.created_at || "";
+  const timestamp = value ? new Date(value).getTime() : 0;
+
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function normalizeLatestAssessments(assessments: any[]) {
+  const latestByIndicator = new Map<string, any>();
+
+  assessments.forEach((assessment) => {
+    const key = [
+      assessment.category || "",
+      assessment.indicator_key || assessment.indicator_label || "",
+    ].join("::");
+
+    const current = latestByIndicator.get(key);
+    const assessmentHasValue = Boolean(getAssessmentValue(assessment));
+    const currentHasValue = Boolean(getAssessmentValue(current));
+
+    if (
+      !current ||
+      (assessmentHasValue && !currentHasValue) ||
+      getAssessmentTimestamp(assessment) >= getAssessmentTimestamp(current)
+    ) {
+      latestByIndicator.set(key, assessment);
+    }
+  });
+
+  return Array.from(latestByIndicator.values());
+}
+
 export default function ProgressReportsPage() {
   const router = useRouter();
 
@@ -350,7 +402,7 @@ export default function ProgressReportsPage() {
       .from("learner_assessments")
       .select("*")
       .eq("school_id", currentSchoolId)
-      .in("status", ["submitted", "reviewed"])
+      .in("status", reviewStatusFilters)
       .order("updated_at", { ascending: false });
 
     if (error) {
@@ -893,17 +945,21 @@ export default function ProgressReportsPage() {
       .select("*")
       .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
-      .eq("teacher_id", item.teacher_id);
+      .eq("teacher_id", item.teacher_id)
+      .in("status", reviewStatusFilters)
+      .order("updated_at", { ascending: false });
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    setReviewAssessments(data || []);
+    const latestAssessments = normalizeLatestAssessments(data || []);
+
+    setReviewAssessments(latestAssessments);
 
     const observation =
-      (data || []).find((assessment: any) => assessment.teacher_comment)
+      latestAssessments.find((assessment: any) => assessment.teacher_comment)
         ?.teacher_comment || "";
 
     setTeacherObservation(observation);
@@ -947,17 +1003,20 @@ export default function ProgressReportsPage() {
       .select("*")
       .eq("learner_id", item.learner_id)
       .eq("report_period_id", Number(item.report_period_id))
-      .in("status", ["locked", "generated", "reviewed", "submitted"]);
+      .in("status", reviewStatusFilters)
+      .order("updated_at", { ascending: false });
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    setReviewAssessments(data || []);
+    const latestAssessments = normalizeLatestAssessments(data || []);
+
+    setReviewAssessments(latestAssessments);
 
     const observation =
-      (data || []).find((assessment: any) => assessment.teacher_comment)
+      latestAssessments.find((assessment: any) => assessment.teacher_comment)
         ?.teacher_comment || "";
 
     setTeacherObservation(observation);
@@ -967,8 +1026,8 @@ export default function ProgressReportsPage() {
     setOpeningDate(item.opening_date || "");
     setClosingDate(item.closing_date || "");
 
-    if (data && data.length > 0) {
-      setSelectedTeacherId(String(data[0].teacher_id || ""));
+    if (latestAssessments.length > 0) {
+      setSelectedTeacherId(String(latestAssessments[0].teacher_id || ""));
     }
 
     window.requestAnimationFrame(() => {
@@ -1717,7 +1776,7 @@ export default function ProgressReportsPage() {
           style={collapsibleHeader}
         >
           <h3 style={{ ...sectionTitle, margin: 0 }}>
-            Practitioner Submitted Observations
+            Practitioner Observations
           </h3>
           <span style={chevron}>{showAssessments ? "-" : "+"}</span>
         </div>
@@ -1726,7 +1785,7 @@ export default function ProgressReportsPage() {
           <>
             {visibleAssessments.length === 0 ? (
               <p className="db-helper" style={{ marginTop: "14px" }}>
-                No submitted practitioner observations found.
+                No practitioner observations found.
               </p>
             ) : (
               <div style={{ display: "grid", gap: "10px", marginTop: "14px" }}>
@@ -2897,7 +2956,7 @@ function ReportSkillTable({
         item.indicator_label === indicator.label
     );
 
-    return normalizeLevel(assessment?.level || "");
+    return normalizeLevel(getAssessmentValue(assessment));
   }
 
   if (indicators.length === 0) {

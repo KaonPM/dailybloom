@@ -206,24 +206,41 @@ export default function Sidebar() {
   );
 
   const teacherSchoolManagementNav = useMemo<NavItem[]>(
-    () => [
-      {
-        label: "Classroom Activities",
-        href: "/classroom-activities",
-        match: ["/classroom-activities"],
-      },
-      { label: "Learners", href: "/children", match: ["/children"] },
-      { label: "Attendance", href: "/attendance", match: ["/attendance"] },
-      {
-        label: "Summaries",
-        href: "/summaries",
-        match: ["/summaries"],
-        featureKey: "daily_summaries",
-      },
-      { label: "Events", href: "/events", match: ["/events"] },
-    ],
-    []
-  );
+  () => [
+    {
+      label: "Classroom Activities",
+      href: "/classroom-activities",
+      match: ["/classroom-activities"],
+    },
+    {
+      label: "Learners",
+      href: "/children",
+      match: ["/children"],
+    },
+    {
+      label: "Attendance",
+      href: "/attendance",
+      match: ["/attendance"],
+    },
+    {
+      label: "Daily Summaries",
+      href: "/summaries",
+      match: ["/summaries"],
+      featureKey: "daily_summaries",
+    },
+    {
+      label: "Events",
+      href: "/events",
+      match: ["/events"],
+    },
+    {
+      label: "Progress Reports",
+      href: "/progress-reports",
+      match: ["/progress-reports"],
+    },
+  ],
+  []
+);
 
   useEffect(() => {
     const savedQuickActions = localStorage.getItem("db-quick-actions");
@@ -319,6 +336,13 @@ export default function Sidebar() {
 
   const isMaster = profile?.role === "master";
   const isTeacher = profile?.role === "teacher";
+
+  useEffect(() => {
+  if (isTeacher) {
+    setSchoolManagementOpen(true);
+  }
+  }, [isTeacher]);
+
   const showSchoolActions = Boolean(school) || !isMaster;
 
   const isBloomElite =

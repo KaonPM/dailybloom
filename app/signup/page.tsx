@@ -72,17 +72,17 @@ export default function SignUpPage() {
     event.preventDefault();
     setMessage("");
 
-    if (
-      !schoolName ||
-      !schoolEmail ||
-      !schoolPhone ||
-      !schoolAddress ||
-      !province ||
-      !fullName ||
-      !principalEmail ||
-      !principalPhone ||
-      !packageSelected
-    ) {
+   if (
+   !schoolName.trim() ||
+   !schoolEmail.trim() ||
+   !schoolPhone.trim() ||
+   !schoolAddress.trim() ||
+   !province.trim() ||
+   !fullName.trim() ||
+   !principalEmail.trim() ||
+   !principalPhone.trim() ||
+   !packageSelected
+ ) {
       setMessage("Please complete all required fields.");
       return;
     }

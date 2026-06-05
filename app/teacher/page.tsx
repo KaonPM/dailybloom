@@ -76,6 +76,12 @@ type TeacherOverview = {
   activitiesToday: number;
 };
 
+type OutstandingRequirementItem = {
+  learnerId: number;
+  learnerName: string;
+  missingItems: string[];
+};
+
 export default function TeacherDashboardPage() {
   const router = useRouter();
 
@@ -90,6 +96,9 @@ export default function TeacherDashboardPage() {
     UpcomingBirthdayItem[]
   >([]);
   const [todayActivities, setTodayActivities] = useState<ActivityItem[]>([]);
+  const [outstandingRequirements, setOutstandingRequirements] = useState<
+    OutstandingRequirementItem[]
+  >([]);
 
   const [overview, setOverview] = useState<TeacherOverview>({
     learners: 0,
@@ -324,9 +333,7 @@ export default function TeacherDashboardPage() {
       : [];
 
     const classroomLearnerNames = new Set(
-      learners
-        .map((learner) => normalizeText(learner.name))
-        .filter(Boolean)
+      learners.map((learner) => normalizeText(learner.name)).filter(Boolean)
     );
 
     const filteredSummaries = summaries.filter((summary) =>
@@ -400,6 +407,8 @@ export default function TeacherDashboardPage() {
       .sort((a, b) => a.daysUntil - b.daysUntil)
       .slice(0, 2);
 
+    await fetchOutstandingRequirements(schoolId, learners);
+
     setTodayEvents(todaysEvents);
     setUpcomingEvents(nextUpcomingEvents);
     setBirthdaysToday(todaysBirthdays);
@@ -412,6 +421,82 @@ export default function TeacherDashboardPage() {
       summariesToday: filteredSummaries.length,
       activitiesToday: activities.length,
     });
+  }
+
+  async function fetchOutstandingRequirements(
+    schoolId: number,
+    learners: LearnerItem[]
+  ) {
+    if (learners.length === 0) {
+      setOutstandingRequirements([]);
+      return;
+    }
+
+    const learnerIds = learners.map((learner) => learner.id);
+    const learnerMap = new Map<number, LearnerItem>();
+
+    learners.forEach((learner) => {
+      learnerMap.set(Number(learner.id), learner);
+    });
+
+    const [documentsRes, stationeryRes] = await Promise.all([
+      supabase
+        .from("learner_documents")
+        .select("learner_id, document_name, received")
+        .eq("school_id", schoolId)
+        .in("learner_id", learnerIds),
+
+      supabase
+        .from("learner_stationery_checklist")
+        .select("learner_id, item_name, received")
+        .eq("school_id", schoolId)
+        .in("learner_id", learnerIds),
+    ]);
+
+    if (documentsRes.error) {
+      alert(documentsRes.error.message);
+      return;
+    }
+
+    if (stationeryRes.error) {
+      alert(stationeryRes.error.message);
+      return;
+    }
+
+    const missingByLearner = new Map<number, string[]>();
+
+    (documentsRes.data || []).forEach((item: any) => {
+      if (item.received === true) return;
+
+      const learnerId = Number(item.learner_id);
+      const currentItems = missingByLearner.get(learnerId) || [];
+      currentItems.push(item.document_name || "Unnamed document");
+      missingByLearner.set(learnerId, currentItems);
+    });
+
+    (stationeryRes.data || []).forEach((item: any) => {
+      if (item.received === true) return;
+
+      const learnerId = Number(item.learner_id);
+      const currentItems = missingByLearner.get(learnerId) || [];
+      currentItems.push(item.item_name || "Unnamed item");
+      missingByLearner.set(learnerId, currentItems);
+    });
+
+    const outstanding = Array.from(missingByLearner.entries())
+      .map(([learnerId, missingItems]) => {
+        const learner = learnerMap.get(learnerId);
+
+        return {
+          learnerId,
+          learnerName: learner?.name || "Unnamed learner",
+          missingItems,
+        };
+      })
+      .filter((item) => item.missingItems.length > 0)
+      .slice(0, 6);
+
+    setOutstandingRequirements(outstanding);
   }
 
   if (loading) {
@@ -473,6 +558,51 @@ export default function TeacherDashboardPage() {
         >
           Classroom view: {classroomLabel}
         </p>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: "14px",
+          marginBottom: "24px",
+        }}
+      >
+        <OverviewCard
+          label="Learners"
+          value={overview.learners}
+          helper="Learners in your class"
+          href="/children"
+          background="#EAF7FD"
+          border="#CBEAF7"
+        />
+
+        <OverviewCard
+          label="Attendance Today"
+          value={overview.attendanceToday}
+          helper="Marked today"
+          href="/attendance"
+          background="#EEF9EE"
+          border="#D3EDD4"
+        />
+
+        <OverviewCard
+          label="Summaries Today"
+          value={overview.summariesToday}
+          helper="Saved today"
+          href="/summaries"
+          background="#F8E8F0"
+          border="#EBC9D8"
+        />
+
+        <OverviewCard
+          label="Activities Today"
+          value={overview.activitiesToday}
+          helper="Planned for today"
+          href="/activities"
+          background="#FFF7D9"
+          border="#F3E4A3"
+        />
       </div>
 
       <div
@@ -606,51 +736,6 @@ export default function TeacherDashboardPage() {
 
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "14px",
-          marginBottom: "24px",
-        }}
-      >
-        <OverviewCard
-          label="Learners"
-          value={overview.learners}
-          helper="Learners in your class"
-          href="/children"
-          background="#EAF7FD"
-          border="#CBEAF7"
-        />
-
-        <OverviewCard
-          label="Attendance Today"
-          value={overview.attendanceToday}
-          helper="Marked today"
-          href="/attendance"
-          background="#EEF9EE"
-          border="#D3EDD4"
-        />
-
-        <OverviewCard
-          label="Summaries Today"
-          value={overview.summariesToday}
-          helper="Saved today"
-          href="/summaries"
-          background="#F8E8F0"
-          border="#EBC9D8"
-        />
-
-        <OverviewCard
-          label="Activities Today"
-          value={overview.activitiesToday}
-          helper="Planned for today"
-          href="/activities"
-          background="#FFF7D9"
-          border="#F3E4A3"
-        />
-      </div>
-
-      <div
-        style={{
           background: "#FFFFFF",
           border: "1px solid #F0E3D8",
           borderRadius: "24px",
@@ -667,7 +752,7 @@ export default function TeacherDashboardPage() {
             fontWeight: 700,
           }}
         >
-          Quick Actions
+          Outstanding Learner Requirements
         </h3>
 
         <p
@@ -679,52 +764,71 @@ export default function TeacherDashboardPage() {
             lineHeight: 1.6,
           }}
         >
-          Open the daily teacher workflows.
+          Learners in your classroom with missing documents, stationery, or
+          hygiene items.
         </p>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "14px",
-          }}
-        >
-          <QuickActionCard
-            title="Take Attendance"
-            description="Mark learners present or absent."
-            href="/attendance"
-            background="#EAF7FD"
-            border="#CBEAF7"
-          />
+        {outstandingRequirements.length === 0 ? (
+          <p
+            style={{
+              margin: 0,
+              color: "#6D6888",
+              fontSize: "14px",
+            }}
+          >
+            No outstanding learner requirements found for your classroom.
+          </p>
+        ) : (
+          <div style={{ display: "grid", gap: "12px" }}>
+            {outstandingRequirements.map((item) => (
+              <div
+                key={item.learnerId}
+                style={{
+                  background: "#FFFDFB",
+                  border: "1px solid #F0E3D8",
+                  borderRadius: "16px",
+                  padding: "14px",
+                }}
+              >
+                <strong
+                  style={{
+                    display: "block",
+                    color: "#2D2A3E",
+                    fontSize: "15px",
+                    marginBottom: "6px",
+                  }}
+                >
+                  {item.learnerName}
+                </strong>
 
-          <QuickActionCard
-            title="Daily Summaries"
-            description="Complete daily learner updates."
-            href="/summaries"
-            background="#F8E8F0"
-            border="#EBC9D8"
-          />
+                <p
+                  style={{
+                    margin: "0 0 10px 0",
+                    color: "#6D6888",
+                    fontSize: "13px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Missing: {item.missingItems.slice(0, 4).join(", ")}
+                  {item.missingItems.length > 4 ? " and more" : ""}
+                </p>
 
-          <QuickActionCard
-            title="View Learners"
-            description="Open your class learner list."
-            href="/children"
-            background="#FFF7D9"
-            border="#F3E4A3"
-          />
-
-          <QuickActionCard
-            title="Today’s Activities"
-            description="View planned activities for the day."
-            href="/activities"
-            background="#EEF9EE"
-            border="#D3EDD4"
-          />
-
-          <Link href="/teacher-assessments" className="db-button-primary">
-            Learner Progress Assessments
-          </Link>
-        </div>
+                <Link
+                  href={`/learner-requirements?learner=${item.learnerId}`}
+                  className="db-button-primary"
+                  style={{
+                    display: "inline-block",
+                    textDecoration: "none",
+                    padding: "9px 12px",
+                    fontSize: "13px",
+                  }}
+                >
+                  View Checklist
+                </Link>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -882,58 +986,6 @@ function OverviewCard({
           }}
         >
           {helper}
-        </p>
-      </div>
-    </Link>
-  );
-}
-
-function QuickActionCard({
-  title,
-  description,
-  href,
-  background,
-  border,
-}: {
-  title: string;
-  description: string;
-  href: string;
-  background: string;
-  border: string;
-}) {
-  return (
-    <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
-      <div
-        style={{
-          background,
-          border: `1px solid ${border}`,
-          borderRadius: "20px",
-          padding: "18px",
-          boxShadow: "0 8px 18px rgba(45, 42, 62, 0.05)",
-          cursor: "pointer",
-          minHeight: "120px",
-        }}
-      >
-        <h4
-          style={{
-            margin: 0,
-            color: "#2D2A3E",
-            fontSize: "18px",
-            fontWeight: 700,
-          }}
-        >
-          {title}
-        </h4>
-
-        <p
-          style={{
-            margin: "8px 0 0 0",
-            color: "#5B5675",
-            fontSize: "14px",
-            lineHeight: 1.6,
-          }}
-        >
-          {description}
         </p>
       </div>
     </Link>

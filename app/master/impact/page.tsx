@@ -147,7 +147,7 @@ export default function ImpactSponsorshipDashboard() {
   }
 
   async function createSponsorProgramme() {
-    if (!sponsorName || !programmeName) {
+    if (!sponsorName.trim() || !programmeName.trim()) {
       alert("Please add sponsor name and programme name.");
       return;
     }
@@ -156,12 +156,12 @@ export default function ImpactSponsorshipDashboard() {
 
     const { error } = await supabase.from("sponsor_programmes").insert([
       {
-        sponsor_name: sponsorName,
-        programme_name: programmeName,
+        sponsor_name: sponsorName.trim(),
+        programme_name: programmeName.trim(),
         sponsor_type: sponsorType,
-        funding_focus: fundingFocus,
-        contact_person: contactPerson,
-        contact_email: contactEmail,
+        funding_focus: fundingFocus.trim() || null,
+        contact_person: contactPerson.trim() || null,
+        contact_email: contactEmail.trim() || null,
         reporting_cycle: "Quarterly",
         status: "Active",
       },

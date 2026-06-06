@@ -20,106 +20,99 @@ const developmentalAreas = [
   "Music and Movement",
 ];
 
+const themes = [
+  "My Family",
+  "My Body",
+  "Animals",
+  "Transport",
+  "Seasons",
+  "Weather",
+  "Healthy Living",
+  "Community Helpers",
+  "Colours and Shapes",
+  "Numbers",
+  "Home and School",
+  "Plants and Nature",
+];
+
 const defaultActivityLibrary = [
   {
     developmental_area: "Language and Communication",
-    activity_name: "Story Time and Discussion",
-    description: "Read a short story and ask learners simple questions about characters, events and feelings.",
+    theme: "My Family",
+    activity_name: "Family Picture Talk",
+    description: "Learners talk about family members using pictures and simple sentences.",
   },
   {
     developmental_area: "Language and Communication",
-    activity_name: "Picture Talk",
-    description: "Use a picture card or poster and encourage learners to describe what they see using full sentences.",
+    theme: "Animals",
+    activity_name: "Animal Sound Story",
+    description: "Learners listen to a short animal story and copy animal sounds.",
   },
   {
     developmental_area: "Early Mathematics",
+    theme: "Numbers",
     activity_name: "Counting Objects",
     description: "Learners count classroom objects and match the total to number cards.",
   },
   {
     developmental_area: "Early Mathematics",
+    theme: "Colours and Shapes",
     activity_name: "Shape Sorting",
     description: "Learners sort shapes by colour, size and type while naming each shape.",
   },
   {
     developmental_area: "Fine Motor Development",
+    theme: "Colours and Shapes",
     activity_name: "Threading Beads",
-    description: "Learners thread beads or large buttons to strengthen hand control and coordination.",
+    description: "Learners thread beads to strengthen hand control and coordination.",
   },
   {
     developmental_area: "Fine Motor Development",
+    theme: "My Body",
     activity_name: "Cutting Practice",
-    description: "Learners practise cutting along straight and curved lines using child-safe scissors.",
+    description: "Learners practise cutting along straight and curved lines.",
   },
   {
     developmental_area: "Gross Motor Development",
+    theme: "Healthy Living",
     activity_name: "Obstacle Course",
     description: "Learners move through a simple obstacle course using crawling, jumping and balancing.",
   },
   {
-    developmental_area: "Gross Motor Development",
-    activity_name: "Ball Throwing and Catching",
-    description: "Learners practise throwing, catching and rolling a ball with control.",
-  },
-  {
     developmental_area: "Creative Development",
-    activity_name: "Free Drawing",
-    description: "Learners draw freely using crayons or pencils and explain their picture afterwards.",
-  },
-  {
-    developmental_area: "Creative Development",
-    activity_name: "Painting with Brushes",
-    description: "Learners use paint and brushes to create a picture linked to the weekly theme.",
+    theme: "My Family",
+    activity_name: "Draw My Family",
+    description: "Learners draw their family and describe who is in the picture.",
   },
   {
     developmental_area: "Social and Emotional Development",
+    theme: "My Family",
     activity_name: "Feelings Circle",
     description: "Learners identify emotions and share how they feel using picture prompts.",
   },
   {
-    developmental_area: "Social and Emotional Development",
-    activity_name: "Sharing and Turn Taking",
-    description: "Learners practise sharing toys or materials and waiting for their turn during group play.",
-  },
-  {
     developmental_area: "Life Skills",
+    theme: "Healthy Living",
     activity_name: "Handwashing Routine",
     description: "Learners practise washing hands correctly and explain when hands should be washed.",
   },
   {
-    developmental_area: "Life Skills",
-    activity_name: "Packing Away",
-    description: "Learners help tidy the classroom by sorting and packing materials in the correct places.",
-  },
-  {
     developmental_area: "Sensory Development",
+    theme: "Plants and Nature",
     activity_name: "Texture Exploration",
     description: "Learners touch and describe different textures such as soft, rough, smooth and bumpy.",
   },
   {
-    developmental_area: "Sensory Development",
-    activity_name: "Sound Matching",
-    description: "Learners listen to different sounds and match them to objects or picture cards.",
-  },
-  {
     developmental_area: "Outdoor Play",
-    activity_name: "Free Outdoor Play",
-    description: "Learners use outdoor equipment safely while developing coordination and social play.",
-  },
-  {
-    developmental_area: "Outdoor Play",
+    theme: "Plants and Nature",
     activity_name: "Nature Walk",
-    description: "Learners walk outside and identify natural items such as leaves, stones, flowers and insects.",
+    description: "Learners walk outside and identify leaves, stones, flowers and insects.",
   },
   {
     developmental_area: "Music and Movement",
+    theme: "My Body",
     activity_name: "Action Songs",
     description: "Learners sing action songs and follow movements such as clapping, jumping and turning.",
-  },
-  {
-    developmental_area: "Music and Movement",
-    activity_name: "Rhythm Clapping",
-    description: "Learners copy simple rhythms using claps, taps or classroom instruments.",
   },
 ];
 
@@ -143,6 +136,7 @@ type ActivityLibraryItem = {
   id: number;
   school_id: number;
   developmental_area: string;
+  theme: string | null;
   activity_name: string;
   description: string | null;
   created_by?: string | null;
@@ -166,12 +160,14 @@ export default function ClassroomActivitiesPage() {
 
   const [editingLibraryId, setEditingLibraryId] = useState<number | null>(null);
   const [libraryArea, setLibraryArea] = useState("");
+  const [libraryTheme, setLibraryTheme] = useState("");
   const [libraryActivityName, setLibraryActivityName] = useState("");
   const [libraryDescription, setLibraryDescription] = useState("");
 
   const [classroomId, setClassroomId] = useState("");
   const [activityDate, setActivityDate] = useState(today());
   const [developmentalArea, setDevelopmentalArea] = useState("Language and Communication");
+  const [theme, setTheme] = useState("My Family");
   const [selectedLibraryId, setSelectedLibraryId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -179,12 +175,14 @@ export default function ClassroomActivitiesPage() {
   const [bulkClassroomId, setBulkClassroomId] = useState("");
   const [bulkDate, setBulkDate] = useState(today());
   const [bulkArea, setBulkArea] = useState("");
+  const [bulkTheme, setBulkTheme] = useState("");
 
   const [loading, setLoading] = useState(false);
 
   const [filterClassroomId, setFilterClassroomId] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
+  const [filterTheme, setFilterTheme] = useState("");
   const [filterDate, setFilterDate] = useState(today());
 
   const [repeatDates, setRepeatDates] = useState<Record<number, string>>({});
@@ -211,18 +209,22 @@ export default function ClassroomActivitiesPage() {
   }, [classrooms, isTeacher, profile]);
 
   const filteredLibrary = useMemo(() => {
-    return activityLibrary.filter(
-      (item) => item.developmental_area === developmentalArea
-    );
-  }, [activityLibrary, developmentalArea]);
+    return activityLibrary.filter((item) => {
+      const matchesArea = item.developmental_area === developmentalArea;
+      const matchesTheme = theme ? item.theme === theme : true;
+
+      return matchesArea && matchesTheme;
+    });
+  }, [activityLibrary, developmentalArea, theme]);
 
   const bulkLibrary = useMemo(() => {
-    if (!bulkArea) return activityLibrary;
+    return activityLibrary.filter((item) => {
+      const matchesArea = bulkArea ? item.developmental_area === bulkArea : true;
+      const matchesTheme = bulkTheme ? item.theme === bulkTheme : true;
 
-    return activityLibrary.filter(
-      (item) => item.developmental_area === bulkArea
-    );
-  }, [activityLibrary, bulkArea]);
+      return matchesArea && matchesTheme;
+    });
+  }, [activityLibrary, bulkArea, bulkTheme]);
 
   useEffect(() => {
     loadPage();
@@ -261,7 +263,7 @@ export default function ClassroomActivitiesPage() {
   async function seedDefaultLibrary(currentSchoolId: number, currentProfile: any) {
     const { data, error } = await supabase
       .from("activity_library")
-      .select("developmental_area, activity_name")
+      .select("developmental_area, theme, activity_name")
       .eq("school_id", currentSchoolId);
 
     if (error) {
@@ -271,12 +273,14 @@ export default function ClassroomActivitiesPage() {
 
     const existing = new Set(
       (data || []).map(
-        (item: any) => `${item.developmental_area}|||${item.activity_name}`
+        (item: any) =>
+          `${item.developmental_area}|||${item.theme || ""}|||${item.activity_name}`
       )
     );
 
     const missingItems = defaultActivityLibrary.filter(
-      (item) => !existing.has(`${item.developmental_area}|||${item.activity_name}`)
+      (item) =>
+        !existing.has(`${item.developmental_area}|||${item.theme}|||${item.activity_name}`)
     );
 
     if (missingItems.length === 0) return;
@@ -284,6 +288,7 @@ export default function ClassroomActivitiesPage() {
     const rows = missingItems.map((item) => ({
       school_id: currentSchoolId,
       developmental_area: item.developmental_area,
+      theme: item.theme,
       activity_name: item.activity_name,
       description: item.description,
       created_by: currentProfile?.id || null,
@@ -344,6 +349,7 @@ export default function ClassroomActivitiesPage() {
       .select("*")
       .eq("school_id", currentSchoolId)
       .order("developmental_area", { ascending: true })
+      .order("theme", { ascending: true })
       .order("activity_name", { ascending: true });
 
     if (error) {
@@ -415,6 +421,7 @@ export default function ClassroomActivitiesPage() {
   function resetLibraryForm() {
     setEditingLibraryId(null);
     setLibraryArea("");
+    setLibraryTheme("");
     setLibraryActivityName("");
     setLibraryDescription("");
   }
@@ -422,6 +429,7 @@ export default function ClassroomActivitiesPage() {
   function startEditLibrary(item: ActivityLibraryItem) {
     setEditingLibraryId(item.id);
     setLibraryArea(item.developmental_area);
+    setLibraryTheme(item.theme || "");
     setLibraryActivityName(item.activity_name);
     setLibraryDescription(item.description || "");
     setShowLibraryForm(true);
@@ -435,8 +443,8 @@ export default function ClassroomActivitiesPage() {
       return;
     }
 
-    if (!libraryArea || !libraryActivityName.trim() || !libraryDescription.trim()) {
-      alert("Please complete developmental area, activity name and description.");
+    if (!libraryArea || !libraryTheme || !libraryActivityName.trim() || !libraryDescription.trim()) {
+      alert("Please complete developmental area, theme, activity name and description.");
       return;
     }
 
@@ -447,6 +455,7 @@ export default function ClassroomActivitiesPage() {
         .from("activity_library")
         .update({
           developmental_area: libraryArea,
+          theme: libraryTheme,
           activity_name: libraryActivityName.trim(),
           description: libraryDescription.trim(),
         })
@@ -463,6 +472,7 @@ export default function ClassroomActivitiesPage() {
         {
           school_id: schoolId,
           developmental_area: libraryArea,
+          theme: libraryTheme,
           activity_name: libraryActivityName.trim(),
           description: libraryDescription.trim(),
           created_by: profile?.id || null,
@@ -526,8 +536,8 @@ export default function ClassroomActivitiesPage() {
   }
 
   async function createActivity() {
-    if (!schoolId || !title.trim() || !classroomId || !activityDate || !developmentalArea) {
-      alert("Please complete class, date, developmental area and activity.");
+    if (!schoolId || !title.trim() || !classroomId || !activityDate || !developmentalArea || !theme) {
+      alert("Please complete class, date, developmental area, theme and activity.");
       return;
     }
 
@@ -551,6 +561,7 @@ export default function ClassroomActivitiesPage() {
         activity_date: activityDate,
         title: title.trim(),
         category: developmentalArea,
+        theme,
         description: description.trim() || null,
         status: "planned",
         created_by: profile?.id || null,
@@ -570,6 +581,7 @@ export default function ClassroomActivitiesPage() {
     setClassroomId(isTeacher ? classroomId : "");
     setActivityDate(today());
     setDevelopmentalArea("Language and Communication");
+    setTheme("My Family");
     setDescription("");
     setShowAddForm(false);
 
@@ -603,6 +615,7 @@ export default function ClassroomActivitiesPage() {
       activity_date: bulkDate,
       title: item.activity_name,
       category: item.developmental_area,
+      theme: item.theme || null,
       description: item.description || null,
       status: "planned",
       created_by: profile?.id || null,
@@ -686,6 +699,7 @@ export default function ClassroomActivitiesPage() {
         activity_date: selectedDate,
         title: activity.title,
         category: activity.category,
+        theme: activity.theme || null,
         description: activity.description || null,
         status: "planned",
         created_by: profile?.id || null,
@@ -716,11 +730,16 @@ export default function ClassroomActivitiesPage() {
 
       const matchesStatus = filterStatus ? item.status === filterStatus : true;
       const matchesCategory = filterCategory ? item.category === filterCategory : true;
+      const matchesTheme = filterTheme ? item.theme === filterTheme : true;
       const matchesDate = filterDate ? item.activity_date === filterDate : true;
 
-      return matchesClass && matchesStatus && matchesCategory && matchesDate;
+      return matchesClass && matchesStatus && matchesCategory && matchesTheme && matchesDate;
     });
-  }, [activities, filterClassroomId, filterStatus, filterCategory, filterDate]);
+  }, [activities, filterClassroomId, filterStatus, filterCategory, filterTheme, filterDate]);
+
+  const teacherTodayActivities = useMemo(() => {
+    return activities.filter((item) => item.activity_date === today());
+  }, [activities]);
 
   const todayActivities = useMemo(() => {
     return activities.filter((item) => item.activity_date === today());
@@ -740,9 +759,6 @@ export default function ClassroomActivitiesPage() {
     return {
       todayTotal: todayActivities.length,
       todayCompleted: todayActivities.filter((item) => item.status === "completed").length,
-      todayPending: todayActivities.filter((item) => item.status === "planned").length,
-      weeklyTotal: weeklyActivities.length,
-      weeklyCompleted: weeklyActivities.filter((item) => item.status === "completed").length,
       weeklySupport: weeklyActivities.filter(
         (item) => Array.isArray(item.needs_support_ids) && item.needs_support_ids.length > 0
       ).length,
@@ -754,7 +770,7 @@ export default function ClassroomActivitiesPage() {
       <div className="db-soft-card" style={{ padding: "20px 22px", marginBottom: "20px" }}>
         <h1 className="db-page-title">Classroom Activities</h1>
         <p className="db-page-subtitle">
-          Principals manage the preloaded activity library and assign activities to classrooms.
+          Principals manage themes and activities. Teachers work from today’s classroom flow.
         </p>
 
         {schoolParam && schoolId ? (
@@ -765,8 +781,8 @@ export default function ClassroomActivitiesPage() {
 
         <p style={smallHint}>
           {isTeacher
-            ? "Teacher view: own classroom activities only"
-            : "Principal view: preloaded activity library, classroom assignment and monitoring"}
+            ? "Teacher view: select today’s activity, mark progress and create follow-up."
+            : "Principal view: preloaded library, classroom assignment and activity monitoring."}
         </p>
       </div>
 
@@ -777,113 +793,127 @@ export default function ClassroomActivitiesPage() {
       </div>
 
       {canManageLibrary && (
-        <div className="db-card db-card-yellow" style={{ padding: "18px", marginBottom: "20px" }}>
-          <div style={topRow}>
-            <div>
-              <h3 style={sectionTitle}>Preloaded Activity Library</h3>
+        <details className="db-card db-card-yellow" style={{ padding: "18px", marginBottom: "20px" }}>
+          <summary style={summaryStyle}>Preloaded Activity Library ({activityLibrary.length})</summary>
+
+          <div style={{ marginTop: "16px" }}>
+            <div style={topRow}>
               <p style={smallHint}>
-                These activities load automatically for each school. You can add, edit or delete them.
+                Activities are automatically loaded for each school. You can add, edit or delete them.
               </p>
-            </div>
-
-            <button
-              type="button"
-              className="db-button-primary"
-              onClick={() => {
-                resetLibraryForm();
-                setShowLibraryForm(!showLibraryForm);
-              }}
-            >
-              {showLibraryForm ? "Close" : "Add Library Activity"}
-            </button>
-          </div>
-
-          {showLibraryForm && (
-            <div style={{ marginTop: "16px" }}>
-              <select
-                className="db-input"
-                value={libraryArea}
-                onChange={(e) => setLibraryArea(e.target.value)}
-              >
-                <option value="">Select developmental area</option>
-                {developmentalAreas.map((area) => (
-                  <option key={area} value={area}>
-                    {area}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                className="db-input"
-                placeholder="Activity name"
-                value={libraryActivityName}
-                onChange={(e) => setLibraryActivityName(e.target.value)}
-              />
-
-              <textarea
-                className="db-input"
-                placeholder="Auto-filled description for teachers"
-                value={libraryDescription}
-                onChange={(e) => setLibraryDescription(e.target.value)}
-                style={{ minHeight: "80px" }}
-              />
 
               <button
+                type="button"
                 className="db-button-primary"
-                style={{ width: "100%" }}
-                onClick={saveLibraryItem}
-                disabled={loading}
+                onClick={() => {
+                  resetLibraryForm();
+                  setShowLibraryForm(!showLibraryForm);
+                }}
               >
-                {loading
-                  ? "Saving..."
-                  : editingLibraryId
-                  ? "Update Library Activity"
-                  : "Save Library Activity"}
+                {showLibraryForm ? "Close" : "Add Library Activity"}
               </button>
             </div>
-          )}
 
-          <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
-            {activityLibrary.length === 0 ? (
-              <p className="db-helper">No library activities added yet.</p>
-            ) : (
-              activityLibrary.map((item) => (
-                <div key={item.id} className="db-list-card">
-                  <strong>{item.activity_name}</strong>
-                  <p style={textStyle}>{item.developmental_area}</p>
-                  <p style={textStyle}>{item.description}</p>
+            {showLibraryForm && (
+              <div style={{ marginTop: "16px" }}>
+                <select
+                  className="db-input"
+                  value={libraryArea}
+                  onChange={(e) => setLibraryArea(e.target.value)}
+                >
+                  <option value="">Select developmental area</option>
+                  {developmentalAreas.map((area) => (
+                    <option key={area} value={area}>
+                      {area}
+                    </option>
+                  ))}
+                </select>
 
-                  <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-                    <button
-                      type="button"
-                      className="db-button-primary"
-                      style={miniButton}
-                      onClick={() => startEditLibrary(item)}
-                    >
-                      Edit
-                    </button>
+                <select
+                  className="db-input"
+                  value={libraryTheme}
+                  onChange={(e) => setLibraryTheme(e.target.value)}
+                >
+                  <option value="">Select theme</option>
+                  {themes.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
 
-                    <button
-                      type="button"
-                      className="db-button-primary"
-                      style={miniButton}
-                      onClick={() => deleteLibraryItem(item.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))
+                <input
+                  className="db-input"
+                  placeholder="Activity name"
+                  value={libraryActivityName}
+                  onChange={(e) => setLibraryActivityName(e.target.value)}
+                />
+
+                <textarea
+                  className="db-input"
+                  placeholder="Auto-filled description for teachers"
+                  value={libraryDescription}
+                  onChange={(e) => setLibraryDescription(e.target.value)}
+                  style={{ minHeight: "80px" }}
+                />
+
+                <button
+                  className="db-button-primary"
+                  style={{ width: "100%" }}
+                  onClick={saveLibraryItem}
+                  disabled={loading}
+                >
+                  {loading
+                    ? "Saving..."
+                    : editingLibraryId
+                    ? "Update Library Activity"
+                    : "Save Library Activity"}
+                </button>
+              </div>
             )}
+
+            <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
+              {activityLibrary.length === 0 ? (
+                <p className="db-helper">No library activities added yet.</p>
+              ) : (
+                activityLibrary.map((item) => (
+                  <div key={item.id} className="db-list-card">
+                    <strong>{item.activity_name}</strong>
+                    <p style={textStyle}>{item.developmental_area} | {item.theme || "No theme"}</p>
+                    <p style={textStyle}>{item.description}</p>
+
+                    <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                      <button
+                        type="button"
+                        className="db-button-primary"
+                        style={miniButton}
+                        onClick={() => startEditLibrary(item)}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        className="db-button-primary"
+                        style={miniButton}
+                        onClick={() => deleteLibraryItem(item.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        </details>
       )}
 
       {canManageLibrary && (
         <div className="db-card db-card-blue" style={{ padding: "18px", marginBottom: "20px" }}>
           <h3 style={sectionTitle}>Add Library Activities to Classroom</h3>
           <p style={smallHint}>
-            Select a classroom and date, then add all preloaded activities or only one developmental area.
+            Select a classroom and date, then add all activities or filter by developmental area and theme.
           </p>
 
           <select
@@ -919,6 +949,19 @@ export default function ClassroomActivitiesPage() {
             ))}
           </select>
 
+          <select
+            className="db-input"
+            value={bulkTheme}
+            onChange={(e) => setBulkTheme(e.target.value)}
+          >
+            <option value="">All themes</option>
+            {themes.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+
           <button
             type="button"
             className="db-button-primary"
@@ -938,7 +981,7 @@ export default function ClassroomActivitiesPage() {
           style={{ width: "100%" }}
           onClick={() => setShowAddForm(!showAddForm)}
         >
-          {showAddForm ? "Close Add Single Classroom Activity" : "Add Single Classroom Activity"}
+          {showAddForm ? "Close Today’s Activity" : isTeacher ? "Select Today’s Activity" : "Add Single Classroom Activity"}
         </button>
 
         {showAddForm && (
@@ -983,6 +1026,23 @@ export default function ClassroomActivitiesPage() {
 
             <select
               className="db-input"
+              value={theme}
+              onChange={(e) => {
+                setTheme(e.target.value);
+                setSelectedLibraryId("");
+                setTitle("");
+                setDescription("");
+              }}
+            >
+              {themes.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="db-input"
               value={selectedLibraryId}
               onChange={(e) => handleLibrarySelect(e.target.value)}
             >
@@ -1008,84 +1068,103 @@ export default function ClassroomActivitiesPage() {
               onClick={createActivity}
               disabled={loading}
             >
-              {loading ? "Saving..." : "Save Single Activity"}
+              {loading ? "Saving..." : isTeacher ? "Save Today’s Activity" : "Save Single Activity"}
             </button>
           </div>
         )}
       </div>
 
-      <details className="db-card db-card-lavender" style={{ padding: "18px", marginBottom: "20px" }} open>
-        <summary style={summaryStyle}>Filters & Date Selection</summary>
+      {!isTeacher && (
+        <details className="db-card db-card-lavender" style={{ padding: "18px", marginBottom: "20px" }} open>
+          <summary style={summaryStyle}>Filters & Date Selection</summary>
 
-        <div className="db-grid-2" style={{ marginTop: "16px" }}>
-          <input
-            className="db-input"
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-          />
+          <div className="db-grid-2" style={{ marginTop: "16px" }}>
+            <input
+              className="db-input"
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+            />
 
-          <select
-            className="db-input"
-            value={filterClassroomId}
-            onChange={(e) => setFilterClassroomId(e.target.value)}
-            disabled={isTeacher}
+            <select
+              className="db-input"
+              value={filterClassroomId}
+              onChange={(e) => setFilterClassroomId(e.target.value)}
+            >
+              <option value="">All classes</option>
+              {availableClassrooms.map((classroom) => (
+                <option key={classroom.id} value={classroom.id}>
+                  {classroom.classroom_name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="db-input"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <option value="">All statuses</option>
+              {statuses.map((status) => (
+                <option key={status.value} value={status.value}>
+                  {status.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="db-input"
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+            >
+              <option value="">All developmental areas</option>
+              {developmentalAreas.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="db-input"
+              value={filterTheme}
+              onChange={(e) => setFilterTheme(e.target.value)}
+            >
+              <option value="">All themes</option>
+              {themes.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            className="db-button-primary"
+            style={{ width: "100%", marginTop: "10px" }}
+            onClick={() => {
+              setFilterDate("");
+              setFilterClassroomId("");
+              setFilterStatus("");
+              setFilterCategory("");
+              setFilterTheme("");
+            }}
           >
-            <option value="">All classes</option>
-            {availableClassrooms.map((classroom) => (
-              <option key={classroom.id} value={classroom.id}>
-                {classroom.classroom_name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className="db-input"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
-            <option value="">All statuses</option>
-            {statuses.map((status) => (
-              <option key={status.value} value={status.value}>
-                {status.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className="db-input"
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-          >
-            <option value="">All developmental areas</option>
-            {developmentalAreas.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <button
-          type="button"
-          className="db-button-primary"
-          style={{ width: "100%", marginTop: "10px" }}
-          onClick={() => {
-            setFilterDate("");
-            if (!isTeacher) setFilterClassroomId("");
-            setFilterStatus("");
-            setFilterCategory("");
-          }}
-        >
-          Clear Filters
-        </button>
-      </details>
+            Clear Filters
+          </button>
+        </details>
+      )}
 
       <details className="db-card db-card-green" style={{ padding: "18px", marginBottom: "20px" }} open>
-        <summary style={summaryStyle}>Selected Activities ({filteredActivities.length})</summary>
+        <summary style={summaryStyle}>
+          {isTeacher
+            ? `Today’s Activities (${teacherTodayActivities.length})`
+            : `Selected Activities (${filteredActivities.length})`}
+        </summary>
 
         <ActivityList
-          activities={filteredActivities}
+          activities={isTeacher ? teacherTodayActivities : filteredActivities}
           learnersByClassroom={learnersByClassroom}
           expandedId={expandedId}
           setExpandedId={setExpandedId}
@@ -1144,7 +1223,10 @@ function ActivityList({
               >
                 <strong style={{ fontSize: "17px" }}>{activity.title}</strong>
                 <p style={textStyle}>
-                  {activity.classrooms?.classroom_name || "Class"} | {activity.activity_date} | {activity.category}
+                  {activity.classrooms?.classroom_name || "Class"} | {activity.activity_date}
+                </p>
+                <p style={textStyle}>
+                  {activity.category} | {activity.theme || "No theme"}
                 </p>
                 <p style={textStyle}>Status: {statusLabel(activity.status)}</p>
                 <p style={smallHint}>Tap card to open learner participation and follow-up.</p>
@@ -1250,7 +1332,7 @@ function ActivityList({
                   <label style={labelStyle}>Follow-Up Note</label>
                   <textarea
                     className="db-input"
-                    placeholder="Example: Repeat using picture cards next week"
+                    placeholder="Example: Repeat using picture cards tomorrow"
                     defaultValue={activity.follow_up_note || ""}
                     onBlur={(e) =>
                       updateActivity(activity.id, { follow_up_note: e.target.value })
@@ -1259,7 +1341,7 @@ function ActivityList({
                   />
 
                   <div style={repeatBox}>
-                    <h4 style={subTitle}>Repeat Activity</h4>
+                    <h4 style={subTitle}>Create Tomorrow or Follow-Up Activity</h4>
                     <p style={smallHint}>Choose a date to create a new copy of this activity.</p>
 
                     <input
@@ -1280,7 +1362,7 @@ function ActivityList({
                       style={{ width: "100%" }}
                       onClick={() => repeatActivity(activity)}
                     >
-                      Create Repeat
+                      Create Activity
                     </button>
                   </div>
 

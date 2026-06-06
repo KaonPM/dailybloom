@@ -165,6 +165,7 @@ export default function ProgressReportsPage() {
   const [showFilter, setShowFilter] = useState(false);
   const [showPeriodManagement, setShowPeriodManagement] = useState(false);
   const [showTeacherChecklist, setShowTeacherChecklist] = useState(false);
+  const [showTeacherSavedReports, setShowTeacherSavedReports] = useState(false);
   const [showAssessments, setShowAssessments] = useState(false);
   const [showGeneratedReports, setShowGeneratedReports] = useState(false);
 
@@ -178,6 +179,7 @@ export default function ProgressReportsPage() {
   const [assessmentPage, setAssessmentPage] = useState(1);
   const [reportPage, setReportPage] = useState(1);
   const [awardPage, setAwardPage] = useState(1);
+  const [teacherReportPage, setTeacherReportPage] = useState(1);
 
   const [teacherObservation, setTeacherObservation] = useState("");
   const [teacherRatings, setTeacherRatings] = useState<Record<string, string>>(
@@ -634,7 +636,11 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    const latestAssessments = normalizeLatestAssessments(data || []);
+    applyTeacherSavedAssessments(data || []);
+  }
+
+  function applyTeacherSavedAssessments(assessments: any[]) {
+    const latestAssessments = normalizeLatestAssessments(assessments || []);
     const nextRatings: Record<string, string> = {};
 
     latestAssessments.forEach((assessment) => {
@@ -707,9 +713,10 @@ export default function ProgressReportsPage() {
     });
 
     setTeacherReportSummaries(Array.from(map.values()));
+    setTeacherReportPage(1);
   }
 
-  function openTeacherReportSummary(item: any) {
+  async function openTeacherReportSummary(item: any) {
     setSelectedClassroomId(String(item.classroom_id || ""));
     setSelectedLearnerId(String(item.learner_id || ""));
     setSelectedPeriodId(String(item.report_period_id || ""));
@@ -718,6 +725,26 @@ export default function ProgressReportsPage() {
     );
     setShowFilter(true);
     setShowTeacherChecklist(true);
+
+    if (schoolId && profile?.id) {
+      const { data, error } = await supabase
+        .from("learner_assessments")
+        .select("*")
+        .eq("school_id", schoolId)
+        .eq("teacher_id", profile.id)
+        .eq("learner_id", item.learner_id)
+        .eq("report_period_id", Number(item.report_period_id))
+        .eq("report_type", item.report_type || "developmental")
+        .in("status", teacherAssessmentStatusFilters)
+        .order("updated_at", { ascending: false });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      applyTeacherSavedAssessments(data || []);
+    }
 
     window.requestAnimationFrame(() => {
       document
@@ -1303,6 +1330,24 @@ export default function ProgressReportsPage() {
     assessmentPage * pageSize
   );
 
+  const principalReviewQueue = groupedAssessments.filter(
+    (item) => !["locked", "generated"].includes(String(item.status || ""))
+  );
+
+  function getAssessmentReviewKey(item: any) {
+    return `${item.classroom_id}-${item.teacher_id}-${item.learner_id}-${
+      item.report_period_id
+    }-${item.report_type || "developmental"}`;
+  }
+
+  const currentReviewKey =
+    selectedClassroomId && selectedTeacherId && selectedLearnerId && selectedPeriodId
+      ? `${selectedClassroomId}-${selectedTeacherId}-${selectedLearnerId}-${selectedPeriodId}-${reportType}`
+      : "";
+  const currentReviewIndex = principalReviewQueue.findIndex(
+    (item) => getAssessmentReviewKey(item) === currentReviewKey
+  );
+
   const visibleReports = filteredReports.slice(
     (reportPage - 1) * pageSize,
     reportPage * pageSize
@@ -1391,6 +1436,10 @@ export default function ProgressReportsPage() {
     "locked",
     "generated",
   ].includes(String(selectedTeacherReportStatus));
+  const visibleTeacherReportSummaries = teacherReportSummaries.slice(
+    (teacherReportPage - 1) * pageSize,
+    teacherReportPage * pageSize
+  );
 
   async function openAssessmentReview(item: any) {
     setSelectedClassroomId(String(item.classroom_id || ""));
@@ -1479,6 +1528,18 @@ export default function ProgressReportsPage() {
         .querySelector(".report-print-area")
         ?.scrollIntoView({ behavior: "smooth" });
     });
+  }
+
+  async function openAdjacentAssessmentReview(direction: "previous" | "next") {
+    if (currentReviewIndex < 0) return;
+
+    const nextIndex =
+      direction === "previous" ? currentReviewIndex - 1 : currentReviewIndex + 1;
+    const nextItem = principalReviewQueue[nextIndex];
+
+    if (!nextItem) return;
+
+    await openAssessmentReview(nextItem);
   }
 
   async function openGeneratedReport(item: any) {
@@ -2325,64 +2386,6 @@ export default function ProgressReportsPage() {
 
       {isTeacher && (
         <div
-          className="db-card db-card-lavender no-print"
-          style={{ padding: "20px", marginBottom: "24px" }}
-        >
-          <h3 style={sectionTitle}>Saved Progress Reports</h3>
-
-          {teacherReportSummaries.length === 0 ? (
-            <p className="db-helper">
-              No saved draft or submitted progress reports yet.
-            </p>
-          ) : (
-            <div style={{ display: "grid", gap: "10px" }}>
-              {teacherReportSummaries.map((item) => {
-                const status = String(item.status || "draft");
-                const isLocked = ["reviewed", "locked", "generated"].includes(
-                  status
-                );
-
-                return (
-                  <div
-                    key={`${item.learner_id}-${item.report_period_id}-${item.report_type}`}
-                    className="db-list-card"
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: "12px",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div>
-                      <strong>{getLearnerName(item.learner_id)}</strong>
-                      <p style={textStyle}>
-                        {getPeriodTitle(item.report_period_id)}
-                      </p>
-                      <p style={textStyle}>
-                        {formatReportTemplate(item.report_type || "developmental")}
-                      </p>
-                      <span style={assessmentStatusStyle(status)}>
-                        {formatAssessmentStatus(status)}
-                      </span>
-                    </div>
-
-                    <button
-                      className="db-button-primary"
-                      style={isLocked ? { background: "#777" } : undefined}
-                      onClick={() => openTeacherReportSummary(item)}
-                    >
-                      {isLocked ? "View" : "Edit"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {isTeacher && (
-        <div
           className="db-card db-card-blue no-print teacher-checklist-card"
           style={{ padding: "20px", marginBottom: "24px" }}
         >
@@ -2480,6 +2483,103 @@ export default function ProgressReportsPage() {
         </div>
       )}
 
+      {isTeacher && (
+        <div
+          className="db-card db-card-lavender no-print"
+          style={{ padding: "20px", marginBottom: "24px" }}
+        >
+          <div
+            onClick={() => setShowTeacherSavedReports(!showTeacherSavedReports)}
+            style={collapsibleHeader}
+          >
+            <h3 style={{ ...sectionTitle, margin: 0 }}>
+              Saved Progress Reports
+            </h3>
+            <span style={chevron}>{showTeacherSavedReports ? "-" : "+"}</span>
+          </div>
+
+          {showTeacherSavedReports && (
+            <div style={{ marginTop: "14px" }}>
+              {teacherReportSummaries.length === 0 ? (
+                <p className="db-helper">
+                  No saved draft or submitted progress reports yet.
+                </p>
+              ) : (
+                <>
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    {visibleTeacherReportSummaries.map((item) => {
+                      const status = String(item.status || "draft");
+                      const isLocked = [
+                        "reviewed",
+                        "locked",
+                        "generated",
+                      ].includes(status);
+
+                      return (
+                        <div
+                          key={`${item.learner_id}-${item.report_period_id}-${item.report_type}`}
+                          className="db-list-card"
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: "10px",
+                            padding: "10px 12px",
+                          }}
+                        >
+                          <strong>{getLearnerName(item.learner_id)}</strong>
+
+                          <button
+                            className="db-button-primary"
+                            style={{
+                              minHeight: "38px",
+                              padding: "8px 14px",
+                              ...(isLocked ? { background: "#777" } : {}),
+                            }}
+                            onClick={() => openTeacherReportSummary(item)}
+                          >
+                            {isLocked ? "View" : "Edit"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                      marginTop: "12px",
+                    }}
+                  >
+                    <button
+                      className="db-button-primary"
+                      disabled={teacherReportPage === 1}
+                      onClick={() =>
+                        setTeacherReportPage((page) => Math.max(1, page - 1))
+                      }
+                    >
+                      Previous
+                    </button>
+
+                    <button
+                      className="db-button-primary"
+                      disabled={
+                        teacherReportPage * pageSize >=
+                        teacherReportSummaries.length
+                      }
+                      onClick={() => setTeacherReportPage((page) => page + 1)}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {isPrincipalView && (
         <div
           className="db-card db-card-lavender no-print"
@@ -2504,9 +2604,7 @@ export default function ProgressReportsPage() {
             ) : (
               <div style={{ display: "grid", gap: "10px", marginTop: "14px" }}>
                 {visibleAssessments.map((item) => {
-                  const key = `${item.classroom_id}-${item.teacher_id}-${
-                    item.learner_id
-                  }-${item.report_period_id}-${item.report_type || "developmental"}`;
+                  const key = getAssessmentReviewKey(item);
                   const isExpanded = expandedAssessmentKey === key;
 
                   return (
@@ -3452,6 +3550,29 @@ export default function ProgressReportsPage() {
                 flexWrap: "wrap",
               }}
             >
+              {!isTeacher && !generatedReport && (
+                <>
+                  <button
+                    className="db-button-primary"
+                    disabled={currentReviewIndex <= 0}
+                    onClick={() => openAdjacentAssessmentReview("previous")}
+                  >
+                    Previous Learner
+                  </button>
+
+                  <button
+                    className="db-button-primary"
+                    disabled={
+                      currentReviewIndex < 0 ||
+                      currentReviewIndex >= principalReviewQueue.length - 1
+                    }
+                    onClick={() => openAdjacentAssessmentReview("next")}
+                  >
+                    Next Learner
+                  </button>
+                </>
+              )}
+
               <button
                 className="db-button-primary"
                 style={{ background: "#777" }}

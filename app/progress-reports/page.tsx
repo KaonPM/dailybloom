@@ -768,7 +768,7 @@ export default function ProgressReportsPage() {
     setSaving(false);
     alert(
       status === "submitted"
-        ? "Checklist submitted to principal."
+        ? "Report submitted."
         : "Checklist draft saved."
     );
   }
@@ -1093,6 +1093,17 @@ export default function ProgressReportsPage() {
           period.report_template || "developmental"
         )})`
       : "Period not recorded";
+  }
+
+  function getCoverTermLabel(period: any) {
+    const title = String(period?.title || "").trim();
+    const termMatch = title.match(/term\s*\d+/i);
+
+    if (termMatch) {
+      return termMatch[0].toUpperCase();
+    }
+
+    return title || "REPORT PERIOD";
   }
 
   const groupedAssessments = useMemo(() => {
@@ -3013,94 +3024,8 @@ export default function ProgressReportsPage() {
             }}
           >
             <div className="booklet-page">
-              <div style={{ ...bookletPanel, textAlign: "center" }}>
-                {school?.logo_url && (
-                  <img
-                    src={school.logo_url}
-                    alt="School Logo"
-                    style={{
-                      width: "120px",
-                      height: "120px",
-                      objectFit: "contain",
-                      marginBottom: "20px",
-                    }}
-                  />
-                )}
-
-                <h1 style={coverSchoolName}>
-                  {school?.school_name || "Preschool Name"}
-                </h1>
-
-                <h2 style={{ ...coverTitle, color: primaryColor }}>
-                  {reportTitleUpper}
-                </h2>
-
-                <p style={coverText}>{selectedClassroom.classroom_name}</p>
-
-                <p style={coverText}>
-                  <strong>EMIS / NPO Number:</strong>{" "}
-                  {school?.emis_number || school?.npo_number || "Not added"}
-                </p>
-
-                <p style={coverText}>
-                  <strong>Address:</strong>{" "}
-                  {school?.address ||
-                    school?.school_address ||
-                    school?.physical_address ||
-                    "Not added"}
-                </p>
-
-                <p style={coverText}>
-                  <strong>Contact:</strong>{" "}
-                  {school?.contact_number ||
-                    school?.phone_number ||
-                    school?.telephone ||
-                    "Not added"}
-                </p>
-
-                <p style={{ ...coverText, marginTop: "30px" }}>
-                  {selectedPeriod.title}
-                </p>
-              </div>
-
               <div style={bookletPanel}>
-                <h2 style={bookletTitle}>{reportTitleUpper}</h2>
-
-                <div style={learnerInfoBox}>
-                  <p style={bookletText}>
-                    <strong>Name of Child:</strong>{" "}
-                    {selectedLearner.legal_name || selectedLearner.name}
-                  </p>
-
-                  <p style={bookletText}>
-                    <strong>Age:</strong>{" "}
-                    {selectedLearner?.age ||
-                      calculateAge(selectedLearner?.date_of_birth)}
-                  </p>
-
-                  <p style={bookletText}>
-                    <strong>Date of Birth:</strong>{" "}
-                    {selectedLearner.date_of_birth || "Not added"}
-                  </p>
-
-                  <p style={bookletText}>
-                    <strong>Class:</strong> {selectedClassroom.classroom_name}
-                  </p>
-
-                  {reportType === "grade-rr" ? (
-                    <>
-                      <p style={bookletText}>
-                        <strong>Opening Date:</strong>{" "}
-                        {openingDate || "Not added"}
-                      </p>
-
-                      <p style={bookletText}>
-                        <strong>Closing Date:</strong>{" "}
-                        {closingDate || "Not added"}
-                      </p>
-                    </>
-                  ) : null}
-                </div>
+                <h3 style={bookletSectionTitle}>National Codes</h3>
 
                 <div style={codesBox}>
                   <strong>Codes / Level of Competence</strong>
@@ -3134,46 +3059,6 @@ export default function ProgressReportsPage() {
                   </div>
                 ) : null}
 
-                {firstPageCategories.map((category: any) => (
-                  <React.Fragment key={category.key}>
-                    <h3 style={bookletSectionTitle}>{category.label}</h3>
-
-                    {category.description ? (
-                      <p style={bookletSmallText}>{category.description}</p>
-                    ) : null}
-
-                    <ReportSkillTable
-                      categoryKey={category.key}
-                      categories={activeCategories}
-                      ratingScale={activeRatingScale}
-                      reviewAssessments={reviewAssessments}
-                    />
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-
-            <div className="booklet-page">
-              <div style={bookletPanel}>
-                {secondPageCategories.map((category: any) => (
-                  <React.Fragment key={category.key}>
-                    <h3 style={bookletSectionTitle}>{category.label}</h3>
-
-                    {category.description ? (
-                      <p style={bookletSmallText}>{category.description}</p>
-                    ) : null}
-
-                    <ReportSkillTable
-                      categoryKey={category.key}
-                      categories={activeCategories}
-                      ratingScale={activeRatingScale}
-                      reviewAssessments={reviewAssessments}
-                    />
-                  </React.Fragment>
-                ))}
-              </div>
-
-              <div style={bookletPanel}>
                 <h3 style={bookletSectionTitle}>Practitioner Remarks</h3>
 
                 <textarea
@@ -3223,9 +3108,139 @@ export default function ProgressReportsPage() {
                   <p style={bookletLine}>Principal's Signature: __________</p>
                 </div>
               </div>
+
+              <div style={coverPanel}>
+                {school?.logo_url && (
+                  <img
+                    src={school.logo_url}
+                    alt="School Logo"
+                    style={{
+                      width: "120px",
+                      height: "120px",
+                      objectFit: "contain",
+                      marginBottom: "20px",
+                    }}
+                  />
+                )}
+
+                <h1 style={coverSchoolName}>
+                  {school?.school_name || "Preschool Name"}
+                </h1>
+
+                <h2 style={{ ...coverTitle, color: primaryColor }}>
+                  {reportTitleUpper}
+                </h2>
+
+                <p style={coverText}>{selectedClassroom.classroom_name}</p>
+
+                <p style={coverText}>
+                  <strong>EMIS / NPO Number:</strong>{" "}
+                  {school?.emis_number || school?.npo_number || "Not added"}
+                </p>
+
+                <p style={coverText}>
+                  <strong>Address:</strong>{" "}
+                  {school?.address ||
+                    school?.school_address ||
+                    school?.physical_address ||
+                    "Not added"}
+                </p>
+
+                <p style={coverText}>
+                  <strong>Contact:</strong>{" "}
+                  {school?.contact_number ||
+                    school?.phone_number ||
+                    school?.telephone ||
+                    "Not added"}
+                </p>
+
+                <p style={{ ...coverText, marginTop: "30px" }}>
+                  {getCoverTermLabel(selectedPeriod)}
+                </p>
+              </div>
+            </div>
+
+            <div className="booklet-page">
+              <div style={bookletPanel}>
+                <h2 style={bookletTitle}>{reportTitleUpper}</h2>
+
+                <div style={learnerInfoBox}>
+                  <p style={bookletText}>
+                    <strong>Name of Child:</strong>{" "}
+                    {selectedLearner.legal_name || selectedLearner.name}
+                  </p>
+
+                  <p style={bookletText}>
+                    <strong>Age:</strong>{" "}
+                    {selectedLearner?.age ||
+                      calculateAge(selectedLearner?.date_of_birth)}
+                  </p>
+
+                  <p style={bookletText}>
+                    <strong>Date of Birth:</strong>{" "}
+                    {selectedLearner.date_of_birth || "Not added"}
+                  </p>
+
+                  <p style={bookletText}>
+                    <strong>Class:</strong> {selectedClassroom.classroom_name}
+                  </p>
+
+                  {reportType === "grade-rr" ? (
+                    <>
+                      <p style={bookletText}>
+                        <strong>Opening Date:</strong>{" "}
+                        {openingDate || "Not added"}
+                      </p>
+
+                      <p style={bookletText}>
+                        <strong>Closing Date:</strong>{" "}
+                        {closingDate || "Not added"}
+                      </p>
+                    </>
+                  ) : null}
+                </div>
+
+                {firstPageCategories.map((category: any) => (
+                  <React.Fragment key={category.key}>
+                    <h3 style={bookletSectionTitle}>{category.label}</h3>
+
+                    {category.description ? (
+                      <p style={bookletSmallText}>{category.description}</p>
+                    ) : null}
+
+                    <ReportSkillTable
+                      categoryKey={category.key}
+                      categories={activeCategories}
+                      ratingScale={activeRatingScale}
+                      reviewAssessments={reviewAssessments}
+                    />
+                  </React.Fragment>
+                ))}
+              </div>
+
+              <div style={bookletPanel}>
+                {secondPageCategories.map((category: any) => (
+                  <React.Fragment key={category.key}>
+                    <h3 style={bookletSectionTitle}>{category.label}</h3>
+
+                    {category.description ? (
+                      <p style={bookletSmallText}>{category.description}</p>
+                    ) : null}
+
+                    <ReportSkillTable
+                      categoryKey={category.key}
+                      categories={activeCategories}
+                      ratingScale={activeRatingScale}
+                      reviewAssessments={reviewAssessments}
+                    />
+                  </React.Fragment>
+                ))}
+              </div>
+
             </div>
 
             <p
+              className="no-print"
               style={{
                 marginTop: "28px",
                 fontSize: "12px",
@@ -3846,6 +3861,15 @@ const coverTitle: React.CSSProperties = {
   fontSize: "19px",
   margin: "16px 0",
   color: "#4f6fbd",
+};
+
+const coverPanel: React.CSSProperties = {
+  ...bookletPanel,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
 };
 
 const coverText: React.CSSProperties = {

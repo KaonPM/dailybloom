@@ -20,6 +20,109 @@ const developmentalAreas = [
   "Music and Movement",
 ];
 
+const defaultActivityLibrary = [
+  {
+    developmental_area: "Language and Communication",
+    activity_name: "Story Time and Discussion",
+    description: "Read a short story and ask learners simple questions about characters, events and feelings.",
+  },
+  {
+    developmental_area: "Language and Communication",
+    activity_name: "Picture Talk",
+    description: "Use a picture card or poster and encourage learners to describe what they see using full sentences.",
+  },
+  {
+    developmental_area: "Early Mathematics",
+    activity_name: "Counting Objects",
+    description: "Learners count classroom objects and match the total to number cards.",
+  },
+  {
+    developmental_area: "Early Mathematics",
+    activity_name: "Shape Sorting",
+    description: "Learners sort shapes by colour, size and type while naming each shape.",
+  },
+  {
+    developmental_area: "Fine Motor Development",
+    activity_name: "Threading Beads",
+    description: "Learners thread beads or large buttons to strengthen hand control and coordination.",
+  },
+  {
+    developmental_area: "Fine Motor Development",
+    activity_name: "Cutting Practice",
+    description: "Learners practise cutting along straight and curved lines using child-safe scissors.",
+  },
+  {
+    developmental_area: "Gross Motor Development",
+    activity_name: "Obstacle Course",
+    description: "Learners move through a simple obstacle course using crawling, jumping and balancing.",
+  },
+  {
+    developmental_area: "Gross Motor Development",
+    activity_name: "Ball Throwing and Catching",
+    description: "Learners practise throwing, catching and rolling a ball with control.",
+  },
+  {
+    developmental_area: "Creative Development",
+    activity_name: "Free Drawing",
+    description: "Learners draw freely using crayons or pencils and explain their picture afterwards.",
+  },
+  {
+    developmental_area: "Creative Development",
+    activity_name: "Painting with Brushes",
+    description: "Learners use paint and brushes to create a picture linked to the weekly theme.",
+  },
+  {
+    developmental_area: "Social and Emotional Development",
+    activity_name: "Feelings Circle",
+    description: "Learners identify emotions and share how they feel using picture prompts.",
+  },
+  {
+    developmental_area: "Social and Emotional Development",
+    activity_name: "Sharing and Turn Taking",
+    description: "Learners practise sharing toys or materials and waiting for their turn during group play.",
+  },
+  {
+    developmental_area: "Life Skills",
+    activity_name: "Handwashing Routine",
+    description: "Learners practise washing hands correctly and explain when hands should be washed.",
+  },
+  {
+    developmental_area: "Life Skills",
+    activity_name: "Packing Away",
+    description: "Learners help tidy the classroom by sorting and packing materials in the correct places.",
+  },
+  {
+    developmental_area: "Sensory Development",
+    activity_name: "Texture Exploration",
+    description: "Learners touch and describe different textures such as soft, rough, smooth and bumpy.",
+  },
+  {
+    developmental_area: "Sensory Development",
+    activity_name: "Sound Matching",
+    description: "Learners listen to different sounds and match them to objects or picture cards.",
+  },
+  {
+    developmental_area: "Outdoor Play",
+    activity_name: "Free Outdoor Play",
+    description: "Learners use outdoor equipment safely while developing coordination and social play.",
+  },
+  {
+    developmental_area: "Outdoor Play",
+    activity_name: "Nature Walk",
+    description: "Learners walk outside and identify natural items such as leaves, stones, flowers and insects.",
+  },
+  {
+    developmental_area: "Music and Movement",
+    activity_name: "Action Songs",
+    description: "Learners sing action songs and follow movements such as clapping, jumping and turning.",
+  },
+  {
+    developmental_area: "Music and Movement",
+    activity_name: "Rhythm Clapping",
+    description: "Learners copy simple rhythms using claps, taps or classroom instruments.",
+  },
+];
+
 const statuses = [
   { value: "planned", label: "Planned" },
   { value: "completed", label: "Completed" },
@@ -72,6 +175,11 @@ export default function ClassroomActivitiesPage() {
   const [selectedLibraryId, setSelectedLibraryId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+
+  const [bulkClassroomId, setBulkClassroomId] = useState("");
+  const [bulkDate, setBulkDate] = useState(today());
+  const [bulkArea, setBulkArea] = useState("");
+
   const [loading, setLoading] = useState(false);
 
   const [filterClassroomId, setFilterClassroomId] = useState("");
@@ -108,6 +216,14 @@ export default function ClassroomActivitiesPage() {
     );
   }, [activityLibrary, developmentalArea]);
 
+  const bulkLibrary = useMemo(() => {
+    if (!bulkArea) return activityLibrary;
+
+    return activityLibrary.filter(
+      (item) => item.developmental_area === bulkArea
+    );
+  }, [activityLibrary, bulkArea]);
+
   useEffect(() => {
     loadPage();
   }, []);
@@ -137,8 +253,49 @@ export default function ClassroomActivitiesPage() {
     setSchoolId(context.schoolId);
 
     await fetchClassrooms(context.schoolId, currentProfile);
+    await seedDefaultLibrary(context.schoolId, currentProfile);
     await fetchActivityLibrary(context.schoolId);
     await fetchActivities(context.schoolId, currentProfile);
+  }
+
+  async function seedDefaultLibrary(currentSchoolId: number, currentProfile: any) {
+    const { data, error } = await supabase
+      .from("activity_library")
+      .select("developmental_area, activity_name")
+      .eq("school_id", currentSchoolId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const existing = new Set(
+      (data || []).map(
+        (item: any) => `${item.developmental_area}|||${item.activity_name}`
+      )
+    );
+
+    const missingItems = defaultActivityLibrary.filter(
+      (item) => !existing.has(`${item.developmental_area}|||${item.activity_name}`)
+    );
+
+    if (missingItems.length === 0) return;
+
+    const rows = missingItems.map((item) => ({
+      school_id: currentSchoolId,
+      developmental_area: item.developmental_area,
+      activity_name: item.activity_name,
+      description: item.description,
+      created_by: currentProfile?.id || null,
+    }));
+
+    const { error: insertError } = await supabase
+      .from("activity_library")
+      .insert(rows);
+
+    if (insertError) {
+      alert(insertError.message);
+    }
   }
 
   async function fetchClassrooms(currentSchoolId: number, currentProfile?: any) {
@@ -421,6 +578,53 @@ export default function ClassroomActivitiesPage() {
     alert("Classroom activity added successfully.");
   }
 
+  async function addAllLibraryToClassroom() {
+    if (!schoolId || !bulkClassroomId || !bulkDate) {
+      alert("Please select a classroom and date.");
+      return;
+    }
+
+    if (bulkLibrary.length === 0) {
+      alert("No library activities found to add.");
+      return;
+    }
+
+    const confirmed = confirm(
+      `Add ${bulkLibrary.length} activities to the selected classroom?`
+    );
+
+    if (!confirmed) return;
+
+    setLoading(true);
+
+    const rows = bulkLibrary.map((item) => ({
+      school_id: schoolId,
+      classroom_id: Number(bulkClassroomId),
+      activity_date: bulkDate,
+      title: item.activity_name,
+      category: item.developmental_area,
+      description: item.description || null,
+      status: "planned",
+      created_by: profile?.id || null,
+      assigned_teacher_id: null,
+      follow_up: "none",
+    }));
+
+    const { error } = await supabase
+      .from("classroom_activities")
+      .insert(rows);
+
+    if (error) {
+      alert(error.message);
+      setLoading(false);
+      return;
+    }
+
+    await fetchActivities(schoolId, profile);
+    setLoading(false);
+    alert("Library activities added to classroom.");
+  }
+
   async function updateActivity(activityId: number, updates: any) {
     const { error } = await supabase
       .from("classroom_activities")
@@ -550,7 +754,7 @@ export default function ClassroomActivitiesPage() {
       <div className="db-soft-card" style={{ padding: "20px 22px", marginBottom: "20px" }}>
         <h1 className="db-page-title">Classroom Activities</h1>
         <p className="db-page-subtitle">
-          Teachers capture class activities. Principals manage the activity library and monitor learner support.
+          Principals manage the preloaded activity library and assign activities to classrooms.
         </p>
 
         {schoolParam && schoolId ? (
@@ -562,7 +766,7 @@ export default function ClassroomActivitiesPage() {
         <p style={smallHint}>
           {isTeacher
             ? "Teacher view: own classroom activities only"
-            : "Principal view: all classroom activities and library management"}
+            : "Principal view: preloaded activity library, classroom assignment and monitoring"}
         </p>
       </div>
 
@@ -576,9 +780,9 @@ export default function ClassroomActivitiesPage() {
         <div className="db-card db-card-yellow" style={{ padding: "18px", marginBottom: "20px" }}>
           <div style={topRow}>
             <div>
-              <h3 style={sectionTitle}>Activity Library</h3>
+              <h3 style={sectionTitle}>Preloaded Activity Library</h3>
               <p style={smallHint}>
-                Add, edit, or delete the preloaded activities teachers can select.
+                These activities load automatically for each school. You can add, edit or delete them.
               </p>
             </div>
 
@@ -675,6 +879,58 @@ export default function ClassroomActivitiesPage() {
         </div>
       )}
 
+      {canManageLibrary && (
+        <div className="db-card db-card-blue" style={{ padding: "18px", marginBottom: "20px" }}>
+          <h3 style={sectionTitle}>Add Library Activities to Classroom</h3>
+          <p style={smallHint}>
+            Select a classroom and date, then add all preloaded activities or only one developmental area.
+          </p>
+
+          <select
+            className="db-input"
+            value={bulkClassroomId}
+            onChange={(e) => setBulkClassroomId(e.target.value)}
+          >
+            <option value="">Select classroom</option>
+            {classrooms.map((classroom) => (
+              <option key={classroom.id} value={classroom.id}>
+                {classroom.classroom_name}
+              </option>
+            ))}
+          </select>
+
+          <input
+            className="db-input"
+            type="date"
+            value={bulkDate}
+            onChange={(e) => setBulkDate(e.target.value)}
+          />
+
+          <select
+            className="db-input"
+            value={bulkArea}
+            onChange={(e) => setBulkArea(e.target.value)}
+          >
+            <option value="">All developmental areas</option>
+            {developmentalAreas.map((area) => (
+              <option key={area} value={area}>
+                {area}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            className="db-button-primary"
+            style={{ width: "100%" }}
+            onClick={addAllLibraryToClassroom}
+            disabled={loading}
+          >
+            {loading ? "Adding..." : `Add ${bulkLibrary.length} Activities to Classroom`}
+          </button>
+        </div>
+      )}
+
       <div className="db-card db-card-blue" style={{ padding: "18px", marginBottom: "20px" }}>
         <button
           type="button"
@@ -682,7 +938,7 @@ export default function ClassroomActivitiesPage() {
           style={{ width: "100%" }}
           onClick={() => setShowAddForm(!showAddForm)}
         >
-          {showAddForm ? "Close Add Classroom Activity" : "Add Classroom Activity"}
+          {showAddForm ? "Close Add Single Classroom Activity" : "Add Single Classroom Activity"}
         </button>
 
         {showAddForm && (
@@ -752,7 +1008,7 @@ export default function ClassroomActivitiesPage() {
               onClick={createActivity}
               disabled={loading}
             >
-              {loading ? "Saving..." : "Save Classroom Activity"}
+              {loading ? "Saving..." : "Save Single Activity"}
             </button>
           </div>
         )}
@@ -1157,10 +1413,8 @@ function startOfWeek(date: Date) {
 }
 
 function endOfWeek(date: Date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? 0 : 7);
-  d.setDate(diff);
+  const d = startOfWeek(date);
+  d.setDate(d.getDate() + 6);
   d.setHours(23, 59, 59, 999);
   return d;
 }

@@ -15,6 +15,9 @@ type ActivityRow = {
   subject?: string | null;
   title?: string | null;
   description?: string | null;
+  support_learner_ids?: string[] | null;
+  support_learner_names?: string[] | null;
+  support_notes?: string | null;
   repeat_group_id?: string | null;
   created_at?: string | null;
 };
@@ -53,7 +56,14 @@ export default function ActivitiesPage() {
   const [role, setRole] = useState("");
   const [classroomName, setClassroomName] = useState("");
 
+  const normalizedRole = role.toLowerCase();
+  const isTeacher = normalizedRole === "teacher";
+  const isPrincipal = normalizedRole === "principal" || normalizedRole === "admin";
+  const isMaster = normalizedRole === "master";
+  const canManageLibrary = isPrincipal || isMaster;
+
   const [classrooms, setClassrooms] = useState<any[]>([]);
+  const [learners, setLearners] = useState<any[]>([]);
   const [selectedClassName, setSelectedClassName] = useState("");
 
   const [activities, setActivities] = useState<ActivityRow[]>([]);
@@ -73,11 +83,12 @@ export default function ActivitiesPage() {
   const [description, setDescription] = useState("");
   const [repeatWeeks, setRepeatWeeks] = useState("1");
 
+  const [supportLearnerIds, setSupportLearnerIds] = useState<string[]>([]);
+  const [supportNotes, setSupportNotes] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [savingActivity, setSavingActivity] = useState(false);
   const [savingLibrary, setSavingLibrary] = useState(false);
-
-  const canManageLibrary = role === "master" || role === "principal";
 
   const filteredLibrary = useMemo(() => {
     if (!developmentalArea) return [];
@@ -87,6 +98,12 @@ export default function ActivitiesPage() {
   useEffect(() => {
     loadPage();
   }, []);
+
+  useEffect(() => {
+    if (schoolId) {
+      fetchLearners(schoolId);
+    }
+  }, [selectedClassName, schoolId]);
 
   async function loadPage() {
     const context = await resolveSchoolContext(schoolParam);
@@ -103,8 +120,10 @@ export default function ActivitiesPage() {
 
     const { profile } = await getCurrentProfile();
     const currentRole = String(profile?.role || "");
+    const currentRoleLower = currentRole.toLowerCase();
+
     const teacherClass =
-      currentRole === "teacher" && profile?.classroom_name
+      currentRoleLower === "teacher" && profile?.classroom_name
         ? String(profile.classroom_name)
         : "";
 
@@ -115,6 +134,7 @@ export default function ActivitiesPage() {
 
     await fetchClassrooms(context.schoolId);
     await fetchLibrary(context.schoolId);
+    await fetchLearners(context.schoolId, teacherClass);
     await fetchActivities(context.schoolId, currentRole, teacherClass);
 
     setLoading(false);
@@ -128,6 +148,29 @@ export default function ActivitiesPage() {
       .order("classroom_name", { ascending: true });
 
     setClassrooms(data || []);
+  }
+
+  async function fetchLearners(currentSchoolId: number, classNameOverride?: string) {
+    const classToUse = classNameOverride ?? selectedClassName;
+
+    let query = supabase
+      .from("learners")
+      .select("*")
+      .eq("school_id", currentSchoolId)
+      .order("name", { ascending: true });
+
+    if (classToUse && classToUse !== "all") {
+      query = query.eq("class", classToUse);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setLearners(data || []);
   }
 
   async function fetchLibrary(currentSchoolId: number) {
@@ -151,6 +194,8 @@ export default function ActivitiesPage() {
     currentRole = role,
     teacherClass = classroomName
   ) {
+    const roleLower = currentRole.toLowerCase();
+
     let query = supabase
       .from("activities")
       .select("*")
@@ -159,7 +204,7 @@ export default function ActivitiesPage() {
       .order("activity_date", { ascending: true })
       .order("created_at", { ascending: true });
 
-    if (currentRole === "teacher" && teacherClass) {
+    if (roleLower === "teacher" && teacherClass) {
       query = query.eq("class_name", teacherClass);
     }
 
@@ -190,6 +235,11 @@ export default function ActivitiesPage() {
 
   async function saveLibraryItem() {
     if (!schoolId) return;
+
+    if (!canManageLibrary) {
+      alert("Only the principal or master can manage the activity library.");
+      return;
+    }
 
     if (!libraryArea || !libraryName || !libraryDescription) {
       alert("Please complete developmental area, activity name and description.");
@@ -232,15 +282,23 @@ export default function ActivitiesPage() {
       }
     }
 
+    const wasEditing = Boolean(editingLibraryId);
+
     resetLibraryForm();
     setShowLibraryForm(false);
     await fetchLibrary(schoolId);
+
     setSavingLibrary(false);
-    alert(editingLibraryId ? "Activity library item updated." : "Activity library item added.");
+    alert(wasEditing ? "Activity library item updated." : "Activity library item added.");
   }
 
   async function deleteLibraryItem(itemId: number) {
     if (!schoolId) return;
+
+    if (!canManageLibrary) {
+      alert("Only the principal or master can delete library items.");
+      return;
+    }
 
     const confirmed = confirm("Delete this activity from the library?");
     if (!confirmed) return;
@@ -275,12 +333,23 @@ export default function ActivitiesPage() {
     setSelectedLibraryId(id);
 
     const match = library.find((item) => String(item.id) === id);
+
     if (!match) {
       setDescription("");
       return;
     }
 
     setDescription(match.description || "");
+  }
+
+  function toggleSupportLearner(learnerId: string) {
+    setSupportLearnerIds((current) => {
+      if (current.includes(learnerId)) {
+        return current.filter((id) => id !== learnerId);
+      }
+
+      return [...current, learnerId];
+    });
   }
 
   async function saveDailyActivity() {
@@ -295,20 +364,27 @@ export default function ActivitiesPage() {
       return;
     }
 
+    if (!isTeacher && (!selectedClassName || selectedClassName === "all")) {
+      alert("Please select one class when saving an activity with learner support.");
+      return;
+    }
+
     setSavingActivity(true);
 
     const repeatCount = Math.max(Number(repeatWeeks) || 1, 1);
+
     const repeatGroupId =
       repeatCount > 1
         ? `repeat-${Date.now()}-${Math.random().toString(36).slice(2)}`
         : null;
 
-    const classNameToSave =
-      role === "teacher"
-        ? classroomName || null
-        : selectedClassName && selectedClassName !== "all"
-        ? selectedClassName
-        : null;
+    const classNameToSave = isTeacher ? classroomName || null : selectedClassName;
+
+    const selectedSupportLearners = learners.filter((learner) =>
+      supportLearnerIds.includes(String(learner.id))
+    );
+
+    const supportNames = selectedSupportLearners.map((learner) => String(learner.name));
 
     const rows = Array.from({ length: repeatCount }).map((_, index) => ({
       school_id: schoolId,
@@ -317,6 +393,9 @@ export default function ActivitiesPage() {
       subject: developmentalArea,
       title: selectedLibraryItem.activity_name,
       description,
+      support_learner_ids: supportLearnerIds,
+      support_learner_names: supportNames,
+      support_notes: supportNotes || null,
       repeat_group_id: repeatGroupId,
     }));
 
@@ -333,13 +412,21 @@ export default function ActivitiesPage() {
     setSelectedLibraryId("");
     setDescription("");
     setRepeatWeeks("1");
+    setSupportLearnerIds([]);
+    setSupportNotes("");
 
     await fetchActivities(schoolId);
+
     setSavingActivity(false);
     alert(repeatCount > 1 ? "Weekly activities saved." : "Activity saved.");
   }
 
   async function deleteActivity(activityId: number) {
+    if (!canManageLibrary) {
+      alert("Only the principal or master can delete saved activities.");
+      return;
+    }
+
     const confirmed = confirm("Delete this saved activity?");
     if (!confirmed) return;
 
@@ -370,7 +457,7 @@ export default function ActivitiesPage() {
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">Activities</h2>
         <p className="db-page-subtitle">
-          Select activities from a developmental-area library. Progress Reports stay unchanged.
+          Teachers capture daily activities. Principals manage the activity library and view support needs.
         </p>
 
         {schoolParam && schoolId ? (
@@ -379,17 +466,22 @@ export default function ActivitiesPage() {
           </Link>
         ) : null}
 
-        {role === "teacher" && classroomName ? (
-          <p style={smallText}>Classroom: {classroomName}</p>
-        ) : (
-          <p style={smallText}>Principal view: all classes</p>
-        )}
+        {isTeacher && classroomName ? (
+          <p style={smallText}>Teacher view: {classroomName}</p>
+        ) : canManageLibrary ? (
+          <p style={smallText}>Principal view: activity library and school activities</p>
+        ) : null}
       </div>
 
       {canManageLibrary ? (
         <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
           <div style={topRow}>
-            <h3 style={sectionTitle}>Activity Library</h3>
+            <div>
+              <h3 style={sectionTitle}>Activity Library</h3>
+              <p style={smallText}>
+                Add, edit, or delete the activities teachers can select.
+              </p>
+            </div>
 
             <button
               type="button"
@@ -399,7 +491,7 @@ export default function ActivitiesPage() {
                 setShowLibraryForm((prev) => !prev);
               }}
             >
-              {showLibraryForm ? "Close" : "Add Library Item"}
+              {showLibraryForm ? "Close" : "Add Activity"}
             </button>
           </div>
 
@@ -428,7 +520,7 @@ export default function ActivitiesPage() {
               <textarea
                 className="db-input"
                 rows={3}
-                placeholder="Auto-filled activity description"
+                placeholder="Description that will auto-fill for teachers"
                 value={libraryDescription}
                 onChange={(e) => setLibraryDescription(e.target.value)}
                 style={{ width: "100%", resize: "vertical" }}
@@ -444,8 +536,8 @@ export default function ActivitiesPage() {
                 {savingLibrary
                   ? "Saving..."
                   : editingLibraryId
-                  ? "Update Library Item"
-                  : "Save Library Item"}
+                  ? "Update Activity"
+                  : "Save Activity"}
               </button>
             </div>
           ) : null}
@@ -485,7 +577,9 @@ export default function ActivitiesPage() {
       ) : null}
 
       <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
-        <h3 style={sectionTitle}>Save Daily Activity</h3>
+        <h3 style={sectionTitle}>
+          {isTeacher ? "Capture Daily Activity" : "Capture Activity for a Class"}
+        </h3>
 
         <div style={grid2}>
           <div>
@@ -498,15 +592,18 @@ export default function ActivitiesPage() {
             />
           </div>
 
-          {role !== "teacher" ? (
+          {!isTeacher ? (
             <div>
               <p style={labelText}>Class</p>
               <select
                 className="db-input"
                 value={selectedClassName}
-                onChange={(e) => setSelectedClassName(e.target.value)}
+                onChange={(e) => {
+                  setSelectedClassName(e.target.value);
+                  setSupportLearnerIds([]);
+                }}
               >
-                <option value="all">All classes</option>
+                <option value="">Select class</option>
                 {classrooms.map((classroom) => (
                   <option key={classroom.id} value={classroom.classroom_name}>
                     {classroom.classroom_name}
@@ -559,6 +656,44 @@ export default function ActivitiesPage() {
           style={{ width: "100%", resize: "vertical" }}
         />
 
+        <div style={{ marginTop: 12 }}>
+          <p style={labelText}>Learners Needing Support</p>
+
+          {learners.length === 0 ? (
+            <p className="db-helper">
+              No learners found for this class.
+            </p>
+          ) : (
+            <div style={learnerGrid}>
+              {learners.map((learner) => {
+                const learnerId = String(learner.id);
+                const checked = supportLearnerIds.includes(learnerId);
+
+                return (
+                  <label key={learner.id} style={learnerCheckCard}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSupportLearner(learnerId)}
+                    />
+                    <span>{learner.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <p style={labelText}>Support Notes</p>
+        <textarea
+          className="db-input"
+          rows={3}
+          placeholder="Add notes for learners needing support"
+          value={supportNotes}
+          onChange={(e) => setSupportNotes(e.target.value)}
+          style={{ width: "100%", resize: "vertical" }}
+        />
+
         <p style={labelText}>Repeat Weekly</p>
         <select
           className="db-input"
@@ -584,7 +719,9 @@ export default function ActivitiesPage() {
       </div>
 
       <div className="db-card db-card-green" style={{ padding: 16 }}>
-        <h3 style={sectionTitle}>Upcoming Activities ({activities.length})</h3>
+        <h3 style={sectionTitle}>
+          {isTeacher ? "My Upcoming Activities" : "School Activities"} ({activities.length})
+        </h3>
 
         {activities.length === 0 ? (
           <p className="db-helper">No activities planned yet.</p>
@@ -614,17 +751,36 @@ export default function ActivitiesPage() {
                     }}
                   >
                     <span style={pillBlue}>{item.activity_date || "No date"}</span>
-                    <strong>{item.subject || "No area"}</strong>
-                    <span style={pillNeutral}>{item.class_name || "All classes"}</span>
+                    <strong>{item.title || item.subject || "No activity"}</strong>
+                    <span style={pillNeutral}>{item.class_name || "No class"}</span>
                   </button>
 
                   {active ? (
                     <div className="db-list-card" style={{ marginTop: 8 }}>
-                      <p style={smallText}>Activity</p>
-                      <strong>{item.title || "Untitled Activity"}</strong>
+                      <p style={smallText}>Developmental Area</p>
+                      <strong>{item.subject || "No area"}</strong>
+
+                      <p style={{ ...smallText, marginTop: 10 }}>Activity</p>
+                      <p style={detailText}>{item.title || "Untitled Activity"}</p>
 
                       <p style={{ ...smallText, marginTop: 10 }}>Description</p>
                       <p style={detailText}>{item.description || "No description"}</p>
+
+                      <p style={{ ...smallText, marginTop: 10 }}>Learners Needing Support</p>
+                      {item.support_learner_names && item.support_learner_names.length > 0 ? (
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {item.support_learner_names.map((name) => (
+                            <span key={name} style={pillNeutral}>
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={detailText}>No learners marked for support.</p>
+                      )}
+
+                      <p style={{ ...smallText, marginTop: 10 }}>Support Notes</p>
+                      <p style={detailText}>{item.support_notes || "No support notes added."}</p>
 
                       {item.repeat_group_id ? (
                         <p style={{ ...smallText, marginTop: 10 }}>
@@ -695,6 +851,24 @@ const grid2 = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 10,
+};
+
+const learnerGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 8,
+};
+
+const learnerCheckCard = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  background: "#FFFDFB",
+  border: "1px solid #F0E3D8",
+  borderRadius: 12,
+  padding: "10px 12px",
+  color: "#2D2A3E",
+  fontSize: 14,
 };
 
 const pillBlue = {

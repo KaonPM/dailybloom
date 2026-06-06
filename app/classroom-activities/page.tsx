@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
-import { useRouter, useSearchParams } from "next/navigation";
 
 const developmentalAreas = [
   "Language and Communication",
@@ -116,20 +116,10 @@ const defaultActivityLibrary = [
   },
 ];
 
-const statuses = [
-  { value: "planned", label: "Planned" },
-  { value: "completed", label: "Completed" },
-  { value: "not_completed", label: "Not Completed" },
-  { value: "rescheduled", label: "Rescheduled" },
-];
-
-const followUps = [
-  { value: "none", label: "No follow-up needed" },
-  { value: "repeat_activity", label: "Repeat activity" },
-  { value: "different_method", label: "Try different method" },
-  { value: "monitor_learner", label: "Monitor learner" },
-  { value: "discuss_with_parent", label: "Discuss with parent" },
-  { value: "escalate_to_principal", label: "Escalate to principal" },
+const outcomeStatuses = [
+  { value: "needs_support", label: "Needs Support" },
+  { value: "improving", label: "Improving" },
+  { value: "meeting_expectations", label: "Meeting Expectations" },
 ];
 
 type ActivityLibraryItem = {
@@ -142,6 +132,49 @@ type ActivityLibraryItem = {
   created_by?: string | null;
 };
 
+type WeeklyPlan = {
+  id: number;
+  school_id: number;
+  classroom_id: number;
+  activity_date: string;
+  developmental_area: string;
+  theme: string;
+  activity_library_id: number | null;
+  activity_name: string;
+  description: string | null;
+  planned_by?: string | null;
+  completed?: boolean | null;
+  completed_at?: string | null;
+  completed_by?: string | null;
+  created_at?: string | null;
+};
+
+type PlannerRow = {
+  dayLabel: string;
+  activity_date: string;
+  developmental_area: string;
+  theme: string;
+  activity_library_id: string;
+  activity_name: string;
+  description: string;
+};
+
+type OutcomeRow = {
+  id: number;
+  school_id: number;
+  classroom_id: number;
+  learner_id: number;
+  weekly_plan_id: number | null;
+  developmental_area: string | null;
+  theme: string | null;
+  activity_date: string | null;
+  activity_name: string | null;
+  outcome_status: string | null;
+  observation: string | null;
+  recorded_by?: string | null;
+  created_at?: string | null;
+};
+
 export default function ClassroomActivitiesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -150,85 +183,170 @@ export default function ClassroomActivitiesPage() {
   const [profile, setProfile] = useState<any>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [classrooms, setClassrooms] = useState<any[]>([]);
-  const [activities, setActivities] = useState<any[]>([]);
+  const [learners, setLearners] = useState<any[]>([]);
+  const [allLearners, setAllLearners] = useState<any[]>([]);
   const [activityLibrary, setActivityLibrary] = useState<ActivityLibraryItem[]>([]);
-  const [learnersByClassroom, setLearnersByClassroom] = useState<Record<string, any[]>>({});
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlan[]>([]);
+  const [outcomes, setOutcomes] = useState<OutcomeRow[]>([]);
 
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [activeClassroomId, setActiveClassroomId] = useState("");
+  const [weekStart, setWeekStart] = useState(getMonday(new Date()));
+  const [plannerRows, setPlannerRows] = useState<PlannerRow[]>([]);
+
+  const [selectedTodayPlanId, setSelectedTodayPlanId] = useState<number | null>(null);
+  const [outstandingLearnerId, setOutstandingLearnerId] = useState("");
+  const [supportLearnerIds, setSupportLearnerIds] = useState<string[]>([]);
+  const [supportStatuses, setSupportStatuses] = useState<Record<string, string>>({});
+  const [observation, setObservation] = useState("");
+
   const [showLibraryForm, setShowLibraryForm] = useState(false);
-
   const [editingLibraryId, setEditingLibraryId] = useState<number | null>(null);
   const [libraryArea, setLibraryArea] = useState("");
   const [libraryTheme, setLibraryTheme] = useState("");
   const [libraryActivityName, setLibraryActivityName] = useState("");
   const [libraryDescription, setLibraryDescription] = useState("");
 
-  const [classroomId, setClassroomId] = useState("");
-  const [activityDate, setActivityDate] = useState(today());
-  const [developmentalArea, setDevelopmentalArea] = useState("Language and Communication");
-  const [theme, setTheme] = useState("My Family");
-  const [selectedLibraryId, setSelectedLibraryId] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [trackerClassroomId, setTrackerClassroomId] = useState("");
+  const [trackerArea, setTrackerArea] = useState("");
+  const [trackerStatus, setTrackerStatus] = useState("");
 
-  const [bulkClassroomId, setBulkClassroomId] = useState("");
-  const [bulkDate, setBulkDate] = useState(today());
-  const [bulkArea, setBulkArea] = useState("");
-  const [bulkTheme, setBulkTheme] = useState("");
-
-  const [loading, setLoading] = useState(false);
-
-  const [filterClassroomId, setFilterClassroomId] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterCategory, setFilterCategory] = useState("");
-  const [filterTheme, setFilterTheme] = useState("");
-  const [filterDate, setFilterDate] = useState(today());
-
-  const [repeatDates, setRepeatDates] = useState<Record<number, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const role = String(profile?.role || "").toLowerCase();
   const isTeacher = role === "teacher";
   const isPrincipal = role === "principal" || role === "admin";
   const isMaster = role === "master";
+
   const canManageLibrary = isPrincipal || isMaster;
-  const canDeleteActivities = isPrincipal || isMaster;
+  const canPlanWeek = isTeacher || isPrincipal || isMaster;
+  const canViewTracker = isPrincipal || isMaster;
 
-  const availableClassrooms = useMemo(() => {
-    if (!isTeacher) return classrooms;
+  const activeClassroom = classrooms.find(
+    (item) => String(item.id) === String(activeClassroomId)
+  );
 
-    return classrooms.filter((item) => {
-      const teacherClassName = String(profile?.classroom_name || "");
-      const teacherClassId = String(profile?.classroom_id || "");
+  const todayDate = today();
 
+  const weekEnd = useMemo(() => {
+    const d = new Date(`${weekStart}T00:00:00`);
+    d.setDate(d.getDate() + 4);
+    return formatDate(d);
+  }, [weekStart]);
+
+  const currentWeekPlans = useMemo(() => {
+    return weeklyPlans.filter((plan) => {
       return (
-        String(item.classroom_name) === teacherClassName ||
-        String(item.id) === teacherClassId
+        String(plan.classroom_id) === String(activeClassroomId) &&
+        plan.activity_date >= weekStart &&
+        plan.activity_date <= weekEnd
       );
     });
-  }, [classrooms, isTeacher, profile]);
+  }, [weeklyPlans, activeClassroomId, weekStart, weekEnd]);
 
-  const filteredLibrary = useMemo(() => {
-    return activityLibrary.filter((item) => {
-      const matchesArea = item.developmental_area === developmentalArea;
-      const matchesTheme = theme ? item.theme === theme : true;
-
-      return matchesArea && matchesTheme;
+  const todaysPlans = useMemo(() => {
+    return weeklyPlans.filter((plan) => {
+      return (
+        String(plan.classroom_id) === String(activeClassroomId) &&
+        plan.activity_date === todayDate
+      );
     });
-  }, [activityLibrary, developmentalArea, theme]);
+  }, [weeklyPlans, activeClassroomId, todayDate]);
 
-  const bulkLibrary = useMemo(() => {
-    return activityLibrary.filter((item) => {
-      const matchesArea = bulkArea ? item.developmental_area === bulkArea : true;
-      const matchesTheme = bulkTheme ? item.theme === bulkTheme : true;
+  const selectedTodayPlan = useMemo(() => {
+    return todaysPlans.find((plan) => plan.id === selectedTodayPlanId) || todaysPlans[0] || null;
+  }, [todaysPlans, selectedTodayPlanId]);
 
-      return matchesArea && matchesTheme;
+  const latestOutcomes = useMemo(() => {
+    const latest = new Map<string, OutcomeRow>();
+
+    outcomes.forEach((item) => {
+      if (!item.learner_id || !item.developmental_area) return;
+
+      const key = `${item.learner_id}-${item.developmental_area}`;
+      const existing = latest.get(key);
+
+      if (!existing) {
+        latest.set(key, item);
+        return;
+      }
+
+      const existingDate = new Date(existing.created_at || existing.activity_date || "");
+      const itemDate = new Date(item.created_at || item.activity_date || "");
+
+      if (itemDate > existingDate) {
+        latest.set(key, item);
+      }
     });
-  }, [activityLibrary, bulkArea, bulkTheme]);
+
+    return Array.from(latest.values());
+  }, [outcomes]);
+
+  const weeklyOutcomeRows = useMemo(() => {
+    return outcomes.filter((item) => {
+      if (!item.activity_date) return false;
+      return item.activity_date >= weekStart && item.activity_date <= weekEnd;
+    });
+  }, [outcomes, weekStart, weekEnd]);
+
+  const dashboardStats = useMemo(() => {
+    const planned = currentWeekPlans.length;
+    const completed = currentWeekPlans.filter((item) => item.completed).length;
+
+    const weekdaysFilled = new Set(
+      currentWeekPlans.map((item) => item.activity_date)
+    ).size;
+
+    return {
+      weekPlanned: weekdaysFilled >= 5,
+      planned,
+      completed,
+      needsSupport: weeklyOutcomeRows.filter(
+        (item) => item.outcome_status === "needs_support"
+      ).length,
+      improving: weeklyOutcomeRows.filter(
+        (item) => item.outcome_status === "improving"
+      ).length,
+      meeting: weeklyOutcomeRows.filter(
+        (item) => item.outcome_status === "meeting_expectations"
+      ).length,
+    };
+  }, [currentWeekPlans, weeklyOutcomeRows]);
+
+  const supportTrackerRows = useMemo(() => {
+    return latestOutcomes.filter((item) => {
+      const matchesClassroom = trackerClassroomId
+        ? String(item.classroom_id) === String(trackerClassroomId)
+        : true;
+
+      const matchesArea = trackerArea
+        ? item.developmental_area === trackerArea
+        : true;
+
+      const matchesStatus = trackerStatus
+        ? item.outcome_status === trackerStatus
+        : true;
+
+      return matchesClassroom && matchesArea && matchesStatus;
+    });
+  }, [latestOutcomes, trackerClassroomId, trackerArea, trackerStatus]);
 
   useEffect(() => {
     loadPage();
   }, []);
+
+  useEffect(() => {
+    if (!schoolId || !activeClassroomId) return;
+
+    buildPlannerRows();
+    fetchLearners(Number(activeClassroomId));
+  }, [schoolId, activeClassroomId, weekStart, weeklyPlans, activityLibrary]);
+
+  useEffect(() => {
+    if (selectedTodayPlan) {
+      setSelectedTodayPlanId(selectedTodayPlan.id);
+    }
+  }, [selectedTodayPlan?.id]);
 
   async function loadPage() {
     const { profile: currentProfile, error } = await getCurrentProfile();
@@ -254,10 +372,60 @@ export default function ClassroomActivitiesPage() {
 
     setSchoolId(context.schoolId);
 
-    await fetchClassrooms(context.schoolId, currentProfile);
+    const classroomRows = await fetchClassrooms(context.schoolId);
     await seedDefaultLibrary(context.schoolId, currentProfile);
     await fetchActivityLibrary(context.schoolId);
-    await fetchActivities(context.schoolId, currentProfile);
+    await fetchWeeklyPlans(context.schoolId);
+    await fetchOutcomes(context.schoolId);
+    await fetchAllLearners(context.schoolId);
+
+    const teacherClassroom = getTeacherClassroom(classroomRows, currentProfile);
+    const firstClassroom = classroomRows[0];
+
+    if (teacherClassroom) {
+      setActiveClassroomId(String(teacherClassroom.id));
+    } else if (firstClassroom) {
+      setActiveClassroomId(String(firstClassroom.id));
+    }
+
+    setLoading(false);
+  }
+
+  async function fetchClassrooms(currentSchoolId: number) {
+    const { data, error } = await supabase
+      .from("classrooms")
+      .select("*")
+      .eq("school_id", currentSchoolId)
+      .order("classroom_name", { ascending: true });
+
+    if (error) {
+      alert(error.message);
+      return [];
+    }
+
+    setClassrooms(data || []);
+    return data || [];
+  }
+
+  function getTeacherClassroom(classroomRows: any[], currentProfile: any) {
+    const currentRole = String(currentProfile?.role || "").toLowerCase();
+
+    if (currentRole !== "teacher") return null;
+
+    const teacherClassId = currentProfile?.classroom_id
+      ? String(currentProfile.classroom_id)
+      : "";
+
+    const teacherClassName = currentProfile?.classroom_name
+      ? String(currentProfile.classroom_name)
+      : "";
+
+    return classroomRows.find((item) => {
+      return (
+        String(item.id) === teacherClassId ||
+        String(item.classroom_name) === teacherClassName
+      );
+    });
   }
 
   async function seedDefaultLibrary(currentSchoolId: number, currentProfile: any) {
@@ -303,46 +471,6 @@ export default function ClassroomActivitiesPage() {
     }
   }
 
-  async function fetchClassrooms(currentSchoolId: number, currentProfile?: any) {
-    const { data, error } = await supabase
-      .from("classrooms")
-      .select("*")
-      .eq("school_id", currentSchoolId)
-      .order("classroom_name", { ascending: true });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    const rows = data || [];
-    setClassrooms(rows);
-
-    const currentRole = String(currentProfile?.role || "").toLowerCase();
-
-    if (currentRole === "teacher") {
-      const teacherClassId = currentProfile?.classroom_id
-        ? String(currentProfile.classroom_id)
-        : "";
-
-      const teacherClassName = currentProfile?.classroom_name
-        ? String(currentProfile.classroom_name)
-        : "";
-
-      const matchedClassroom = rows.find((item) => {
-        return (
-          String(item.id) === teacherClassId ||
-          String(item.classroom_name) === teacherClassName
-        );
-      });
-
-      if (matchedClassroom) {
-        setClassroomId(String(matchedClassroom.id));
-        setFilterClassroomId(String(matchedClassroom.id));
-      }
-    }
-  }
-
   async function fetchActivityLibrary(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("activity_library")
@@ -360,18 +488,44 @@ export default function ClassroomActivitiesPage() {
     setActivityLibrary(data || []);
   }
 
-  async function fetchLearners(currentClassroomId: number | string) {
-    if (!schoolId || !currentClassroomId) return;
+  async function fetchWeeklyPlans(currentSchoolId: number) {
+    const { data, error } = await supabase
+      .from("weekly_activity_plans")
+      .select("*")
+      .eq("school_id", currentSchoolId)
+      .order("activity_date", { ascending: true });
 
-    const key = String(currentClassroomId);
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
-    if (learnersByClassroom[key]) return;
+    setWeeklyPlans(data || []);
+  }
+
+  async function fetchOutcomes(currentSchoolId: number) {
+    const { data, error } = await supabase
+      .from("learner_activity_outcomes")
+      .select("*")
+      .eq("school_id", currentSchoolId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setOutcomes(data || []);
+  }
+
+  async function fetchLearners(currentClassroomId: number) {
+    if (!schoolId) return;
 
     const { data, error } = await supabase
       .from("learners")
       .select("*")
       .eq("school_id", schoolId)
-      .eq("classroom_id", Number(currentClassroomId))
+      .eq("classroom_id", currentClassroomId)
       .order("name", { ascending: true });
 
     if (error) {
@@ -379,43 +533,348 @@ export default function ClassroomActivitiesPage() {
       return;
     }
 
-    setLearnersByClassroom((prev) => ({
-      ...prev,
-      [key]: data || [],
-    }));
+    setLearners(data || []);
   }
 
-  async function fetchActivities(currentSchoolId: number, currentProfile?: any) {
-    const currentRole = String(currentProfile?.role || profile?.role || "").toLowerCase();
-
-    let query = supabase
-      .from("classroom_activities")
-      .select(`
-        *,
-        classrooms (
-          classroom_name
-        )
-      `)
+  async function fetchAllLearners(currentSchoolId: number) {
+    const { data, error } = await supabase
+      .from("learners")
+      .select("*")
       .eq("school_id", currentSchoolId)
-      .order("activity_date", { ascending: false })
-      .order("created_at", { ascending: false });
-
-    if (currentRole === "teacher") {
-      const teacherClassId = currentProfile?.classroom_id;
-
-      if (teacherClassId) {
-        query = query.eq("classroom_id", Number(teacherClassId));
-      }
-    }
-
-    const { data, error } = await query;
+      .order("name", { ascending: true });
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    setActivities(data || []);
+    setAllLearners(data || []);
+  }
+
+  function buildPlannerRows() {
+    const rows = weekdaysFromMonday(weekStart).map((day) => {
+      const existing = weeklyPlans.find((plan) => {
+        return (
+          String(plan.classroom_id) === String(activeClassroomId) &&
+          plan.activity_date === day.date
+        );
+      });
+
+      return {
+        dayLabel: day.label,
+        activity_date: day.date,
+        developmental_area:
+          existing?.developmental_area || "Language and Communication",
+        theme: existing?.theme || "My Family",
+        activity_library_id: existing?.activity_library_id
+          ? String(existing.activity_library_id)
+          : "",
+        activity_name: existing?.activity_name || "",
+        description: existing?.description || "",
+      };
+    });
+
+    setPlannerRows(rows);
+  }
+
+  function updatePlannerRow(index: number, updates: Partial<PlannerRow>) {
+    setPlannerRows((current) =>
+      current.map((row, rowIndex) => {
+        if (rowIndex !== index) return row;
+
+        const updated = {
+          ...row,
+          ...updates,
+        };
+
+        if (updates.developmental_area || updates.theme) {
+          updated.activity_library_id = "";
+          updated.activity_name = "";
+          updated.description = "";
+        }
+
+        return updated;
+      })
+    );
+  }
+
+  function selectPlannerActivity(index: number, libraryId: string) {
+    const selected = activityLibrary.find(
+      (item) => String(item.id) === String(libraryId)
+    );
+
+    setPlannerRows((current) =>
+      current.map((row, rowIndex) => {
+        if (rowIndex !== index) return row;
+
+        return {
+          ...row,
+          activity_library_id: libraryId,
+          activity_name: selected?.activity_name || "",
+          description: selected?.description || "",
+        };
+      })
+    );
+  }
+
+  async function saveWeeklyPlan() {
+    if (!schoolId || !activeClassroomId) {
+      alert("Please select a classroom.");
+      return;
+    }
+
+    const rowsToSave = plannerRows.filter((row) => row.activity_library_id);
+
+    if (rowsToSave.length === 0) {
+      alert("Please select at least one activity for the week.");
+      return;
+    }
+
+    setSaving(true);
+
+    const dates = plannerRows.map((row) => row.activity_date);
+
+    const { error: deleteError } = await supabase
+      .from("weekly_activity_plans")
+      .delete()
+      .eq("school_id", schoolId)
+      .eq("classroom_id", Number(activeClassroomId))
+      .in("activity_date", dates);
+
+    if (deleteError) {
+      alert(deleteError.message);
+      setSaving(false);
+      return;
+    }
+
+    const insertRows = rowsToSave.map((row) => ({
+      school_id: schoolId,
+      classroom_id: Number(activeClassroomId),
+      activity_date: row.activity_date,
+      developmental_area: row.developmental_area,
+      theme: row.theme,
+      activity_library_id: Number(row.activity_library_id),
+      activity_name: row.activity_name,
+      description: row.description || null,
+      planned_by: profile?.id || null,
+    }));
+
+    const { error: insertError } = await supabase
+      .from("weekly_activity_plans")
+      .insert(insertRows);
+
+    if (insertError) {
+      alert(insertError.message);
+      setSaving(false);
+      return;
+    }
+
+    await fetchWeeklyPlans(schoolId);
+    setSaving(false);
+    alert("Weekly activity plan saved.");
+  }
+
+  async function copyPreviousWeek() {
+    if (!schoolId || !activeClassroomId) {
+      alert("Please select a classroom.");
+      return;
+    }
+
+    const previousStart = addDays(weekStart, -7);
+    const previousEnd = addDays(previousStart, 4);
+
+    const previousPlans = weeklyPlans.filter((plan) => {
+      return (
+        String(plan.classroom_id) === String(activeClassroomId) &&
+        plan.activity_date >= previousStart &&
+        plan.activity_date <= previousEnd
+      );
+    });
+
+    if (previousPlans.length === 0) {
+      alert("No previous week plan found.");
+      return;
+    }
+
+    const confirmed = confirm("Copy the previous week plan into this week?");
+    if (!confirmed) return;
+
+    setSaving(true);
+
+    const currentDates = weekdaysFromMonday(weekStart).map((item) => item.date);
+
+    const { error: deleteError } = await supabase
+      .from("weekly_activity_plans")
+      .delete()
+      .eq("school_id", schoolId)
+      .eq("classroom_id", Number(activeClassroomId))
+      .in("activity_date", currentDates);
+
+    if (deleteError) {
+      alert(deleteError.message);
+      setSaving(false);
+      return;
+    }
+
+    const rows = previousPlans.map((plan) => {
+      const oldDate = new Date(`${plan.activity_date}T00:00:00`);
+      const dayOffset = (oldDate.getDay() + 6) % 7;
+      const newDate = addDays(weekStart, dayOffset);
+
+      return {
+        school_id: schoolId,
+        classroom_id: Number(activeClassroomId),
+        activity_date: newDate,
+        developmental_area: plan.developmental_area,
+        theme: plan.theme,
+        activity_library_id: plan.activity_library_id,
+        activity_name: plan.activity_name,
+        description: plan.description || null,
+        planned_by: profile?.id || null,
+      };
+    });
+
+    const { error: insertError } = await supabase
+      .from("weekly_activity_plans")
+      .insert(rows);
+
+    if (insertError) {
+      alert(insertError.message);
+      setSaving(false);
+      return;
+    }
+
+    await fetchWeeklyPlans(schoolId);
+    setSaving(false);
+    alert("Previous week copied.");
+  }
+
+  async function markComplete() {
+    if (!schoolId || !selectedTodayPlan) return;
+
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("weekly_activity_plans")
+      .update({
+        completed: true,
+        completed_at: new Date().toISOString(),
+        completed_by: profile?.id || null,
+      })
+      .eq("id", selectedTodayPlan.id);
+
+    if (error) {
+      alert(error.message);
+      setSaving(false);
+      return;
+    }
+
+    const outcomeRows: any[] = [];
+
+    if (outstandingLearnerId) {
+      outcomeRows.push({
+        school_id: schoolId,
+        classroom_id: selectedTodayPlan.classroom_id,
+        learner_id: Number(outstandingLearnerId),
+        weekly_plan_id: selectedTodayPlan.id,
+        developmental_area: selectedTodayPlan.developmental_area,
+        theme: selectedTodayPlan.theme,
+        activity_date: selectedTodayPlan.activity_date,
+        activity_name: selectedTodayPlan.activity_name,
+        outcome_status: "meeting_expectations",
+        observation: observation
+          ? `Outstanding learner. ${observation}`
+          : "Outstanding learner.",
+        recorded_by: profile?.id || null,
+      });
+    }
+
+    supportLearnerIds.forEach((learnerId) => {
+      outcomeRows.push({
+        school_id: schoolId,
+        classroom_id: selectedTodayPlan.classroom_id,
+        learner_id: Number(learnerId),
+        weekly_plan_id: selectedTodayPlan.id,
+        developmental_area: selectedTodayPlan.developmental_area,
+        theme: selectedTodayPlan.theme,
+        activity_date: selectedTodayPlan.activity_date,
+        activity_name: selectedTodayPlan.activity_name,
+        outcome_status: supportStatuses[learnerId] || "needs_support",
+        observation: observation || null,
+        recorded_by: profile?.id || null,
+      });
+    });
+
+    await supabase
+      .from("learner_activity_outcomes")
+      .delete()
+      .eq("weekly_plan_id", selectedTodayPlan.id);
+
+    if (outcomeRows.length > 0) {
+      const { error: outcomeError } = await supabase
+        .from("learner_activity_outcomes")
+        .insert(outcomeRows);
+
+      if (outcomeError) {
+        alert(outcomeError.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    setOutstandingLearnerId("");
+    setSupportLearnerIds([]);
+    setSupportStatuses({});
+    setObservation("");
+
+    await fetchWeeklyPlans(schoolId);
+    await fetchOutcomes(schoolId);
+
+    setSaving(false);
+    alert("Activity completed and learner outcomes saved.");
+  }
+
+  function toggleSupportLearner(learnerId: string) {
+    setSupportLearnerIds((current) => {
+      if (current.includes(learnerId)) {
+        const next = current.filter((id) => id !== learnerId);
+
+        setSupportStatuses((statuses) => {
+          const copy = { ...statuses };
+          delete copy[learnerId];
+          return copy;
+        });
+
+        return next;
+      }
+
+      setSupportStatuses((statuses) => ({
+        ...statuses,
+        [learnerId]: "needs_support",
+      }));
+
+      return [...current, learnerId];
+    });
+  }
+
+  function getPreviousOutcome(learnerId: number, area: string, currentPlanId?: number) {
+    return outcomes.find((item) => {
+      return (
+        Number(item.learner_id) === Number(learnerId) &&
+        item.developmental_area === area &&
+        item.weekly_plan_id !== currentPlanId
+      );
+    });
+  }
+
+  function learnerName(learnerId: number) {
+    const learner = allLearners.find((item) => Number(item.id) === Number(learnerId));
+    return learner?.name || "Learner";
+  }
+
+  function classroomName(classroomId: number) {
+    const classroom = classrooms.find((item) => Number(item.id) === Number(classroomId));
+    return classroom?.classroom_name || "Classroom";
   }
 
   function resetLibraryForm() {
@@ -448,7 +907,7 @@ export default function ClassroomActivitiesPage() {
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
 
     if (editingLibraryId) {
       const { error } = await supabase
@@ -464,7 +923,7 @@ export default function ClassroomActivitiesPage() {
 
       if (error) {
         alert(error.message);
-        setLoading(false);
+        setSaving(false);
         return;
       }
     } else {
@@ -481,7 +940,7 @@ export default function ClassroomActivitiesPage() {
 
       if (error) {
         alert(error.message);
-        setLoading(false);
+        setSaving(false);
         return;
       }
     }
@@ -490,7 +949,7 @@ export default function ClassroomActivitiesPage() {
     setShowLibraryForm(false);
     await fetchActivityLibrary(schoolId);
 
-    setLoading(false);
+    setSaving(false);
     alert("Activity library saved.");
   }
 
@@ -520,257 +979,16 @@ export default function ClassroomActivitiesPage() {
     alert("Activity deleted from library.");
   }
 
-  function handleLibrarySelect(id: string) {
-    setSelectedLibraryId(id);
-
-    const selected = activityLibrary.find((item) => String(item.id) === String(id));
-
-    if (!selected) {
-      setTitle("");
-      setDescription("");
-      return;
-    }
-
-    setTitle(selected.activity_name);
-    setDescription(selected.description || "");
+  if (loading) {
+    return <p>Loading classroom activities...</p>;
   }
-
-  async function createActivity() {
-    if (!schoolId || !title.trim() || !classroomId || !activityDate || !developmentalArea || !theme) {
-      alert("Please complete class, date, developmental area, theme and activity.");
-      return;
-    }
-
-    if (isTeacher) {
-      const allowed = availableClassrooms.some(
-        (item) => String(item.id) === String(classroomId)
-      );
-
-      if (!allowed) {
-        alert("Teachers can only add activities for their own class.");
-        return;
-      }
-    }
-
-    setLoading(true);
-
-    const { error } = await supabase.from("classroom_activities").insert([
-      {
-        school_id: schoolId,
-        classroom_id: Number(classroomId),
-        activity_date: activityDate,
-        title: title.trim(),
-        category: developmentalArea,
-        theme,
-        description: description.trim() || null,
-        status: "planned",
-        created_by: profile?.id || null,
-        assigned_teacher_id: isTeacher ? profile?.id : null,
-        follow_up: "none",
-      },
-    ]);
-
-    if (error) {
-      alert(error.message);
-      setLoading(false);
-      return;
-    }
-
-    setSelectedLibraryId("");
-    setTitle("");
-    setClassroomId(isTeacher ? classroomId : "");
-    setActivityDate(today());
-    setDevelopmentalArea("Language and Communication");
-    setTheme("My Family");
-    setDescription("");
-    setShowAddForm(false);
-
-    await fetchActivities(schoolId, profile);
-    setLoading(false);
-    alert("Classroom activity added successfully.");
-  }
-
-  async function addAllLibraryToClassroom() {
-    if (!schoolId || !bulkClassroomId || !bulkDate) {
-      alert("Please select a classroom and date.");
-      return;
-    }
-
-    if (bulkLibrary.length === 0) {
-      alert("No library activities found to add.");
-      return;
-    }
-
-    const confirmed = confirm(
-      `Add ${bulkLibrary.length} activities to the selected classroom?`
-    );
-
-    if (!confirmed) return;
-
-    setLoading(true);
-
-    const rows = bulkLibrary.map((item) => ({
-      school_id: schoolId,
-      classroom_id: Number(bulkClassroomId),
-      activity_date: bulkDate,
-      title: item.activity_name,
-      category: item.developmental_area,
-      theme: item.theme || null,
-      description: item.description || null,
-      status: "planned",
-      created_by: profile?.id || null,
-      assigned_teacher_id: null,
-      follow_up: "none",
-    }));
-
-    const { error } = await supabase
-      .from("classroom_activities")
-      .insert(rows);
-
-    if (error) {
-      alert(error.message);
-      setLoading(false);
-      return;
-    }
-
-    await fetchActivities(schoolId, profile);
-    setLoading(false);
-    alert("Library activities added to classroom.");
-  }
-
-  async function updateActivity(activityId: number, updates: any) {
-    const { error } = await supabase
-      .from("classroom_activities")
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", activityId);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    if (schoolId) await fetchActivities(schoolId, profile);
-  }
-
-  async function deleteActivity(activityId: number) {
-    if (!canDeleteActivities) {
-      alert("Only the principal or master can delete classroom activities.");
-      return;
-    }
-
-    const confirmed = confirm("Delete this classroom activity?");
-    if (!confirmed) return;
-
-    const { error } = await supabase
-      .from("classroom_activities")
-      .delete()
-      .eq("id", activityId);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    if (expandedId === activityId) {
-      setExpandedId(null);
-    }
-
-    if (schoolId) await fetchActivities(schoolId, profile);
-    alert("Classroom activity deleted.");
-  }
-
-  async function repeatActivity(activity: any) {
-    if (!schoolId) return;
-
-    const selectedDate = repeatDates[activity.id];
-
-    if (!selectedDate) {
-      alert("Please select a repeat date.");
-      return;
-    }
-
-    const { error } = await supabase.from("classroom_activities").insert([
-      {
-        school_id: activity.school_id,
-        classroom_id: activity.classroom_id,
-        activity_date: selectedDate,
-        title: activity.title,
-        category: activity.category,
-        theme: activity.theme || null,
-        description: activity.description || null,
-        status: "planned",
-        created_by: profile?.id || null,
-        assigned_teacher_id: activity.assigned_teacher_id || null,
-        follow_up: "none",
-      },
-    ]);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setRepeatDates((prev) => ({
-      ...prev,
-      [activity.id]: "",
-    }));
-
-    await fetchActivities(schoolId, profile);
-    alert("Activity repeated successfully.");
-  }
-
-  const filteredActivities = useMemo(() => {
-    return activities.filter((item) => {
-      const matchesClass = filterClassroomId
-        ? Number(item.classroom_id) === Number(filterClassroomId)
-        : true;
-
-      const matchesStatus = filterStatus ? item.status === filterStatus : true;
-      const matchesCategory = filterCategory ? item.category === filterCategory : true;
-      const matchesTheme = filterTheme ? item.theme === filterTheme : true;
-      const matchesDate = filterDate ? item.activity_date === filterDate : true;
-
-      return matchesClass && matchesStatus && matchesCategory && matchesTheme && matchesDate;
-    });
-  }, [activities, filterClassroomId, filterStatus, filterCategory, filterTheme, filterDate]);
-
-  const teacherTodayActivities = useMemo(() => {
-    return activities.filter((item) => item.activity_date === today());
-  }, [activities]);
-
-  const todayActivities = useMemo(() => {
-    return activities.filter((item) => item.activity_date === today());
-  }, [activities]);
-
-  const weeklyActivities = useMemo(() => {
-    const start = startOfWeek(new Date());
-    const end = endOfWeek(new Date());
-
-    return activities.filter((item) => {
-      const date = new Date(item.activity_date);
-      return date >= start && date <= end;
-    });
-  }, [activities]);
-
-  const stats = useMemo(() => {
-    return {
-      todayTotal: todayActivities.length,
-      todayCompleted: todayActivities.filter((item) => item.status === "completed").length,
-      weeklySupport: weeklyActivities.filter(
-        (item) => Array.isArray(item.needs_support_ids) && item.needs_support_ids.length > 0
-      ).length,
-    };
-  }, [todayActivities, weeklyActivities]);
 
   return (
     <div>
-      <div className="db-soft-card" style={{ padding: "20px 22px", marginBottom: "20px" }}>
+      <div className="db-soft-card" style={{ padding: "18px 20px", marginBottom: "16px" }}>
         <h1 className="db-page-title">Classroom Activities</h1>
         <p className="db-page-subtitle">
-          Principals manage themes and activities. Teachers work from today’s classroom flow.
+          Plan the week, complete today’s activity, and track learner support.
         </p>
 
         {schoolParam && schoolId ? (
@@ -779,43 +997,395 @@ export default function ClassroomActivitiesPage() {
           </Link>
         ) : null}
 
-        <p style={smallHint}>
-          {isTeacher
-            ? "Teacher view: select today’s activity, mark progress and create follow-up."
-            : "Principal view: preloaded library, classroom assignment and activity monitoring."}
-        </p>
+        <div style={topControls}>
+          <div>
+            <label style={labelStyle}>Classroom</label>
+            <select
+              className="db-input"
+              value={activeClassroomId}
+              onChange={(e) => setActiveClassroomId(e.target.value)}
+              disabled={isTeacher}
+            >
+              <option value="">Select classroom</option>
+              {classrooms.map((classroom) => (
+                <option key={classroom.id} value={classroom.id}>
+                  {classroom.classroom_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Week Starting</label>
+            <input
+              className="db-input"
+              type="date"
+              value={weekStart}
+              onChange={(e) => setWeekStart(getMonday(new Date(`${e.target.value}T00:00:00`)))}
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="db-grid-3" style={{ marginBottom: "20px" }}>
-        <StatCard title="Today" value={stats.todayTotal} note="Activities planned" />
-        <StatCard title="Completed" value={stats.todayCompleted} note="Completed today" />
-        <StatCard title="Needs Support" value={stats.weeklySupport} note="Weekly support flags" />
+      <div style={compactGrid}>
+        <StatCard
+          title="Week Planned"
+          value={dashboardStats.weekPlanned ? "Yes" : "No"}
+          note={dashboardStats.weekPlanned ? "Monday to Friday ready" : "Week incomplete"}
+        />
+        <StatCard
+          title="Planned"
+          value={dashboardStats.planned}
+          note="Activities this week"
+        />
+        <StatCard
+          title="Completed"
+          value={dashboardStats.completed}
+          note="Completed this week"
+        />
+        <StatCard
+          title="Needs Support"
+          value={dashboardStats.needsSupport}
+          note="This week"
+        />
+        <StatCard
+          title="Improving"
+          value={dashboardStats.improving}
+          note="This week"
+        />
+        <StatCard
+          title="Meeting"
+          value={dashboardStats.meeting}
+          note="Expectations"
+        />
       </div>
 
-      {canManageLibrary && (
-        <details className="db-card db-card-yellow" style={{ padding: "18px", marginBottom: "20px" }}>
-          <summary style={summaryStyle}>Preloaded Activity Library ({activityLibrary.length})</summary>
-
-          <div style={{ marginTop: "16px" }}>
-            <div style={topRow}>
+      {canPlanWeek ? (
+        <div className="db-card db-card-blue" style={cardStyle}>
+          <div style={sectionHeader}>
+            <div>
+              <h3 style={sectionTitle}>Weekly Planner</h3>
               <p style={smallHint}>
-                Activities are automatically loaded for each school. You can add, edit or delete them.
+                Plan Monday to Friday for {activeClassroom?.classroom_name || "the selected classroom"}.
               </p>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="db-button-primary"
+                style={smallButton}
+                onClick={copyPreviousWeek}
+                disabled={saving}
+              >
+                Copy Previous Week
+              </button>
 
               <button
                 type="button"
                 className="db-button-primary"
-                onClick={() => {
-                  resetLibraryForm();
-                  setShowLibraryForm(!showLibraryForm);
-                }}
+                style={smallButton}
+                onClick={saveWeeklyPlan}
+                disabled={saving}
               >
-                {showLibraryForm ? "Close" : "Add Library Activity"}
+                {saving ? "Saving..." : "Save Week Plan"}
               </button>
             </div>
+          </div>
 
-            {showLibraryForm && (
-              <div style={{ marginTop: "16px" }}>
+          <div style={{ display: "grid", gap: "8px" }}>
+            {plannerRows.map((row, index) => {
+              const rowLibrary = activityLibrary.filter((item) => {
+                return (
+                  item.developmental_area === row.developmental_area &&
+                  item.theme === row.theme
+                );
+              });
+
+              return (
+                <div key={row.activity_date} style={plannerRowStyle}>
+                  <strong style={{ minWidth: "92px" }}>{row.dayLabel}</strong>
+
+                  <select
+                    className="db-input"
+                    value={row.developmental_area}
+                    onChange={(e) =>
+                      updatePlannerRow(index, { developmental_area: e.target.value })
+                    }
+                  >
+                    {developmentalAreas.map((area) => (
+                      <option key={area} value={area}>
+                        {area}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="db-input"
+                    value={row.theme}
+                    onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}
+                  >
+                    {themes.map((themeItem) => (
+                      <option key={themeItem} value={themeItem}>
+                        {themeItem}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="db-input"
+                    value={row.activity_library_id}
+                    onChange={(e) => selectPlannerActivity(index, e.target.value)}
+                  >
+                    <option value="">No activity selected</option>
+                    {rowLibrary.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.activity_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="db-card db-card-green" style={cardStyle}>
+        <div style={sectionHeader}>
+          <div>
+            <h3 style={sectionTitle}>Today’s Planned Activity</h3>
+            <p style={smallHint}>
+              Only activities planned for today are shown here.
+            </p>
+          </div>
+        </div>
+
+        {todaysPlans.length === 0 ? (
+          <p className="db-helper">No activity planned for today.</p>
+        ) : (
+          <div style={{ display: "grid", gap: "10px" }}>
+            {todaysPlans.map((plan) => (
+              <button
+                key={plan.id}
+                type="button"
+                onClick={() => setSelectedTodayPlanId(plan.id)}
+                style={{
+                  ...todayPlanButton,
+                  border:
+                    selectedTodayPlan?.id === plan.id
+                      ? "2px solid #7CCCF3"
+                      : "1px solid #E3D9CD",
+                }}
+              >
+                <strong>{plan.activity_name}</strong>
+                <span style={smallHint}>
+                  {plan.developmental_area} | {plan.theme}
+                </span>
+                <span style={smallHint}>
+                  {plan.completed ? "Completed" : "Not completed yet"}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {selectedTodayPlan ? (
+          <div style={completionBox}>
+            <h4 style={subTitle}>Complete Activity</h4>
+
+            <p style={textStyle}>{selectedTodayPlan.description || "No description added."}</p>
+
+            <label style={labelStyle}>Outstanding Learner</label>
+            <select
+              className="db-input"
+              value={outstandingLearnerId}
+              onChange={(e) => setOutstandingLearnerId(e.target.value)}
+            >
+              <option value="">Select learner</option>
+              {learners.map((learner) => (
+                <option key={learner.id} value={learner.id}>
+                  {learner.name}
+                </option>
+              ))}
+            </select>
+
+            <label style={labelStyle}>Learners Requiring Support</label>
+            {learners.length === 0 ? (
+              <p className="db-helper">No learners found for this classroom.</p>
+            ) : (
+              <div style={learnerGrid}>
+                {learners.map((learner) => {
+                  const learnerId = String(learner.id);
+                  const selected = supportLearnerIds.includes(learnerId);
+                  const previous = getPreviousOutcome(
+                    Number(learner.id),
+                    selectedTodayPlan.developmental_area,
+                    selectedTodayPlan.id
+                  );
+
+                  return (
+                    <div key={learner.id} style={learnerCard}>
+                      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleSupportLearner(learnerId)}
+                        />
+                        <strong>{learner.name}</strong>
+                      </label>
+
+                      {previous ? (
+                        <p style={smallHint}>
+                          Previous: {outcomeLabel(previous.outcome_status || "")} on{" "}
+                          {previous.activity_date || formatShortDate(previous.created_at || "")}
+                        </p>
+                      ) : null}
+
+                      {selected ? (
+                        <select
+                          className="db-input"
+                          value={supportStatuses[learnerId] || "needs_support"}
+                          onChange={(e) =>
+                            setSupportStatuses((current) => ({
+                              ...current,
+                              [learnerId]: e.target.value,
+                            }))
+                          }
+                        >
+                          {outcomeStatuses.map((status) => (
+                            <option key={status.value} value={status.value}>
+                              {status.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <label style={labelStyle}>Observation</label>
+            <textarea
+              className="db-input"
+              value={observation}
+              onChange={(e) => setObservation(e.target.value)}
+              placeholder="Add a short observation for today’s activity"
+              style={{ minHeight: "72px" }}
+            />
+
+            <button
+              type="button"
+              className="db-button-primary"
+              style={{ width: "100%", marginTop: "10px" }}
+              onClick={markComplete}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Mark Complete"}
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {canViewTracker ? (
+        <div className="db-card db-card-lavender" style={cardStyle}>
+          <h3 style={sectionTitle}>Learner Support Tracker</h3>
+          <p style={smallHint}>
+            Latest learner outcome per developmental area.
+          </p>
+
+          <div style={filterGrid}>
+            <select
+              className="db-input"
+              value={trackerClassroomId}
+              onChange={(e) => setTrackerClassroomId(e.target.value)}
+            >
+              <option value="">All classrooms</option>
+              {classrooms.map((classroom) => (
+                <option key={classroom.id} value={classroom.id}>
+                  {classroom.classroom_name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="db-input"
+              value={trackerArea}
+              onChange={(e) => setTrackerArea(e.target.value)}
+            >
+              <option value="">All areas</option>
+              {developmentalAreas.map((area) => (
+                <option key={area} value={area}>
+                  {area}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="db-input"
+              value={trackerStatus}
+              onChange={(e) => setTrackerStatus(e.target.value)}
+            >
+              <option value="">All statuses</option>
+              {outcomeStatuses.map((status) => (
+                <option key={status.value} value={status.value}>
+                  {status.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {supportTrackerRows.length === 0 ? (
+            <p className="db-helper" style={{ marginTop: "12px" }}>
+              No learner support records yet.
+            </p>
+          ) : (
+            <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
+              {supportTrackerRows.map((item) => (
+                <div key={item.id} className="db-list-card">
+                  <strong>{learnerName(item.learner_id)}</strong>
+                  <p style={textStyle}>
+                    {classroomName(item.classroom_id)} | {item.developmental_area}
+                  </p>
+                  <p style={textStyle}>
+                    Status: {outcomeLabel(item.outcome_status || "")}
+                  </p>
+                  <p style={smallHint}>
+                    Last updated: {item.activity_date || formatShortDate(item.created_at || "")}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      <details className="db-card db-card-yellow" style={cardStyle}>
+        <summary style={summaryStyle}>
+          Activity Library ({activityLibrary.length})
+        </summary>
+
+        <p style={smallHint}>
+          Teachers select activities from this library. Principals manage the list.
+        </p>
+
+        {canManageLibrary ? (
+          <div style={{ marginTop: "12px" }}>
+            <button
+              type="button"
+              className="db-button-primary"
+              style={{ width: "100%" }}
+              onClick={() => {
+                resetLibraryForm();
+                setShowLibraryForm((current) => !current);
+              }}
+            >
+              {showLibraryForm ? "Close Library Form" : "Add Library Activity"}
+            </button>
+
+            {showLibraryForm ? (
+              <div style={{ marginTop: "12px" }}>
                 <select
                   className="db-input"
                   value={libraryArea}
@@ -835,648 +1405,96 @@ export default function ClassroomActivitiesPage() {
                   onChange={(e) => setLibraryTheme(e.target.value)}
                 >
                   <option value="">Select theme</option>
-                  {themes.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
+                  {themes.map((themeItem) => (
+                    <option key={themeItem} value={themeItem}>
+                      {themeItem}
                     </option>
                   ))}
                 </select>
 
                 <input
                   className="db-input"
-                  placeholder="Activity name"
                   value={libraryActivityName}
                   onChange={(e) => setLibraryActivityName(e.target.value)}
+                  placeholder="Activity name"
                 />
 
                 <textarea
                   className="db-input"
-                  placeholder="Auto-filled description for teachers"
                   value={libraryDescription}
                   onChange={(e) => setLibraryDescription(e.target.value)}
-                  style={{ minHeight: "80px" }}
+                  placeholder="Description"
+                  style={{ minHeight: "72px" }}
                 />
 
                 <button
+                  type="button"
                   className="db-button-primary"
                   style={{ width: "100%" }}
                   onClick={saveLibraryItem}
-                  disabled={loading}
+                  disabled={saving}
                 >
-                  {loading
+                  {saving
                     ? "Saving..."
                     : editingLibraryId
                     ? "Update Library Activity"
                     : "Save Library Activity"}
                 </button>
               </div>
-            )}
-
-            <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
-              {activityLibrary.length === 0 ? (
-                <p className="db-helper">No library activities added yet.</p>
-              ) : (
-                activityLibrary.map((item) => (
-                  <div key={item.id} className="db-list-card">
-                    <strong>{item.activity_name}</strong>
-                    <p style={textStyle}>{item.developmental_area} | {item.theme || "No theme"}</p>
-                    <p style={textStyle}>{item.description}</p>
-
-                    <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-                      <button
-                        type="button"
-                        className="db-button-primary"
-                        style={miniButton}
-                        onClick={() => startEditLibrary(item)}
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        type="button"
-                        className="db-button-primary"
-                        style={miniButton}
-                        onClick={() => deleteLibraryItem(item.id)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+            ) : null}
           </div>
-        </details>
-      )}
+        ) : null}
 
-      {canManageLibrary && (
-        <div className="db-card db-card-blue" style={{ padding: "18px", marginBottom: "20px" }}>
-          <h3 style={sectionTitle}>Add Library Activities to Classroom</h3>
-          <p style={smallHint}>
-            Select a classroom and date, then add all activities or filter by developmental area and theme.
-          </p>
+        <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
+          {activityLibrary.map((item) => (
+            <div key={item.id} className="db-list-card">
+              <strong>{item.activity_name}</strong>
+              <p style={textStyle}>
+                {item.developmental_area} | {item.theme || "No theme"}
+              </p>
+              <p style={smallHint}>{item.description}</p>
 
-          <select
-            className="db-input"
-            value={bulkClassroomId}
-            onChange={(e) => setBulkClassroomId(e.target.value)}
-          >
-            <option value="">Select classroom</option>
-            {classrooms.map((classroom) => (
-              <option key={classroom.id} value={classroom.id}>
-                {classroom.classroom_name}
-              </option>
-            ))}
-          </select>
-
-          <input
-            className="db-input"
-            type="date"
-            value={bulkDate}
-            onChange={(e) => setBulkDate(e.target.value)}
-          />
-
-          <select
-            className="db-input"
-            value={bulkArea}
-            onChange={(e) => setBulkArea(e.target.value)}
-          >
-            <option value="">All developmental areas</option>
-            {developmentalAreas.map((area) => (
-              <option key={area} value={area}>
-                {area}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className="db-input"
-            value={bulkTheme}
-            onChange={(e) => setBulkTheme(e.target.value)}
-          >
-            <option value="">All themes</option>
-            {themes.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-
-          <button
-            type="button"
-            className="db-button-primary"
-            style={{ width: "100%" }}
-            onClick={addAllLibraryToClassroom}
-            disabled={loading}
-          >
-            {loading ? "Adding..." : `Add ${bulkLibrary.length} Activities to Classroom`}
-          </button>
-        </div>
-      )}
-
-      <div className="db-card db-card-blue" style={{ padding: "18px", marginBottom: "20px" }}>
-        <button
-          type="button"
-          className="db-button-primary"
-          style={{ width: "100%" }}
-          onClick={() => setShowAddForm(!showAddForm)}
-        >
-          {showAddForm ? "Close Today’s Activity" : isTeacher ? "Select Today’s Activity" : "Add Single Classroom Activity"}
-        </button>
-
-        {showAddForm && (
-          <div style={{ marginTop: "16px" }}>
-            <select
-              className="db-input"
-              value={classroomId}
-              onChange={(e) => setClassroomId(e.target.value)}
-              disabled={isTeacher}
-            >
-              <option value="">Select class</option>
-              {availableClassrooms.map((classroom) => (
-                <option key={classroom.id} value={classroom.id}>
-                  {classroom.classroom_name}
-                </option>
-              ))}
-            </select>
-
-            <input
-              className="db-input"
-              type="date"
-              value={activityDate}
-              onChange={(e) => setActivityDate(e.target.value)}
-            />
-
-            <select
-              className="db-input"
-              value={developmentalArea}
-              onChange={(e) => {
-                setDevelopmentalArea(e.target.value);
-                setSelectedLibraryId("");
-                setTitle("");
-                setDescription("");
-              }}
-            >
-              {developmentalAreas.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className="db-input"
-              value={theme}
-              onChange={(e) => {
-                setTheme(e.target.value);
-                setSelectedLibraryId("");
-                setTitle("");
-                setDescription("");
-              }}
-            >
-              {themes.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className="db-input"
-              value={selectedLibraryId}
-              onChange={(e) => handleLibrarySelect(e.target.value)}
-            >
-              <option value="">Select activity</option>
-              {filteredLibrary.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.activity_name}
-                </option>
-              ))}
-            </select>
-
-            <textarea
-              className="db-input"
-              placeholder="Auto-filled description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              style={{ minHeight: "80px" }}
-            />
-
-            <button
-              className="db-button-primary"
-              style={{ width: "100%" }}
-              onClick={createActivity}
-              disabled={loading}
-            >
-              {loading ? "Saving..." : isTeacher ? "Save Today’s Activity" : "Save Single Activity"}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {!isTeacher && (
-        <details className="db-card db-card-lavender" style={{ padding: "18px", marginBottom: "20px" }} open>
-          <summary style={summaryStyle}>Filters & Date Selection</summary>
-
-          <div className="db-grid-2" style={{ marginTop: "16px" }}>
-            <input
-              className="db-input"
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-            />
-
-            <select
-              className="db-input"
-              value={filterClassroomId}
-              onChange={(e) => setFilterClassroomId(e.target.value)}
-            >
-              <option value="">All classes</option>
-              {availableClassrooms.map((classroom) => (
-                <option key={classroom.id} value={classroom.id}>
-                  {classroom.classroom_name}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className="db-input"
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-            >
-              <option value="">All statuses</option>
-              {statuses.map((status) => (
-                <option key={status.value} value={status.value}>
-                  {status.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className="db-input"
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-            >
-              <option value="">All developmental areas</option>
-              {developmentalAreas.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className="db-input"
-              value={filterTheme}
-              onChange={(e) => setFilterTheme(e.target.value)}
-            >
-              <option value="">All themes</option>
-              {themes.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            type="button"
-            className="db-button-primary"
-            style={{ width: "100%", marginTop: "10px" }}
-            onClick={() => {
-              setFilterDate("");
-              setFilterClassroomId("");
-              setFilterStatus("");
-              setFilterCategory("");
-              setFilterTheme("");
-            }}
-          >
-            Clear Filters
-          </button>
-        </details>
-      )}
-
-      <details className="db-card db-card-green" style={{ padding: "18px", marginBottom: "20px" }} open>
-        <summary style={summaryStyle}>
-          {isTeacher
-            ? `Today’s Activities (${teacherTodayActivities.length})`
-            : `Selected Activities (${filteredActivities.length})`}
-        </summary>
-
-        <ActivityList
-          activities={isTeacher ? teacherTodayActivities : filteredActivities}
-          learnersByClassroom={learnersByClassroom}
-          expandedId={expandedId}
-          setExpandedId={setExpandedId}
-          fetchLearners={fetchLearners}
-          updateActivity={updateActivity}
-          deleteActivity={deleteActivity}
-          repeatActivity={repeatActivity}
-          repeatDates={repeatDates}
-          setRepeatDates={setRepeatDates}
-          canDeleteActivities={canDeleteActivities}
-        />
-      </details>
-    </div>
-  );
-}
-
-function ActivityList({
-  activities,
-  learnersByClassroom,
-  expandedId,
-  setExpandedId,
-  fetchLearners,
-  updateActivity,
-  deleteActivity,
-  repeatActivity,
-  repeatDates,
-  setRepeatDates,
-  canDeleteActivities,
-}: any) {
-  const [visibleCount, setVisibleCount] = useState(5);
-  const visibleActivities = activities.slice(0, visibleCount);
-
-  useEffect(() => {
-    setVisibleCount(5);
-  }, [activities.length]);
-
-  if (!activities.length) {
-    return <p className="db-helper" style={{ marginTop: "14px" }}>No activities found.</p>;
-  }
-
-  return (
-    <div style={{ marginTop: "16px" }}>
-      <div style={{ display: "grid", gap: "12px" }}>
-        {visibleActivities.map((activity: any) => {
-          const isOpen = expandedId === activity.id;
-          const learners = learnersByClassroom[String(activity.classroom_id)] || [];
-
-          return (
-            <div key={activity.id} className="db-list-card">
-              <div
-                onClick={async () => {
-                  setExpandedId(isOpen ? null : activity.id);
-                  if (!isOpen) await fetchLearners(activity.classroom_id);
-                }}
-                style={{ cursor: "pointer" }}
-              >
-                <strong style={{ fontSize: "17px" }}>{activity.title}</strong>
-                <p style={textStyle}>
-                  {activity.classrooms?.classroom_name || "Class"} | {activity.activity_date}
-                </p>
-                <p style={textStyle}>
-                  {activity.category} | {activity.theme || "No theme"}
-                </p>
-                <p style={textStyle}>Status: {statusLabel(activity.status)}</p>
-                <p style={smallHint}>Tap card to open learner participation and follow-up.</p>
-              </div>
-
-              <button
-                type="button"
-                className="db-button-primary"
-                style={miniButton}
-                onClick={() => updateActivity(activity.id, { status: "completed" })}
-              >
-                Mark Completed
-              </button>
-
-              {isOpen && (
-                <div style={{ marginTop: "14px", borderTop: "1px solid #e8e8e8", paddingTop: "14px" }}>
-                  <h4 style={subTitle}>Learner Participation & Follow-Up</h4>
-
-                  {activity.description && (
-                    <p style={textStyle}>Description: {activity.description}</p>
-                  )}
-
-                  <label style={labelStyle}>Activity Status</label>
-                  <select
-                    className="db-input"
-                    value={activity.status || "planned"}
-                    onChange={(e) => updateActivity(activity.id, { status: e.target.value })}
+              {canManageLibrary ? (
+                <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+                  <button
+                    type="button"
+                    className="db-button-primary"
+                    style={smallButton}
+                    onClick={() => startEditLibrary(item)}
                   >
-                    {statuses.map((status) => (
-                      <option key={status.value} value={status.value}>
-                        {status.label}
-                      </option>
-                    ))}
-                  </select>
+                    Edit
+                  </button>
 
-                  <LearnerSelect
-                    label="Outstanding learner"
-                    learners={learners}
-                    value={activity.outstanding_learner_id || ""}
-                    onChange={(value: string) =>
-                      updateActivity(activity.id, {
-                        outstanding_learner_id: value ? Number(value) : null,
-                      })
-                    }
-                  />
-
-                  <MultiLearnerSelect
-                    label="Participated well"
-                    learners={learners}
-                    selectedIds={activity.participated_well_ids || []}
-                    onSave={(ids: number[]) =>
-                      updateActivity(activity.id, { participated_well_ids: ids })
-                    }
-                  />
-
-                  <MultiLearnerSelect
-                    label="Needs support"
-                    learners={learners}
-                    selectedIds={activity.needs_support_ids || []}
-                    onSave={(ids: number[]) =>
-                      updateActivity(activity.id, { needs_support_ids: ids })
-                    }
-                  />
-
-                  <label style={labelStyle}>Teacher Notes</label>
-                  <textarea
-                    className="db-input"
-                    placeholder="Add a short note about how the activity went"
-                    defaultValue={activity.teacher_notes || ""}
-                    onBlur={(e) =>
-                      updateActivity(activity.id, { teacher_notes: e.target.value })
-                    }
-                    style={{ minHeight: "80px" }}
-                  />
-
-                  <label style={labelStyle}>Follow-Up Action</label>
-                  <select
-                    className="db-input"
-                    value={activity.follow_up || "none"}
-                    onChange={(e) =>
-                      updateActivity(activity.id, { follow_up: e.target.value })
-                    }
+                  <button
+                    type="button"
+                    className="db-button-primary"
+                    style={smallButton}
+                    onClick={() => deleteLibraryItem(item.id)}
                   >
-                    {followUps.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  <label style={labelStyle}>Follow-Up Date</label>
-                  <input
-                    type="date"
-                    className="db-input"
-                    defaultValue={activity.follow_up_date || ""}
-                    onChange={(e) =>
-                      updateActivity(activity.id, {
-                        follow_up_date: e.target.value || null,
-                      })
-                    }
-                  />
-
-                  <label style={labelStyle}>Follow-Up Note</label>
-                  <textarea
-                    className="db-input"
-                    placeholder="Example: Repeat using picture cards tomorrow"
-                    defaultValue={activity.follow_up_note || ""}
-                    onBlur={(e) =>
-                      updateActivity(activity.id, { follow_up_note: e.target.value })
-                    }
-                    style={{ minHeight: "70px" }}
-                  />
-
-                  <div style={repeatBox}>
-                    <h4 style={subTitle}>Create Tomorrow or Follow-Up Activity</h4>
-                    <p style={smallHint}>Choose a date to create a new copy of this activity.</p>
-
-                    <input
-                      type="date"
-                      className="db-input"
-                      value={repeatDates[activity.id] || ""}
-                      onChange={(e) =>
-                        setRepeatDates((prev: any) => ({
-                          ...prev,
-                          [activity.id]: e.target.value,
-                        }))
-                      }
-                    />
-
-                    <button
-                      type="button"
-                      className="db-button-primary"
-                      style={{ width: "100%" }}
-                      onClick={() => repeatActivity(activity)}
-                    >
-                      Create Activity
-                    </button>
-                  </div>
-
-                  {canDeleteActivities && (
-                    <button
-                      type="button"
-                      className="db-button-primary"
-                      style={{ width: "100%", marginTop: "12px" }}
-                      onClick={() => deleteActivity(activity.id)}
-                    >
-                      Delete Activity
-                    </button>
-                  )}
+                    Delete
+                  </button>
                 </div>
-              )}
+              ) : null}
             </div>
-          );
-        })}
-      </div>
-
-      {activities.length > visibleCount && (
-        <button
-          type="button"
-          className="db-button-primary"
-          style={{ width: "100%", marginTop: "12px" }}
-          onClick={() => setVisibleCount(visibleCount + 5)}
-        >
-          Load More Activities
-        </button>
-      )}
-    </div>
-  );
-}
-
-function LearnerSelect({ label, learners, value, onChange }: any) {
-  return (
-    <div>
-      <label style={labelStyle}>{label}</label>
-      <select className="db-input" value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">Select learner</option>
-        {learners.map((learner: any) => (
-          <option key={learner.id} value={learner.id}>
-            {learner.name}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function MultiLearnerSelect({ label, learners, selectedIds, onSave }: any) {
-  const [localIds, setLocalIds] = useState<number[]>(selectedIds || []);
-
-  useEffect(() => {
-    setLocalIds(selectedIds || []);
-  }, [selectedIds]);
-
-  function toggleLearner(id: number) {
-    if (localIds.includes(id)) {
-      setLocalIds(localIds.filter((item) => item !== id));
-    } else {
-      setLocalIds([...localIds, id]);
-    }
-  }
-
-  return (
-    <div style={{ marginBottom: "12px" }}>
-      <label style={labelStyle}>{label}</label>
-
-      {learners.length === 0 ? (
-        <p className="db-helper">No learners found for this class.</p>
-      ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-          {learners.map((learner: any) => {
-            const active = localIds.includes(Number(learner.id));
-
-            return (
-              <button
-                key={learner.id}
-                type="button"
-                onClick={() => toggleLearner(Number(learner.id))}
-                style={{
-                  border: "1px solid #d7dde8",
-                  borderRadius: "999px",
-                  padding: "8px 12px",
-                  cursor: "pointer",
-                  background: active ? "#102a43" : "#ffffff",
-                  color: active ? "#ffffff" : "#102a43",
-                }}
-              >
-                {learner.name}
-              </button>
-            );
-          })}
+          ))}
         </div>
-      )}
-
-      <button
-        className="db-button-primary"
-        style={{ marginTop: "10px", minHeight: "36px", padding: "8px 12px" }}
-        onClick={() => onSave(localIds)}
-      >
-        Save {label}
-      </button>
+      </details>
     </div>
   );
 }
 
 function StatCard({ title, value, note }: any) {
   return (
-    <div className="db-card" style={{ padding: "16px" }}>
-      <p style={{ margin: 0, color: "var(--db-text-soft)" }}>{title}</p>
-      <h2 style={{ margin: "6px 0", color: "var(--db-text)" }}>{value}</h2>
-      <p style={{ margin: 0, color: "var(--db-text-soft)" }}>{note}</p>
+    <div className="db-card" style={{ padding: "12px" }}>
+      <p style={{ margin: 0, color: "var(--db-text-soft)", fontSize: "12px" }}>
+        {title}
+      </p>
+      <h2 style={{ margin: "4px 0", color: "var(--db-text)", fontSize: "22px" }}>
+        {value}
+      </h2>
+      <p style={{ margin: 0, color: "var(--db-text-soft)", fontSize: "12px" }}>
+        {note}
+      </p>
     </div>
   );
 }
@@ -1485,35 +1503,76 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function startOfWeek(date: Date) {
+function formatDate(date: Date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function getMonday(date: Date) {
   const d = new Date(date);
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
   d.setHours(0, 0, 0, 0);
-  return d;
+  return formatDate(d);
 }
 
-function endOfWeek(date: Date) {
-  const d = startOfWeek(date);
-  d.setDate(d.getDate() + 6);
-  d.setHours(23, 59, 59, 999);
-  return d;
+function addDays(dateValue: string, days: number) {
+  const d = new Date(`${dateValue}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return formatDate(d);
 }
 
-function statusLabel(status: string) {
-  if (status === "completed") return "Completed";
-  if (status === "not_completed") return "Not Completed";
-  if (status === "rescheduled") return "Rescheduled";
-  return "Planned";
+function weekdaysFromMonday(mondayDate: string) {
+  const labels = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+  return labels.map((label, index) => ({
+    label,
+    date: addDays(mondayDate, index),
+  }));
 }
 
-const topRow = {
+function outcomeLabel(value: string) {
+  if (value === "needs_support") return "Needs Support";
+  if (value === "improving") return "Improving";
+  if (value === "meeting_expectations") return "Meeting Expectations";
+  return "Not recorded";
+}
+
+function formatShortDate(value: string) {
+  if (!value) return "Not recorded";
+
+  return value.slice(0, 10);
+}
+
+const cardStyle = {
+  padding: "16px",
+  marginBottom: "16px",
+};
+
+const compactGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+  gap: "10px",
+  marginBottom: "16px",
+};
+
+const topControls = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "10px",
+  marginTop: "12px",
+};
+
+const sectionHeader = {
   display: "flex",
   justifyContent: "space-between",
   gap: "12px",
   alignItems: "center",
   flexWrap: "wrap" as const,
+  marginBottom: "12px",
 };
 
 const sectionTitle = {
@@ -1523,26 +1582,20 @@ const sectionTitle = {
   fontWeight: 800,
 };
 
-const summaryStyle = {
-  cursor: "pointer",
-  fontSize: "18px",
-  fontWeight: 800,
-  color: "var(--db-text)",
-};
-
 const subTitle = {
-  margin: "0 0 10px 0",
+  margin: "0 0 8px 0",
   color: "var(--db-text)",
   fontSize: "16px",
   fontWeight: 800,
 };
 
-const textStyle = {
-  margin: "6px 0 0 0",
+const smallHint = {
+  margin: "4px 0 0 0",
   color: "var(--db-text-soft)",
+  fontSize: "12px",
 };
 
-const smallHint = {
+const textStyle = {
   margin: "6px 0 0 0",
   color: "var(--db-text-soft)",
   fontSize: "13px",
@@ -1550,23 +1603,73 @@ const smallHint = {
 
 const labelStyle = {
   display: "block",
-  margin: "12px 0 6px",
+  margin: "8px 0 5px",
   fontWeight: 700,
+  color: "var(--db-text)",
+  fontSize: "13px",
+};
+
+const smallButton = {
+  minHeight: "34px",
+  padding: "8px 12px",
+  fontSize: "12px",
+};
+
+const plannerRowStyle = {
+  display: "grid",
+  gridTemplateColumns: "110px repeat(3, minmax(150px, 1fr))",
+  gap: "8px",
+  alignItems: "center",
+  background: "#FFFDFB",
+  border: "1px solid #F0E3D8",
+  borderRadius: "12px",
+  padding: "8px",
+};
+
+const todayPlanButton = {
+  display: "grid",
+  gap: "4px",
+  textAlign: "left" as const,
+  background: "#FFFDFB",
+  borderRadius: "12px",
+  padding: "12px",
+  cursor: "pointer",
   color: "var(--db-text)",
 };
 
-const miniButton = {
-  marginTop: "10px",
-  minHeight: "34px",
-  padding: "8px 12px",
+const completionBox = {
+  marginTop: "12px",
+  padding: "12px",
+  borderRadius: "14px",
+  border: "1px solid #E3D9CD",
+  background: "#FFFFFF",
 };
 
-const repeatBox = {
-  marginTop: "16px",
-  padding: "14px",
-  borderRadius: "16px",
-  border: "1px solid #e8e8e8",
-  background: "#ffffff",
+const learnerGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "8px",
+};
+
+const learnerCard = {
+  padding: "10px",
+  borderRadius: "12px",
+  border: "1px solid #E3D9CD",
+  background: "#FFFDFB",
+};
+
+const filterGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "8px",
+  marginTop: "10px",
+};
+
+const summaryStyle = {
+  cursor: "pointer",
+  fontSize: "18px",
+  fontWeight: 800,
+  color: "var(--db-text)",
 };
 
 const backButton = {

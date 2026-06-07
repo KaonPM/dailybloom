@@ -97,6 +97,7 @@ export default function ClassroomActivitiesPage() {
   const [activeClassroomId, setActiveClassroomId] = useState("");
   const [weekStart, setWeekStart] = useState(getMonday(new Date()));
   const [plannerRows, setPlannerRows] = useState<PlannerRow[]>([]);
+  const [isPlannerOpen, setIsPlannerOpen] = useState(true);
 
   const [selectedTodayPlanId, setSelectedTodayPlanId] = useState<number | null>(null);
   const [outstandingLearnerId, setOutstandingLearnerId] = useState("");
@@ -132,7 +133,6 @@ export default function ClassroomActivitiesPage() {
   );
 
   const todayDate = today();
-
   const weekEnd = useMemo(() => addDays(weekStart, 4), [weekStart]);
 
   const currentWeekPlans = useMemo(() => {
@@ -480,7 +480,8 @@ export default function ClassroomActivitiesPage() {
       });
 
       const fallbackArea = "Language and Communication";
-      const fallbackTheme = themesForArea(existing?.developmental_area || fallbackArea)[0] || "";
+      const fallbackTheme =
+        themesForArea(existing?.developmental_area || fallbackArea)[0] || "";
 
       return {
         dayLabel: day.label,
@@ -607,6 +608,7 @@ export default function ClassroomActivitiesPage() {
     }
 
     await fetchWeeklyPlans(schoolId);
+    setIsPlannerOpen(false);
     setSaving(false);
     alert("Weekly activity plan saved.");
   }
@@ -682,6 +684,7 @@ export default function ClassroomActivitiesPage() {
     }
 
     await fetchWeeklyPlans(schoolId);
+    setIsPlannerOpen(false);
     setSaving(false);
     alert("Previous week copied.");
   }
@@ -956,7 +959,10 @@ export default function ClassroomActivitiesPage() {
               className="db-input"
               type="date"
               value={weekStart}
-              onChange={(e) => setWeekStart(getMonday(new Date(`${e.target.value}T00:00:00`)))}
+              onChange={(e) => {
+                setWeekStart(getMonday(new Date(`${e.target.value}T00:00:00`)));
+                setIsPlannerOpen(true);
+              }}
             />
           </div>
         </div>
@@ -972,59 +978,70 @@ export default function ClassroomActivitiesPage() {
       </div>
 
       {canPlanWeek ? (
-        <div className="db-card db-card-blue" style={cardStyle}>
-          <div style={sectionHeader}>
-            <div>
-              <h3 style={sectionTitle}>Weekly Planner</h3>
-              <p style={smallHint}>
-                Select a developmental area, then choose a matching theme and activity.
-              </p>
+        <details
+          className="db-card db-card-blue"
+          style={cardStyle}
+          open={isPlannerOpen}
+          onToggle={(e) => setIsPlannerOpen((e.target as HTMLDetailsElement).open)}
+        >
+          <summary style={summaryStyle}>
+            Weekly Planner {dashboardStats.weekPlanned ? "✓ Planned" : "⚠ Incomplete"}
+          </summary>
+
+          <div style={{ marginTop: "12px" }}>
+            <div style={sectionHeader}>
+              <div>
+                <h3 style={sectionTitle}>Weekly Planner</h3>
+                <p style={smallHint}>
+                  Select a developmental area, then choose a matching theme and activity.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button type="button" className="db-button-primary" style={smallButton} onClick={copyPreviousWeek} disabled={saving}>
+                  Copy Previous Week
+                </button>
+
+                <button type="button" className="db-button-primary" style={smallButton} onClick={saveWeeklyPlan} disabled={saving}>
+                  {saving ? "Saving..." : "Save Week Plan"}
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <button type="button" className="db-button-primary" style={smallButton} onClick={copyPreviousWeek} disabled={saving}>
-                Copy Previous Week
-              </button>
+            <div style={{ display: "grid", gap: "8px" }}>
+              {plannerRows.map((row, index) => {
+                const rowThemes = themesForArea(row.developmental_area);
+                const rowLibrary = activitiesForAreaAndTheme(row.developmental_area, row.theme);
 
-              <button type="button" className="db-button-primary" style={smallButton} onClick={saveWeeklyPlan} disabled={saving}>
-                {saving ? "Saving..." : "Save Week Plan"}
-              </button>
+                return (
+                  <div key={row.activity_date} style={plannerRowStyle}>
+                    <strong style={{ minWidth: "92px" }}>{row.dayLabel}</strong>
+
+                    <select className="db-input" value={row.developmental_area} onChange={(e) => updatePlannerRow(index, { developmental_area: e.target.value })}>
+                      {developmentalAreas.map((area) => (
+                        <option key={area} value={area}>{area}</option>
+                      ))}
+                    </select>
+
+                    <select className="db-input" value={row.theme} onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}>
+                      <option value="">Select theme</option>
+                      {rowThemes.map((themeItem) => (
+                        <option key={themeItem} value={themeItem}>{themeItem}</option>
+                      ))}
+                    </select>
+
+                    <select className="db-input" value={row.activity_library_id} onChange={(e) => selectPlannerActivity(index, e.target.value)} disabled={!row.theme}>
+                      <option value="">No activity selected</option>
+                      {rowLibrary.map((item) => (
+                        <option key={item.id} value={item.id}>{item.activity_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
             </div>
           </div>
-
-          <div style={{ display: "grid", gap: "8px" }}>
-            {plannerRows.map((row, index) => {
-              const rowThemes = themesForArea(row.developmental_area);
-              const rowLibrary = activitiesForAreaAndTheme(row.developmental_area, row.theme);
-
-              return (
-                <div key={row.activity_date} style={plannerRowStyle}>
-                  <strong style={{ minWidth: "92px" }}>{row.dayLabel}</strong>
-
-                  <select className="db-input" value={row.developmental_area} onChange={(e) => updatePlannerRow(index, { developmental_area: e.target.value })}>
-                    {developmentalAreas.map((area) => (
-                      <option key={area} value={area}>{area}</option>
-                    ))}
-                  </select>
-
-                  <select className="db-input" value={row.theme} onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}>
-                    <option value="">Select theme</option>
-                    {rowThemes.map((themeItem) => (
-                      <option key={themeItem} value={themeItem}>{themeItem}</option>
-                    ))}
-                  </select>
-
-                  <select className="db-input" value={row.activity_library_id} onChange={(e) => selectPlannerActivity(index, e.target.value)} disabled={!row.theme}>
-                    <option value="">No activity selected</option>
-                    {rowLibrary.map((item) => (
-                      <option key={item.id} value={item.id}>{item.activity_name}</option>
-                    ))}
-                  </select>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        </details>
       ) : null}
 
       <div className="db-card db-card-green" style={cardStyle}>

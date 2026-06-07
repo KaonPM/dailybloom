@@ -43,10 +43,12 @@ type ClassroomItem = {
 type ActivityItem = {
   id: number;
   activity_date?: string | null;
-  class_name?: string | null;
-  subject?: string | null;
-  title?: string | null;
+  classroom_id?: number | null;
+  developmental_area?: string | null;
+  theme?: string | null;
+  activity_name?: string | null;
   description?: string | null;
+  completed?: boolean | null;
 };
 
 type SummaryItem = {
@@ -242,6 +244,19 @@ export default function TeacherDashboardPage() {
     const todayMonth = today.getMonth() + 1;
     const todayDay = today.getDate();
 
+    let activitiesQuery = supabase
+      .from("weekly_activity_plans")
+      .select(
+        "id, activity_date, classroom_id, developmental_area, theme, activity_name, description, completed"
+      )
+      .eq("school_id", schoolId)
+      .eq("activity_date", todayDate)
+      .order("activity_name", { ascending: true });
+
+    if (classroomId) {
+      activitiesQuery = activitiesQuery.eq("classroom_id", classroomId);
+    }
+
     const [
       learnersRes,
       eventsRes,
@@ -263,12 +278,7 @@ export default function TeacherDashboardPage() {
         .order("event_date", { ascending: true })
         .order("title", { ascending: true }),
 
-      supabase
-        .from("activities")
-        .select("id, activity_date, class_name, subject, title, description")
-        .eq("school_id", schoolId)
-        .eq("activity_date", todayDate)
-        .order("created_at", { ascending: false }),
+      activitiesQuery,
 
       supabase
         .from("summaries")
@@ -311,7 +321,7 @@ export default function TeacherDashboardPage() {
 
     const allLearners = (learnersRes.data || []) as LearnerItem[];
     const events = (eventsRes.data || []) as EventItem[];
-    const allActivities = (activitiesRes.data || []) as ActivityItem[];
+    const activities = (activitiesRes.data || []) as ActivityItem[];
     const summaries = (summariesRes.data || []) as SummaryItem[];
     const attendance = (attendanceRes.data || []) as AttendanceItem[];
 
@@ -324,13 +334,6 @@ export default function TeacherDashboardPage() {
             );
           })
         : [];
-
-    const activities = classroomName
-      ? allActivities.filter(
-          (activity) =>
-            normalizeText(activity.class_name) === normalizeText(classroomName)
-        )
-      : [];
 
     const classroomLearnerNames = new Set(
       learners.map((learner) => normalizeText(learner.name)).filter(Boolean)
@@ -603,7 +606,7 @@ export default function TeacherDashboardPage() {
           label="Activities Today"
           value={overview.activitiesToday}
           helper="Planned for today"
-          href="/activities"
+          href="/classroom-activities"
           background="#FFF7D9"
           border="#F3E4A3"
         />
@@ -718,25 +721,28 @@ export default function TeacherDashboardPage() {
         </CompactHighlightCard>
 
         <CompactHighlightCard
-          title="Today’s Activities"
-          subtitle="Planned for today"
-          href="/activities"
+          title="Today’s Planned Activities"
+          subtitle="Pulled from Weekly Planner"
+          href="/classroom-activities"
           accentBackground="#EAF7FD"
           accentBorder="#CBEAF7"
-          footerText="Open activities"
+          footerText="Open classroom activities"
         >
           <div style={{ display: "grid", gap: "8px" }}>
             {todayActivities.length > 0 ? (
               todayActivities.map((activity) => (
                 <div key={activity.id} style={compactMiniCard}>
                   <strong style={compactMiniTitle}>
-                    {activity.subject || "No subject"}
+                    {activity.activity_name || "Untitled activity"}
                   </strong>
 
-                  <p style={compactMiniText}>{activity.title || "No title"}</p>
+                  <p style={compactMiniText}>
+                    {activity.developmental_area || "No area"} |{" "}
+                    {activity.theme || "No theme"}
+                  </p>
 
                   <p style={compactMiniMeta}>
-                    {activity.description || "No description"}
+                    {activity.completed ? "Completed" : "Not completed yet"}
                   </p>
                 </div>
               ))

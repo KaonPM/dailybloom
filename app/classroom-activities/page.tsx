@@ -20,100 +20,67 @@ const developmentalAreas = [
   "Music and Movement",
 ];
 
-const themes = [
-  "My Family",
-  "My Body",
-  "Animals",
-  "Transport",
-  "Seasons",
-  "Weather",
-  "Healthy Living",
-  "Community Helpers",
-  "Colours and Shapes",
-  "Numbers",
-  "Home and School",
-  "Plants and Nature",
-];
-
 const defaultActivityLibrary = [
-  {
-    developmental_area: "Language and Communication",
-    theme: "My Family",
-    activity_name: "Family Picture Talk",
-    description: "Learners talk about family members using pictures and simple sentences.",
-  },
-  {
-    developmental_area: "Language and Communication",
-    theme: "Animals",
-    activity_name: "Animal Sound Story",
-    description: "Learners listen to a short animal story and copy animal sounds.",
-  },
-  {
-    developmental_area: "Early Mathematics",
-    theme: "Numbers",
-    activity_name: "Counting Objects",
-    description: "Learners count classroom objects and match the total to number cards.",
-  },
-  {
-    developmental_area: "Early Mathematics",
-    theme: "Colours and Shapes",
-    activity_name: "Shape Sorting",
-    description: "Learners sort shapes by colour, size and type while naming each shape.",
-  },
-  {
-    developmental_area: "Fine Motor Development",
-    theme: "Colours and Shapes",
-    activity_name: "Threading Beads",
-    description: "Learners thread beads to strengthen hand control and coordination.",
-  },
-  {
-    developmental_area: "Fine Motor Development",
-    theme: "My Body",
-    activity_name: "Cutting Practice",
-    description: "Learners practise cutting along straight and curved lines.",
-  },
-  {
-    developmental_area: "Gross Motor Development",
-    theme: "Healthy Living",
-    activity_name: "Obstacle Course",
-    description: "Learners move through a simple obstacle course using crawling, jumping and balancing.",
-  },
-  {
-    developmental_area: "Creative Development",
-    theme: "My Family",
-    activity_name: "Draw My Family",
-    description: "Learners draw their family and describe who is in the picture.",
-  },
-  {
-    developmental_area: "Social and Emotional Development",
-    theme: "My Family",
-    activity_name: "Feelings Circle",
-    description: "Learners identify emotions and share how they feel using picture prompts.",
-  },
-  {
-    developmental_area: "Life Skills",
-    theme: "Healthy Living",
-    activity_name: "Handwashing Routine",
-    description: "Learners practise washing hands correctly and explain when hands should be washed.",
-  },
-  {
-    developmental_area: "Sensory Development",
-    theme: "Plants and Nature",
-    activity_name: "Texture Exploration",
-    description: "Learners touch and describe different textures such as soft, rough, smooth and bumpy.",
-  },
-  {
-    developmental_area: "Outdoor Play",
-    theme: "Plants and Nature",
-    activity_name: "Nature Walk",
-    description: "Learners walk outside and identify leaves, stones, flowers and insects.",
-  },
-  {
-    developmental_area: "Music and Movement",
-    theme: "My Body",
-    activity_name: "Action Songs",
-    description: "Learners sing action songs and follow movements such as clapping, jumping and turning.",
-  },
+  { developmental_area: "Language and Communication", theme: "My Family", activity_name: "Family Picture Talk", description: "Learners talk about family members using pictures and simple sentences." },
+  { developmental_area: "Language and Communication", theme: "My Family", activity_name: "Family Role Play", description: "Learners act out family roles and practise speaking in short sentences." },
+  { developmental_area: "Language and Communication", theme: "Animals", activity_name: "Animal Sound Story", description: "Learners listen to a short animal story and copy animal sounds." },
+  { developmental_area: "Language and Communication", theme: "Transport", activity_name: "Vehicle Picture Talk", description: "Learners describe vehicles and say where each one is used." },
+  { developmental_area: "Language and Communication", theme: "Community Helpers", activity_name: "Occupation Matching", description: "Learners match helpers to tools and describe what each helper does." },
+  { developmental_area: "Language and Communication", theme: "Seasons and Weather", activity_name: "Daily Weather Chart", description: "Learners describe today's weather and choose the matching picture." },
+  { developmental_area: "Language and Communication", theme: "Languages Around Us", activity_name: "Greeting in Different Languages", description: "Learners practise simple greetings in different South African languages." },
+
+  { developmental_area: "Early Mathematics", theme: "Numbers", activity_name: "Counting Objects", description: "Learners count classroom objects and match the total to number cards." },
+  { developmental_area: "Early Mathematics", theme: "Numbers", activity_name: "Number Matching", description: "Learners match number symbols to groups of objects." },
+  { developmental_area: "Early Mathematics", theme: "Shapes", activity_name: "Shape Sorting", description: "Learners sort shapes by colour, size and type while naming each shape." },
+  { developmental_area: "Early Mathematics", theme: "Patterns", activity_name: "Bead Pattern Making", description: "Learners create simple repeating patterns using beads or blocks." },
+  { developmental_area: "Early Mathematics", theme: "Measurement", activity_name: "Long and Short Comparison", description: "Learners compare objects and identify which are long or short." },
+  { developmental_area: "Early Mathematics", theme: "Sorting and Classification", activity_name: "Colour Sorting", description: "Learners sort objects into groups according to colour." },
+  { developmental_area: "Early Mathematics", theme: "Days of the Week", activity_name: "Ordering the Days", description: "Learners place the days of the week in the correct order." },
+  { developmental_area: "Early Mathematics", theme: "Months of the Year", activity_name: "Months of the Year Song", description: "Learners sing the months of the year and identify familiar months." },
+  { developmental_area: "Early Mathematics", theme: "Calendar Time", activity_name: "Daily Calendar Discussion", description: "Learners identify today's date, day, month and special events." },
+
+  { developmental_area: "Fine Motor Development", theme: "Pencil Control", activity_name: "Tracing Lines", description: "Learners trace straight, curved and zigzag lines to build pencil control." },
+  { developmental_area: "Fine Motor Development", theme: "Cutting Skills", activity_name: "Straight Line Cutting", description: "Learners practise cutting safely along straight lines." },
+  { developmental_area: "Fine Motor Development", theme: "Hand Strength", activity_name: "Threading Beads", description: "Learners thread beads to strengthen hand control and coordination." },
+  { developmental_area: "Fine Motor Development", theme: "Creative Crafts", activity_name: "Tearing and Pasting", description: "Learners tear paper pieces and paste them into a picture." },
+
+  { developmental_area: "Gross Motor Development", theme: "Movement Skills", activity_name: "Obstacle Course", description: "Learners move through a simple obstacle course using crawling, jumping and balancing." },
+  { developmental_area: "Gross Motor Development", theme: "Ball Skills", activity_name: "Throw and Catch", description: "Learners practise throwing and catching a ball with control." },
+  { developmental_area: "Gross Motor Development", theme: "Coordination", activity_name: "Follow the Leader", description: "Learners follow movement instructions and copy body actions." },
+  { developmental_area: "Gross Motor Development", theme: "Outdoor Fitness", activity_name: "Relay Races", description: "Learners participate in short relay activities using safe movement." },
+
+  { developmental_area: "Creative Development", theme: "Art and Drawing", activity_name: "Draw My Family", description: "Learners draw their family and describe who is in the picture." },
+  { developmental_area: "Creative Development", theme: "Music Exploration", activity_name: "Rhythm Practice", description: "Learners copy simple rhythms using claps, taps or instruments." },
+  { developmental_area: "Creative Development", theme: "Drama and Role Play", activity_name: "Puppet Show", description: "Learners use puppets to act out a simple story." },
+  { developmental_area: "Creative Development", theme: "Creative Construction", activity_name: "Block Building", description: "Learners build simple structures using blocks and describe them." },
+
+  { developmental_area: "Social and Emotional Development", theme: "Feelings", activity_name: "Feelings Circle", description: "Learners identify emotions and share how they feel using picture prompts." },
+  { developmental_area: "Social and Emotional Development", theme: "Relationships", activity_name: "Sharing Games", description: "Learners practise sharing materials and taking turns." },
+  { developmental_area: "Social and Emotional Development", theme: "Self-Awareness", activity_name: "All About Me", description: "Learners talk about their likes, strengths and personal features." },
+  { developmental_area: "Social and Emotional Development", theme: "Conflict Resolution", activity_name: "Taking Turns Practice", description: "Learners practise waiting, listening and taking turns during play." },
+
+  { developmental_area: "Life Skills", theme: "My Family", activity_name: "Helping at Home", description: "Learners discuss simple ways they can help at home." },
+  { developmental_area: "Life Skills", theme: "Healthy Living", activity_name: "Handwashing Routine", description: "Learners practise washing hands correctly and explain when hands should be washed." },
+  { developmental_area: "Life Skills", theme: "Safety", activity_name: "Road Safety", description: "Learners identify safe ways to cross the road and follow road rules." },
+  { developmental_area: "Life Skills", theme: "Daily Routines", activity_name: "Packing Away", description: "Learners practise sorting and packing classroom materials correctly." },
+  { developmental_area: "Life Skills", theme: "My Community", activity_name: "Places in Our Community", description: "Learners identify familiar places in their community and discuss what happens there." },
+  { developmental_area: "Life Skills", theme: "South Africa", activity_name: "South African Flag Activity", description: "Learners identify the South African flag and discuss simple national symbols." },
+  { developmental_area: "Life Skills", theme: "Our Province", activity_name: "My Province Discussion", description: "Learners talk about the province they live in and familiar places around them." },
+  { developmental_area: "Life Skills", theme: "Maps and Directions", activity_name: "Classroom Map", description: "Learners create or follow a simple classroom map using direction words." },
+
+  { developmental_area: "Sensory Development", theme: "Touch", activity_name: "Texture Exploration", description: "Learners touch and describe textures such as soft, rough, smooth and bumpy." },
+  { developmental_area: "Sensory Development", theme: "Sound", activity_name: "Sound Matching", description: "Learners match sounds to objects or picture cards." },
+  { developmental_area: "Sensory Development", theme: "Sight", activity_name: "Colour Discovery", description: "Learners identify and group objects by colour." },
+  { developmental_area: "Sensory Development", theme: "Smell and Taste", activity_name: "Fruit Tasting", description: "Learners taste fruit and describe simple tastes." },
+
+  { developmental_area: "Outdoor Play", theme: "Nature Exploration", activity_name: "Nature Walk", description: "Learners walk outside and identify leaves, stones, flowers and insects." },
+  { developmental_area: "Outdoor Play", theme: "Physical Play", activity_name: "Free Play Stations", description: "Learners rotate through safe outdoor play stations." },
+  { developmental_area: "Outdoor Play", theme: "Environmental Awareness", activity_name: "Caring for Plants", description: "Learners water or care for plants and discuss why plants matter." },
+
+  { developmental_area: "Music and Movement", theme: "Singing", activity_name: "Action Songs", description: "Learners sing action songs and follow movements such as clapping, jumping and turning." },
+  { developmental_area: "Music and Movement", theme: "Rhythm", activity_name: "Clapping Patterns", description: "Learners copy simple clapping patterns." },
+  { developmental_area: "Music and Movement", theme: "Dance", activity_name: "Freeze Dance", description: "Learners move to music and freeze when the music stops." },
+  { developmental_area: "Music and Movement", theme: "Movement Games", activity_name: "Simon Says", description: "Learners listen carefully and follow movement instructions." },
 ];
 
 const outcomeStatuses = [
@@ -228,11 +195,7 @@ export default function ClassroomActivitiesPage() {
 
   const todayDate = today();
 
-  const weekEnd = useMemo(() => {
-    const d = new Date(`${weekStart}T00:00:00`);
-    d.setDate(d.getDate() + 4);
-    return formatDate(d);
-  }, [weekStart]);
+  const weekEnd = useMemo(() => addDays(weekStart, 4), [weekStart]);
 
   const currentWeekPlans = useMemo(() => {
     return weeklyPlans.filter((plan) => {
@@ -551,6 +514,24 @@ export default function ClassroomActivitiesPage() {
     setAllLearners(data || []);
   }
 
+  function themesForArea(area: string) {
+    const themeSet = new Set<string>();
+
+    activityLibrary.forEach((item) => {
+      if (item.developmental_area === area && item.theme) {
+        themeSet.add(item.theme);
+      }
+    });
+
+    return Array.from(themeSet).sort();
+  }
+
+  function activitiesForAreaAndTheme(area: string, selectedTheme: string) {
+    return activityLibrary.filter((item) => {
+      return item.developmental_area === area && item.theme === selectedTheme;
+    });
+  }
+
   function buildPlannerRows() {
     const rows = weekdaysFromMonday(weekStart).map((day) => {
       const existing = weeklyPlans.find((plan) => {
@@ -560,12 +541,14 @@ export default function ClassroomActivitiesPage() {
         );
       });
 
+      const fallbackArea = "Language and Communication";
+      const fallbackTheme = themesForArea(existing?.developmental_area || fallbackArea)[0] || "";
+
       return {
         dayLabel: day.label,
         activity_date: day.date,
-        developmental_area:
-          existing?.developmental_area || "Language and Communication",
-        theme: existing?.theme || "My Family",
+        developmental_area: existing?.developmental_area || fallbackArea,
+        theme: existing?.theme || fallbackTheme,
         activity_library_id: existing?.activity_library_id
           ? String(existing.activity_library_id)
           : "",
@@ -582,15 +565,31 @@ export default function ClassroomActivitiesPage() {
       current.map((row, rowIndex) => {
         if (rowIndex !== index) return row;
 
-        const updated = {
+        let updated = {
           ...row,
           ...updates,
         };
 
-        if (updates.developmental_area || updates.theme) {
-          updated.activity_library_id = "";
-          updated.activity_name = "";
-          updated.description = "";
+        if (updates.developmental_area) {
+          const availableThemes = themesForArea(updates.developmental_area);
+          const firstTheme = availableThemes[0] || "";
+
+          updated = {
+            ...updated,
+            theme: firstTheme,
+            activity_library_id: "",
+            activity_name: "",
+            description: "",
+          };
+        }
+
+        if (updates.theme) {
+          updated = {
+            ...updated,
+            activity_library_id: "",
+            activity_name: "",
+            description: "",
+          };
         }
 
         return updated;
@@ -782,9 +781,7 @@ export default function ClassroomActivitiesPage() {
         activity_date: selectedTodayPlan.activity_date,
         activity_name: selectedTodayPlan.activity_name,
         outcome_status: "meeting_expectations",
-        observation: observation
-          ? `Outstanding learner. ${observation}`
-          : "Outstanding learner.",
+        observation: observation ? `Outstanding learner. ${observation}` : "Outstanding learner.",
         recorded_by: profile?.id || null,
       });
     }
@@ -1028,36 +1025,12 @@ export default function ClassroomActivitiesPage() {
       </div>
 
       <div style={compactGrid}>
-        <StatCard
-          title="Week Planned"
-          value={dashboardStats.weekPlanned ? "Yes" : "No"}
-          note={dashboardStats.weekPlanned ? "Monday to Friday ready" : "Week incomplete"}
-        />
-        <StatCard
-          title="Planned"
-          value={dashboardStats.planned}
-          note="Activities this week"
-        />
-        <StatCard
-          title="Completed"
-          value={dashboardStats.completed}
-          note="Completed this week"
-        />
-        <StatCard
-          title="Needs Support"
-          value={dashboardStats.needsSupport}
-          note="This week"
-        />
-        <StatCard
-          title="Improving"
-          value={dashboardStats.improving}
-          note="This week"
-        />
-        <StatCard
-          title="Meeting"
-          value={dashboardStats.meeting}
-          note="Expectations"
-        />
+        <StatCard title="Week Planned" value={dashboardStats.weekPlanned ? "Yes" : "No"} note={dashboardStats.weekPlanned ? "Monday to Friday ready" : "Week incomplete"} />
+        <StatCard title="Planned" value={dashboardStats.planned} note="Activities this week" />
+        <StatCard title="Completed" value={dashboardStats.completed} note="Completed this week" />
+        <StatCard title="Needs Support" value={dashboardStats.needsSupport} note="This week" />
+        <StatCard title="Improving" value={dashboardStats.improving} note="This week" />
+        <StatCard title="Meeting" value={dashboardStats.meeting} note="Expectations" />
       </div>
 
       {canPlanWeek ? (
@@ -1066,28 +1039,16 @@ export default function ClassroomActivitiesPage() {
             <div>
               <h3 style={sectionTitle}>Weekly Planner</h3>
               <p style={smallHint}>
-                Plan Monday to Friday for {activeClassroom?.classroom_name || "the selected classroom"}.
+                Select a developmental area, then choose a matching theme and activity.
               </p>
             </div>
 
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <button
-                type="button"
-                className="db-button-primary"
-                style={smallButton}
-                onClick={copyPreviousWeek}
-                disabled={saving}
-              >
+              <button type="button" className="db-button-primary" style={smallButton} onClick={copyPreviousWeek} disabled={saving}>
                 Copy Previous Week
               </button>
 
-              <button
-                type="button"
-                className="db-button-primary"
-                style={smallButton}
-                onClick={saveWeeklyPlan}
-                disabled={saving}
-              >
+              <button type="button" className="db-button-primary" style={smallButton} onClick={saveWeeklyPlan} disabled={saving}>
                 {saving ? "Saving..." : "Save Week Plan"}
               </button>
             </div>
@@ -1095,53 +1056,30 @@ export default function ClassroomActivitiesPage() {
 
           <div style={{ display: "grid", gap: "8px" }}>
             {plannerRows.map((row, index) => {
-              const rowLibrary = activityLibrary.filter((item) => {
-                return (
-                  item.developmental_area === row.developmental_area &&
-                  item.theme === row.theme
-                );
-              });
+              const rowThemes = themesForArea(row.developmental_area);
+              const rowLibrary = activitiesForAreaAndTheme(row.developmental_area, row.theme);
 
               return (
                 <div key={row.activity_date} style={plannerRowStyle}>
                   <strong style={{ minWidth: "92px" }}>{row.dayLabel}</strong>
 
-                  <select
-                    className="db-input"
-                    value={row.developmental_area}
-                    onChange={(e) =>
-                      updatePlannerRow(index, { developmental_area: e.target.value })
-                    }
-                  >
+                  <select className="db-input" value={row.developmental_area} onChange={(e) => updatePlannerRow(index, { developmental_area: e.target.value })}>
                     {developmentalAreas.map((area) => (
-                      <option key={area} value={area}>
-                        {area}
-                      </option>
+                      <option key={area} value={area}>{area}</option>
                     ))}
                   </select>
 
-                  <select
-                    className="db-input"
-                    value={row.theme}
-                    onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}
-                  >
-                    {themes.map((themeItem) => (
-                      <option key={themeItem} value={themeItem}>
-                        {themeItem}
-                      </option>
+                  <select className="db-input" value={row.theme} onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}>
+                    <option value="">Select theme</option>
+                    {rowThemes.map((themeItem) => (
+                      <option key={themeItem} value={themeItem}>{themeItem}</option>
                     ))}
                   </select>
 
-                  <select
-                    className="db-input"
-                    value={row.activity_library_id}
-                    onChange={(e) => selectPlannerActivity(index, e.target.value)}
-                  >
+                  <select className="db-input" value={row.activity_library_id} onChange={(e) => selectPlannerActivity(index, e.target.value)} disabled={!row.theme}>
                     <option value="">No activity selected</option>
                     {rowLibrary.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.activity_name}
-                      </option>
+                      <option key={item.id} value={item.id}>{item.activity_name}</option>
                     ))}
                   </select>
                 </div>
@@ -1152,19 +1090,13 @@ export default function ClassroomActivitiesPage() {
       ) : null}
 
       <div className="db-card db-card-green" style={cardStyle}>
-        <div style={sectionHeader}>
-          <div>
-            <h3 style={sectionTitle}>Today’s Planned Activity</h3>
-            <p style={smallHint}>
-              Only activities planned for today are shown here.
-            </p>
-          </div>
-        </div>
+        <h3 style={sectionTitle}>Today’s Planned Activity</h3>
+        <p style={smallHint}>Only activities planned for today are shown here.</p>
 
         {todaysPlans.length === 0 ? (
           <p className="db-helper">No activity planned for today.</p>
         ) : (
-          <div style={{ display: "grid", gap: "10px" }}>
+          <div style={{ display: "grid", gap: "10px", marginTop: "10px" }}>
             {todaysPlans.map((plan) => (
               <button
                 key={plan.id}
@@ -1172,19 +1104,12 @@ export default function ClassroomActivitiesPage() {
                 onClick={() => setSelectedTodayPlanId(plan.id)}
                 style={{
                   ...todayPlanButton,
-                  border:
-                    selectedTodayPlan?.id === plan.id
-                      ? "2px solid #7CCCF3"
-                      : "1px solid #E3D9CD",
+                  border: selectedTodayPlan?.id === plan.id ? "2px solid #7CCCF3" : "1px solid #E3D9CD",
                 }}
               >
                 <strong>{plan.activity_name}</strong>
-                <span style={smallHint}>
-                  {plan.developmental_area} | {plan.theme}
-                </span>
-                <span style={smallHint}>
-                  {plan.completed ? "Completed" : "Not completed yet"}
-                </span>
+                <span style={smallHint}>{plan.developmental_area} | {plan.theme}</span>
+                <span style={smallHint}>{plan.completed ? "Completed" : "Not completed yet"}</span>
               </button>
             ))}
           </div>
@@ -1193,20 +1118,13 @@ export default function ClassroomActivitiesPage() {
         {selectedTodayPlan ? (
           <div style={completionBox}>
             <h4 style={subTitle}>Complete Activity</h4>
-
             <p style={textStyle}>{selectedTodayPlan.description || "No description added."}</p>
 
             <label style={labelStyle}>Outstanding Learner</label>
-            <select
-              className="db-input"
-              value={outstandingLearnerId}
-              onChange={(e) => setOutstandingLearnerId(e.target.value)}
-            >
+            <select className="db-input" value={outstandingLearnerId} onChange={(e) => setOutstandingLearnerId(e.target.value)}>
               <option value="">Select learner</option>
               {learners.map((learner) => (
-                <option key={learner.id} value={learner.id}>
-                  {learner.name}
-                </option>
+                <option key={learner.id} value={learner.id}>{learner.name}</option>
               ))}
             </select>
 
@@ -1218,45 +1136,25 @@ export default function ClassroomActivitiesPage() {
                 {learners.map((learner) => {
                   const learnerId = String(learner.id);
                   const selected = supportLearnerIds.includes(learnerId);
-                  const previous = getPreviousOutcome(
-                    Number(learner.id),
-                    selectedTodayPlan.developmental_area,
-                    selectedTodayPlan.id
-                  );
+                  const previous = getPreviousOutcome(Number(learner.id), selectedTodayPlan.developmental_area, selectedTodayPlan.id);
 
                   return (
                     <div key={learner.id} style={learnerCard}>
                       <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={() => toggleSupportLearner(learnerId)}
-                        />
+                        <input type="checkbox" checked={selected} onChange={() => toggleSupportLearner(learnerId)} />
                         <strong>{learner.name}</strong>
                       </label>
 
                       {previous ? (
                         <p style={smallHint}>
-                          Previous: {outcomeLabel(previous.outcome_status || "")} on{" "}
-                          {previous.activity_date || formatShortDate(previous.created_at || "")}
+                          Previous: {outcomeLabel(previous.outcome_status || "")} on {previous.activity_date || formatShortDate(previous.created_at || "")}
                         </p>
                       ) : null}
 
                       {selected ? (
-                        <select
-                          className="db-input"
-                          value={supportStatuses[learnerId] || "needs_support"}
-                          onChange={(e) =>
-                            setSupportStatuses((current) => ({
-                              ...current,
-                              [learnerId]: e.target.value,
-                            }))
-                          }
-                        >
+                        <select className="db-input" value={supportStatuses[learnerId] || "needs_support"} onChange={(e) => setSupportStatuses((current) => ({ ...current, [learnerId]: e.target.value }))}>
                           {outcomeStatuses.map((status) => (
-                            <option key={status.value} value={status.value}>
-                              {status.label}
-                            </option>
+                            <option key={status.value} value={status.value}>{status.label}</option>
                           ))}
                         </select>
                       ) : null}
@@ -1267,21 +1165,9 @@ export default function ClassroomActivitiesPage() {
             )}
 
             <label style={labelStyle}>Observation</label>
-            <textarea
-              className="db-input"
-              value={observation}
-              onChange={(e) => setObservation(e.target.value)}
-              placeholder="Add a short observation for today’s activity"
-              style={{ minHeight: "72px" }}
-            />
+            <textarea className="db-input" value={observation} onChange={(e) => setObservation(e.target.value)} placeholder="Add a short observation for today’s activity" style={{ minHeight: "72px" }} />
 
-            <button
-              type="button"
-              className="db-button-primary"
-              style={{ width: "100%", marginTop: "10px" }}
-              onClick={markComplete}
-              disabled={saving}
-            >
+            <button type="button" className="db-button-primary" style={{ width: "100%", marginTop: "10px" }} onClick={markComplete} disabled={saving}>
               {saving ? "Saving..." : "Mark Complete"}
             </button>
           </div>
@@ -1291,69 +1177,41 @@ export default function ClassroomActivitiesPage() {
       {canViewTracker ? (
         <div className="db-card db-card-lavender" style={cardStyle}>
           <h3 style={sectionTitle}>Learner Support Tracker</h3>
-          <p style={smallHint}>
-            Latest learner outcome per developmental area.
-          </p>
+          <p style={smallHint}>Latest learner outcome per developmental area.</p>
 
           <div style={filterGrid}>
-            <select
-              className="db-input"
-              value={trackerClassroomId}
-              onChange={(e) => setTrackerClassroomId(e.target.value)}
-            >
+            <select className="db-input" value={trackerClassroomId} onChange={(e) => setTrackerClassroomId(e.target.value)}>
               <option value="">All classrooms</option>
               {classrooms.map((classroom) => (
-                <option key={classroom.id} value={classroom.id}>
-                  {classroom.classroom_name}
-                </option>
+                <option key={classroom.id} value={classroom.id}>{classroom.classroom_name}</option>
               ))}
             </select>
 
-            <select
-              className="db-input"
-              value={trackerArea}
-              onChange={(e) => setTrackerArea(e.target.value)}
-            >
+            <select className="db-input" value={trackerArea} onChange={(e) => setTrackerArea(e.target.value)}>
               <option value="">All areas</option>
               {developmentalAreas.map((area) => (
-                <option key={area} value={area}>
-                  {area}
-                </option>
+                <option key={area} value={area}>{area}</option>
               ))}
             </select>
 
-            <select
-              className="db-input"
-              value={trackerStatus}
-              onChange={(e) => setTrackerStatus(e.target.value)}
-            >
+            <select className="db-input" value={trackerStatus} onChange={(e) => setTrackerStatus(e.target.value)}>
               <option value="">All statuses</option>
               {outcomeStatuses.map((status) => (
-                <option key={status.value} value={status.value}>
-                  {status.label}
-                </option>
+                <option key={status.value} value={status.value}>{status.label}</option>
               ))}
             </select>
           </div>
 
           {supportTrackerRows.length === 0 ? (
-            <p className="db-helper" style={{ marginTop: "12px" }}>
-              No learner support records yet.
-            </p>
+            <p className="db-helper" style={{ marginTop: "12px" }}>No learner support records yet.</p>
           ) : (
             <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
               {supportTrackerRows.map((item) => (
                 <div key={item.id} className="db-list-card">
                   <strong>{learnerName(item.learner_id)}</strong>
-                  <p style={textStyle}>
-                    {classroomName(item.classroom_id)} | {item.developmental_area}
-                  </p>
-                  <p style={textStyle}>
-                    Status: {outcomeLabel(item.outcome_status || "")}
-                  </p>
-                  <p style={smallHint}>
-                    Last updated: {item.activity_date || formatShortDate(item.created_at || "")}
-                  </p>
+                  <p style={textStyle}>{classroomName(item.classroom_id)} | {item.developmental_area}</p>
+                  <p style={textStyle}>Status: {outcomeLabel(item.outcome_status || "")}</p>
+                  <p style={smallHint}>Last updated: {item.activity_date || formatShortDate(item.created_at || "")}</p>
                 </div>
               ))}
             </div>
@@ -1361,124 +1219,55 @@ export default function ClassroomActivitiesPage() {
         </div>
       ) : null}
 
-      <details className="db-card db-card-yellow" style={cardStyle}>
-        <summary style={summaryStyle}>
-          Activity Library ({activityLibrary.length})
-        </summary>
+      {canManageLibrary ? (
+        <details className="db-card db-card-yellow" style={cardStyle}>
+          <summary style={summaryStyle}>Activity Library ({activityLibrary.length})</summary>
 
-        <p style={smallHint}>
-          Teachers select activities from this library. Principals manage the list.
-        </p>
+          <p style={smallHint}>Principals manage themes and activities. Teachers use the planner dropdowns only.</p>
 
-        {canManageLibrary ? (
           <div style={{ marginTop: "12px" }}>
-            <button
-              type="button"
-              className="db-button-primary"
-              style={{ width: "100%" }}
-              onClick={() => {
-                resetLibraryForm();
-                setShowLibraryForm((current) => !current);
-              }}
-            >
+            <button type="button" className="db-button-primary" style={{ width: "100%" }} onClick={() => { resetLibraryForm(); setShowLibraryForm((current) => !current); }}>
               {showLibraryForm ? "Close Library Form" : "Add Library Activity"}
             </button>
 
             {showLibraryForm ? (
               <div style={{ marginTop: "12px" }}>
-                <select
-                  className="db-input"
-                  value={libraryArea}
-                  onChange={(e) => setLibraryArea(e.target.value)}
-                >
+                <select className="db-input" value={libraryArea} onChange={(e) => setLibraryArea(e.target.value)}>
                   <option value="">Select developmental area</option>
                   {developmentalAreas.map((area) => (
-                    <option key={area} value={area}>
-                      {area}
-                    </option>
+                    <option key={area} value={area}>{area}</option>
                   ))}
                 </select>
 
-                <select
-                  className="db-input"
-                  value={libraryTheme}
-                  onChange={(e) => setLibraryTheme(e.target.value)}
-                >
-                  <option value="">Select theme</option>
-                  {themes.map((themeItem) => (
-                    <option key={themeItem} value={themeItem}>
-                      {themeItem}
-                    </option>
-                  ))}
-                </select>
+                <input className="db-input" value={libraryTheme} onChange={(e) => setLibraryTheme(e.target.value)} placeholder="Theme, for example South Africa, Numbers, My Family" />
 
-                <input
-                  className="db-input"
-                  value={libraryActivityName}
-                  onChange={(e) => setLibraryActivityName(e.target.value)}
-                  placeholder="Activity name"
-                />
+                <input className="db-input" value={libraryActivityName} onChange={(e) => setLibraryActivityName(e.target.value)} placeholder="Activity name" />
 
-                <textarea
-                  className="db-input"
-                  value={libraryDescription}
-                  onChange={(e) => setLibraryDescription(e.target.value)}
-                  placeholder="Description"
-                  style={{ minHeight: "72px" }}
-                />
+                <textarea className="db-input" value={libraryDescription} onChange={(e) => setLibraryDescription(e.target.value)} placeholder="Description" style={{ minHeight: "72px" }} />
 
-                <button
-                  type="button"
-                  className="db-button-primary"
-                  style={{ width: "100%" }}
-                  onClick={saveLibraryItem}
-                  disabled={saving}
-                >
-                  {saving
-                    ? "Saving..."
-                    : editingLibraryId
-                    ? "Update Library Activity"
-                    : "Save Library Activity"}
+                <button type="button" className="db-button-primary" style={{ width: "100%" }} onClick={saveLibraryItem} disabled={saving}>
+                  {saving ? "Saving..." : editingLibraryId ? "Update Library Activity" : "Save Library Activity"}
                 </button>
               </div>
             ) : null}
           </div>
-        ) : null}
 
-        <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
-          {activityLibrary.map((item) => (
-            <div key={item.id} className="db-list-card">
-              <strong>{item.activity_name}</strong>
-              <p style={textStyle}>
-                {item.developmental_area} | {item.theme || "No theme"}
-              </p>
-              <p style={smallHint}>{item.description}</p>
+          <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
+            {activityLibrary.map((item) => (
+              <div key={item.id} className="db-list-card">
+                <strong>{item.activity_name}</strong>
+                <p style={textStyle}>{item.developmental_area} | {item.theme || "No theme"}</p>
+                <p style={smallHint}>{item.description}</p>
 
-              {canManageLibrary ? (
                 <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-                  <button
-                    type="button"
-                    className="db-button-primary"
-                    style={smallButton}
-                    onClick={() => startEditLibrary(item)}
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    type="button"
-                    className="db-button-primary"
-                    style={smallButton}
-                    onClick={() => deleteLibraryItem(item.id)}
-                  >
-                    Delete
-                  </button>
+                  <button type="button" className="db-button-primary" style={smallButton} onClick={() => startEditLibrary(item)}>Edit</button>
+                  <button type="button" className="db-button-primary" style={smallButton} onClick={() => deleteLibraryItem(item.id)}>Delete</button>
                 </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </details>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
@@ -1486,15 +1275,9 @@ export default function ClassroomActivitiesPage() {
 function StatCard({ title, value, note }: any) {
   return (
     <div className="db-card" style={{ padding: "12px" }}>
-      <p style={{ margin: 0, color: "var(--db-text-soft)", fontSize: "12px" }}>
-        {title}
-      </p>
-      <h2 style={{ margin: "4px 0", color: "var(--db-text)", fontSize: "22px" }}>
-        {value}
-      </h2>
-      <p style={{ margin: 0, color: "var(--db-text-soft)", fontSize: "12px" }}>
-        {note}
-      </p>
+      <p style={{ margin: 0, color: "var(--db-text-soft)", fontSize: "12px" }}>{title}</p>
+      <h2 style={{ margin: "4px 0", color: "var(--db-text)", fontSize: "22px" }}>{value}</h2>
+      <p style={{ margin: 0, color: "var(--db-text-soft)", fontSize: "12px" }}>{note}</p>
     </div>
   );
 }
@@ -1543,7 +1326,6 @@ function outcomeLabel(value: string) {
 
 function formatShortDate(value: string) {
   if (!value) return "Not recorded";
-
   return value.slice(0, 10);
 }
 

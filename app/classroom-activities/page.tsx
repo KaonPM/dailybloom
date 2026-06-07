@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
+import { defaultActivityLibrary } from "../lib/default-activity-library";
 
 const developmentalAreas = [
   "Language and Communication",
@@ -18,69 +19,6 @@ const developmentalAreas = [
   "Sensory Development",
   "Outdoor Play",
   "Music and Movement",
-];
-
-const defaultActivityLibrary = [
-  { developmental_area: "Language and Communication", theme: "My Family", activity_name: "Family Picture Talk", description: "Learners talk about family members using pictures and simple sentences." },
-  { developmental_area: "Language and Communication", theme: "My Family", activity_name: "Family Role Play", description: "Learners act out family roles and practise speaking in short sentences." },
-  { developmental_area: "Language and Communication", theme: "Animals", activity_name: "Animal Sound Story", description: "Learners listen to a short animal story and copy animal sounds." },
-  { developmental_area: "Language and Communication", theme: "Transport", activity_name: "Vehicle Picture Talk", description: "Learners describe vehicles and say where each one is used." },
-  { developmental_area: "Language and Communication", theme: "Community Helpers", activity_name: "Occupation Matching", description: "Learners match helpers to tools and describe what each helper does." },
-  { developmental_area: "Language and Communication", theme: "Seasons and Weather", activity_name: "Daily Weather Chart", description: "Learners describe today's weather and choose the matching picture." },
-  { developmental_area: "Language and Communication", theme: "Languages Around Us", activity_name: "Greeting in Different Languages", description: "Learners practise simple greetings in different South African languages." },
-
-  { developmental_area: "Early Mathematics", theme: "Numbers", activity_name: "Counting Objects", description: "Learners count classroom objects and match the total to number cards." },
-  { developmental_area: "Early Mathematics", theme: "Numbers", activity_name: "Number Matching", description: "Learners match number symbols to groups of objects." },
-  { developmental_area: "Early Mathematics", theme: "Shapes", activity_name: "Shape Sorting", description: "Learners sort shapes by colour, size and type while naming each shape." },
-  { developmental_area: "Early Mathematics", theme: "Patterns", activity_name: "Bead Pattern Making", description: "Learners create simple repeating patterns using beads or blocks." },
-  { developmental_area: "Early Mathematics", theme: "Measurement", activity_name: "Long and Short Comparison", description: "Learners compare objects and identify which are long or short." },
-  { developmental_area: "Early Mathematics", theme: "Sorting and Classification", activity_name: "Colour Sorting", description: "Learners sort objects into groups according to colour." },
-  { developmental_area: "Early Mathematics", theme: "Days of the Week", activity_name: "Ordering the Days", description: "Learners place the days of the week in the correct order." },
-  { developmental_area: "Early Mathematics", theme: "Months of the Year", activity_name: "Months of the Year Song", description: "Learners sing the months of the year and identify familiar months." },
-  { developmental_area: "Early Mathematics", theme: "Calendar Time", activity_name: "Daily Calendar Discussion", description: "Learners identify today's date, day, month and special events." },
-
-  { developmental_area: "Fine Motor Development", theme: "Pencil Control", activity_name: "Tracing Lines", description: "Learners trace straight, curved and zigzag lines to build pencil control." },
-  { developmental_area: "Fine Motor Development", theme: "Cutting Skills", activity_name: "Straight Line Cutting", description: "Learners practise cutting safely along straight lines." },
-  { developmental_area: "Fine Motor Development", theme: "Hand Strength", activity_name: "Threading Beads", description: "Learners thread beads to strengthen hand control and coordination." },
-  { developmental_area: "Fine Motor Development", theme: "Creative Crafts", activity_name: "Tearing and Pasting", description: "Learners tear paper pieces and paste them into a picture." },
-
-  { developmental_area: "Gross Motor Development", theme: "Movement Skills", activity_name: "Obstacle Course", description: "Learners move through a simple obstacle course using crawling, jumping and balancing." },
-  { developmental_area: "Gross Motor Development", theme: "Ball Skills", activity_name: "Throw and Catch", description: "Learners practise throwing and catching a ball with control." },
-  { developmental_area: "Gross Motor Development", theme: "Coordination", activity_name: "Follow the Leader", description: "Learners follow movement instructions and copy body actions." },
-  { developmental_area: "Gross Motor Development", theme: "Outdoor Fitness", activity_name: "Relay Races", description: "Learners participate in short relay activities using safe movement." },
-
-  { developmental_area: "Creative Development", theme: "Art and Drawing", activity_name: "Draw My Family", description: "Learners draw their family and describe who is in the picture." },
-  { developmental_area: "Creative Development", theme: "Music Exploration", activity_name: "Rhythm Practice", description: "Learners copy simple rhythms using claps, taps or instruments." },
-  { developmental_area: "Creative Development", theme: "Drama and Role Play", activity_name: "Puppet Show", description: "Learners use puppets to act out a simple story." },
-  { developmental_area: "Creative Development", theme: "Creative Construction", activity_name: "Block Building", description: "Learners build simple structures using blocks and describe them." },
-
-  { developmental_area: "Social and Emotional Development", theme: "Feelings", activity_name: "Feelings Circle", description: "Learners identify emotions and share how they feel using picture prompts." },
-  { developmental_area: "Social and Emotional Development", theme: "Relationships", activity_name: "Sharing Games", description: "Learners practise sharing materials and taking turns." },
-  { developmental_area: "Social and Emotional Development", theme: "Self-Awareness", activity_name: "All About Me", description: "Learners talk about their likes, strengths and personal features." },
-  { developmental_area: "Social and Emotional Development", theme: "Conflict Resolution", activity_name: "Taking Turns Practice", description: "Learners practise waiting, listening and taking turns during play." },
-
-  { developmental_area: "Life Skills", theme: "My Family", activity_name: "Helping at Home", description: "Learners discuss simple ways they can help at home." },
-  { developmental_area: "Life Skills", theme: "Healthy Living", activity_name: "Handwashing Routine", description: "Learners practise washing hands correctly and explain when hands should be washed." },
-  { developmental_area: "Life Skills", theme: "Safety", activity_name: "Road Safety", description: "Learners identify safe ways to cross the road and follow road rules." },
-  { developmental_area: "Life Skills", theme: "Daily Routines", activity_name: "Packing Away", description: "Learners practise sorting and packing classroom materials correctly." },
-  { developmental_area: "Life Skills", theme: "My Community", activity_name: "Places in Our Community", description: "Learners identify familiar places in their community and discuss what happens there." },
-  { developmental_area: "Life Skills", theme: "South Africa", activity_name: "South African Flag Activity", description: "Learners identify the South African flag and discuss simple national symbols." },
-  { developmental_area: "Life Skills", theme: "Our Province", activity_name: "My Province Discussion", description: "Learners talk about the province they live in and familiar places around them." },
-  { developmental_area: "Life Skills", theme: "Maps and Directions", activity_name: "Classroom Map", description: "Learners create or follow a simple classroom map using direction words." },
-
-  { developmental_area: "Sensory Development", theme: "Touch", activity_name: "Texture Exploration", description: "Learners touch and describe textures such as soft, rough, smooth and bumpy." },
-  { developmental_area: "Sensory Development", theme: "Sound", activity_name: "Sound Matching", description: "Learners match sounds to objects or picture cards." },
-  { developmental_area: "Sensory Development", theme: "Sight", activity_name: "Colour Discovery", description: "Learners identify and group objects by colour." },
-  { developmental_area: "Sensory Development", theme: "Smell and Taste", activity_name: "Fruit Tasting", description: "Learners taste fruit and describe simple tastes." },
-
-  { developmental_area: "Outdoor Play", theme: "Nature Exploration", activity_name: "Nature Walk", description: "Learners walk outside and identify leaves, stones, flowers and insects." },
-  { developmental_area: "Outdoor Play", theme: "Physical Play", activity_name: "Free Play Stations", description: "Learners rotate through safe outdoor play stations." },
-  { developmental_area: "Outdoor Play", theme: "Environmental Awareness", activity_name: "Caring for Plants", description: "Learners water or care for plants and discuss why plants matter." },
-
-  { developmental_area: "Music and Movement", theme: "Singing", activity_name: "Action Songs", description: "Learners sing action songs and follow movements such as clapping, jumping and turning." },
-  { developmental_area: "Music and Movement", theme: "Rhythm", activity_name: "Clapping Patterns", description: "Learners copy simple clapping patterns." },
-  { developmental_area: "Music and Movement", theme: "Dance", activity_name: "Freeze Dance", description: "Learners move to music and freeze when the music stops." },
-  { developmental_area: "Music and Movement", theme: "Movement Games", activity_name: "Simon Says", description: "Learners listen carefully and follow movement instructions." },
 ];
 
 const outcomeStatuses = [

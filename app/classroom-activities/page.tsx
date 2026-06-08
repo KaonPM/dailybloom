@@ -842,72 +842,108 @@ export default function ClassroomActivitiesPage() {
     alert("Previous week copied.");
   }
 
-  async function markComplete() {
-    if (!schoolId || !selectedTodayPlan) return;
+async function markComplete() {
+  if (!schoolId || !selectedTodayPlan) return;
 
-    setSaving(true);
+  setSaving(true);
 
-    const { error } = await supabase
-      .from("weekly_activity_plans")
-      .update({
-        completed: true,
-        completed_at: new Date().toISOString(),
-        completed_by: profile?.id || null,
-      })
-      .eq("id", selectedTodayPlan.id);
+  const { error } = await supabase
+    .from("weekly_activity_plans")
+    .update({
+      completed: true,
+      completed_at: new Date().toISOString(),
+      completed_by: profile?.id || null,
+    })
+    .eq("id", selectedTodayPlan.id);
 
-    if (error) {
-      alert(error.message);
-      setSaving(false);
-      return;
-    }
+  if (error) {
+    alert(error.message);
+    setSaving(false);
+    return;
+  }
 
-    const outcomeRows = supportLearnerIds.map((learnerId) => ({
-      school_id: schoolId,
-      classroom_id: selectedTodayPlan.classroom_id,
-      learner_id: Number(learnerId),
-      weekly_plan_id: selectedTodayPlan.id,
-      developmental_area: selectedTodayPlan.developmental_area,
-      theme: selectedTodayPlan.theme,
-      activity_date: selectedTodayPlan.activity_date,
-      activity_name: selectedTodayPlan.activity_name,
-      outcome_status: "needs_support",
-      support_status: supportLearnerStatuses[String(learnerId)] || "new",
-      observation: observation || null,
-      recorded_by: profile?.id || null,
-    }));
+  await supabase
+    .from("learner_activity_outcomes")
+    .delete()
+    .eq("weekly_plan_id", selectedTodayPlan.id);
 
-    await supabase
-      .from("learner_activity_outcomes")
-      .delete()
-      .eq("weekly_plan_id", selectedTodayPlan.id);
+  const rowsToInsert: any[] = [];
 
-    if (outcomeRows.length > 0) {
-      const { error: outcomeError } = await supabase
+  for (const learnerId of supportLearnerIds) {
+    const openSupport = getOpenSupportOutcome(
+      Number(learnerId),
+      selectedTodayPlan.developmental_area,
+      selectedTodayPlan.id
+    );
+
+    const nextStatus = supportLearnerStatuses[String(learnerId)] || "new";
+
+    if (openSupport) {
+      const { error: updateError } = await supabase
         .from("learner_activity_outcomes")
-        .insert(outcomeRows);
+        .update({
+          weekly_plan_id: selectedTodayPlan.id,
+          classroom_id: selectedTodayPlan.classroom_id,
+          theme: selectedTodayPlan.theme,
+          activity_date: selectedTodayPlan.activity_date,
+          activity_name: selectedTodayPlan.activity_name,
+          support_status: nextStatus,
+          observation: observation || openSupport.observation || null,
+          recorded_by: profile?.id || null,
+        })
+        .eq("id", openSupport.id)
+        .eq("school_id", schoolId);
 
-      if (outcomeError) {
-        alert(outcomeError.message);
+      if (updateError) {
+        alert(updateError.message);
         setSaving(false);
         return;
       }
+    } else {
+      rowsToInsert.push({
+        school_id: schoolId,
+        classroom_id: selectedTodayPlan.classroom_id,
+        learner_id: Number(learnerId),
+        weekly_plan_id: selectedTodayPlan.id,
+        developmental_area: selectedTodayPlan.developmental_area,
+        theme: selectedTodayPlan.theme,
+        activity_date: selectedTodayPlan.activity_date,
+        activity_name: selectedTodayPlan.activity_name,
+        outcome_status: "needs_support",
+        support_status: nextStatus,
+        observation: observation || null,
+        recorded_by: profile?.id || null,
+      });
     }
-
-    setSupportLearnerIds([]);
-    setSupportLearnerStatuses({});
-    setObservation("");
-
-    await fetchWeeklyPlans(schoolId);
-    await fetchOutcomes(schoolId);
-
-    setSaving(false);
-    alert(
-      outcomeRows.length > 0
-        ? "Activity completed and learner support records saved."
-        : "Activity completed. Learners not selected are treated as meeting expectations."
-    );
   }
+
+  if (rowsToInsert.length > 0) {
+    const { error: insertError } = await supabase
+      .from("learner_activity_outcomes")
+      .insert(rowsToInsert);
+
+    if (insertError) {
+      alert(insertError.message);
+      setSaving(false);
+      return;
+    }
+  }
+
+  setSupportLearnerIds([]);
+  setSupportLearnerStatuses({});
+  setObservation("");
+
+  await fetchWeeklyPlans(schoolId);
+  await fetchOutcomes(schoolId);
+
+  setSaving(false);
+
+  alert(
+    supportLearnerIds.length > 0
+      ? "Activity completed and learner support cases updated."
+      : "Activity completed. Learners not selected are treated as meeting expectations."
+  );
+}
 
   function toggleSupportLearner(learnerId: string) {
     setSupportLearnerIds((current) => {
@@ -921,19 +957,18 @@ export default function ClassroomActivitiesPage() {
         return current.filter((id) => id !== learnerId);
       }
 
-      const previous = selectedTodayPlan
-        ? getPreviousOutcome(
-            Number(learnerId),
-            selectedTodayPlan.developmental_area,
-            selectedTodayPlan.id
-          )
-        : null;
+      const openSupport = selectedTodayPlan
+  ? getOpenSupportOutcome(
+      Number(learnerId),
+      selectedTodayPlan.developmental_area,
+      selectedTodayPlan.id
+    )
+  : null;
 
-      setSupportLearnerStatuses((statuses) => ({
-        ...statuses,
-        [learnerId]: previous ? supportStatusValue(previous) : "new",
-      }));
-
+   setSupportLearnerStatuses((statuses) => ({
+  ...statuses,
+  [learnerId]: openSupport ? supportStatusValue(openSupport) : "new",
+   }));
       return [...current, learnerId];
     });
   }
@@ -975,6 +1010,22 @@ export default function ClassroomActivitiesPage() {
       );
     });
   }
+
+function getOpenSupportOutcome(
+  learnerId: number,
+  area: string,
+  currentPlanId?: number
+) {
+  return outcomes.find((item) => {
+    return (
+      Number(item.learner_id) === Number(learnerId) &&
+      item.developmental_area === area &&
+      item.outcome_status === "needs_support" &&
+      item.weekly_plan_id !== currentPlanId &&
+      supportStatusValue(item) !== "resolved"
+    );
+  });
+}
 
   function learnerName(learnerId: number) {
     const learner = allLearners.find((item) => Number(item.id) === Number(learnerId));
@@ -1273,8 +1324,14 @@ export default function ClassroomActivitiesPage() {
         </details>
       ) : null}
 
-      <div className="db-card db-card-green" style={cardStyle}>
-        <h3 style={sectionTitle}>Today's Planned Activities</h3>
+      <details
+         className="db-card db-card-green"
+         style={cardStyle}
+         open={isTeacher}
+>
+        <summary style={summaryStyle}>
+          Today's Planned Activities
+        </summary>
         <p style={smallHint}>This pulls from the weekly planner. Public holidays and school closure days are excluded.</p>
 
         {todaysPlans.length === 0 ? (
@@ -1386,7 +1443,8 @@ export default function ClassroomActivitiesPage() {
             </button>
           </div>
         ) : null}
-      </div>
+      </details>
+
 
       {canViewTracker ? (
         <div className="db-card db-card-lavender" style={cardStyle}>

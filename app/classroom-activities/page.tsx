@@ -21,10 +21,18 @@ const developmentalAreas = [
   "Music and Movement",
 ];
 
-const outcomeStatuses = [
-  { value: "needs_support", label: "Needs Support" },
+const supportStatuses = [
+  { value: "new", label: "New" },
+  { value: "active", label: "Active" },
+  { value: "monitoring", label: "Monitoring" },
   { value: "improving", label: "Improving" },
-  { value: "meeting_expectations", label: "Meeting Expectations" },
+  { value: "resolved", label: "Resolved" },
+];
+
+const dayTypes = [
+  { value: "teaching_day", label: "Teaching Day" },
+  { value: "public_holiday", label: "Public Holiday" },
+  { value: "school_closed", label: "School Closed" },
 ];
 
 type ActivityLibraryItem = {
@@ -52,6 +60,7 @@ type WeeklyPlan = {
   completed_at?: string | null;
   completed_by?: string | null;
   created_at?: string | null;
+  day_type?: string | null;
 };
 
 type PlannerRow = {
@@ -62,6 +71,7 @@ type PlannerRow = {
   activity_library_id: string;
   activity_name: string;
   description: string;
+  day_type: string;
 };
 
 type OutcomeRow = {
@@ -75,6 +85,7 @@ type OutcomeRow = {
   activity_date: string | null;
   activity_name: string | null;
   outcome_status: string | null;
+  support_status?: string | null;
   observation: string | null;
   recorded_by?: string | null;
   created_at?: string | null;
@@ -100,9 +111,7 @@ export default function ClassroomActivitiesPage() {
   const [isPlannerOpen, setIsPlannerOpen] = useState(true);
 
   const [selectedTodayPlanId, setSelectedTodayPlanId] = useState<number | null>(null);
-  const [outstandingLearnerId, setOutstandingLearnerId] = useState("");
   const [supportLearnerIds, setSupportLearnerIds] = useState<string[]>([]);
-  const [supportStatuses, setSupportStatuses] = useState<Record<string, string>>({});
   const [observation, setObservation] = useState("");
 
   const [showLibraryForm, setShowLibraryForm] = useState(false);
@@ -126,11 +135,7 @@ export default function ClassroomActivitiesPage() {
 
   const canManageLibrary = isPrincipal || isMaster;
   const canPlanWeek = isTeacher || isPrincipal || isMaster;
-  const canViewTracker = isPrincipal || isMaster;
-
-  const activeClassroom = classrooms.find(
-    (item) => String(item.id) === String(activeClassroomId)
-  );
+  const canViewTracker = isTeacher || isPrincipal || isMaster;
 
   const todayDate = today();
   const weekEnd = useMemo(() => addDays(weekStart, 4), [weekStart]);
@@ -149,7 +154,9 @@ export default function ClassroomActivitiesPage() {
     return weeklyPlans.filter((plan) => {
       return (
         String(plan.classroom_id) === String(activeClassroomId) &&
-        plan.activity_date === todayDate
+        plan.activity_date === todayDate &&
+        isTeachingDay(plan.day_type) &&
+        Boolean(plan.activity_library_id)
       );
     });
   }, [weeklyPlans, activeClassroomId, todayDate]);
@@ -191,31 +198,38 @@ export default function ClassroomActivitiesPage() {
   }, [outcomes, weekStart, weekEnd]);
 
   const dashboardStats = useMemo(() => {
-    const planned = currentWeekPlans.length;
-    const completed = currentWeekPlans.filter((item) => item.completed).length;
+    const planned = currentWeekPlans.filter(
+      (item) => isTeachingDay(item.day_type) && Boolean(item.activity_library_id)
+    ).length;
 
-    const weekdaysFilled = new Set(
-      currentWeekPlans.map((item) => item.activity_date)
+    const completed = currentWeekPlans.filter(
+      (item) => isTeachingDay(item.day_type) && item.completed
+    ).length;
+
+    const plannedOrClosedDates = new Set(
+      currentWeekPlans
+        .filter((item) => !isTeachingDay(item.day_type) || Boolean(item.activity_library_id))
+        .map((item) => item.activity_date)
     ).size;
 
+    const openSupport = weeklyOutcomeRows.filter(
+      (item) => item.outcome_status === "needs_support" && supportStatusValue(item) !== "resolved"
+    ).length;
+
     return {
-      weekPlanned: weekdaysFilled >= 5,
+      weekPlanned: plannedOrClosedDates >= 5,
       planned,
       completed,
-      needsSupport: weeklyOutcomeRows.filter(
-        (item) => item.outcome_status === "needs_support"
-      ).length,
-      improving: weeklyOutcomeRows.filter(
-        (item) => item.outcome_status === "improving"
-      ).length,
-      meeting: weeklyOutcomeRows.filter(
-        (item) => item.outcome_status === "meeting_expectations"
-      ).length,
+      needsSupport: openSupport,
+      improving: weeklyOutcomeRows.filter((item) => supportStatusValue(item) === "improving").length,
+      resolved: weeklyOutcomeRows.filter((item) => supportStatusValue(item) === "resolved").length,
     };
   }, [currentWeekPlans, weeklyOutcomeRows]);
 
   const supportTrackerRows = useMemo(() => {
     return latestOutcomes.filter((item) => {
+      if (item.outcome_status !== "needs_support") return false;
+
       const matchesClassroom = trackerClassroomId
         ? String(item.classroom_id) === String(trackerClassroomId)
         : true;
@@ -225,8 +239,8 @@ export default function ClassroomActivitiesPage() {
         : true;
 
       const matchesStatus = trackerStatus
-        ? item.outcome_status === trackerStatus
-        : true;
+        ? supportStatusValue(item) === trackerStatus
+        : supportStatusValue(item) !== "resolved";
 
       return matchesClassroom && matchesArea && matchesStatus;
     });
@@ -363,9 +377,7 @@ export default function ClassroomActivitiesPage() {
       created_by: currentProfile?.id || null,
     }));
 
-    const { error: insertError } = await supabase
-      .from("activity_library")
-      .insert(rows);
+    const { error: insertError } = await supabase.from("activity_library").insert(rows);
 
     if (insertError) {
       alert(insertError.message);
@@ -493,6 +505,7 @@ export default function ClassroomActivitiesPage() {
           : "",
         activity_name: existing?.activity_name || "",
         description: existing?.description || "",
+        day_type: existing?.day_type || "teaching_day",
       };
     });
 
@@ -508,6 +521,15 @@ export default function ClassroomActivitiesPage() {
           ...row,
           ...updates,
         };
+
+        if (updates.day_type && updates.day_type !== "teaching_day") {
+          updated = {
+            ...updated,
+            activity_library_id: "",
+            activity_name: "",
+            description: "",
+          };
+        }
 
         if (updates.developmental_area) {
           const availableThemes = themesForArea(updates.developmental_area);
@@ -561,10 +583,12 @@ export default function ClassroomActivitiesPage() {
       return;
     }
 
-    const rowsToSave = plannerRows.filter((row) => row.activity_library_id);
+    const rowsToSave = plannerRows.filter(
+      (row) => !isTeachingDay(row.day_type) || row.activity_library_id
+    );
 
     if (rowsToSave.length === 0) {
-      alert("Please select at least one activity for the week.");
+      alert("Please select at least one activity or mark a day as a public holiday or school closed.");
       return;
     }
 
@@ -591,15 +615,14 @@ export default function ClassroomActivitiesPage() {
       activity_date: row.activity_date,
       developmental_area: row.developmental_area,
       theme: row.theme,
-      activity_library_id: Number(row.activity_library_id),
-      activity_name: row.activity_name,
-      description: row.description || null,
+      activity_library_id: row.activity_library_id ? Number(row.activity_library_id) : null,
+      activity_name: isTeachingDay(row.day_type) ? row.activity_name : dayTypeLabel(row.day_type),
+      description: isTeachingDay(row.day_type) ? row.description || null : null,
+      day_type: row.day_type || "teaching_day",
       planned_by: profile?.id || null,
     }));
 
-    const { error: insertError } = await supabase
-      .from("weekly_activity_plans")
-      .insert(insertRows);
+    const { error: insertError } = await supabase.from("weekly_activity_plans").insert(insertRows);
 
     if (insertError) {
       alert(insertError.message);
@@ -669,13 +692,12 @@ export default function ClassroomActivitiesPage() {
         activity_library_id: plan.activity_library_id,
         activity_name: plan.activity_name,
         description: plan.description || null,
+        day_type: plan.day_type || "teaching_day",
         planned_by: profile?.id || null,
       };
     });
 
-    const { error: insertError } = await supabase
-      .from("weekly_activity_plans")
-      .insert(rows);
+    const { error: insertError } = await supabase.from("weekly_activity_plans").insert(rows);
 
     if (insertError) {
       alert(insertError.message);
@@ -709,39 +731,20 @@ export default function ClassroomActivitiesPage() {
       return;
     }
 
-    const outcomeRows: any[] = [];
-
-    if (outstandingLearnerId) {
-      outcomeRows.push({
-        school_id: schoolId,
-        classroom_id: selectedTodayPlan.classroom_id,
-        learner_id: Number(outstandingLearnerId),
-        weekly_plan_id: selectedTodayPlan.id,
-        developmental_area: selectedTodayPlan.developmental_area,
-        theme: selectedTodayPlan.theme,
-        activity_date: selectedTodayPlan.activity_date,
-        activity_name: selectedTodayPlan.activity_name,
-        outcome_status: "meeting_expectations",
-        observation: observation ? `Outstanding learner. ${observation}` : "Outstanding learner.",
-        recorded_by: profile?.id || null,
-      });
-    }
-
-    supportLearnerIds.forEach((learnerId) => {
-      outcomeRows.push({
-        school_id: schoolId,
-        classroom_id: selectedTodayPlan.classroom_id,
-        learner_id: Number(learnerId),
-        weekly_plan_id: selectedTodayPlan.id,
-        developmental_area: selectedTodayPlan.developmental_area,
-        theme: selectedTodayPlan.theme,
-        activity_date: selectedTodayPlan.activity_date,
-        activity_name: selectedTodayPlan.activity_name,
-        outcome_status: supportStatuses[learnerId] || "needs_support",
-        observation: observation || null,
-        recorded_by: profile?.id || null,
-      });
-    });
+    const outcomeRows = supportLearnerIds.map((learnerId) => ({
+      school_id: schoolId,
+      classroom_id: selectedTodayPlan.classroom_id,
+      learner_id: Number(learnerId),
+      weekly_plan_id: selectedTodayPlan.id,
+      developmental_area: selectedTodayPlan.developmental_area,
+      theme: selectedTodayPlan.theme,
+      activity_date: selectedTodayPlan.activity_date,
+      activity_name: selectedTodayPlan.activity_name,
+      outcome_status: "needs_support",
+      support_status: "new",
+      observation: observation || null,
+      recorded_by: profile?.id || null,
+    }));
 
     await supabase
       .from("learner_activity_outcomes")
@@ -760,39 +763,49 @@ export default function ClassroomActivitiesPage() {
       }
     }
 
-    setOutstandingLearnerId("");
     setSupportLearnerIds([]);
-    setSupportStatuses({});
     setObservation("");
 
     await fetchWeeklyPlans(schoolId);
     await fetchOutcomes(schoolId);
 
     setSaving(false);
-    alert("Activity completed and learner outcomes saved.");
+    alert(
+      outcomeRows.length > 0
+        ? "Activity completed and learner support records saved."
+        : "Activity completed. Learners not selected are treated as meeting expectations."
+    );
   }
 
   function toggleSupportLearner(learnerId: string) {
     setSupportLearnerIds((current) => {
       if (current.includes(learnerId)) {
-        const next = current.filter((id) => id !== learnerId);
-
-        setSupportStatuses((statuses) => {
-          const copy = { ...statuses };
-          delete copy[learnerId];
-          return copy;
-        });
-
-        return next;
+        return current.filter((id) => id !== learnerId);
       }
-
-      setSupportStatuses((statuses) => ({
-        ...statuses,
-        [learnerId]: "needs_support",
-      }));
 
       return [...current, learnerId];
     });
+  }
+
+  async function updateSupportStatus(outcomeId: number, nextStatus: string) {
+    if (!schoolId) return;
+
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("learner_activity_outcomes")
+      .update({ support_status: nextStatus })
+      .eq("id", outcomeId)
+      .eq("school_id", schoolId);
+
+    if (error) {
+      alert(error.message);
+      setSaving(false);
+      return;
+    }
+
+    await fetchOutcomes(schoolId);
+    setSaving(false);
   }
 
   function getPreviousOutcome(learnerId: number, area: string, currentPlanId?: number) {
@@ -954,7 +967,9 @@ export default function ClassroomActivitiesPage() {
           </div>
 
           <div>
-            <label style={labelStyle}>Week Starting</label>
+            <label style={labelStyle}>
+              Week: {formatDisplayDate(weekStart)} to {formatDisplayDate(weekEnd)}
+            </label>
             <input
               className="db-input"
               type="date"
@@ -970,11 +985,11 @@ export default function ClassroomActivitiesPage() {
 
       <div style={compactGrid}>
         <StatCard title="Week Planned" value={dashboardStats.weekPlanned ? "Yes" : "No"} note={dashboardStats.weekPlanned ? "Monday to Friday ready" : "Week incomplete"} />
-        <StatCard title="Planned" value={dashboardStats.planned} note="Activities this week" />
+        <StatCard title="Planned" value={dashboardStats.planned} note="Teaching activities" />
         <StatCard title="Completed" value={dashboardStats.completed} note="Completed this week" />
-        <StatCard title="Needs Support" value={dashboardStats.needsSupport} note="This week" />
+        <StatCard title="Support Cases" value={dashboardStats.needsSupport} note="Open this week" />
         <StatCard title="Improving" value={dashboardStats.improving} note="This week" />
-        <StatCard title="Meeting" value={dashboardStats.meeting} note="Expectations" />
+        <StatCard title="Resolved" value={dashboardStats.resolved} note="This week" />
       </div>
 
       {canPlanWeek ? (
@@ -993,7 +1008,7 @@ export default function ClassroomActivitiesPage() {
               <div>
                 <h3 style={sectionTitle}>Weekly Planner</h3>
                 <p style={smallHint}>
-                  Select a developmental area, then choose a matching theme and activity.
+                  Select activities for teaching days. Mark public holidays or school closure days where needed.
                 </p>
               </div>
 
@@ -1015,27 +1030,42 @@ export default function ClassroomActivitiesPage() {
 
                 return (
                   <div key={row.activity_date} style={plannerRowStyle}>
-                    <strong style={{ minWidth: "92px" }}>{row.dayLabel}</strong>
+                    <strong style={{ minWidth: "92px" }}>
+                      {row.dayLabel}
+                      <span style={smallHint}>{formatDisplayDate(row.activity_date)}</span>
+                    </strong>
 
-                    <select className="db-input" value={row.developmental_area} onChange={(e) => updatePlannerRow(index, { developmental_area: e.target.value })}>
-                      {developmentalAreas.map((area) => (
-                        <option key={area} value={area}>{area}</option>
+                    <select className="db-input" value={row.day_type} onChange={(e) => updatePlannerRow(index, { day_type: e.target.value })}>
+                      {dayTypes.map((type) => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
                       ))}
                     </select>
 
-                    <select className="db-input" value={row.theme} onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}>
-                      <option value="">Select theme</option>
-                      {rowThemes.map((themeItem) => (
-                        <option key={themeItem} value={themeItem}>{themeItem}</option>
-                      ))}
-                    </select>
+                    {isTeachingDay(row.day_type) ? (
+                      <>
+                        <select className="db-input" value={row.developmental_area} onChange={(e) => updatePlannerRow(index, { developmental_area: e.target.value })}>
+                          {developmentalAreas.map((area) => (
+                            <option key={area} value={area}>{area}</option>
+                          ))}
+                        </select>
 
-                    <select className="db-input" value={row.activity_library_id} onChange={(e) => selectPlannerActivity(index, e.target.value)} disabled={!row.theme}>
-                      <option value="">No activity selected</option>
-                      {rowLibrary.map((item) => (
-                        <option key={item.id} value={item.id}>{item.activity_name}</option>
-                      ))}
-                    </select>
+                        <select className="db-input" value={row.theme} onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}>
+                          <option value="">Select theme</option>
+                          {rowThemes.map((themeItem) => (
+                            <option key={themeItem} value={themeItem}>{themeItem}</option>
+                          ))}
+                        </select>
+
+                        <select className="db-input" value={row.activity_library_id} onChange={(e) => selectPlannerActivity(index, e.target.value)} disabled={!row.theme}>
+                          <option value="">No activity selected</option>
+                          {rowLibrary.map((item) => (
+                            <option key={item.id} value={item.id}>{item.activity_name}</option>
+                          ))}
+                        </select>
+                      </>
+                    ) : (
+                      <p style={textStyle}>{dayTypeLabel(row.day_type)}. No activity required.</p>
+                    )}
                   </div>
                 );
               })}
@@ -1046,7 +1076,7 @@ export default function ClassroomActivitiesPage() {
 
       <div className="db-card db-card-green" style={cardStyle}>
         <h3 style={sectionTitle}>Today’s Planned Activity</h3>
-        <p style={smallHint}>Only activities planned for today are shown here.</p>
+        <p style={smallHint}>This pulls from the weekly planner. Public holidays and school closure days are excluded.</p>
 
         {todaysPlans.length === 0 ? (
           <p className="db-helper">No activity planned for today.</p>
@@ -1074,16 +1104,15 @@ export default function ClassroomActivitiesPage() {
           <div style={completionBox}>
             <h4 style={subTitle}>Complete Activity</h4>
             <p style={textStyle}>{selectedTodayPlan.description || "No description added."}</p>
+            <p style={smallHint}>
+              Development area is automatically captured from this activity: {selectedTodayPlan.developmental_area}.
+            </p>
 
-            <label style={labelStyle}>Outstanding Learner</label>
-            <select className="db-input" value={outstandingLearnerId} onChange={(e) => setOutstandingLearnerId(e.target.value)}>
-              <option value="">Select learner</option>
-              {learners.map((learner) => (
-                <option key={learner.id} value={learner.id}>{learner.name}</option>
-              ))}
-            </select>
+            <label style={labelStyle}>Select Learners Needing Support</label>
+            <p style={smallHint}>
+              Select only learners who need support. Everyone not selected is treated as meeting expectations.
+            </p>
 
-            <label style={labelStyle}>Learners Requiring Support</label>
             {learners.length === 0 ? (
               <p className="db-helper">No learners found for this classroom.</p>
             ) : (
@@ -1102,25 +1131,19 @@ export default function ClassroomActivitiesPage() {
 
                       {previous ? (
                         <p style={smallHint}>
-                          Previous: {outcomeLabel(previous.outcome_status || "")} on {previous.activity_date || formatShortDate(previous.created_at || "")}
+                          Previous: {supportStatusLabel(supportStatusValue(previous))} on {previous.activity_date || formatShortDate(previous.created_at || "")}
                         </p>
                       ) : null}
 
-                      {selected ? (
-                        <select className="db-input" value={supportStatuses[learnerId] || "needs_support"} onChange={(e) => setSupportStatuses((current) => ({ ...current, [learnerId]: e.target.value }))}>
-                          {outcomeStatuses.map((status) => (
-                            <option key={status.value} value={status.value}>{status.label}</option>
-                          ))}
-                        </select>
-                      ) : null}
+                      {selected ? <p style={smallHint}>Will be saved as New support case.</p> : null}
                     </div>
                   );
                 })}
               </div>
             )}
 
-            <label style={labelStyle}>Observation</label>
-            <textarea className="db-input" value={observation} onChange={(e) => setObservation(e.target.value)} placeholder="Add a short observation for today’s activity" style={{ minHeight: "72px" }} />
+            <label style={labelStyle}>Teacher Notes</label>
+            <textarea className="db-input" value={observation} onChange={(e) => setObservation(e.target.value)} placeholder="Optional note for the selected learners needing support" style={{ minHeight: "72px" }} />
 
             <button type="button" className="db-button-primary" style={{ width: "100%", marginTop: "10px" }} onClick={markComplete} disabled={saving}>
               {saving ? "Saving..." : "Mark Complete"}
@@ -1132,7 +1155,7 @@ export default function ClassroomActivitiesPage() {
       {canViewTracker ? (
         <div className="db-card db-card-lavender" style={cardStyle}>
           <h3 style={sectionTitle}>Learner Support Tracker</h3>
-          <p style={smallHint}>Latest learner outcome per developmental area.</p>
+          <p style={smallHint}>Learners selected for support during completed activities. Resolved cases are hidden by default.</p>
 
           <div style={filterGrid}>
             <select className="db-input" value={trackerClassroomId} onChange={(e) => setTrackerClassroomId(e.target.value)}>
@@ -1150,8 +1173,8 @@ export default function ClassroomActivitiesPage() {
             </select>
 
             <select className="db-input" value={trackerStatus} onChange={(e) => setTrackerStatus(e.target.value)}>
-              <option value="">All statuses</option>
-              {outcomeStatuses.map((status) => (
+              <option value="">Open cases</option>
+              {supportStatuses.map((status) => (
                 <option key={status.value} value={status.value}>{status.label}</option>
               ))}
             </select>
@@ -1165,8 +1188,25 @@ export default function ClassroomActivitiesPage() {
                 <div key={item.id} className="db-list-card">
                   <strong>{learnerName(item.learner_id)}</strong>
                   <p style={textStyle}>{classroomName(item.classroom_id)} | {item.developmental_area}</p>
-                  <p style={textStyle}>Status: {outcomeLabel(item.outcome_status || "")}</p>
-                  <p style={smallHint}>Last updated: {item.activity_date || formatShortDate(item.created_at || "")}</p>
+                  <p style={textStyle}>Activity: {item.activity_name || "Activity not recorded"}</p>
+                  <p style={textStyle}>Status: {supportStatusLabel(supportStatusValue(item))}</p>
+                  {item.observation ? <p style={textStyle}>Teacher notes: {item.observation}</p> : null}
+                  <p style={smallHint}>Date identified: {item.activity_date || formatShortDate(item.created_at || "")}</p>
+
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
+                    {supportStatuses.map((status) => (
+                      <button
+                        key={status.value}
+                        type="button"
+                        className="db-button-primary"
+                        style={smallButton}
+                        onClick={() => updateSupportStatus(item.id, status.value)}
+                        disabled={saving || supportStatusValue(item) === status.value}
+                      >
+                        {status.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1272,11 +1312,40 @@ function weekdaysFromMonday(mondayDate: string) {
   }));
 }
 
-function outcomeLabel(value: string) {
-  if (value === "needs_support") return "Needs Support";
+function supportStatusValue(item: any) {
+  if (item?.support_status) return item.support_status;
+  if (item?.outcome_status === "improving") return "improving";
+  if (item?.outcome_status === "meeting_expectations") return "resolved";
+  return "new";
+}
+
+function supportStatusLabel(value: string) {
+  if (value === "new") return "New";
+  if (value === "active") return "Active";
+  if (value === "monitoring") return "Monitoring";
   if (value === "improving") return "Improving";
-  if (value === "meeting_expectations") return "Meeting Expectations";
-  return "Not recorded";
+  if (value === "resolved") return "Resolved";
+  return "New";
+}
+
+function isTeachingDay(value?: string | null) {
+  return !value || value === "teaching_day";
+}
+
+function dayTypeLabel(value?: string | null) {
+  if (value === "public_holiday") return "Public Holiday";
+  if (value === "school_closed") return "School Closed";
+  return "Teaching Day";
+}
+
+function formatDisplayDate(value: string) {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00`);
+  return date.toLocaleDateString("en-ZA", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function formatShortDate(value: string) {
@@ -1354,7 +1423,7 @@ const smallButton = {
 
 const plannerRowStyle = {
   display: "grid",
-  gridTemplateColumns: "110px repeat(3, minmax(150px, 1fr))",
+  gridTemplateColumns: "110px minmax(150px, 0.8fr) repeat(3, minmax(150px, 1fr))",
   gap: "8px",
   alignItems: "center",
   background: "#FFFDFB",

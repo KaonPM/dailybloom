@@ -10,6 +10,7 @@ type Learner = {
   id: number;
   name: string;
   class?: string | null;
+  classroom_id?: number | null;
 };
 
 type ReportRow = {
@@ -182,6 +183,12 @@ export default function ReportsPage() {
     return true;
   }
 
+  function dayTypeLabel(value?: string | null) {
+  if (value === "public_holiday") return "Public Holiday";
+  if (value === "school_closed") return "School Closed";
+  return "Teaching Day";
+}
+
   async function runReport() {
     if (!schoolId) return;
 
@@ -280,6 +287,7 @@ export default function ReportsPage() {
         name,
         legal_name,
         class,
+        classroom_id,
         date_of_birth,
         gender,
         guardian_name,
@@ -481,36 +489,60 @@ export default function ReportsPage() {
     setReportRows(rows);
   }
 
-  async function runActivitiesReport() {
-    const { data, error } = await supabase
-      .from("activities")
-      .select("*")
-      .eq("school_id", schoolId)
-      .gte("activity_date", fromDate)
-      .lte("activity_date", toDate)
-      .order("activity_date", { ascending: false });
+ async function runActivitiesReport() {
+  if (!schoolId) return;
 
-    if (error) {
-      alert(error.message);
-      return;
-    }
+  const { data, error } = await supabase
+    .from("weekly_activity_plans")
+    .select("*")
+    .eq("school_id", schoolId)
+    .gte("activity_date", fromDate)
+    .lte("activity_date", toDate)
+    .order("activity_date", { ascending: false });
 
-    const rows: ReportRow[] = (data || [])
-      .filter((item: any) => {
-        const classValue = item.class_name || item.classroom || "";
-        return isInScopeByClass(classValue);
-      })
-      .map((item: any) => ({
-        date: item.activity_date || "",
-        learner: scope === "Learner" ? selectedLearner : "Class activity",
-        classroom: item.class_name || item.classroom || "All classes",
-        type: "Classroom Activity",
-        detail: `${item.subject || "No subject"} | ${item.title || "No title"}`,
-        extra: item.description || "",
-      }));
-
-    setReportRows(rows);
+  if (error) {
+    alert(error.message);
+    return;
   }
+
+  const scopedClassroomIds = scopedLearners
+    .map((learner: any) => learner.classroom_id)
+    .filter(Boolean)
+    .map((id: any) => Number(id));
+
+  const rows: ReportRow[] = (data || [])
+    .filter((item: any) => {
+      if (scope === "Entire School") return true;
+
+      if (scope === "Classroom") {
+        return String(item.classroom_id) === String(selectedClassroom);
+      }
+
+      if (scope === "Learner") {
+        return scopedClassroomIds.includes(Number(item.classroom_id));
+      }
+
+      return true;
+    })
+    .map((item: any) => ({
+      date: item.activity_date || "",
+      learner: scope === "Learner" ? selectedLearner : "Class activity",
+      classroom: String(item.classroom_id || "Classroom"),
+      type:
+        item.day_type && item.day_type !== "teaching_day"
+          ? dayTypeLabel(item.day_type)
+          : item.completed
+          ? "Completed Classroom Activity"
+          : "Planned Classroom Activity",
+      detail:
+        item.day_type && item.day_type !== "teaching_day"
+          ? dayTypeLabel(item.day_type)
+          : `${item.developmental_area || "No area"} | ${item.theme || "No theme"} | ${item.activity_name || "No activity"}`,
+      extra: item.description || "",
+    }));
+
+  setReportRows(rows);
+}
 
   async function runEventsReport() {
     const { data, error } = await supabase

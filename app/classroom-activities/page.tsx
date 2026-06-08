@@ -24,8 +24,8 @@ const developmentalAreas = [
 const supportStatuses = [
   { value: "new", label: "New" },
   { value: "active", label: "Active" },
-  { value: "monitoring", label: "Monitoring" },
   { value: "improving", label: "Improving" },
+  { value: "monitoring", label: "Monitoring" },
   { value: "resolved", label: "Resolved" },
 ];
 
@@ -117,6 +117,7 @@ export default function ClassroomActivitiesPage() {
 
   const [selectedTodayPlanId, setSelectedTodayPlanId] = useState<number | null>(null);
   const [supportLearnerIds, setSupportLearnerIds] = useState<string[]>([]);
+  const [supportLearnerStatuses, setSupportLearnerStatuses] = useState<Record<string, string>>({});
   const [observation, setObservation] = useState("");
 
   const [showLibraryForm, setShowLibraryForm] = useState(false);
@@ -140,7 +141,7 @@ export default function ClassroomActivitiesPage() {
 
   const canManageLibrary = isPrincipal || isMaster;
   const canPlanWeek = isTeacher || isPrincipal || isMaster;
-  const canViewTracker = isTeacher || isPrincipal || isMaster;
+  const canViewTracker = isPrincipal || isMaster;
 
   const todayDate = today();
   const weekEnd = useMemo(() => addDays(weekStart, 4), [weekStart]);
@@ -209,13 +210,6 @@ export default function ClassroomActivitiesPage() {
     return Array.from(latest.values());
   }, [outcomes]);
 
-  const weeklyOutcomeRows = useMemo(() => {
-    return outcomes.filter((item) => {
-      if (!item.activity_date) return false;
-      return item.activity_date >= weekStart && item.activity_date <= weekEnd;
-    });
-  }, [outcomes, weekStart, weekEnd]);
-
   const dashboardStats = useMemo(() => {
     const planned = currentWeekPlans.filter(
       (item) => isTeachingDay(item.day_type) && Boolean(item.activity_library_id)
@@ -231,19 +225,12 @@ export default function ClassroomActivitiesPage() {
         .map((item) => item.activity_date)
     ).size;
 
-    const openSupport = weeklyOutcomeRows.filter(
-      (item) => item.outcome_status === "needs_support" && supportStatusValue(item) !== "resolved"
-    ).length;
-
     return {
       weekPlanned: plannedOrClosedDates >= 5,
       planned,
       completed,
-      needsSupport: openSupport,
-      improving: weeklyOutcomeRows.filter((item) => supportStatusValue(item) === "improving").length,
-      resolved: weeklyOutcomeRows.filter((item) => supportStatusValue(item) === "resolved").length,
     };
-  }, [currentWeekPlans, weeklyOutcomeRows]);
+  }, [currentWeekPlans]);
 
   const supportTrackerRows = useMemo(() => {
     return latestOutcomes.filter((item) => {
@@ -885,7 +872,7 @@ export default function ClassroomActivitiesPage() {
       activity_date: selectedTodayPlan.activity_date,
       activity_name: selectedTodayPlan.activity_name,
       outcome_status: "needs_support",
-      support_status: "new",
+      support_status: supportLearnerStatuses[String(learnerId)] || "new",
       observation: observation || null,
       recorded_by: profile?.id || null,
     }));
@@ -908,6 +895,7 @@ export default function ClassroomActivitiesPage() {
     }
 
     setSupportLearnerIds([]);
+    setSupportLearnerStatuses({});
     setObservation("");
 
     await fetchWeeklyPlans(schoolId);
@@ -924,11 +912,37 @@ export default function ClassroomActivitiesPage() {
   function toggleSupportLearner(learnerId: string) {
     setSupportLearnerIds((current) => {
       if (current.includes(learnerId)) {
+        setSupportLearnerStatuses((statuses) => {
+          const next = { ...statuses };
+          delete next[learnerId];
+          return next;
+        });
+
         return current.filter((id) => id !== learnerId);
       }
 
+      const previous = selectedTodayPlan
+        ? getPreviousOutcome(
+            Number(learnerId),
+            selectedTodayPlan.developmental_area,
+            selectedTodayPlan.id
+          )
+        : null;
+
+      setSupportLearnerStatuses((statuses) => ({
+        ...statuses,
+        [learnerId]: previous ? supportStatusValue(previous) : "new",
+      }));
+
       return [...current, learnerId];
     });
+  }
+
+  function updateSelectedSupportStatus(learnerId: string, nextStatus: string) {
+    setSupportLearnerStatuses((current) => ({
+      ...current,
+      [learnerId]: nextStatus,
+    }));
   }
 
   async function updateSupportStatus(outcomeId: number, nextStatus: string) {
@@ -1196,30 +1210,16 @@ export default function ClassroomActivitiesPage() {
 
                     {isTeachingDay(row.day_type) ? (
                       <>
-                        <select
-                          className="db-input"
-                          value={row.developmental_area}
-                          onChange={(e) =>
-                            updatePlannerRow(index, { developmental_area: e.target.value })
-                          }
-                        >
+                        <select className="db-input" value={row.developmental_area} onChange={(e) => updatePlannerRow(index, { developmental_area: e.target.value })}>
                           {developmentalAreas.map((area) => (
-                            <option key={area} value={area}>
-                              {area}
-                            </option>
+                            <option key={area} value={area}>{area}</option>
                           ))}
                         </select>
 
-                        <select
-                          className="db-input"
-                          value={row.theme}
-                          onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}
-                        >
+                        <select className="db-input" value={row.theme} onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}>
                           <option value="">Select theme</option>
                           {rowThemes.map((themeItem) => (
-                            <option key={themeItem} value={themeItem}>
-                              {themeItem}
-                            </option>
+                            <option key={themeItem} value={themeItem}>{themeItem}</option>
                           ))}
                         </select>
 
@@ -1229,16 +1229,12 @@ export default function ClassroomActivitiesPage() {
                               <select
                                 className="db-input"
                                 value={activity.activity_library_id}
-                                onChange={(e) =>
-                                  selectPlannerActivity(index, activityIndex, e.target.value)
-                                }
+                                onChange={(e) => selectPlannerActivity(index, activityIndex, e.target.value)}
                                 disabled={!row.theme}
                               >
                                 <option value="">No activity selected</option>
                                 {rowLibrary.map((item) => (
-                                  <option key={item.id} value={item.id}>
-                                    {item.activity_name}
-                                  </option>
+                                  <option key={item.id} value={item.id}>{item.activity_name}</option>
                                 ))}
                               </select>
 
@@ -1289,7 +1285,12 @@ export default function ClassroomActivitiesPage() {
               <button
                 key={plan.id}
                 type="button"
-                onClick={() => setSelectedTodayPlanId(plan.id)}
+                onClick={() => {
+                  setSelectedTodayPlanId(plan.id);
+                  setSupportLearnerIds([]);
+                  setSupportLearnerStatuses({});
+                  setObservation("");
+                }}
                 style={{
                   ...todayPlanButton,
                   border: selectedTodayPlan?.id === plan.id ? "2px solid #7CCCF3" : "1px solid #E3D9CD",
@@ -1355,7 +1356,22 @@ export default function ClassroomActivitiesPage() {
                         </p>
                       ) : null}
 
-                      {selected ? <p style={smallHint}>Will be saved as New support case.</p> : null}
+                      {selected ? (
+                        <>
+                          <label style={labelStyle}>Support Status</label>
+                          <select
+                            className="db-input"
+                            value={supportLearnerStatuses[learnerId] || "new"}
+                            onChange={(e) => updateSelectedSupportStatus(learnerId, e.target.value)}
+                          >
+                            {supportStatuses.map((status) => (
+                              <option key={status.value} value={status.value}>
+                                {status.label}
+                              </option>
+                            ))}
+                          </select>
+                        </>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -1455,9 +1471,7 @@ export default function ClassroomActivitiesPage() {
                 </select>
 
                 <input className="db-input" value={libraryTheme} onChange={(e) => setLibraryTheme(e.target.value)} placeholder="Theme, for example South Africa, Numbers, My Family" />
-
                 <input className="db-input" value={libraryActivityName} onChange={(e) => setLibraryActivityName(e.target.value)} placeholder="Activity name" />
-
                 <textarea className="db-input" value={libraryDescription} onChange={(e) => setLibraryDescription(e.target.value)} placeholder="Description" style={{ minHeight: "72px" }} />
 
                 <button type="button" className="db-button-primary" style={{ width: "100%" }} onClick={saveLibraryItem} disabled={saving}>
@@ -1542,8 +1556,8 @@ function supportStatusValue(item: any) {
 function supportStatusLabel(value: string) {
   if (value === "new") return "New";
   if (value === "active") return "Active";
-  if (value === "monitoring") return "Monitoring";
   if (value === "improving") return "Improving";
+  if (value === "monitoring") return "Monitoring";
   if (value === "resolved") return "Resolved";
   return "New";
 }

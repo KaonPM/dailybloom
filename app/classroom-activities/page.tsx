@@ -61,6 +61,13 @@ type WeeklyPlan = {
   completed_by?: string | null;
   created_at?: string | null;
   day_type?: string | null;
+  plan_group_id?: string | null;
+};
+
+type PlannerActivitySelection = {
+  activity_library_id: string;
+  activity_name: string;
+  description: string;
 };
 
 type PlannerRow = {
@@ -68,10 +75,8 @@ type PlannerRow = {
   activity_date: string;
   developmental_area: string;
   theme: string;
-  activity_library_id: string;
-  activity_name: string;
-  description: string;
   day_type: string;
+  activities: PlannerActivitySelection[];
 };
 
 type OutcomeRow = {
@@ -108,7 +113,7 @@ export default function ClassroomActivitiesPage() {
   const [activeClassroomId, setActiveClassroomId] = useState("");
   const [weekStart, setWeekStart] = useState(getMonday(new Date()));
   const [plannerRows, setPlannerRows] = useState<PlannerRow[]>([]);
-  const [isPlannerOpen, setIsPlannerOpen] = useState(true);
+  const [isPlannerOpen, setIsPlannerOpen] = useState(false);
 
   const [selectedTodayPlanId, setSelectedTodayPlanId] = useState<number | null>(null);
   const [supportLearnerIds, setSupportLearnerIds] = useState<string[]>([]);
@@ -159,6 +164,20 @@ export default function ClassroomActivitiesPage() {
         Boolean(plan.activity_library_id)
       );
     });
+  }, [weeklyPlans, activeClassroomId, todayDate]);
+
+  const nextTeachingPlans = useMemo(() => {
+    return weeklyPlans
+      .filter((plan) => {
+        return (
+          String(plan.classroom_id) === String(activeClassroomId) &&
+          plan.activity_date > todayDate &&
+          isTeachingDay(plan.day_type) &&
+          Boolean(plan.activity_library_id)
+        );
+      })
+      .sort((a, b) => String(a.activity_date).localeCompare(String(b.activity_date)))
+      .slice(0, 2);
   }, [weeklyPlans, activeClassroomId, todayDate]);
 
   const selectedTodayPlan = useMemo(() => {
@@ -484,28 +503,45 @@ export default function ClassroomActivitiesPage() {
 
   function buildPlannerRows() {
     const rows = weekdaysFromMonday(weekStart).map((day) => {
-      const existing = weeklyPlans.find((plan) => {
+      const existingPlans = weeklyPlans.filter((plan) => {
         return (
           String(plan.classroom_id) === String(activeClassroomId) &&
           plan.activity_date === day.date
         );
       });
 
+      const firstExisting = existingPlans[0];
+
       const fallbackArea = "Language and Communication";
       const fallbackTheme =
-        themesForArea(existing?.developmental_area || fallbackArea)[0] || "";
+        themesForArea(firstExisting?.developmental_area || fallbackArea)[0] || "";
+
+      const existingActivities = existingPlans
+        .filter((plan) => isTeachingDay(plan.day_type) && Boolean(plan.activity_library_id))
+        .map((plan) => ({
+          activity_library_id: plan.activity_library_id
+            ? String(plan.activity_library_id)
+            : "",
+          activity_name: plan.activity_name || "",
+          description: plan.description || "",
+        }));
 
       return {
         dayLabel: day.label,
         activity_date: day.date,
-        developmental_area: existing?.developmental_area || fallbackArea,
-        theme: existing?.theme || fallbackTheme,
-        activity_library_id: existing?.activity_library_id
-          ? String(existing.activity_library_id)
-          : "",
-        activity_name: existing?.activity_name || "",
-        description: existing?.description || "",
-        day_type: existing?.day_type || "teaching_day",
+        developmental_area: firstExisting?.developmental_area || fallbackArea,
+        theme: firstExisting?.theme || fallbackTheme,
+        day_type: firstExisting?.day_type || "teaching_day",
+        activities:
+          existingActivities.length > 0
+            ? existingActivities
+            : [
+                {
+                  activity_library_id: "",
+                  activity_name: "",
+                  description: "",
+                },
+              ],
       };
     });
 
@@ -525,9 +561,20 @@ export default function ClassroomActivitiesPage() {
         if (updates.day_type && updates.day_type !== "teaching_day") {
           updated = {
             ...updated,
-            activity_library_id: "",
-            activity_name: "",
-            description: "",
+            activities: [],
+          };
+        }
+
+        if (updates.day_type === "teaching_day" && row.activities.length === 0) {
+          updated = {
+            ...updated,
+            activities: [
+              {
+                activity_library_id: "",
+                activity_name: "",
+                description: "",
+              },
+            ],
           };
         }
 
@@ -538,18 +585,26 @@ export default function ClassroomActivitiesPage() {
           updated = {
             ...updated,
             theme: firstTheme,
-            activity_library_id: "",
-            activity_name: "",
-            description: "",
+            activities: [
+              {
+                activity_library_id: "",
+                activity_name: "",
+                description: "",
+              },
+            ],
           };
         }
 
         if (updates.theme) {
           updated = {
             ...updated,
-            activity_library_id: "",
-            activity_name: "",
-            description: "",
+            activities: [
+              {
+                activity_library_id: "",
+                activity_name: "",
+                description: "",
+              },
+            ],
           };
         }
 
@@ -558,20 +613,85 @@ export default function ClassroomActivitiesPage() {
     );
   }
 
-  function selectPlannerActivity(index: number, libraryId: string) {
+  function selectPlannerActivity(
+    rowIndex: number,
+    activityIndex: number,
+    libraryId: string
+  ) {
     const selected = activityLibrary.find(
       (item) => String(item.id) === String(libraryId)
     );
 
     setPlannerRows((current) =>
-      current.map((row, rowIndex) => {
-        if (rowIndex !== index) return row;
+      current.map((row, index) => {
+        if (index !== rowIndex) return row;
+
+        const activities = row.activities.map((activity, currentActivityIndex) => {
+          if (currentActivityIndex !== activityIndex) return activity;
+
+          return {
+            activity_library_id: libraryId,
+            activity_name: selected?.activity_name || "",
+            description: selected?.description || "",
+          };
+        });
 
         return {
           ...row,
-          activity_library_id: libraryId,
-          activity_name: selected?.activity_name || "",
-          description: selected?.description || "",
+          activities,
+        };
+      })
+    );
+  }
+
+  function addPlannerActivity(rowIndex: number) {
+    setPlannerRows((current) =>
+      current.map((row, index) => {
+        if (index !== rowIndex) return row;
+
+        if (!isTeachingDay(row.day_type)) return row;
+
+        if (row.activities.length >= 3) {
+          alert("You can select up to 3 activities per day.");
+          return row;
+        }
+
+        return {
+          ...row,
+          activities: [
+            ...row.activities,
+            {
+              activity_library_id: "",
+              activity_name: "",
+              description: "",
+            },
+          ],
+        };
+      })
+    );
+  }
+
+  function removePlannerActivity(rowIndex: number, activityIndex: number) {
+    setPlannerRows((current) =>
+      current.map((row, index) => {
+        if (index !== rowIndex) return row;
+
+        const activities = row.activities.filter(
+          (_, currentActivityIndex) => currentActivityIndex !== activityIndex
+        );
+
+        return {
+          ...row,
+          activities:
+            activities.length > 0
+              ? activities
+              : [
+                  {
+                    activity_library_id: "",
+                    activity_name: "",
+                    description: "",
+                  },
+                ],
         };
       })
     );
@@ -583,9 +703,27 @@ export default function ClassroomActivitiesPage() {
       return;
     }
 
-    const rowsToSave = plannerRows.filter(
-      (row) => !isTeachingDay(row.day_type) || row.activity_library_id
-    );
+    const rowsToSave = plannerRows.flatMap((row) => {
+      if (!isTeachingDay(row.day_type)) {
+        return [
+          {
+            ...row,
+            activity_library_id: "",
+            activity_name: dayTypeLabel(row.day_type),
+            description: "",
+          },
+        ];
+      }
+
+      return row.activities
+        .filter((activity) => Boolean(activity.activity_library_id))
+        .map((activity) => ({
+          ...row,
+          activity_library_id: activity.activity_library_id,
+          activity_name: activity.activity_name,
+          description: activity.description,
+        }));
+    });
 
     if (rowsToSave.length === 0) {
       alert("Please select at least one activity or mark a day as a public holiday or school closed.");
@@ -615,10 +753,15 @@ export default function ClassroomActivitiesPage() {
       activity_date: row.activity_date,
       developmental_area: row.developmental_area,
       theme: row.theme,
-      activity_library_id: row.activity_library_id ? Number(row.activity_library_id) : null,
-      activity_name: isTeachingDay(row.day_type) ? row.activity_name : dayTypeLabel(row.day_type),
+      activity_library_id: row.activity_library_id
+        ? Number(row.activity_library_id)
+        : null,
+      activity_name: isTeachingDay(row.day_type)
+        ? row.activity_name
+        : dayTypeLabel(row.day_type),
       description: isTeachingDay(row.day_type) ? row.description || null : null,
       day_type: row.day_type || "teaching_day",
+      plan_group_id: `${schoolId}-${activeClassroomId}-${row.activity_date}`,
       planned_by: profile?.id || null,
     }));
 
@@ -693,6 +836,7 @@ export default function ClassroomActivitiesPage() {
         activity_name: plan.activity_name,
         description: plan.description || null,
         day_type: plan.day_type || "teaching_day",
+        plan_group_id: `${schoolId}-${activeClassroomId}-${newDate}`,
         planned_by: profile?.id || null,
       };
     });
@@ -939,7 +1083,7 @@ export default function ClassroomActivitiesPage() {
       <div className="db-soft-card" style={{ padding: "18px 20px", marginBottom: "16px" }}>
         <h1 className="db-page-title">Classroom Activities</h1>
         <p className="db-page-subtitle">
-          Plan the week, complete today’s activity, and track learner support.
+          Plan the week, complete today's activity, and track learner support.
         </p>
 
         {schoolParam && schoolId ? (
@@ -984,12 +1128,21 @@ export default function ClassroomActivitiesPage() {
       </div>
 
       <div style={compactGrid}>
-        <StatCard title="Week Planned" value={dashboardStats.weekPlanned ? "Yes" : "No"} note={dashboardStats.weekPlanned ? "Monday to Friday ready" : "Week incomplete"} />
-        <StatCard title="Planned" value={dashboardStats.planned} note="Teaching activities" />
-        <StatCard title="Completed" value={dashboardStats.completed} note="Completed this week" />
-        <StatCard title="Support Cases" value={dashboardStats.needsSupport} note="Open this week" />
-        <StatCard title="Improving" value={dashboardStats.improving} note="This week" />
-        <StatCard title="Resolved" value={dashboardStats.resolved} note="This week" />
+        <StatCard
+          title="Week Planned"
+          value={dashboardStats.weekPlanned ? "Yes" : "No"}
+          note={dashboardStats.weekPlanned ? "Monday to Friday ready" : "Week incomplete"}
+        />
+        <StatCard
+          title="Planned"
+          value={dashboardStats.planned}
+          note="Teaching activities"
+        />
+        <StatCard
+          title="Completed"
+          value={dashboardStats.completed}
+          note="Completed this week"
+        />
       </div>
 
       {canPlanWeek ? (
@@ -1000,7 +1153,7 @@ export default function ClassroomActivitiesPage() {
           onToggle={(e) => setIsPlannerOpen((e.target as HTMLDetailsElement).open)}
         >
           <summary style={summaryStyle}>
-            Weekly Planner {dashboardStats.weekPlanned ? "✓ Planned" : "⚠ Incomplete"}
+            Weekly Planner {dashboardStats.weekPlanned ? "Planned" : "Incomplete"}
           </summary>
 
           <div style={{ marginTop: "12px" }}>
@@ -1008,7 +1161,7 @@ export default function ClassroomActivitiesPage() {
               <div>
                 <h3 style={sectionTitle}>Weekly Planner</h3>
                 <p style={smallHint}>
-                  Select activities for teaching days. Mark public holidays or school closure days where needed.
+                  Select up to 3 activities for each teaching day. Mark public holidays or school closure days where needed.
                 </p>
               </div>
 
@@ -1043,25 +1196,75 @@ export default function ClassroomActivitiesPage() {
 
                     {isTeachingDay(row.day_type) ? (
                       <>
-                        <select className="db-input" value={row.developmental_area} onChange={(e) => updatePlannerRow(index, { developmental_area: e.target.value })}>
+                        <select
+                          className="db-input"
+                          value={row.developmental_area}
+                          onChange={(e) =>
+                            updatePlannerRow(index, { developmental_area: e.target.value })
+                          }
+                        >
                           {developmentalAreas.map((area) => (
-                            <option key={area} value={area}>{area}</option>
+                            <option key={area} value={area}>
+                              {area}
+                            </option>
                           ))}
                         </select>
 
-                        <select className="db-input" value={row.theme} onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}>
+                        <select
+                          className="db-input"
+                          value={row.theme}
+                          onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}
+                        >
                           <option value="">Select theme</option>
                           {rowThemes.map((themeItem) => (
-                            <option key={themeItem} value={themeItem}>{themeItem}</option>
+                            <option key={themeItem} value={themeItem}>
+                              {themeItem}
+                            </option>
                           ))}
                         </select>
 
-                        <select className="db-input" value={row.activity_library_id} onChange={(e) => selectPlannerActivity(index, e.target.value)} disabled={!row.theme}>
-                          <option value="">No activity selected</option>
-                          {rowLibrary.map((item) => (
-                            <option key={item.id} value={item.id}>{item.activity_name}</option>
+                        <div style={activitySelectGroup}>
+                          {row.activities.map((activity, activityIndex) => (
+                            <div key={`${row.activity_date}-${activityIndex}`} style={activitySelectRow}>
+                              <select
+                                className="db-input"
+                                value={activity.activity_library_id}
+                                onChange={(e) =>
+                                  selectPlannerActivity(index, activityIndex, e.target.value)
+                                }
+                                disabled={!row.theme}
+                              >
+                                <option value="">No activity selected</option>
+                                {rowLibrary.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.activity_name}
+                                  </option>
+                                ))}
+                              </select>
+
+                              {row.activities.length > 1 ? (
+                                <button
+                                  type="button"
+                                  className="db-button-primary"
+                                  style={smallButton}
+                                  onClick={() => removePlannerActivity(index, activityIndex)}
+                                >
+                                  Remove
+                                </button>
+                              ) : null}
+                            </div>
                           ))}
-                        </select>
+
+                          <button
+                            type="button"
+                            className="db-button-primary"
+                            style={smallButton}
+                            onClick={() => addPlannerActivity(index)}
+                            disabled={row.activities.length >= 3 || !row.theme}
+                          >
+                            Add Activity
+                          </button>
+                        </div>
                       </>
                     ) : (
                       <p style={textStyle}>{dayTypeLabel(row.day_type)}. No activity required.</p>
@@ -1075,7 +1278,7 @@ export default function ClassroomActivitiesPage() {
       ) : null}
 
       <div className="db-card db-card-green" style={cardStyle}>
-        <h3 style={sectionTitle}>Today’s Planned Activity</h3>
+        <h3 style={sectionTitle}>Today's Planned Activities</h3>
         <p style={smallHint}>This pulls from the weekly planner. Public holidays and school closure days are excluded.</p>
 
         {todaysPlans.length === 0 ? (
@@ -1099,6 +1302,23 @@ export default function ClassroomActivitiesPage() {
             ))}
           </div>
         )}
+
+        {nextTeachingPlans.length > 0 ? (
+          <div style={{ marginTop: "14px" }}>
+            <h4 style={subTitle}>Next Teaching Activities</h4>
+
+            <div style={{ display: "grid", gap: "10px" }}>
+              {nextTeachingPlans.map((plan) => (
+                <div key={plan.id} style={todayPlanButton}>
+                  <strong>{plan.activity_name}</strong>
+                  <span style={smallHint}>{formatDisplayDate(plan.activity_date)}</span>
+                  <span style={smallHint}>{plan.developmental_area} | {plan.theme}</span>
+                  <span style={smallHint}>{plan.completed ? "Completed" : "Not completed yet"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {selectedTodayPlan ? (
           <div style={completionBox}>
@@ -1423,13 +1643,25 @@ const smallButton = {
 
 const plannerRowStyle = {
   display: "grid",
-  gridTemplateColumns: "110px minmax(150px, 0.8fr) repeat(3, minmax(150px, 1fr))",
+  gridTemplateColumns: "110px minmax(150px, 0.8fr) minmax(170px, 1fr) minmax(170px, 1fr) minmax(230px, 1.4fr)",
   gap: "8px",
-  alignItems: "center",
+  alignItems: "start",
   background: "#FFFDFB",
   border: "1px solid #F0E3D8",
   borderRadius: "12px",
   padding: "8px",
+};
+
+const activitySelectGroup = {
+  display: "grid",
+  gap: "8px",
+};
+
+const activitySelectRow = {
+  display: "grid",
+  gridTemplateColumns: "1fr auto",
+  gap: "8px",
+  alignItems: "center",
 };
 
 const todayPlanButton = {

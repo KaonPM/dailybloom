@@ -611,14 +611,6 @@ export default function TeacherDashboardPage() {
           border="#F3E4A3"
         />
 
-        <OverviewCard
-          label="Progress Reports"
-          value={overview.learners}
-          helper="Developmental and Grade RR reports"
-          href="/progress-reports"
-          background="#F3EAFD"
-          border="#D8C4F1"
-        />
       </div>
 
       <div

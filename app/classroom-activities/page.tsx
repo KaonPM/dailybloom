@@ -35,6 +35,8 @@ const dayTypes = [
   { value: "school_closed", label: "School Closed" },
 ];
 
+const PAGE_SIZE = 10;
+
 type ActivityLibraryItem = {
   id: number;
   school_id: number;
@@ -134,6 +136,16 @@ export default function ClassroomActivitiesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const [isTodayOpen, setIsTodayOpen] = useState(false);
+  const [isTrackerOpen, setIsTrackerOpen] = useState(false);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+
+  const [todayVisibleCount, setTodayVisibleCount] = useState(PAGE_SIZE);
+  const [nextVisibleCount, setNextVisibleCount] = useState(PAGE_SIZE);
+  const [learnerVisibleCount, setLearnerVisibleCount] = useState(PAGE_SIZE);
+  const [supportVisibleCount, setSupportVisibleCount] = useState(PAGE_SIZE);
+  const [libraryVisibleCount, setLibraryVisibleCount] = useState(PAGE_SIZE);
+
   const role = String(profile?.role || "").toLowerCase();
   const isTeacher = role === "teacher";
   const isPrincipal = role === "principal" || role === "admin";
@@ -177,12 +189,13 @@ export default function ClassroomActivitiesPage() {
           Boolean(plan.activity_library_id)
         );
       })
-      .sort((a, b) => String(a.activity_date).localeCompare(String(b.activity_date)))
-      .slice(0, 2);
+      .sort((a, b) => String(a.activity_date).localeCompare(String(b.activity_date)));
   }, [weeklyPlans, activeClassroomId, todayDate]);
 
   const selectedTodayPlan = useMemo(() => {
-    return todaysPlans.find((plan) => plan.id === selectedTodayPlanId) || todaysPlans[0] || null;
+    if (!selectedTodayPlanId) return null;
+
+    return todaysPlans.find((plan) => plan.id === selectedTodayPlanId) || null;
   }, [todaysPlans, selectedTodayPlanId]);
 
   const latestOutcomes = useMemo(() => {
@@ -252,6 +265,26 @@ export default function ClassroomActivitiesPage() {
     });
   }, [latestOutcomes, trackerClassroomId, trackerArea, trackerStatus]);
 
+  const visibleTodaysPlans = useMemo(() => {
+    return todaysPlans.slice(0, todayVisibleCount);
+  }, [todaysPlans, todayVisibleCount]);
+
+  const visibleNextTeachingPlans = useMemo(() => {
+    return nextTeachingPlans.slice(0, nextVisibleCount);
+  }, [nextTeachingPlans, nextVisibleCount]);
+
+  const visibleLearners = useMemo(() => {
+    return learners.slice(0, learnerVisibleCount);
+  }, [learners, learnerVisibleCount]);
+
+  const visibleSupportTrackerRows = useMemo(() => {
+    return supportTrackerRows.slice(0, supportVisibleCount);
+  }, [supportTrackerRows, supportVisibleCount]);
+
+  const visibleActivityLibrary = useMemo(() => {
+    return activityLibrary.slice(0, libraryVisibleCount);
+  }, [activityLibrary, libraryVisibleCount]);
+
   useEffect(() => {
     loadPage();
   }, []);
@@ -264,10 +297,14 @@ export default function ClassroomActivitiesPage() {
   }, [schoolId, activeClassroomId, weekStart, weeklyPlans, activityLibrary]);
 
   useEffect(() => {
-    if (selectedTodayPlan) {
-      setSelectedTodayPlanId(selectedTodayPlan.id);
+    if (!selectedTodayPlanId) return;
+
+    const stillExists = todaysPlans.some((plan) => plan.id === selectedTodayPlanId);
+
+    if (!stillExists) {
+      setSelectedTodayPlanId(null);
     }
-  }, [selectedTodayPlan?.id]);
+  }, [todaysPlans, selectedTodayPlanId]);
 
   async function loadPage() {
     const { profile: currentProfile, error } = await getCurrentProfile();
@@ -383,9 +420,7 @@ export default function ClassroomActivitiesPage() {
       created_by: currentProfile?.id || null,
     }));
 
-    const { error: insertError } = await supabase
-    .from("activity_library")
-    .insert(rows);
+    const { error: insertError } = await supabase.from("activity_library").insert(rows);
 
     if (insertError) {
       alert(insertError.message);
@@ -943,6 +978,18 @@ async function markComplete() {
   setSupportLearnerIds([]);
   setSupportLearnerStatuses({});
   setObservation("");
+  setSelectedTodayPlanId(null);
+
+  setIsPlannerOpen(false);
+  setIsTodayOpen(false);
+  setIsTrackerOpen(false);
+  setIsLibraryOpen(false);
+
+  setTodayVisibleCount(PAGE_SIZE);
+  setNextVisibleCount(PAGE_SIZE);
+  setLearnerVisibleCount(PAGE_SIZE);
+  setSupportVisibleCount(PAGE_SIZE);
+  setLibraryVisibleCount(PAGE_SIZE);
 
   await fetchWeeklyPlans(schoolId);
   await fetchOutcomes(schoolId);
@@ -955,6 +1002,7 @@ async function markComplete() {
       : "Activity completed. Learners not selected are treated as meeting expectations."
   );
 }
+
   function toggleSupportLearner(learnerId: string) {
     setSupportLearnerIds((current) => {
       if (current.includes(learnerId)) {
@@ -1335,10 +1383,11 @@ function getOpenSupportOutcome(
       ) : null}
 
       <details
-         className="db-card db-card-green"
-         style={cardStyle}
-         open={isTeacher}
->
+        className="db-card db-card-green"
+        style={cardStyle}
+        open={isTodayOpen}
+        onToggle={(e) => setIsTodayOpen((e.target as HTMLDetailsElement).open)}
+      >
         <summary style={summaryStyle}>
           Today's Planned Activities
         </summary>
@@ -1348,7 +1397,7 @@ function getOpenSupportOutcome(
           <p className="db-helper">No activity planned for today.</p>
         ) : (
           <div style={{ display: "grid", gap: "10px", marginTop: "10px" }}>
-            {todaysPlans.map((plan) => (
+            {visibleTodaysPlans.map((plan) => (
               <button
                 key={plan.id}
                 type="button"
@@ -1371,12 +1420,23 @@ function getOpenSupportOutcome(
           </div>
         )}
 
+        {todaysPlans.length > todayVisibleCount ? (
+          <button
+            type="button"
+            className="db-button-primary"
+            style={{ ...smallButton, marginTop: "10px" }}
+            onClick={() => setTodayVisibleCount((current) => current + PAGE_SIZE)}
+          >
+            Add Next 10
+          </button>
+        ) : null}
+
         {nextTeachingPlans.length > 0 ? (
           <div style={{ marginTop: "14px" }}>
             <h4 style={subTitle}>Next Teaching Activities</h4>
 
             <div style={{ display: "grid", gap: "10px" }}>
-              {nextTeachingPlans.map((plan) => (
+              {visibleNextTeachingPlans.map((plan) => (
                 <div key={plan.id} style={todayPlanButton}>
                   <strong>{plan.activity_name}</strong>
                   <span style={smallHint}>{formatDisplayDate(plan.activity_date)}</span>
@@ -1385,6 +1445,17 @@ function getOpenSupportOutcome(
                 </div>
               ))}
             </div>
+
+            {nextTeachingPlans.length > nextVisibleCount ? (
+              <button
+                type="button"
+                className="db-button-primary"
+                style={{ ...smallButton, marginTop: "10px" }}
+                onClick={() => setNextVisibleCount((current) => current + PAGE_SIZE)}
+              >
+                Add Next 10
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -1405,7 +1476,7 @@ function getOpenSupportOutcome(
               <p className="db-helper">No learners found for this classroom.</p>
             ) : (
               <div style={learnerGrid}>
-                {learners.map((learner) => {
+                {visibleLearners.map((learner) => {
                   const learnerId = String(learner.id);
                   const selected = supportLearnerIds.includes(learnerId);
                   const previous = getPreviousOutcome(Number(learner.id), selectedTodayPlan.developmental_area, selectedTodayPlan.id);
@@ -1445,6 +1516,17 @@ function getOpenSupportOutcome(
               </div>
             )}
 
+            {learners.length > learnerVisibleCount ? (
+              <button
+                type="button"
+                className="db-button-primary"
+                style={{ ...smallButton, marginTop: "10px" }}
+                onClick={() => setLearnerVisibleCount((current) => current + PAGE_SIZE)}
+              >
+                Add Next 10 Learners
+              </button>
+            ) : null}
+
             <label style={labelStyle}>Teacher Notes</label>
             <textarea className="db-input" value={observation} onChange={(e) => setObservation(e.target.value)} placeholder="Optional note for the selected learners needing support" style={{ minHeight: "72px" }} />
 
@@ -1457,8 +1539,13 @@ function getOpenSupportOutcome(
 
 
       {canViewTracker ? (
-        <div className="db-card db-card-lavender" style={cardStyle}>
-          <h3 style={sectionTitle}>Learner Support Tracker</h3>
+        <details
+          className="db-card db-card-lavender"
+          style={cardStyle}
+          open={isTrackerOpen}
+          onToggle={(e) => setIsTrackerOpen((e.target as HTMLDetailsElement).open)}
+        >
+          <summary style={summaryStyle}>Learner Support Tracker ({supportTrackerRows.length})</summary>
           <p style={smallHint}>Learners selected for support during completed activities. Resolved cases are hidden by default.</p>
 
           <div style={filterGrid}>
@@ -1488,7 +1575,7 @@ function getOpenSupportOutcome(
             <p className="db-helper" style={{ marginTop: "12px" }}>No learner support records yet.</p>
           ) : (
             <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
-              {supportTrackerRows.map((item) => (
+              {visibleSupportTrackerRows.map((item) => (
                 <div key={item.id} className="db-list-card">
                   <strong>{learnerName(item.learner_id)}</strong>
                   <p style={textStyle}>{classroomName(item.classroom_id)} | {item.developmental_area}</p>
@@ -1515,11 +1602,27 @@ function getOpenSupportOutcome(
               ))}
             </div>
           )}
-        </div>
+
+          {supportTrackerRows.length > supportVisibleCount ? (
+            <button
+              type="button"
+              className="db-button-primary"
+              style={{ ...smallButton, marginTop: "10px" }}
+              onClick={() => setSupportVisibleCount((current) => current + PAGE_SIZE)}
+            >
+              Add Next 10
+            </button>
+          ) : null}
+        </details>
       ) : null}
 
       {canManageLibrary ? (
-        <details className="db-card db-card-yellow" style={cardStyle}>
+        <details
+          className="db-card db-card-yellow"
+          style={cardStyle}
+          open={isLibraryOpen}
+          onToggle={(e) => setIsLibraryOpen((e.target as HTMLDetailsElement).open)}
+        >
           <summary style={summaryStyle}>Activity Library ({activityLibrary.length})</summary>
 
           <p style={smallHint}>Principals manage themes and activities. Teachers use the planner dropdowns only.</p>
@@ -1550,7 +1653,7 @@ function getOpenSupportOutcome(
           </div>
 
           <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
-            {activityLibrary.map((item) => (
+            {visibleActivityLibrary.map((item) => (
               <div key={item.id} className="db-list-card">
                 <strong>{item.activity_name}</strong>
                 <p style={textStyle}>{item.developmental_area} | {item.theme || "No theme"}</p>
@@ -1563,6 +1666,17 @@ function getOpenSupportOutcome(
               </div>
             ))}
           </div>
+
+          {activityLibrary.length > libraryVisibleCount ? (
+            <button
+              type="button"
+              className="db-button-primary"
+              style={{ ...smallButton, marginTop: "10px" }}
+              onClick={() => setLibraryVisibleCount((current) => current + PAGE_SIZE)}
+            >
+              Add Next 10
+            </button>
+          ) : null}
         </details>
       ) : null}
     </div>

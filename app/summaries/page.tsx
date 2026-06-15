@@ -8,7 +8,7 @@ import { resolveSchoolContext } from "../lib/school-context";
 import SubscriptionGuard from "../components/SubscriptionGuard";
 
 type Learner = {
-  id: number;
+  id: string;
   name: string;
   class?: string | null;
   classroom_id?: number | null;
@@ -70,7 +70,7 @@ export default function SummariesPage() {
   const [summaries, setSummaries] = useState<SummaryRow[]>([]);
 
   const [selectedClassroomId, setSelectedClassroomId] = useState("");
-  const [selectedLearnerId, setSelectedLearnerId] = useState<number | null>(null);
+  const [selectedLearnerId, setSelectedLearnerId] = useState<string | null>(null);
 
   const [healthSafety, setHealthSafety] = useState("");
   const [meals, setMeals] = useState("");
@@ -191,9 +191,7 @@ export default function SummariesPage() {
 
     if (!selectedClassroomId) return null;
 
-    return classrooms.find(
-      (room) => String(room.id) === String(selectedClassroomId)
-    );
+    return classrooms.find((room) => String(room.id) === String(selectedClassroomId));
   }, [classrooms, role, teacherClassroom, selectedClassroomId]);
 
   const visibleLearners = useMemo(() => {
@@ -206,10 +204,7 @@ export default function SummariesPage() {
       const learnerClass = String(learner.class || "").trim().toLowerCase();
       const classroomName = roomName.toLowerCase();
 
-      return (
-        learnerClass === classroomName ||
-        Number(learner.classroom_id) === Number(roomId)
-      );
+      return learnerClass === classroomName || Number(learner.classroom_id) === Number(roomId);
     });
   }, [learners, selectedClassroom]);
 
@@ -247,19 +242,21 @@ export default function SummariesPage() {
 
     setSaving(true);
 
-    const { error } = await supabase.from("summaries").insert([
-      {
-        school_id: schoolId,
-        learner_name: selectedLearner.name,
-        health_safety: healthSafety,
-        meals,
-        rest,
-        mood,
-        today_highlight: todayHighlight,
-        teacher_notes: teacherNotes.trim() || null,
-        whatsapp_sent: false,
-      },
-    ]);
+    const payload = {
+      school_id: schoolId,
+      learner_name: selectedLearner.name,
+      health_safety: healthSafety,
+      meals,
+      rest,
+      mood,
+      today_highlight: todayHighlight,
+      teacher_notes: teacherNotes.trim() || null,
+      whatsapp_sent: false,
+    };
+
+    const { error } = editingSummaryId
+      ? await supabase.from("summaries").update(payload).eq("id", editingSummaryId)
+      : await supabase.from("summaries").insert([payload]);
 
     if (error) {
       alert(error.message);
@@ -270,7 +267,7 @@ export default function SummariesPage() {
     await fetchSummaries(schoolId);
 
     setSaving(false);
-    alert("Summary saved.");
+    alert(editingSummaryId ? "Summary updated." : "Summary saved.");
   }
 
   function formatWhatsAppPhone(phone: string | null | undefined) {
@@ -322,9 +319,7 @@ Thank you.`;
       return;
     }
 
-    setGeneratedWhatsAppLink(
-      `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
-    );
+    setGeneratedWhatsAppLink(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`);
 
     setGeneratingMessage(false);
   }
@@ -545,11 +540,7 @@ Thank you.`;
                 onClick={saveSummary}
                 disabled={saving}
               >
-                {saving
-                  ? "Saving..."
-                  : editingSummaryId
-                  ? "Save Changes"
-                  : "Save Summary"}
+                {saving ? "Saving..." : editingSummaryId ? "Save Changes" : "Save Summary"}
               </button>
 
               <button
@@ -599,14 +590,7 @@ Thank you.`;
                   }}
                 />
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
-                    marginTop: 12,
-                  }}
-                >
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
                   <button type="button" className="db-button-secondary" onClick={copyMessage}>
                     Copy WhatsApp Message
                   </button>
@@ -649,10 +633,7 @@ Thank you.`;
             }}
           >
             <div>
-              <h3 style={sectionTitle}>
-                Saved Summaries ({filteredSummaries.length})
-              </h3>
-
+              <h3 style={sectionTitle}>Saved Summaries ({filteredSummaries.length})</h3>
               <p style={smallText}>Open only when you need to review saved records.</p>
             </div>
 
@@ -725,14 +706,7 @@ Thank you.`;
                           {summary.whatsapp_sent ? "WhatsApp Sent" : "Not Sent"}
                         </p>
 
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            flexWrap: "wrap",
-                            marginLeft: "auto",
-                          }}
-                        >
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginLeft: "auto" }}>
                           <button
                             type="button"
                             className="db-button-secondary"
@@ -751,14 +725,9 @@ Thank you.`;
                                     `Hello Parent. Here is ${summary.learner_name}'s daily summary.\n\nMood: ${summary.mood || "Not added"}\nMeals: ${summary.meals || "Not added"}\nRest: ${summary.rest || "Not added"}\nHealth and Safety: ${summary.health_safety || "Not added"}\nToday's Highlight: ${summary.today_highlight || "Not added"}\nTeacher Notes: ${summary.teacher_notes || "None"}`
                                   );
 
-                                  const phone = formatWhatsAppPhone(
-                                    getSavedSummaryPhone(summary)
-                                  );
+                                  const phone = formatWhatsAppPhone(getSavedSummaryPhone(summary));
 
-                                  window.open(
-                                    `https://wa.me/${phone}?text=${message}`,
-                                    "_blank"
-                                  );
+                                  window.open(`https://wa.me/${phone}?text=${message}`, "_blank");
 
                                   markSavedSummaryAsSent(summary.id);
                                 }}

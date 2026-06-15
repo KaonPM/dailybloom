@@ -17,6 +17,8 @@ type PaymentItem = {
   payment_month?: number | null;
   payment_year?: number | null;
   parent_phone?: string | null;
+  payment_method?: string | null;
+  reference_number?: string | null;
 };
 
 type LearnerItem = {
@@ -30,6 +32,8 @@ type SchoolItem = {
   id: number;
   school_name?: string | null;
 };
+
+const paymentMethods = ["Cash", "EFT", "Debit Order", "Bank Deposit", "Other"];
 
 export default function PaymentsPage() {
   const router = useRouter();
@@ -51,6 +55,8 @@ export default function PaymentsPage() {
   const [paymentMonth, setPaymentMonth] = useState(String(today.getMonth() + 1));
   const [paymentYear, setPaymentYear] = useState(String(today.getFullYear()));
   const [parentPhone, setParentPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [referenceNumber, setReferenceNumber] = useState("");
 
   const [selectedReminderMonth, setSelectedReminderMonth] = useState(
     String(today.getMonth() + 1)
@@ -242,6 +248,8 @@ export default function PaymentsPage() {
         payment_month: parsedMonth,
         payment_year: parsedYear,
         parent_phone: parentPhone.trim() || null,
+        payment_method: paymentMethod,
+        reference_number: referenceNumber.trim() || null,
       },
     ]);
 
@@ -258,6 +266,8 @@ export default function PaymentsPage() {
     setPaymentMonth(String(today.getMonth() + 1));
     setPaymentYear(String(today.getFullYear()));
     setParentPhone("");
+    setPaymentMethod("Cash");
+    setReferenceNumber("");
 
     await fetchPayments(Number(schoolId));
 
@@ -515,28 +525,6 @@ export default function PaymentsPage() {
               <p style={{ margin: 0, color: "#2D2A3E", fontSize: 14, fontWeight: 700 }}>
                 Payment recorded successfully.
               </p>
-
-              {shouldShowBackToOverview ? (
-                <button
-                  type="button"
-                  className="db-button-primary"
-                  style={{ marginTop: 10 }}
-                  onClick={() => router.push(`/master/school/${schoolId}`)}
-                >
-                  Back to School Overview
-                </button>
-              ) : null}
-
-              {shouldShowBackToDashboard ? (
-                <button
-                  type="button"
-                  className="db-button-primary"
-                  style={{ marginTop: 10 }}
-                  onClick={() => router.push("/dashboard")}
-                >
-                  Back to Dashboard
-                </button>
-              ) : null}
             </div>
           ) : null}
 
@@ -589,6 +577,31 @@ export default function PaymentsPage() {
                 type="date"
                 value={paymentDate}
                 onChange={(e) => setPaymentDate(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Payment Method</p>
+              <select
+                className="db-input"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+              >
+                {paymentMethods.map((method) => (
+                  <option key={method} value={method}>
+                    {method}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <p style={labelText}>Reference Number</p>
+              <input
+                className="db-input"
+                placeholder="Reference, receipt or transaction number"
+                value={referenceNumber}
+                onChange={(e) => setReferenceNumber(e.target.value)}
               />
             </div>
 
@@ -760,6 +773,12 @@ export default function PaymentsPage() {
                           <p style={smallText}>
                             {payment.payment_date || "No date"} | Month{" "}
                             {payment.payment_month || "-"} / {payment.payment_year || "-"}
+                          </p>
+                          <p style={smallText}>
+                            Method: {payment.payment_method || "Not specified"}
+                          </p>
+                          <p style={smallText}>
+                            Reference: {payment.reference_number || "Not added"}
                           </p>
                         </div>
 

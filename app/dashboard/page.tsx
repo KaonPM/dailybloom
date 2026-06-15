@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import LearnerSupportWidget from "../components/LearnerSupportWidget";
 
 type School = {
   id: number;

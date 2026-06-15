@@ -383,7 +383,9 @@ export default function ClassroomActivitiesPage() {
       created_by: currentProfile?.id || null,
     }));
 
-    const { error: insertError } = await supabase.from("activity_library").insert(rows);
+    const { error: insertError } = await supabase
+    .from("activity_library")
+    .insert(rows);
 
     if (insertError) {
       alert(insertError.message);
@@ -867,9 +869,18 @@ async function markComplete() {
     .delete()
     .eq("weekly_plan_id", selectedTodayPlan.id);
 
+  const validLearnerIds = supportLearnerIds.filter(
+    (learnerId) =>
+      learnerId !== null &&
+      learnerId !== undefined &&
+      String(learnerId).trim() !== "" &&
+      !Number.isNaN(Number(learnerId)) &&
+      Number(learnerId) > 0
+  );
+
   const rowsToInsert: any[] = [];
 
-  for (const learnerId of supportLearnerIds) {
+  for (const learnerId of validLearnerIds) {
     const openSupport = getOpenSupportOutcome(
       Number(learnerId),
       selectedTodayPlan.developmental_area,
@@ -939,12 +950,11 @@ async function markComplete() {
   setSaving(false);
 
   alert(
-    supportLearnerIds.length > 0
+    validLearnerIds.length > 0
       ? "Activity completed and learner support cases updated."
       : "Activity completed. Learners not selected are treated as meeting expectations."
   );
 }
-
   function toggleSupportLearner(learnerId: string) {
     setSupportLearnerIds((current) => {
       if (current.includes(learnerId)) {

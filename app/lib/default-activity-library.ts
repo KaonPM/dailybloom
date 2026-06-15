@@ -198,6 +198,18 @@ export const defaultActivityLibrary: DefaultActivityLibraryItem[] = [
   { developmental_area: "Life Skills", theme: "My Family", activity_name: "Caring for Others", description: "Learners discuss ways to care for younger, older or sick family members." },
   { developmental_area: "Life Skills", theme: "My Family", activity_name: "Family Traditions", description: "Learners share simple family traditions or routines." },
   { developmental_area: "Life Skills", theme: "My Family", activity_name: "Respecting Family Members", description: "Learners discuss respectful words and actions used at home." },
+  
+  { developmental_area: "Life Skills", theme: "My Body", activity_name: "Naming Body Parts", description: "Learners identify and name major body parts such as the head, arms, legs, eyes, ears, nose and mouth." },
+  { developmental_area: "Life Skills", theme: "My Body", activity_name: "Five Senses Exploration", description: "Learners explore sight, hearing, smell, taste and touch through guided activities." },
+  { developmental_area: "Life Skills", theme: "My Body", activity_name: "Healthy Body Habits", description: "Learners discuss healthy habits including bathing, brushing teeth, washing hands and drinking water." },
+  { developmental_area: "Life Skills", theme: "My Body", activity_name: "Exercise and Movement", description: "Learners participate in movement activities and discuss why exercise is important." },
+  { developmental_area: "Life Skills", theme: "My Body", activity_name: "Keeping My Body Safe", description: "Learners learn simple body safety rules and identify trusted adults who can help them." },
+
+  { developmental_area: "Life Skills", theme: "My Home", activity_name: "Rooms in My Home", description: "Learners identify different rooms in a home and discuss their purposes." },
+  { developmental_area: "Life Skills", theme: "My Home", activity_name: "People Who Live With Me", description: "Learners talk about family members and people who share their home." },
+  { developmental_area: "Life Skills", theme: "My Home", activity_name: "Helping at Home", description: "Learners discuss age-appropriate responsibilities and chores at home." },
+  { developmental_area: "Life Skills", theme: "My Home", activity_name: "Home Safety", description: "Learners identify safe and unsafe situations that may occur in the home." },
+  { developmental_area: "Life Skills", theme: "My Home", activity_name: "Caring for My Home", description: "Learners discuss ways to keep their homes clean, tidy and organised." },
 
   { developmental_area: "Life Skills", theme: "Healthy Living", activity_name: "Handwashing Routine", description: "Learners practise washing hands correctly and explain when hands should be washed." },
   { developmental_area: "Life Skills", theme: "Healthy Living", activity_name: "Healthy Food Sorting", description: "Learners sort food pictures into everyday healthy choices and treats." },

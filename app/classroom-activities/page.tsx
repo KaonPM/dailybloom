@@ -9,16 +9,16 @@ import { resolveSchoolContext } from "../lib/school-context";
 import { defaultActivityLibrary } from "../lib/default-activity-library";
 
 const developmentalAreas = [
-  "Language and Communication",
-  "Early Mathematics",
-  "Fine Motor Development",
-  "Gross Motor Development",
-  "Creative Development",
-  "Social and Emotional Development",
-  "Life Skills",
-  "Sensory Development",
+  "Ring Time",
+  "Language",
+  "Mathematics",
+  "Creative Art",
+  "Fine Motor",
+  "Gross Motor",
+  "Music & Movement",
+  "Story Time",
   "Outdoor Play",
-  "Music and Movement",
+  "Life Skills",
 ];
 
 const supportStatuses = [
@@ -115,6 +115,7 @@ export default function ClassroomActivitiesPage() {
   const [activeClassroomId, setActiveClassroomId] = useState("");
   const [weekStart, setWeekStart] = useState(getMonday(new Date()));
   const [plannerRows, setPlannerRows] = useState<PlannerRow[]>([]);
+  const [themeOfWeek, setThemeOfWeek] = useState("");
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
 
   const [selectedTodayPlanId, setSelectedTodayPlanId] = useState<number | null>(null);
@@ -153,7 +154,7 @@ export default function ClassroomActivitiesPage() {
   const isPrincipal = role === "principal" || role === "admin";
   const isMaster = role === "master";
 
-  const canManageLibrary = isPrincipal || isMaster;
+  const canManageLibrary = isTeacher || isPrincipal || isMaster;
   const canPlanWeek = isTeacher || isPrincipal || isMaster;
   const canViewTracker = isTeacher || isPrincipal || isMaster;
 
@@ -205,12 +206,13 @@ export default function ClassroomActivitiesPage() {
           Boolean(plan.completed)
         );
       })
-      .sort((a, b) => String(b.completed_at || b.activity_date).localeCompare(String(a.completed_at || a.activity_date)));
+      .sort((a, b) =>
+        String(b.completed_at || b.activity_date).localeCompare(String(a.completed_at || a.activity_date))
+      );
   }, [weeklyPlans, activeClassroomId]);
 
   const selectedTodayPlan = useMemo(() => {
     if (!selectedTodayPlanId) return null;
-
     return todaysPlans.find((plan) => plan.id === selectedTodayPlanId) || null;
   }, [todaysPlans, selectedTodayPlanId]);
 
@@ -288,7 +290,9 @@ export default function ClassroomActivitiesPage() {
     });
 
     return {
-      open: relevantRows.filter((item) => ["new", "active", "improving"].includes(supportStatusValue(item))).length,
+      open: relevantRows.filter((item) =>
+        ["new", "active", "improving"].includes(supportStatusValue(item))
+      ).length,
       monitoring: relevantRows.filter((item) => supportStatusValue(item) === "monitoring").length,
       resolved: relevantRows.filter((item) => supportStatusValue(item) === "resolved").length,
     };
@@ -318,29 +322,12 @@ export default function ClassroomActivitiesPage() {
     });
   }, [latestOutcomes, trackerClassroomId, trackerArea, trackerStatus, isTeacher, activeClassroomId]);
 
-  const visibleTodaysPlans = useMemo(() => {
-    return todaysPlans.slice(0, todayVisibleCount);
-  }, [todaysPlans, todayVisibleCount]);
-
-  const visibleNextTeachingPlans = useMemo(() => {
-    return nextTeachingPlans.slice(0, nextVisibleCount);
-  }, [nextTeachingPlans, nextVisibleCount]);
-
-  const visibleLearners = useMemo(() => {
-    return learners.slice(0, learnerVisibleCount);
-  }, [learners, learnerVisibleCount]);
-
-  const visibleSupportTrackerRows = useMemo(() => {
-    return supportTrackerRows.slice(0, supportVisibleCount);
-  }, [supportTrackerRows, supportVisibleCount]);
-
-  const visibleActivityLibrary = useMemo(() => {
-    return activityLibrary.slice(0, libraryVisibleCount);
-  }, [activityLibrary, libraryVisibleCount]);
-
-  const visibleCompletedPlans = useMemo(() => {
-    return completedPlans.slice(0, completedVisibleCount);
-  }, [completedPlans, completedVisibleCount]);
+  const visibleTodaysPlans = useMemo(() => todaysPlans.slice(0, todayVisibleCount), [todaysPlans, todayVisibleCount]);
+  const visibleNextTeachingPlans = useMemo(() => nextTeachingPlans.slice(0, nextVisibleCount), [nextTeachingPlans, nextVisibleCount]);
+  const visibleLearners = useMemo(() => learners.slice(0, learnerVisibleCount), [learners, learnerVisibleCount]);
+  const visibleSupportTrackerRows = useMemo(() => supportTrackerRows.slice(0, supportVisibleCount), [supportTrackerRows, supportVisibleCount]);
+  const visibleActivityLibrary = useMemo(() => activityLibrary.slice(0, libraryVisibleCount), [activityLibrary, libraryVisibleCount]);
+  const visibleCompletedPlans = useMemo(() => completedPlans.slice(0, completedVisibleCount), [completedPlans, completedVisibleCount]);
 
   useEffect(() => {
     loadPage();
@@ -348,7 +335,6 @@ export default function ClassroomActivitiesPage() {
 
   useEffect(() => {
     if (!schoolId || !activeClassroomId) return;
-
     buildPlannerRows();
     fetchLearners(Number(activeClassroomId));
   }, [schoolId, activeClassroomId, weekStart, weeklyPlans, activityLibrary]);
@@ -489,8 +475,8 @@ export default function ClassroomActivitiesPage() {
       .from("activity_library")
       .select("*")
       .eq("school_id", currentSchoolId)
-      .order("developmental_area", { ascending: true })
       .order("theme", { ascending: true })
+      .order("developmental_area", { ascending: true })
       .order("activity_name", { ascending: true });
 
     if (error) {
@@ -564,6 +550,18 @@ export default function ClassroomActivitiesPage() {
     setAllLearners(data || []);
   }
 
+  function allThemes() {
+    const themeSet = new Set<string>();
+
+    activityLibrary.forEach((item) => {
+      if (item.theme) {
+        themeSet.add(item.theme);
+      }
+    });
+
+    return Array.from(themeSet).sort();
+  }
+
   function themesForArea(area: string) {
     const themeSet = new Set<string>();
 
@@ -592,10 +590,9 @@ export default function ClassroomActivitiesPage() {
       });
 
       const firstExisting = existingPlans[0];
-
-      const fallbackArea = "Language and Communication";
+      const fallbackArea = "Ring Time";
       const fallbackTheme =
-        themesForArea(firstExisting?.developmental_area || fallbackArea)[0] || "";
+        firstExisting?.theme || themeOfWeek || allThemes()[0] || "";
 
       const existingActivities = existingPlans
         .filter((plan) => isTeachingDay(plan.day_type) && Boolean(plan.activity_library_id))
@@ -660,8 +657,7 @@ export default function ClassroomActivitiesPage() {
         }
 
         if (updates.developmental_area) {
-          const availableThemes = themesForArea(updates.developmental_area);
-          const firstTheme = availableThemes[0] || "";
+          const firstTheme = row.theme || themeOfWeek || allThemes()[0] || "";
 
           updated = {
             ...updated,
@@ -694,11 +690,7 @@ export default function ClassroomActivitiesPage() {
     );
   }
 
-  function selectPlannerActivity(
-    rowIndex: number,
-    activityIndex: number,
-    libraryId: string
-  ) {
+  function selectPlannerActivity(rowIndex: number, activityIndex: number, libraryId: string) {
     const selected = activityLibrary.find(
       (item) => String(item.id) === String(libraryId)
     );
@@ -729,7 +721,6 @@ export default function ClassroomActivitiesPage() {
     setPlannerRows((current) =>
       current.map((row, index) => {
         if (index !== rowIndex) return row;
-
         if (!isTeachingDay(row.day_type)) return row;
 
         if (row.activities.length >= 3) {
@@ -776,6 +767,73 @@ export default function ClassroomActivitiesPage() {
         };
       })
     );
+  }
+
+  function generateWeekFromTheme() {
+    if (!themeOfWeek) {
+      alert("Please select a theme of the week.");
+      return;
+    }
+
+    const themeActivities = activityLibrary.filter(
+      (item) => item.theme === themeOfWeek
+    );
+
+    if (themeActivities.length === 0) {
+      alert("No activities found for this theme.");
+      return;
+    }
+
+    const weekDays = weekdaysFromMonday(weekStart);
+
+    const areaPlan = [
+      ["Ring Time", "Language"],
+      ["Mathematics", "Fine Motor"],
+      ["Creative Art", "Music & Movement"],
+      ["Story Time", "Outdoor Play"],
+      ["Life Skills", "Gross Motor"],
+    ];
+
+    const rows = weekDays.map((day, index) => {
+      const areasForDay = areaPlan[index];
+
+      const selectedActivities = areasForDay
+        .map((area) => {
+          const activity =
+            themeActivities.find((item) => item.developmental_area === area) ||
+            themeActivities.find((item) => item.developmental_area === legacyAreaName(area));
+
+          if (!activity) return null;
+
+          return {
+            activity_library_id: String(activity.id),
+            activity_name: activity.activity_name,
+            description: activity.description || "",
+          };
+        })
+        .filter(Boolean) as PlannerActivitySelection[];
+
+      return {
+        dayLabel: day.label,
+        activity_date: day.date,
+        developmental_area: areasForDay[0],
+        theme: themeOfWeek,
+        day_type: "teaching_day",
+        activities:
+          selectedActivities.length > 0
+            ? selectedActivities
+            : [
+                {
+                  activity_library_id: "",
+                  activity_name: "",
+                  description: "",
+                },
+              ],
+      };
+    });
+
+    setPlannerRows(rows);
+    setIsPlannerOpen(true);
   }
 
   async function saveWeeklyPlan() {
@@ -846,7 +904,9 @@ export default function ClassroomActivitiesPage() {
       planned_by: profile?.id || null,
     }));
 
-    const { error: insertError } = await supabase.from("weekly_activity_plans").insert(insertRows);
+    const { error: insertError } = await supabase
+      .from("weekly_activity_plans")
+      .insert(insertRows);
 
     if (insertError) {
       alert(insertError.message);
@@ -922,7 +982,9 @@ export default function ClassroomActivitiesPage() {
       };
     });
 
-    const { error: insertError } = await supabase.from("weekly_activity_plans").insert(rows);
+    const { error: insertError } = await supabase
+      .from("weekly_activity_plans")
+      .insert(rows);
 
     if (insertError) {
       alert(insertError.message);
@@ -936,131 +998,131 @@ export default function ClassroomActivitiesPage() {
     alert("Previous week copied.");
   }
 
-async function markComplete() {
-  if (!schoolId || !selectedTodayPlan) return;
+  async function markComplete() {
+    if (!schoolId || !selectedTodayPlan) return;
 
-  setSaving(true);
+    setSaving(true);
 
-  const { error } = await supabase
-    .from("weekly_activity_plans")
-    .update({
-      completed: true,
-      completed_at: new Date().toISOString(),
-      completed_by: profile?.id || null,
-    })
-    .eq("id", selectedTodayPlan.id);
+    const { error } = await supabase
+      .from("weekly_activity_plans")
+      .update({
+        completed: true,
+        completed_at: new Date().toISOString(),
+        completed_by: profile?.id || null,
+      })
+      .eq("id", selectedTodayPlan.id);
 
-  if (error) {
-    alert(error.message);
-    setSaving(false);
-    return;
-  }
-
-  await supabase
-    .from("learner_activity_outcomes")
-    .delete()
-    .eq("weekly_plan_id", selectedTodayPlan.id);
-
-  const validLearnerIds = supportLearnerIds.filter(
-    (learnerId) =>
-      learnerId !== null &&
-      learnerId !== undefined &&
-      String(learnerId).trim() !== "" &&
-      !Number.isNaN(Number(learnerId)) &&
-      Number(learnerId) > 0
-  );
-
-  const rowsToInsert: any[] = [];
-
-  for (const learnerId of validLearnerIds) {
-    const openSupport = getOpenSupportOutcome(
-      Number(learnerId),
-      selectedTodayPlan.developmental_area,
-      selectedTodayPlan.id
-    );
-
-    const nextStatus = supportLearnerStatuses[String(learnerId)] || "new";
-
-    if (openSupport) {
-      const { error: updateError } = await supabase
-        .from("learner_activity_outcomes")
-        .update({
-          weekly_plan_id: selectedTodayPlan.id,
-          classroom_id: selectedTodayPlan.classroom_id,
-          theme: selectedTodayPlan.theme,
-          activity_date: selectedTodayPlan.activity_date,
-          activity_name: selectedTodayPlan.activity_name,
-          support_status: nextStatus,
-          observation: observation || openSupport.observation || null,
-          recorded_by: profile?.id || null,
-        })
-        .eq("id", openSupport.id)
-        .eq("school_id", schoolId);
-
-      if (updateError) {
-        alert(updateError.message);
-        setSaving(false);
-        return;
-      }
-    } else {
-      rowsToInsert.push({
-        school_id: schoolId,
-        classroom_id: selectedTodayPlan.classroom_id,
-        learner_id: Number(learnerId),
-        weekly_plan_id: selectedTodayPlan.id,
-        developmental_area: selectedTodayPlan.developmental_area,
-        theme: selectedTodayPlan.theme,
-        activity_date: selectedTodayPlan.activity_date,
-        activity_name: selectedTodayPlan.activity_name,
-        outcome_status: "needs_support",
-        support_status: nextStatus,
-        observation: observation || null,
-        recorded_by: profile?.id || null,
-      });
-    }
-  }
-
-  if (rowsToInsert.length > 0) {
-    const { error: insertError } = await supabase
-      .from("learner_activity_outcomes")
-      .insert(rowsToInsert);
-
-    if (insertError) {
-      alert(insertError.message);
+    if (error) {
+      alert(error.message);
       setSaving(false);
       return;
     }
+
+    await supabase
+      .from("learner_activity_outcomes")
+      .delete()
+      .eq("weekly_plan_id", selectedTodayPlan.id);
+
+    const validLearnerIds = supportLearnerIds.filter(
+      (learnerId) =>
+        learnerId !== null &&
+        learnerId !== undefined &&
+        String(learnerId).trim() !== "" &&
+        !Number.isNaN(Number(learnerId)) &&
+        Number(learnerId) > 0
+    );
+
+    const rowsToInsert: any[] = [];
+
+    for (const learnerId of validLearnerIds) {
+      const openSupport = getOpenSupportOutcome(
+        Number(learnerId),
+        selectedTodayPlan.developmental_area,
+        selectedTodayPlan.id
+      );
+
+      const nextStatus = supportLearnerStatuses[String(learnerId)] || "new";
+
+      if (openSupport) {
+        const { error: updateError } = await supabase
+          .from("learner_activity_outcomes")
+          .update({
+            weekly_plan_id: selectedTodayPlan.id,
+            classroom_id: selectedTodayPlan.classroom_id,
+            theme: selectedTodayPlan.theme,
+            activity_date: selectedTodayPlan.activity_date,
+            activity_name: selectedTodayPlan.activity_name,
+            support_status: nextStatus,
+            observation: observation || openSupport.observation || null,
+            recorded_by: profile?.id || null,
+          })
+          .eq("id", openSupport.id)
+          .eq("school_id", schoolId);
+
+        if (updateError) {
+          alert(updateError.message);
+          setSaving(false);
+          return;
+        }
+      } else {
+        rowsToInsert.push({
+          school_id: schoolId,
+          classroom_id: selectedTodayPlan.classroom_id,
+          learner_id: Number(learnerId),
+          weekly_plan_id: selectedTodayPlan.id,
+          developmental_area: selectedTodayPlan.developmental_area,
+          theme: selectedTodayPlan.theme,
+          activity_date: selectedTodayPlan.activity_date,
+          activity_name: selectedTodayPlan.activity_name,
+          outcome_status: "needs_support",
+          support_status: nextStatus,
+          observation: observation || null,
+          recorded_by: profile?.id || null,
+        });
+      }
+    }
+
+    if (rowsToInsert.length > 0) {
+      const { error: insertError } = await supabase
+        .from("learner_activity_outcomes")
+        .insert(rowsToInsert);
+
+      if (insertError) {
+        alert(insertError.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    setSupportLearnerIds([]);
+    setSupportLearnerStatuses({});
+    setObservation("");
+    setSelectedTodayPlanId(null);
+
+    setIsPlannerOpen(false);
+    setIsTodayOpen(false);
+    setIsTrackerOpen(false);
+    setIsLibraryOpen(false);
+    setIsCompletedOpen(false);
+
+    setTodayVisibleCount(PAGE_SIZE);
+    setNextVisibleCount(PAGE_SIZE);
+    setLearnerVisibleCount(PAGE_SIZE);
+    setSupportVisibleCount(PAGE_SIZE);
+    setLibraryVisibleCount(PAGE_SIZE);
+    setCompletedVisibleCount(PAGE_SIZE);
+
+    await fetchWeeklyPlans(schoolId);
+    await fetchOutcomes(schoolId);
+
+    setSaving(false);
+
+    alert(
+      validLearnerIds.length > 0
+        ? "Activity completed and learner support cases updated."
+        : "Activity completed. Learners not selected are treated as meeting expectations."
+    );
   }
-
-  setSupportLearnerIds([]);
-  setSupportLearnerStatuses({});
-  setObservation("");
-  setSelectedTodayPlanId(null);
-
-  setIsPlannerOpen(false);
-  setIsTodayOpen(false);
-  setIsTrackerOpen(false);
-  setIsLibraryOpen(false);
-  setIsCompletedOpen(false);
-
-  setTodayVisibleCount(PAGE_SIZE);
-  setNextVisibleCount(PAGE_SIZE);
-  setLearnerVisibleCount(PAGE_SIZE);
-  setSupportVisibleCount(PAGE_SIZE);
-  setLibraryVisibleCount(PAGE_SIZE);
-  setCompletedVisibleCount(PAGE_SIZE);
-
-  await fetchWeeklyPlans(schoolId);
-  await fetchOutcomes(schoolId);
-
-  setSaving(false);
-
-  alert(
-    validLearnerIds.length > 0
-      ? "Activity completed and learner support cases updated."
-      : "Activity completed. Learners not selected are treated as meeting expectations."
-  );
-}
 
   function toggleSupportLearner(learnerId: string) {
     setSupportLearnerIds((current) => {
@@ -1075,17 +1137,18 @@ async function markComplete() {
       }
 
       const openSupport = selectedTodayPlan
-  ? getOpenSupportOutcome(
-      Number(learnerId),
-      selectedTodayPlan.developmental_area,
-      selectedTodayPlan.id
-    )
-  : null;
+        ? getOpenSupportOutcome(
+            Number(learnerId),
+            selectedTodayPlan.developmental_area,
+            selectedTodayPlan.id
+          )
+        : null;
 
-   setSupportLearnerStatuses((statuses) => ({
-  ...statuses,
-  [learnerId]: openSupport ? supportStatusValue(openSupport) : "new",
-   }));
+      setSupportLearnerStatuses((statuses) => ({
+        ...statuses,
+        [learnerId]: openSupport ? supportStatusValue(openSupport) : "new",
+      }));
+
       return [...current, learnerId];
     });
   }
@@ -1128,21 +1191,17 @@ async function markComplete() {
     });
   }
 
-function getOpenSupportOutcome(
-  learnerId: number,
-  area: string,
-  currentPlanId?: number
-) {
-  return outcomes.find((item) => {
-    return (
-      Number(item.learner_id) === Number(learnerId) &&
-      item.developmental_area === area &&
-      item.outcome_status === "needs_support" &&
-      item.weekly_plan_id !== currentPlanId &&
-      supportStatusValue(item) !== "resolved"
-    );
-  });
-}
+  function getOpenSupportOutcome(learnerId: number, area: string, currentPlanId?: number) {
+    return outcomes.find((item) => {
+      return (
+        Number(item.learner_id) === Number(learnerId) &&
+        item.developmental_area === area &&
+        item.outcome_status === "needs_support" &&
+        item.weekly_plan_id !== currentPlanId &&
+        supportStatusValue(item) !== "resolved"
+      );
+    });
+  }
 
   function learnerName(learnerId: number) {
     const learner = allLearners.find((item) => Number(item.id) === Number(learnerId));
@@ -1175,7 +1234,7 @@ function getOpenSupportOutcome(
     if (!schoolId) return;
 
     if (!canManageLibrary) {
-      alert("Only the principal or master can manage the activity library.");
+      alert("You do not have permission to manage the activity library.");
       return;
     }
 
@@ -1234,7 +1293,7 @@ function getOpenSupportOutcome(
     if (!schoolId) return;
 
     if (!canManageLibrary) {
-      alert("Only the principal or master can delete library activities.");
+      alert("You do not have permission to delete library activities.");
       return;
     }
 
@@ -1265,7 +1324,7 @@ function getOpenSupportOutcome(
       <div className="db-soft-card" style={{ padding: "18px 20px", marginBottom: "16px" }}>
         <h1 className="db-page-title">Classroom Activities</h1>
         <p className="db-page-subtitle">
-          Plan the week, complete today's activity, and track learner support.
+          Select a theme, generate the week, complete activities, and track learner support.
         </p>
 
         {schoolParam && schoolId ? (
@@ -1315,16 +1374,8 @@ function getOpenSupportOutcome(
           value={dashboardStats.weekPlanned ? "Yes" : "No"}
           note={dashboardStats.weekPlanned ? "Monday to Friday ready" : "Week incomplete"}
         />
-        <StatCard
-          title="Planned"
-          value={dashboardStats.planned}
-          note="Teaching activities"
-        />
-        <StatCard
-          title="Completed"
-          value={dashboardStats.completed}
-          note="Completed this week"
-        />
+        <StatCard title="Planned" value={dashboardStats.planned} note="Teaching activities" />
+        <StatCard title="Completed" value={dashboardStats.completed} note="Completed this week" />
       </div>
 
       {canPlanWeek ? (
@@ -1341,13 +1392,39 @@ function getOpenSupportOutcome(
           <div style={{ marginTop: "12px" }}>
             <div style={sectionHeader}>
               <div>
-                <h3 style={sectionTitle}>Weekly Planner</h3>
+                <h3 style={sectionTitle}>Theme-Based Weekly Planner</h3>
                 <p style={smallHint}>
-                  Select up to 3 activities for each teaching day. Mark public holidays or school closure days where needed.
+                  Select a theme of the week, generate activities, then edit any day if needed.
                 </p>
               </div>
 
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <div style={plannerActions}>
+                <div style={{ display: "grid", gap: "6px", minWidth: "220px" }}>
+                  <label style={labelStyle}>Theme of the Week</label>
+                  <select
+                    className="db-input"
+                    value={themeOfWeek}
+                    onChange={(e) => setThemeOfWeek(e.target.value)}
+                  >
+                    <option value="">Select theme</option>
+                    {allThemes().map((theme) => (
+                      <option key={theme} value={theme}>
+                        {theme}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    className="db-button-primary"
+                    style={smallButton}
+                    onClick={generateWeekFromTheme}
+                    disabled={saving}
+                  >
+                    Generate Week
+                  </button>
+                </div>
+
                 <button type="button" className="db-button-primary" style={smallButton} onClick={copyPreviousWeek} disabled={saving}>
                   Copy Previous Week
                 </button>
@@ -1360,7 +1437,6 @@ function getOpenSupportOutcome(
 
             <div style={{ display: "grid", gap: "8px" }}>
               {plannerRows.map((row, index) => {
-                const rowThemes = themesForArea(row.developmental_area);
                 const rowLibrary = activitiesForAreaAndTheme(row.developmental_area, row.theme);
 
                 return (
@@ -1386,7 +1462,7 @@ function getOpenSupportOutcome(
 
                         <select className="db-input" value={row.theme} onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}>
                           <option value="">Select theme</option>
-                          {rowThemes.map((themeItem) => (
+                          {allThemes().map((themeItem) => (
                             <option key={themeItem} value={themeItem}>{themeItem}</option>
                           ))}
                         </select>
@@ -1441,15 +1517,8 @@ function getOpenSupportOutcome(
         </details>
       ) : null}
 
-      <details
-        className="db-card db-card-green"
-        style={cardStyle}
-        open={isTodayOpen}
-        onToggle={(e) => setIsTodayOpen((e.target as HTMLDetailsElement).open)}
-      >
-        <summary style={summaryStyle}>
-          Today's Planned Activities
-        </summary>
+      <details className="db-card db-card-green" style={cardStyle} open={isTodayOpen} onToggle={(e) => setIsTodayOpen((e.target as HTMLDetailsElement).open)}>
+        <summary style={summaryStyle}>Today's Planned Activities</summary>
         <p style={smallHint}>This pulls from the weekly planner. Public holidays and school closure days are excluded.</p>
 
         {todaysPlans.length === 0 ? (
@@ -1480,12 +1549,7 @@ function getOpenSupportOutcome(
         )}
 
         {todaysPlans.length > todayVisibleCount ? (
-          <button
-            type="button"
-            className="db-button-primary"
-            style={{ ...smallButton, marginTop: "10px" }}
-            onClick={() => setTodayVisibleCount((current) => current + PAGE_SIZE)}
-          >
+          <button type="button" className="db-button-primary" style={{ ...smallButton, marginTop: "10px" }} onClick={() => setTodayVisibleCount((current) => current + PAGE_SIZE)}>
             Add Next 10
           </button>
         ) : null}
@@ -1506,12 +1570,7 @@ function getOpenSupportOutcome(
             </div>
 
             {nextTeachingPlans.length > nextVisibleCount ? (
-              <button
-                type="button"
-                className="db-button-primary"
-                style={{ ...smallButton, marginTop: "10px" }}
-                onClick={() => setNextVisibleCount((current) => current + PAGE_SIZE)}
-              >
+              <button type="button" className="db-button-primary" style={{ ...smallButton, marginTop: "10px" }} onClick={() => setNextVisibleCount((current) => current + PAGE_SIZE)}>
                 Add Next 10
               </button>
             ) : null}
@@ -1556,15 +1615,9 @@ function getOpenSupportOutcome(
                       {selected ? (
                         <>
                           <label style={labelStyle}>Support Status</label>
-                          <select
-                            className="db-input"
-                            value={supportLearnerStatuses[learnerId] || "new"}
-                            onChange={(e) => updateSelectedSupportStatus(learnerId, e.target.value)}
-                          >
+                          <select className="db-input" value={supportLearnerStatuses[learnerId] || "new"} onChange={(e) => updateSelectedSupportStatus(learnerId, e.target.value)}>
                             {supportStatuses.map((status) => (
-                              <option key={status.value} value={status.value}>
-                                {status.label}
-                              </option>
+                              <option key={status.value} value={status.value}>{status.label}</option>
                             ))}
                           </select>
                         </>
@@ -1576,12 +1629,7 @@ function getOpenSupportOutcome(
             )}
 
             {learners.length > learnerVisibleCount ? (
-              <button
-                type="button"
-                className="db-button-primary"
-                style={{ ...smallButton, marginTop: "10px" }}
-                onClick={() => setLearnerVisibleCount((current) => current + PAGE_SIZE)}
-              >
+              <button type="button" className="db-button-primary" style={{ ...smallButton, marginTop: "10px" }} onClick={() => setLearnerVisibleCount((current) => current + PAGE_SIZE)}>
                 Add Next 10 Learners
               </button>
             ) : null}
@@ -1596,12 +1644,7 @@ function getOpenSupportOutcome(
         ) : null}
       </details>
 
-      <details
-        className="db-card db-card-blue"
-        style={cardStyle}
-        open={isCompletedOpen}
-        onToggle={(e) => setIsCompletedOpen((e.target as HTMLDetailsElement).open)}
-      >
+      <details className="db-card db-card-blue" style={cardStyle} open={isCompletedOpen} onToggle={(e) => setIsCompletedOpen((e.target as HTMLDetailsElement).open)}>
         <summary style={summaryStyle}>Completed Activities ({completedPlans.length})</summary>
         <p style={smallHint}>Completed classroom activities are kept here so the working area stays clean.</p>
 
@@ -1620,12 +1663,7 @@ function getOpenSupportOutcome(
         )}
 
         {completedPlans.length > completedVisibleCount ? (
-          <button
-            type="button"
-            className="db-button-primary"
-            style={{ ...smallButton, marginTop: "10px" }}
-            onClick={() => setCompletedVisibleCount((current) => current + PAGE_SIZE)}
-          >
+          <button type="button" className="db-button-primary" style={{ ...smallButton, marginTop: "10px" }} onClick={() => setCompletedVisibleCount((current) => current + PAGE_SIZE)}>
             Add Next 10
           </button>
         ) : null}
@@ -1640,12 +1678,7 @@ function getOpenSupportOutcome(
             </p>
           </div>
 
-          <button
-            type="button"
-            className="db-button-primary"
-            style={smallButton}
-            onClick={() => setIsTrackerOpen(true)}
-          >
+          <button type="button" className="db-button-primary" style={smallButton} onClick={() => setIsTrackerOpen(true)}>
             Open Support Register
           </button>
         </div>
@@ -1673,12 +1706,7 @@ function getOpenSupportOutcome(
       </div>
 
       {canViewTracker ? (
-        <details
-          className="db-card db-card-lavender"
-          style={cardStyle}
-          open={isTrackerOpen}
-          onToggle={(e) => setIsTrackerOpen((e.target as HTMLDetailsElement).open)}
-        >
+        <details className="db-card db-card-lavender" style={cardStyle} open={isTrackerOpen} onToggle={(e) => setIsTrackerOpen((e.target as HTMLDetailsElement).open)}>
           <summary style={summaryStyle}>Support Register ({supportTrackerRows.length})</summary>
           <p style={smallHint}>Detailed learner support records from completed activities. Resolved cases are hidden by default.</p>
 
@@ -1720,14 +1748,7 @@ function getOpenSupportOutcome(
 
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
                     {supportStatuses.map((status) => (
-                      <button
-                        key={status.value}
-                        type="button"
-                        className="db-button-primary"
-                        style={smallButton}
-                        onClick={() => updateSupportStatus(item.id, status.value)}
-                        disabled={saving || supportStatusValue(item) === status.value}
-                      >
+                      <button key={status.value} type="button" className="db-button-primary" style={smallButton} onClick={() => updateSupportStatus(item.id, status.value)} disabled={saving || supportStatusValue(item) === status.value}>
                         {status.label}
                       </button>
                     ))}
@@ -1738,12 +1759,7 @@ function getOpenSupportOutcome(
           )}
 
           {supportTrackerRows.length > supportVisibleCount ? (
-            <button
-              type="button"
-              className="db-button-primary"
-              style={{ ...smallButton, marginTop: "10px" }}
-              onClick={() => setSupportVisibleCount((current) => current + PAGE_SIZE)}
-            >
+            <button type="button" className="db-button-primary" style={{ ...smallButton, marginTop: "10px" }} onClick={() => setSupportVisibleCount((current) => current + PAGE_SIZE)}>
               Add Next 10
             </button>
           ) : null}
@@ -1751,15 +1767,12 @@ function getOpenSupportOutcome(
       ) : null}
 
       {canManageLibrary ? (
-        <details
-          className="db-card db-card-yellow"
-          style={cardStyle}
-          open={isLibraryOpen}
-          onToggle={(e) => setIsLibraryOpen((e.target as HTMLDetailsElement).open)}
-        >
+        <details className="db-card db-card-yellow" style={cardStyle} open={isLibraryOpen} onToggle={(e) => setIsLibraryOpen((e.target as HTMLDetailsElement).open)}>
           <summary style={summaryStyle}>Activity Library ({activityLibrary.length})</summary>
 
-          <p style={smallHint}>Principals manage themes and activities. Teachers use the planner dropdowns only.</p>
+          <p style={smallHint}>
+            Teachers may create activities for their class. Principals can view and manage activities across the school.
+          </p>
 
           <div style={{ marginTop: "12px" }}>
             <button type="button" className="db-button-primary" style={{ width: "100%" }} onClick={() => { resetLibraryForm(); setShowLibraryForm((current) => !current); }}>
@@ -1775,7 +1788,7 @@ function getOpenSupportOutcome(
                   ))}
                 </select>
 
-                <input className="db-input" value={libraryTheme} onChange={(e) => setLibraryTheme(e.target.value)} placeholder="Theme, for example South Africa, Numbers, My Family" />
+                <input className="db-input" value={libraryTheme} onChange={(e) => setLibraryTheme(e.target.value)} placeholder="Theme, for example My Body, Weather, Transport" />
                 <input className="db-input" value={libraryActivityName} onChange={(e) => setLibraryActivityName(e.target.value)} placeholder="Activity name" />
                 <textarea className="db-input" value={libraryDescription} onChange={(e) => setLibraryDescription(e.target.value)} placeholder="Description" style={{ minHeight: "72px" }} />
 
@@ -1802,12 +1815,7 @@ function getOpenSupportOutcome(
           </div>
 
           {activityLibrary.length > libraryVisibleCount ? (
-            <button
-              type="button"
-              className="db-button-primary"
-              style={{ ...smallButton, marginTop: "10px" }}
-              onClick={() => setLibraryVisibleCount((current) => current + PAGE_SIZE)}
-            >
+            <button type="button" className="db-button-primary" style={{ ...smallButton, marginTop: "10px" }} onClick={() => setLibraryVisibleCount((current) => current + PAGE_SIZE)}>
               Add Next 10
             </button>
           ) : null}
@@ -1860,6 +1868,18 @@ function weekdaysFromMonday(mondayDate: string) {
     label,
     date: addDays(mondayDate, index),
   }));
+}
+
+function legacyAreaName(area: string) {
+  if (area === "Language") return "Language and Communication";
+  if (area === "Mathematics") return "Early Mathematics";
+  if (area === "Fine Motor") return "Fine Motor Development";
+  if (area === "Gross Motor") return "Gross Motor Development";
+  if (area === "Creative Art") return "Creative Development";
+  if (area === "Music & Movement") return "Music and Movement";
+  if (area === "Outdoor Play") return "Outdoor Play";
+  if (area === "Life Skills") return "Life Skills";
+  return area;
 }
 
 function supportStatusValue(item: any) {
@@ -1969,6 +1989,13 @@ const smallButton = {
   minHeight: "34px",
   padding: "8px 12px",
   fontSize: "12px",
+};
+
+const plannerActions = {
+  display: "flex",
+  gap: "8px",
+  flexWrap: "wrap" as const,
+  alignItems: "end",
 };
 
 const plannerRowStyle = {

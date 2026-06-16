@@ -70,12 +70,12 @@ type PlannerActivitySelection = {
   activity_library_id: string;
   activity_name: string;
   description: string;
+  developmental_area: string;
 };
 
 type PlannerRow = {
   dayLabel: string;
   activity_date: string;
-  developmental_area: string;
   theme: string;
   day_type: string;
   activities: PlannerActivitySelection[];
@@ -115,7 +115,6 @@ export default function ClassroomActivitiesPage() {
   const [activeClassroomId, setActiveClassroomId] = useState("");
   const [weekStart, setWeekStart] = useState(getMonday(new Date()));
   const [plannerRows, setPlannerRows] = useState<PlannerRow[]>([]);
-  const [themeOfWeek, setThemeOfWeek] = useState("");
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
 
   const [selectedTodayPlanId, setSelectedTodayPlanId] = useState<number | null>(null);
@@ -207,7 +206,9 @@ export default function ClassroomActivitiesPage() {
         );
       })
       .sort((a, b) =>
-        String(b.completed_at || b.activity_date).localeCompare(String(a.completed_at || a.activity_date))
+        String(b.completed_at || b.activity_date).localeCompare(
+          String(a.completed_at || a.activity_date)
+        )
       );
   }, [weeklyPlans, activeClassroomId]);
 
@@ -476,7 +477,6 @@ export default function ClassroomActivitiesPage() {
       .select("*")
       .eq("school_id", currentSchoolId)
       .order("theme", { ascending: true })
-      .order("developmental_area", { ascending: true })
       .order("activity_name", { ascending: true });
 
     if (error) {
@@ -562,22 +562,8 @@ export default function ClassroomActivitiesPage() {
     return Array.from(themeSet).sort();
   }
 
-  function themesForArea(area: string) {
-    const themeSet = new Set<string>();
-
-    activityLibrary.forEach((item) => {
-      if (item.developmental_area === area && item.theme) {
-        themeSet.add(item.theme);
-      }
-    });
-
-    return Array.from(themeSet).sort();
-  }
-
-  function activitiesForAreaAndTheme(area: string, selectedTheme: string) {
-    return activityLibrary.filter((item) => {
-      return item.developmental_area === area && item.theme === selectedTheme;
-    });
+  function activitiesForTheme(selectedTheme: string) {
+    return activityLibrary.filter((item) => item.theme === selectedTheme);
   }
 
   function buildPlannerRows() {
@@ -590,9 +576,7 @@ export default function ClassroomActivitiesPage() {
       });
 
       const firstExisting = existingPlans[0];
-      const fallbackArea = "Ring Time";
-      const fallbackTheme =
-        firstExisting?.theme || themeOfWeek || allThemes()[0] || "";
+      const fallbackTheme = firstExisting?.theme || allThemes()[0] || "";
 
       const existingActivities = existingPlans
         .filter((plan) => isTeachingDay(plan.day_type) && Boolean(plan.activity_library_id))
@@ -602,12 +586,12 @@ export default function ClassroomActivitiesPage() {
             : "",
           activity_name: plan.activity_name || "",
           description: plan.description || "",
+          developmental_area: plan.developmental_area || "Life Skills",
         }));
 
       return {
         dayLabel: day.label,
         activity_date: day.date,
-        developmental_area: firstExisting?.developmental_area || fallbackArea,
         theme: firstExisting?.theme || fallbackTheme,
         day_type: firstExisting?.day_type || "teaching_day",
         activities:
@@ -618,6 +602,7 @@ export default function ClassroomActivitiesPage() {
                   activity_library_id: "",
                   activity_name: "",
                   description: "",
+                  developmental_area: "",
                 },
               ],
       };
@@ -651,22 +636,7 @@ export default function ClassroomActivitiesPage() {
                 activity_library_id: "",
                 activity_name: "",
                 description: "",
-              },
-            ],
-          };
-        }
-
-        if (updates.developmental_area) {
-          const firstTheme = row.theme || themeOfWeek || allThemes()[0] || "";
-
-          updated = {
-            ...updated,
-            theme: firstTheme,
-            activities: [
-              {
-                activity_library_id: "",
-                activity_name: "",
-                description: "",
+                developmental_area: "",
               },
             ],
           };
@@ -680,6 +650,7 @@ export default function ClassroomActivitiesPage() {
                 activity_library_id: "",
                 activity_name: "",
                 description: "",
+                developmental_area: "",
               },
             ],
           };
@@ -706,6 +677,7 @@ export default function ClassroomActivitiesPage() {
             activity_library_id: libraryId,
             activity_name: selected?.activity_name || "",
             description: selected?.description || "",
+            developmental_area: selected?.developmental_area || "Life Skills",
           };
         });
 
@@ -736,6 +708,7 @@ export default function ClassroomActivitiesPage() {
               activity_library_id: "",
               activity_name: "",
               description: "",
+              developmental_area: "",
             },
           ],
         };
@@ -762,78 +735,12 @@ export default function ClassroomActivitiesPage() {
                     activity_library_id: "",
                     activity_name: "",
                     description: "",
+                    developmental_area: "",
                   },
                 ],
         };
       })
     );
-  }
-
-  function generateWeekFromTheme() {
-    if (!themeOfWeek) {
-      alert("Please select a theme of the week.");
-      return;
-    }
-
-    const themeActivities = activityLibrary.filter(
-      (item) => item.theme === themeOfWeek
-    );
-
-    if (themeActivities.length === 0) {
-      alert("No activities found for this theme.");
-      return;
-    }
-
-    const weekDays = weekdaysFromMonday(weekStart);
-
-    const areaPlan = [
-      ["Ring Time", "Language"],
-      ["Mathematics", "Fine Motor"],
-      ["Creative Art", "Music & Movement"],
-      ["Story Time", "Outdoor Play"],
-      ["Life Skills", "Gross Motor"],
-    ];
-
-    const rows = weekDays.map((day, index) => {
-      const areasForDay = areaPlan[index];
-
-      const selectedActivities = areasForDay
-        .map((area) => {
-          const activity =
-            themeActivities.find((item) => item.developmental_area === area) ||
-            themeActivities.find((item) => item.developmental_area === legacyAreaName(area));
-
-          if (!activity) return null;
-
-          return {
-            activity_library_id: String(activity.id),
-            activity_name: activity.activity_name,
-            description: activity.description || "",
-          };
-        })
-        .filter(Boolean) as PlannerActivitySelection[];
-
-      return {
-        dayLabel: day.label,
-        activity_date: day.date,
-        developmental_area: areasForDay[0],
-        theme: themeOfWeek,
-        day_type: "teaching_day",
-        activities:
-          selectedActivities.length > 0
-            ? selectedActivities
-            : [
-                {
-                  activity_library_id: "",
-                  activity_name: "",
-                  description: "",
-                },
-              ],
-      };
-    });
-
-    setPlannerRows(rows);
-    setIsPlannerOpen(true);
   }
 
   async function saveWeeklyPlan() {
@@ -850,6 +757,7 @@ export default function ClassroomActivitiesPage() {
             activity_library_id: "",
             activity_name: dayTypeLabel(row.day_type),
             description: "",
+            developmental_area: "Life Skills",
           },
         ];
       }
@@ -861,6 +769,7 @@ export default function ClassroomActivitiesPage() {
           activity_library_id: activity.activity_library_id,
           activity_name: activity.activity_name,
           description: activity.description,
+          developmental_area: activity.developmental_area || "Life Skills",
         }));
     });
 
@@ -890,7 +799,7 @@ export default function ClassroomActivitiesPage() {
       school_id: schoolId,
       classroom_id: Number(activeClassroomId),
       activity_date: row.activity_date,
-      developmental_area: row.developmental_area,
+      developmental_area: row.developmental_area || "Life Skills",
       theme: row.theme,
       activity_library_id: row.activity_library_id
         ? Number(row.activity_library_id)
@@ -1223,7 +1132,7 @@ export default function ClassroomActivitiesPage() {
 
   function startEditLibrary(item: ActivityLibraryItem) {
     setEditingLibraryId(item.id);
-    setLibraryArea(item.developmental_area);
+    setLibraryArea(item.developmental_area || "");
     setLibraryTheme(item.theme || "");
     setLibraryActivityName(item.activity_name);
     setLibraryDescription(item.description || "");
@@ -1238,10 +1147,13 @@ export default function ClassroomActivitiesPage() {
       return;
     }
 
-    if (!libraryArea || !libraryTheme || !libraryActivityName.trim() || !libraryDescription.trim()) {
-      alert("Please complete developmental area, theme, activity name and description.");
+    if (!libraryTheme || !libraryActivityName.trim() || !libraryDescription.trim()) {
+      alert("Please complete theme, activity name and description.");
       return;
     }
+
+    const backgroundArea =
+      libraryArea || inferDevelopmentalArea(libraryTheme, libraryActivityName, libraryDescription);
 
     setSaving(true);
 
@@ -1249,7 +1161,7 @@ export default function ClassroomActivitiesPage() {
       const { error } = await supabase
         .from("activity_library")
         .update({
-          developmental_area: libraryArea,
+          developmental_area: backgroundArea,
           theme: libraryTheme,
           activity_name: libraryActivityName.trim(),
           description: libraryDescription.trim(),
@@ -1266,7 +1178,7 @@ export default function ClassroomActivitiesPage() {
       const { error } = await supabase.from("activity_library").insert([
         {
           school_id: schoolId,
-          developmental_area: libraryArea,
+          developmental_area: backgroundArea,
           theme: libraryTheme,
           activity_name: libraryActivityName.trim(),
           description: libraryDescription.trim(),
@@ -1324,7 +1236,7 @@ export default function ClassroomActivitiesPage() {
       <div className="db-soft-card" style={{ padding: "18px 20px", marginBottom: "16px" }}>
         <h1 className="db-page-title">Classroom Activities</h1>
         <p className="db-page-subtitle">
-          Select a theme, generate the week, complete activities, and track learner support.
+          Plan each teaching day by choosing a theme and up to 3 activities. Learner support remains linked to each completed activity.
         </p>
 
         {schoolParam && schoolId ? (
@@ -1392,39 +1304,13 @@ export default function ClassroomActivitiesPage() {
           <div style={{ marginTop: "12px" }}>
             <div style={sectionHeader}>
               <div>
-                <h3 style={sectionTitle}>Theme-Based Weekly Planner</h3>
+                <h3 style={sectionTitle}>Daily Theme Planner</h3>
                 <p style={smallHint}>
-                  Select a theme of the week, generate activities, then edit any day if needed.
+                  For each teaching day, select a theme and choose up to 3 activities.
                 </p>
               </div>
 
               <div style={plannerActions}>
-                <div style={{ display: "grid", gap: "6px", minWidth: "220px" }}>
-                  <label style={labelStyle}>Theme of the Week</label>
-                  <select
-                    className="db-input"
-                    value={themeOfWeek}
-                    onChange={(e) => setThemeOfWeek(e.target.value)}
-                  >
-                    <option value="">Select theme</option>
-                    {allThemes().map((theme) => (
-                      <option key={theme} value={theme}>
-                        {theme}
-                      </option>
-                    ))}
-                  </select>
-
-                  <button
-                    type="button"
-                    className="db-button-primary"
-                    style={smallButton}
-                    onClick={generateWeekFromTheme}
-                    disabled={saving}
-                  >
-                    Generate Week
-                  </button>
-                </div>
-
                 <button type="button" className="db-button-primary" style={smallButton} onClick={copyPreviousWeek} disabled={saving}>
                   Copy Previous Week
                 </button>
@@ -1437,7 +1323,7 @@ export default function ClassroomActivitiesPage() {
 
             <div style={{ display: "grid", gap: "8px" }}>
               {plannerRows.map((row, index) => {
-                const rowLibrary = activitiesForAreaAndTheme(row.developmental_area, row.theme);
+                const rowLibrary = activitiesForTheme(row.theme);
 
                 return (
                   <div key={row.activity_date} style={plannerRowStyle}>
@@ -1454,12 +1340,6 @@ export default function ClassroomActivitiesPage() {
 
                     {isTeachingDay(row.day_type) ? (
                       <>
-                        <select className="db-input" value={row.developmental_area} onChange={(e) => updatePlannerRow(index, { developmental_area: e.target.value })}>
-                          {developmentalAreas.map((area) => (
-                            <option key={area} value={area}>{area}</option>
-                          ))}
-                        </select>
-
                         <select className="db-input" value={row.theme} onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}>
                           <option value="">Select theme</option>
                           {allThemes().map((themeItem) => (
@@ -1478,7 +1358,9 @@ export default function ClassroomActivitiesPage() {
                               >
                                 <option value="">No activity selected</option>
                                 {rowLibrary.map((item) => (
-                                  <option key={item.id} value={item.id}>{item.activity_name}</option>
+                                  <option key={item.id} value={item.id}>
+                                    {item.activity_name}
+                                  </option>
                                 ))}
                               </select>
 
@@ -1541,7 +1423,7 @@ export default function ClassroomActivitiesPage() {
                 }}
               >
                 <strong>{plan.activity_name}</strong>
-                <span style={smallHint}>{plan.developmental_area} | {plan.theme}</span>
+                <span style={smallHint}>{plan.theme}</span>
                 <span style={smallHint}>{plan.completed ? "Completed" : "Not completed yet"}</span>
               </button>
             ))}
@@ -1563,7 +1445,7 @@ export default function ClassroomActivitiesPage() {
                 <div key={plan.id} style={todayPlanButton}>
                   <strong>{plan.activity_name}</strong>
                   <span style={smallHint}>{formatDisplayDate(plan.activity_date)}</span>
-                  <span style={smallHint}>{plan.developmental_area} | {plan.theme}</span>
+                  <span style={smallHint}>{plan.theme}</span>
                   <span style={smallHint}>{plan.completed ? "Completed" : "Not completed yet"}</span>
                 </div>
               ))}
@@ -1582,7 +1464,7 @@ export default function ClassroomActivitiesPage() {
             <h4 style={subTitle}>Complete Activity</h4>
             <p style={textStyle}>{selectedTodayPlan.description || "No description added."}</p>
             <p style={smallHint}>
-              Development area is automatically captured from this activity: {selectedTodayPlan.developmental_area}.
+              Development focus is captured in the background: {selectedTodayPlan.developmental_area}.
             </p>
 
             <label style={labelStyle}>Select Learners Needing Support</label>
@@ -1655,7 +1537,7 @@ export default function ClassroomActivitiesPage() {
             {visibleCompletedPlans.map((plan) => (
               <div key={plan.id} className="db-list-card">
                 <strong>{plan.activity_name}</strong>
-                <p style={textStyle}>{formatDisplayDate(plan.activity_date)} | {plan.developmental_area} | {plan.theme}</p>
+                <p style={textStyle}>{formatDisplayDate(plan.activity_date)} | {plan.theme}</p>
                 <p style={smallHint}>Completed: {formatShortDate(plan.completed_at || plan.activity_date)}</p>
               </div>
             ))}
@@ -1771,7 +1653,7 @@ export default function ClassroomActivitiesPage() {
           <summary style={summaryStyle}>Activity Library ({activityLibrary.length})</summary>
 
           <p style={smallHint}>
-            Teachers may create activities for their class. Principals can view and manage activities across the school.
+            Teachers may create activities. Development focus is saved in the background for learner support tracking.
           </p>
 
           <div style={{ marginTop: "12px" }}>
@@ -1781,13 +1663,6 @@ export default function ClassroomActivitiesPage() {
 
             {showLibraryForm ? (
               <div style={{ marginTop: "12px" }}>
-                <select className="db-input" value={libraryArea} onChange={(e) => setLibraryArea(e.target.value)}>
-                  <option value="">Select developmental area</option>
-                  {developmentalAreas.map((area) => (
-                    <option key={area} value={area}>{area}</option>
-                  ))}
-                </select>
-
                 <input className="db-input" value={libraryTheme} onChange={(e) => setLibraryTheme(e.target.value)} placeholder="Theme, for example My Body, Weather, Transport" />
                 <input className="db-input" value={libraryActivityName} onChange={(e) => setLibraryActivityName(e.target.value)} placeholder="Activity name" />
                 <textarea className="db-input" value={libraryDescription} onChange={(e) => setLibraryDescription(e.target.value)} placeholder="Description" style={{ minHeight: "72px" }} />
@@ -1803,7 +1678,7 @@ export default function ClassroomActivitiesPage() {
             {visibleActivityLibrary.map((item) => (
               <div key={item.id} className="db-list-card">
                 <strong>{item.activity_name}</strong>
-                <p style={textStyle}>{item.developmental_area} | {item.theme || "No theme"}</p>
+                <p style={textStyle}>{item.theme || "No theme"}</p>
                 <p style={smallHint}>{item.description}</p>
 
                 <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
@@ -1870,16 +1745,42 @@ function weekdaysFromMonday(mondayDate: string) {
   }));
 }
 
-function legacyAreaName(area: string) {
-  if (area === "Language") return "Language and Communication";
-  if (area === "Mathematics") return "Early Mathematics";
-  if (area === "Fine Motor") return "Fine Motor Development";
-  if (area === "Gross Motor") return "Gross Motor Development";
-  if (area === "Creative Art") return "Creative Development";
-  if (area === "Music & Movement") return "Music and Movement";
-  if (area === "Outdoor Play") return "Outdoor Play";
-  if (area === "Life Skills") return "Life Skills";
-  return area;
+function inferDevelopmentalArea(theme: string, activityName: string, description: string) {
+  const text = `${theme} ${activityName} ${description}`.toLowerCase();
+
+  if (text.includes("count") || text.includes("number") || text.includes("sort") || text.includes("match") || text.includes("pattern") || text.includes("shape") || text.includes("sequence")) {
+    return "Mathematics";
+  }
+
+  if (text.includes("draw") || text.includes("art") || text.includes("paint") || text.includes("collage") || text.includes("create")) {
+    return "Creative Art";
+  }
+
+  if (text.includes("trace") || text.includes("pencil") || text.includes("cut") || text.includes("bead") || text.includes("build")) {
+    return "Fine Motor";
+  }
+
+  if (text.includes("move") || text.includes("run") || text.includes("jump") || text.includes("ball") || text.includes("obstacle")) {
+    return "Gross Motor";
+  }
+
+  if (text.includes("song") || text.includes("sing") || text.includes("sound") || text.includes("music")) {
+    return "Music & Movement";
+  }
+
+  if (text.includes("story") || text.includes("listen")) {
+    return "Story Time";
+  }
+
+  if (text.includes("outside") || text.includes("outdoor") || text.includes("walk") || text.includes("hunt")) {
+    return "Outdoor Play";
+  }
+
+  if (text.includes("discuss") || text.includes("talk") || text.includes("name") || text.includes("vocabulary") || text.includes("identify")) {
+    return "Language";
+  }
+
+  return "Life Skills";
 }
 
 function supportStatusValue(item: any) {
@@ -2000,7 +1901,7 @@ const plannerActions = {
 
 const plannerRowStyle = {
   display: "grid",
-  gridTemplateColumns: "110px minmax(150px, 0.8fr) minmax(170px, 1fr) minmax(170px, 1fr) minmax(230px, 1.4fr)",
+  gridTemplateColumns: "110px minmax(150px, 0.8fr) minmax(180px, 1fr) minmax(260px, 1.6fr)",
   gap: "8px",
   alignItems: "start",
   background: "#FFFDFB",

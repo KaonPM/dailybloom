@@ -166,6 +166,7 @@ export default function ProgressReportsPage() {
   const [showPeriodManagement, setShowPeriodManagement] = useState(false);
   const [showTeacherChecklist, setShowTeacherChecklist] = useState(false);
   const [showTeacherSavedReports, setShowTeacherSavedReports] = useState(false);
+  const [editingSavedChecklist, setEditingSavedChecklist] = useState(false);
   const [showAssessments, setShowAssessments] = useState(false);
   const [showGeneratedReports, setShowGeneratedReports] = useState(false);
 
@@ -273,6 +274,10 @@ export default function ProgressReportsPage() {
 
     fetchTeacherSavedRatings();
   }, [profile, selectedLearnerId, selectedPeriodId, reportType]);
+
+  useEffect(() => {
+    setEditingSavedChecklist(false);
+  }, [selectedLearnerId, selectedPeriodId, reportType]);
 
   async function loadPage() {
     const { profile, error } = await getCurrentProfile();
@@ -716,7 +721,7 @@ export default function ProgressReportsPage() {
     setTeacherReportPage(1);
   }
 
-  async function openTeacherReportSummary(item: any) {
+  async function openTeacherReportSummary(item: any, editMode = false) {
     setSelectedClassroomId(String(item.classroom_id || ""));
     setSelectedLearnerId(String(item.learner_id || ""));
     setSelectedPeriodId(String(item.report_period_id || ""));
@@ -725,6 +730,8 @@ export default function ProgressReportsPage() {
     );
     setShowFilter(true);
     setShowTeacherChecklist(true);
+    setShowTeacherSavedReports(true);
+    setEditingSavedChecklist(editMode);
 
     if (schoolId && profile?.id) {
       const { data, error } = await supabase
@@ -762,6 +769,51 @@ export default function ProgressReportsPage() {
       ...current,
       [makeAssessmentKey(categoryKey, indicatorKey)]: level,
     }));
+  }
+
+  async function submitTeacherSavedSummary(item: any) {
+    if (!schoolId || !profile?.id || !item?.learner_id || !item?.report_period_id) {
+      alert("Saved checklist could not be submitted.");
+      return;
+    }
+
+    const confirmed = confirm(
+      `Submit ${getLearnerName(item.learner_id)}'s checklist to the principal?`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("learner_assessments")
+      .update({
+        status: "submitted",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("school_id", schoolId)
+      .eq("teacher_id", profile.id)
+      .eq("learner_id", item.learner_id)
+      .eq("report_period_id", Number(item.report_period_id))
+      .eq("report_type", item.report_type || "developmental")
+      .in("status", ["draft", "submitted"]);
+
+    if (error) {
+      alert(error.message);
+      setSaving(false);
+      return;
+    }
+
+    await fetchTeacherSavedRatings();
+    await fetchTeacherReportSummaries(schoolId, profile.id);
+    await fetchAllAssessments(schoolId);
+
+    setShowTeacherChecklist(false);
+    setShowTeacherSavedReports(true);
+    setEditingSavedChecklist(false);
+    setSaving(false);
+
+    alert("Checklist submitted to principal.");
   }
 
   async function saveTeacherChecklist(status: "draft" | "submitted") {
@@ -889,6 +941,10 @@ export default function ProgressReportsPage() {
       await fetchTeacherReportSummaries(schoolId, profile.id);
     }
 
+    setShowTeacherChecklist(false);
+    setShowTeacherSavedReports(true);
+    setEditingSavedChecklist(false);
+
     setSaving(false);
     setTeacherSaveAction(null);
     alert(
@@ -991,6 +1047,7 @@ export default function ProgressReportsPage() {
     setAwardReason("");
 
     await fetchAwards(schoolId);
+    setShowAwards(true);
     setAwardPage(1);
 
     setSaving(false);
@@ -1431,6 +1488,14 @@ export default function ProgressReportsPage() {
   );
   const selectedTeacherReportStatus =
     selectedTeacherReportSummary?.status || "draft";
+  const selectedTeacherChecklistIsSaved = Boolean(selectedTeacherReportSummary);
+  const shouldShowFullTeacherChecklist =
+    !selectedTeacherChecklistIsSaved || editingSavedChecklist;
+  const teacherReportCanSubmit =
+    selectedTeacherChecklistIsSaved &&
+    !["submitted", "reviewed", "locked", "generated"].includes(
+      String(selectedTeacherReportStatus)
+    );
   const teacherReportIsLocked = [
     "reviewed",
     "locked",
@@ -2414,68 +2479,131 @@ export default function ProgressReportsPage() {
                 </p>
               ) : (
                 <>
-                  <TeacherChecklistCapture
-                    categories={activeCategories}
-                    ratingScale={activeRatingScale}
-                    teacherRatings={teacherRatings}
-                    onRatingChange={handleTeacherRatingChange}
-                    disabled={teacherReportIsLocked}
-                  />
+                  {selectedTeacherChecklistIsSaved && !shouldShowFullTeacherChecklist ? (
+                    <div className="db-list-card" style={{ marginTop: "14px" }}>
+                      <strong>{getLearnerName(selectedLearnerId)}</strong>
 
-                  {selectedTeacherReportSummary && (
-                    <p style={{ ...textStyle, marginTop: "12px" }}>
-                      Status:{" "}
-                      <span
-                        style={assessmentStatusStyle(selectedTeacherReportStatus)}
+                      <p style={textStyle}>
+                        Status:{" "}
+                        <span style={assessmentStatusStyle(selectedTeacherReportStatus)}>
+                          {formatAssessmentStatus(selectedTeacherReportStatus)}
+                        </span>
+                      </p>
+
+                      <p style={textStyle}>
+                        {getPeriodTitle(selectedPeriodId)}
+                      </p>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                          marginTop: "12px",
+                        }}
                       >
-                        {formatAssessmentStatus(selectedTeacherReportStatus)}
-                      </span>
-                    </p>
+                        <button
+                          className="db-button-primary"
+                          onClick={() => setEditingSavedChecklist(true)}
+                          disabled={teacherReportIsLocked}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          className="db-button-primary"
+                          onClick={() => setEditingSavedChecklist(true)}
+                        >
+                          View
+                        </button>
+
+                        {teacherReportCanSubmit ? (
+                          <button
+                            className="db-button-primary"
+                            onClick={() => submitTeacherSavedSummary(selectedTeacherReportSummary)}
+                            disabled={saving}
+                          >
+                            Submit to Principal
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <TeacherChecklistCapture
+                        categories={activeCategories}
+                        ratingScale={activeRatingScale}
+                        teacherRatings={teacherRatings}
+                        onRatingChange={handleTeacherRatingChange}
+                        disabled={teacherReportIsLocked}
+                      />
+
+                      {selectedTeacherReportSummary && (
+                        <p style={{ ...textStyle, marginTop: "12px" }}>
+                          Status:{" "}
+                          <span
+                            style={assessmentStatusStyle(selectedTeacherReportStatus)}
+                          >
+                            {formatAssessmentStatus(selectedTeacherReportStatus)}
+                          </span>
+                        </p>
+                      )}
+
+                      <textarea
+                        className="db-input"
+                        rows={3}
+                        placeholder="Practitioner remarks"
+                        value={teacherObservation}
+                        disabled={teacherReportIsLocked}
+                        onChange={(event) => {
+                          setTeacherObservation(event.target.value);
+                          setTeacherComment(event.target.value);
+                        }}
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          marginTop: "14px",
+                        }}
+                      />
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                          marginTop: "12px",
+                        }}
+                      >
+                        <button
+                          className="db-button-primary"
+                          onClick={() => saveTeacherChecklist("draft")}
+                          disabled={saving || teacherReportIsLocked}
+                        >
+                          {teacherSaveAction === "draft" ? "Saving..." : "Save Draft"}
+                        </button>
+
+                        <button
+                          className="db-button-primary"
+                          onClick={() => saveTeacherChecklist("submitted")}
+                          disabled={saving || teacherReportIsLocked}
+                        >
+                          {teacherSaveAction === "submitted"
+                            ? "Submitting..."
+                            : "Submit to Principal"}
+                        </button>
+
+                        {selectedTeacherChecklistIsSaved ? (
+                          <button
+                            className="db-button-primary"
+                            style={{ background: "#777" }}
+                            onClick={() => setEditingSavedChecklist(false)}
+                          >
+                            Collapse
+                          </button>
+                        ) : null}
+                      </div>
+                    </>
                   )}
-
-                  <textarea
-                    className="db-input"
-                    rows={3}
-                    placeholder="Practitioner remarks"
-                    value={teacherObservation}
-                    disabled={teacherReportIsLocked}
-                    onChange={(event) => {
-                      setTeacherObservation(event.target.value);
-                      setTeacherComment(event.target.value);
-                    }}
-                    style={{
-                      width: "100%",
-                      boxSizing: "border-box",
-                      marginTop: "14px",
-                    }}
-                  />
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "10px",
-                      flexWrap: "wrap",
-                      marginTop: "12px",
-                    }}
-                  >
-                    <button
-                      className="db-button-primary"
-                      onClick={() => saveTeacherChecklist("draft")}
-                      disabled={saving || teacherReportIsLocked}
-                    >
-                      {teacherSaveAction === "draft" ? "Saving..." : "Save Draft"}
-                    </button>
-
-                    <button
-                      className="db-button-primary"
-                      onClick={() => saveTeacherChecklist("submitted")}
-                      disabled={saving || teacherReportIsLocked}
-                    >
-                      {teacherSaveAction === "submitted"
-                        ? "Submitting..."
-                        : "Submit to Principal"}
-                    </button>
-                  </div>
                 </>
               )}
             </div>
@@ -2514,32 +2642,77 @@ export default function ProgressReportsPage() {
                         "locked",
                         "generated",
                       ].includes(status);
+                      const canSubmitSaved = ![
+                        "submitted",
+                        "reviewed",
+                        "locked",
+                        "generated",
+                      ].includes(status);
 
                       return (
                         <div
                           key={`${item.learner_id}-${item.report_period_id}-${item.report_type}`}
                           className="db-list-card"
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: "10px",
-                            padding: "10px 12px",
-                          }}
+                          style={{ padding: "12px" }}
                         >
-                          <strong>{getLearnerName(item.learner_id)}</strong>
-
-                          <button
-                            className="db-button-primary"
+                          <div
                             style={{
-                              minHeight: "38px",
-                              padding: "8px 14px",
-                              ...(isLocked ? { background: "#777" } : {}),
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: "10px",
+                              flexWrap: "wrap",
                             }}
-                            onClick={() => openTeacherReportSummary(item)}
                           >
-                            {isLocked ? "View" : "Edit"}
-                          </button>
+                            <div>
+                              <strong>{getLearnerName(item.learner_id)}</strong>
+                              <p style={textStyle}>{getPeriodTitle(item.report_period_id)}</p>
+                              <span style={assessmentStatusStyle(status)}>
+                                {formatAssessmentStatus(status)}
+                              </span>
+                            </div>
+
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "8px",
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              {!isLocked ? (
+                                <button
+                                  className="db-button-primary"
+                                  style={{ minHeight: "38px", padding: "8px 14px" }}
+                                  onClick={() => openTeacherReportSummary(item, true)}
+                                >
+                                  Edit
+                                </button>
+                              ) : null}
+
+                              <button
+                                className="db-button-primary"
+                                style={{
+                                  minHeight: "38px",
+                                  padding: "8px 14px",
+                                  ...(isLocked ? { background: "#777" } : {}),
+                                }}
+                                onClick={() => openTeacherReportSummary(item, false)}
+                              >
+                                View
+                              </button>
+
+                              {canSubmitSaved ? (
+                                <button
+                                  className="db-button-primary"
+                                  style={{ minHeight: "38px", padding: "8px 14px" }}
+                                  onClick={() => submitTeacherSavedSummary(item)}
+                                  disabled={saving}
+                                >
+                                  Submit to Principal
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
@@ -2956,6 +3129,22 @@ export default function ProgressReportsPage() {
                 </button>
               </div>
             </div>
+
+            <h4
+              style={{
+                marginTop: "24px",
+                marginBottom: "12px",
+                fontSize: "18px",
+                fontWeight: 800,
+                color: "var(--db-text)",
+              }}
+            >
+              Generated Achievement Awards
+            </h4>
+
+            {filteredAwards.length === 0 ? (
+              <p className="db-helper">No generated achievement awards yet.</p>
+            ) : null}
 
             <div
               style={{

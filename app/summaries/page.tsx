@@ -422,9 +422,15 @@ Thank you.`;
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  if (loading) {
-    return <p>Loading summaries...</p>;
+  if (loading || !schoolId) {
+    return (
+      <div style={{ padding: 20 }}>
+        <p>Loading summaries...</p>
+      </div>
+    );
   }
+
+  console.log("Daily Summaries School ID:", schoolId);
 
   return (
     <SubscriptionGuard schoolId={schoolId} featureKey="daily_summaries">

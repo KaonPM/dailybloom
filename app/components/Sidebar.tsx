@@ -340,9 +340,15 @@ export default function Sidebar() {
     ]);
 
     setFilteredQuickActionsNav(allowedQuickActions);
-    setFilteredTeacherQuickActionsNav(allowedTeacherQuickActions);
     setFilteredSchoolManagementNav(allowedSchoolManagement);
+
+    if (currentProfile.role === "teacher") {
+    setFilteredTeacherQuickActionsNav(teacherQuickActionsNav);
+    setFilteredTeacherSchoolManagementNav(teacherSchoolManagementNav);
+    } else {
+    setFilteredTeacherQuickActionsNav(allowedTeacherQuickActions);
     setFilteredTeacherSchoolManagementNav(allowedTeacherManagement);
+    }
 
     if (!schoolId || Number.isNaN(schoolId)) {
       setSchool(null);
@@ -379,11 +385,11 @@ export default function Sidebar() {
   const showSchoolActions = Boolean(school) || !isMaster;
 
   useEffect(() => {
-    if (isTeacher) {
-      setQuickActionsOpen(true);
-      setSchoolManagementOpen(false);
-    }
-  }, [isTeacher]);
+  if (isTeacher) {
+    setQuickActionsOpen(true);
+    setSchoolManagementOpen(true);
+  }
+}, [isTeacher]);
 
   const isBloomElite =
     String(subscriptionPlan || school?.package_name || "")

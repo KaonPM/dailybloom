@@ -51,11 +51,14 @@ type DocumentRow = {
   file_url?: string | null;
 };
 
+function normalizeName(value?: string | null) {
+  return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 export default function LearnerRequirementsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const schoolParam = searchParams.get("school");
-
 
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [learners, setLearners] = useState<LearnerRow[]>([]);
@@ -223,9 +226,11 @@ export default function LearnerRequirementsPage() {
   }, [requirementItems, selectedClassroomId]);
 
   const selectedAgeGroups = selectedClassroom?.age_groups || [];
+
   const hasZeroToTwo = selectedAgeGroups.some(
     (group) => group === "0-1 Years" || group === "1-2 Years"
   );
+
   const hasTwoToSix = selectedAgeGroups.some(
     (group) =>
       group === "2-3 Years" ||
@@ -233,6 +238,7 @@ export default function LearnerRequirementsPage() {
       group === "4-5 Years" ||
       group === "5-6 Years"
   );
+
   const recommendedTemplateKeys: TemplateKey[] =
     hasZeroToTwo && hasTwoToSix
       ? ["0_2", "2_6"]
@@ -267,23 +273,51 @@ export default function LearnerRequirementsPage() {
 
   const learnerChecklistOverview = classLearners.map((learner) => {
     const learnerChecklist = checklist.filter(
-      (item) => item.learner_id === learner.id
+      (item) =>
+        item.learner_id === learner.id &&
+        String(item.classroom_id || "") === selectedClassroomId
     );
+
+    const uniqueLearnerChecklistMap = new Map<string, ChecklistRow>();
+
+    learnerChecklist.forEach((item) => {
+      const key = normalizeName(item.item_name);
+
+      if (!key) return;
+
+      const existingItem = uniqueLearnerChecklistMap.get(key);
+
+      if (!existingItem) {
+        uniqueLearnerChecklistMap.set(key, item);
+        return;
+      }
+
+      if (!existingItem.received && item.received) {
+        uniqueLearnerChecklistMap.set(key, item);
+      }
+    });
+
+    const uniqueLearnerChecklist = Array.from(uniqueLearnerChecklistMap.values());
+
     const receivedStationeryCount = stationeryRequirements.filter((requirement) => {
-      return learnerChecklist.some(
-        (item) =>
-          Number(item.stationery_item_id) === Number(requirement.id) &&
-          item.received === true
+      const requirementName = normalizeName(requirement.item_name);
+
+      return uniqueLearnerChecklist.some(
+        (item) => item.received === true && normalizeName(item.item_name) === requirementName
       );
     }).length;
+
     const uploadedDocumentCount = documentRequirements.filter((requirement) => {
+      const requirementName = normalizeName(requirement.item_name);
+
       return documents.some(
         (document) =>
           document.learner_id === learner.id &&
-          document.document_type === requirement.item_name &&
-          document.file_url
+          normalizeName(document.document_type) === requirementName &&
+          Boolean(document.file_url)
       );
     }).length;
+
     const receivedCount = receivedStationeryCount + uploadedDocumentCount;
     const totalCount = stationeryRequirements.length + documentRequirements.length;
     const outstandingCount = Math.max(totalCount - receivedCount, 0);
@@ -303,6 +337,7 @@ export default function LearnerRequirementsPage() {
     (total, item) => total + item.receivedCount,
     0
   );
+
   const classOutstandingItems = learnerChecklistOverview.reduce(
     (total, item) => total + item.outstandingCount,
     0
@@ -355,205 +390,200 @@ export default function LearnerRequirementsPage() {
           ) : null}
         </div>
 
-            {selectedClassroomId ? (
-              <div
-                className="db-card db-card-blue"
-                style={{ padding: 16, marginBottom: 18 }}
-              >
-                <h3 style={sectionTitle}>Required Stationery</h3>
+        {selectedClassroomId ? (
+          <div
+            className="db-card db-card-blue"
+            style={{ padding: 16, marginBottom: 18 }}
+          >
+            <h3 style={sectionTitle}>Required Stationery</h3>
 
-                {stationeryRequirements.length === 0 ? (
-                  <p className="db-helper">
-                    No stationery requirements loaded for this class yet.
-                  </p>
-                ) : (
-                  <div style={{ display: "grid", gap: 8 }}>
-                    {stationeryRequirements.map((item) => (
-                      <div key={item.id} style={checklistRow}>
-                        <div style={checkArea}>
-                          <span style={checkboxIcon}>☐</span>
+            {stationeryRequirements.length === 0 ? (
+              <p className="db-helper">
+                No stationery requirements loaded for this class yet.
+              </p>
+            ) : (
+              <div style={{ display: "grid", gap: 8 }}>
+                {stationeryRequirements.map((item) => (
+                  <div key={item.id} style={checklistRow}>
+                    <div style={checkArea}>
+                      <span style={checkboxIcon}>☐</span>
 
-                          <div>
-                            <strong>{item.item_name}</strong>
-                            <p style={smallText}>
-                              {item.quantity || "No quantity"} -{" "}
-                              {item.category || "Other"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <button
-                          className="db-button-secondary"
-                          style={smallButton}
-                          onClick={() => deleteRequirementItem(item.id)}
-                        >
-                          Delete
-                        </button>
+                      <div>
+                        <strong>{item.item_name}</strong>
+                        <p style={smallText}>
+                          {item.quantity || "No quantity"} -{" "}
+                          {item.category || "Other"}
+                        </p>
                       </div>
-                    ))}
+                    </div>
+
+                    <button
+                      className="db-button-secondary"
+                      style={smallButton}
+                      onClick={() => deleteRequirementItem(item.id)}
+                    >
+                      Delete
+                    </button>
                   </div>
-                )}
+                ))}
               </div>
-            ) : null}
+            )}
+          </div>
+        ) : null}
 
-            {selectedClassroomId ? (
-              <div
-                className="db-card db-card-yellow"
-                style={{ padding: 16, marginBottom: 18 }}
-              >
-                <h3 style={sectionTitle}>Required Documents</h3>
+        {selectedClassroomId ? (
+          <div
+            className="db-card db-card-yellow"
+            style={{ padding: 16, marginBottom: 18 }}
+          >
+            <h3 style={sectionTitle}>Required Documents</h3>
 
-                {documentRequirements.length === 0 ? (
-                  <p className="db-helper">
-                    No document requirements loaded for this class yet.
-                  </p>
-                ) : (
-                  <div style={{ display: "grid", gap: 8 }}>
-                    {documentRequirements.map((item) => (
-                      <div key={item.id} style={checklistRow}>
-                        <div style={checkArea}>
-                          <span style={checkboxIcon}>☐</span>
+            {documentRequirements.length === 0 ? (
+              <p className="db-helper">
+                No document requirements loaded for this class yet.
+              </p>
+            ) : (
+              <div style={{ display: "grid", gap: 8 }}>
+                {documentRequirements.map((item) => (
+                  <div key={item.id} style={checklistRow}>
+                    <div style={checkArea}>
+                      <span style={checkboxIcon}>☐</span>
 
-                          <div>
-                            <strong>{item.item_name}</strong>
-                            <p style={smallText}>
-                              {item.quantity || "No quantity"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <button
-                          className="db-button-secondary"
-                          style={smallButton}
-                          onClick={() => deleteRequirementItem(item.id)}
-                        >
-                          Delete
-                        </button>
+                      <div>
+                        <strong>{item.item_name}</strong>
+                        <p style={smallText}>{item.quantity || "No quantity"}</p>
                       </div>
-                    ))}
+                    </div>
+
+                    <button
+                      className="db-button-secondary"
+                      style={smallButton}
+                      onClick={() => deleteRequirementItem(item.id)}
+                    >
+                      Delete
+                    </button>
                   </div>
-                )}
+                ))}
               </div>
-            ) : null}
+            )}
+          </div>
+        ) : null}
 
-            {selectedClassroomId ? (
-              <div
-                className="db-card db-card-lavender"
-                style={{ padding: 16, marginBottom: 18 }}
-              >
-                <h3 style={sectionTitle}>Class Progress Summary</h3>
+        {selectedClassroomId ? (
+          <div
+            className="db-card db-card-lavender"
+            style={{ padding: 16, marginBottom: 18 }}
+          >
+            <h3 style={sectionTitle}>Class Progress Summary</h3>
 
-                <div style={summaryGrid}>
-                  <div style={summaryCard}>
-                    <strong>Total Learners</strong>
-                    <p style={summaryNumber}>{classLearners.length}</p>
-                  </div>
-
-                  <div style={summaryCard}>
-                    <strong>Total Completed Items</strong>
-                    <p style={summaryNumber}>{classCompletedItems}</p>
-                  </div>
-
-                  <div style={summaryCard}>
-                    <strong>Total Outstanding Items</strong>
-                    <p style={summaryNumber}>{classOutstandingItems}</p>
-                  </div>
-                </div>
+            <div style={summaryGrid}>
+              <div style={summaryCard}>
+                <strong>Total Learners</strong>
+                <p style={summaryNumber}>{classLearners.length}</p>
               </div>
-            ) : null}
 
-            {selectedClassroomId ? (
-              <div
-                className="db-card db-card-green"
-                style={{ padding: 16, marginBottom: 18 }}
-              >
-                <h3 style={sectionTitle}>Learner Checklist Overview</h3>
+              <div style={summaryCard}>
+                <strong>Total Completed Items</strong>
+                <p style={summaryNumber}>{classCompletedItems}</p>
+              </div>
 
-                {learnerChecklistOverview.length === 0 ? (
-                  <p className="db-helper">No learners found in this class.</p>
-                ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {learnerChecklistOverview.map((item) => (
-                      <div key={item.learner.id} style={categoryBox}>
-                        <div style={learnerProgressHeader}>
-                          <div>
-                            <strong>
-                              {item.learner.name || "Unnamed learner"}
-                            </strong>
-                            <p style={smallText}>
-                              Received: {item.receivedCount} / {item.totalCount} -{" "}
-                              Outstanding: {item.outstandingCount}
-                            </p>
-                          </div>
+              <div style={summaryCard}>
+                <strong>Total Outstanding Items</strong>
+                <p style={summaryNumber}>{classOutstandingItems}</p>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
-                          <Link
-                            href={learnerProfileHref(item.learner.id)}
-                            className="db-button-secondary"
-                            style={linkButton}
-                          >
-                            View Learner
-                          </Link>
-                        </div>
+        {selectedClassroomId ? (
+          <div
+            className="db-card db-card-green"
+            style={{ padding: 16, marginBottom: 18 }}
+          >
+            <h3 style={sectionTitle}>Learner Checklist Overview</h3>
 
-                        <div style={progressBar}>
-                          <div
-                            style={{
-                              ...progressFill,
-                              width: `${item.progress}%`,
-                            }}
-                          />
-                        </div>
+            {learnerChecklistOverview.length === 0 ? (
+              <p className="db-helper">No learners found in this class.</p>
+            ) : (
+              <div style={{ display: "grid", gap: 10 }}>
+                {learnerChecklistOverview.map((item) => (
+                  <div key={item.learner.id} style={categoryBox}>
+                    <div style={learnerProgressHeader}>
+                      <div>
+                        <strong>{item.learner.name || "Unnamed learner"}</strong>
+                        <p style={smallText}>
+                          Received: {item.receivedCount} / {item.totalCount} -{" "}
+                          Outstanding: {item.outstandingCount}
+                        </p>
                       </div>
-                    ))}
+
+                      <Link
+                        href={learnerProfileHref(item.learner.id)}
+                        className="db-button-secondary"
+                        style={linkButton}
+                      >
+                        View Learner
+                      </Link>
+                    </div>
+
+                    <div style={progressBar}>
+                      <div
+                        style={{
+                          ...progressFill,
+                          width: `${item.progress}%`,
+                        }}
+                      />
+                    </div>
                   </div>
-                )}
+                ))}
               </div>
-            ) : null}
+            )}
+          </div>
+        ) : null}
 
-            {selectedClassroomId ? (
-              <div
-                className="db-card db-card-lavender"
-                style={{ padding: 16, marginBottom: 18 }}
+        {selectedClassroomId ? (
+          <div
+            className="db-card db-card-lavender"
+            style={{ padding: 16, marginBottom: 18 }}
+          >
+            <h3 style={sectionTitle}>Add Extra Requirement</h3>
+
+            <div style={filterGrid}>
+              <input
+                className="db-input"
+                placeholder="Item name, e.g. Toilet Rolls"
+                value={newItemName}
+                onChange={(e) => setNewItemName(e.target.value)}
+              />
+
+              <input
+                className="db-input"
+                placeholder="Quantity, e.g. 10x"
+                value={newQuantity}
+                onChange={(e) => setNewQuantity(e.target.value)}
+              />
+
+              <select
+                className="db-input"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
               >
-                <h3 style={sectionTitle}>Add Extra Requirement</h3>
+                <option value="Document">Document</option>
+                <option value="Stationery">Stationery</option>
+                <option value="Hygiene">Hygiene</option>
+                <option value="Other">Other</option>
+              </select>
 
-                <div style={filterGrid}>
-                  <input
-                    className="db-input"
-                    placeholder="Item name, e.g. Toilet Rolls"
-                    value={newItemName}
-                    onChange={(e) => setNewItemName(e.target.value)}
-                  />
-
-                  <input
-                    className="db-input"
-                    placeholder="Quantity, e.g. 10x"
-                    value={newQuantity}
-                    onChange={(e) => setNewQuantity(e.target.value)}
-                  />
-
-                  <select
-                    className="db-input"
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                  >
-                    <option value="Document">Document</option>
-                    <option value="Stationery">Stationery</option>
-                    <option value="Hygiene">Hygiene</option>
-                    <option value="Other">Other</option>
-                  </select>
-
-                  <button
-                    className="db-button-primary"
-                    onClick={addRequirementItem}
-                    disabled={savingItem}
-                  >
-                    {savingItem ? "Adding..." : "Add Requirement"}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
+              <button
+                className="db-button-primary"
+                onClick={addRequirementItem}
+                disabled={savingItem}
+              >
+                {savingItem ? "Adding..." : "Add Requirement"}
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </SubscriptionGuard>
   );

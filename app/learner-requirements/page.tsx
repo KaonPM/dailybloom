@@ -30,6 +30,8 @@ type ChecklistRow = {
   stationery_item_id?: number | null;
   item_name: string;
   quantity?: string | null;
+  required_quantity?: number | null;
+  received_quantity?: number | null;
   received?: boolean | null;
   received_at?: string | null;
 };
@@ -55,6 +57,109 @@ function normalizeName(value?: string | null) {
   return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function parseRequiredQuantity(value?: string | null) {
+  if (!value) return 1;
+
+  const match = value.match(/\d+/);
+  if (!match) return 1;
+
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+const GLOBAL_REQUIREMENT_ITEMS: RequirementItemRow[] = [
+  {
+    id: -1001,
+    school_id: 0,
+    classroom_id: 0,
+    item_name: "Birth Certificate",
+    quantity: "1 copy",
+    category: "Document",
+    is_active: true,
+  },
+  {
+    id: -1002,
+    school_id: 0,
+    classroom_id: 0,
+    item_name: "Parent / Guardian ID Copy",
+    quantity: "1 copy",
+    category: "Document",
+    is_active: true,
+  },
+  {
+    id: -1003,
+    school_id: 0,
+    classroom_id: 0,
+    item_name: "Clinic Card / Immunisation Record",
+    quantity: "1 copy",
+    category: "Document",
+    is_active: true,
+  },
+  {
+    id: -1004,
+    school_id: 0,
+    classroom_id: 0,
+    item_name: "Proof of Address",
+    quantity: "1 copy",
+    category: "Document",
+    is_active: true,
+  },
+  {
+    id: -2001,
+    school_id: 0,
+    classroom_id: 0,
+    item_name: "Pencils",
+    quantity: "4",
+    category: "Stationery",
+    is_active: true,
+  },
+  {
+    id: -2002,
+    school_id: 0,
+    classroom_id: 0,
+    item_name: "Crayons",
+    quantity: "1 pack",
+    category: "Stationery",
+    is_active: true,
+  },
+  {
+    id: -2003,
+    school_id: 0,
+    classroom_id: 0,
+    item_name: "Glue Stick",
+    quantity: "2",
+    category: "Stationery",
+    is_active: true,
+  },
+  {
+    id: -2004,
+    school_id: 0,
+    classroom_id: 0,
+    item_name: "A4 Exercise Book",
+    quantity: "2",
+    category: "Stationery",
+    is_active: true,
+  },
+  {
+    id: -2005,
+    school_id: 0,
+    classroom_id: 0,
+    item_name: "Tissues",
+    quantity: "2 boxes",
+    category: "Hygiene",
+    is_active: true,
+  },
+  {
+    id: -2006,
+    school_id: 0,
+    classroom_id: 0,
+    item_name: "Wet Wipes",
+    quantity: "2 packs",
+    category: "Hygiene",
+    is_active: true,
+  },
+];
+
 export default function LearnerRequirementsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -74,6 +179,7 @@ export default function LearnerRequirementsPage() {
 
   const [loading, setLoading] = useState(true);
   const [savingItem, setSavingItem] = useState(false);
+  const [savingQuantityKey, setSavingQuantityKey] = useState("");
 
   useEffect(() => {
     loadPage();
@@ -117,7 +223,7 @@ export default function LearnerRequirementsPage() {
       supabase
         .from("learner_stationery_checklist")
         .select(
-          "id, learner_id, classroom_id, stationery_item_id, item_name, quantity, received, received_at"
+          "id, learner_id, classroom_id, stationery_item_id, item_name, quantity, required_quantity, received_quantity, received, received_at"
         )
         .eq("school_id", context.schoolId)
         .order("item_name", { ascending: true }),
@@ -183,6 +289,8 @@ export default function LearnerRequirementsPage() {
   }
 
   async function deleteRequirementItem(itemId: number) {
+    if (itemId < 0) return;
+
     const confirmed = confirm("Delete this requirement from the requirements list?");
     if (!confirmed) return;
 
@@ -196,10 +304,88 @@ export default function LearnerRequirementsPage() {
     await loadPage();
   }
 
+  async function updateLearnerQuantity(
+    learner: LearnerRow,
+    requirement: RequirementItemRow,
+    receivedQuantityValue: string
+  ) {
+    if (!schoolId) return alert("School not found.");
+    if (!selectedClassroomId) return alert("Please select a class first.");
+
+    const requiredQuantity = parseRequiredQuantity(requirement.quantity);
+    const receivedQuantity = Math.max(
+      0,
+      Math.min(Number(receivedQuantityValue || 0), requiredQuantity)
+    );
+
+    const isFullyReceived = receivedQuantity >= requiredQuantity;
+    const normalizedRequirementName = normalizeName(requirement.item_name);
+
+    const existingItem = checklist.find(
+      (item) =>
+        item.learner_id === learner.id &&
+        String(item.classroom_id || "") === selectedClassroomId &&
+        normalizeName(item.item_name) === normalizedRequirementName
+    );
+
+    const savingKey = `${learner.id}-${requirement.id}`;
+    setSavingQuantityKey(savingKey);
+
+    if (existingItem) {
+      const { error } = await supabase
+        .from("learner_stationery_checklist")
+        .update({
+          quantity: requirement.quantity || String(requiredQuantity),
+          required_quantity: requiredQuantity,
+          received_quantity: receivedQuantity,
+          received: isFullyReceived,
+          received_at: isFullyReceived ? new Date().toISOString() : null,
+        })
+        .eq("id", existingItem.id);
+
+      setSavingQuantityKey("");
+
+      if (error) return alert(error.message);
+
+      await loadPage();
+      return;
+    }
+
+    const { error } = await supabase.from("learner_stationery_checklist").insert([
+      {
+        school_id: schoolId,
+        learner_id: learner.id,
+        classroom_id: Number(selectedClassroomId),
+        stationery_item_id: requirement.id > 0 ? requirement.id : null,
+        item_name: requirement.item_name,
+        quantity: requirement.quantity || String(requiredQuantity),
+        required_quantity: requiredQuantity,
+        received_quantity: receivedQuantity,
+        received: isFullyReceived,
+        received_at: isFullyReceived ? new Date().toISOString() : null,
+      },
+    ]);
+
+    setSavingQuantityKey("");
+
+    if (error) return alert(error.message);
+
+    await loadPage();
+  }
+
   function learnerProfileHref(learnerId: string) {
     return schoolParam
       ? `/children/${learnerId}?school=${schoolParam}`
       : `/children/${learnerId}`;
+  }
+
+  function getLearnerChecklistItem(learnerId: string, requirementName: string) {
+    return checklist.find(
+      (item) =>
+        item.learner_id === learnerId &&
+        String(item.classroom_id || "") === selectedClassroomId &&
+        normalizeName(item.item_name) === normalizeName(requirementName)
+    );
   }
 
   const selectedClassroom = useMemo(() => {
@@ -220,9 +406,27 @@ export default function LearnerRequirementsPage() {
   const selectedClassRequirements = useMemo(() => {
     if (!selectedClassroomId) return [];
 
-    return requirementItems.filter(
+    const schoolSpecificItems = requirementItems.filter(
       (item) => String(item.classroom_id) === selectedClassroomId
     );
+
+    const mergedMap = new Map<string, RequirementItemRow>();
+
+    GLOBAL_REQUIREMENT_ITEMS.forEach((item) => {
+      mergedMap.set(
+        `${normalizeName(item.category)}-${normalizeName(item.item_name)}`,
+        item
+      );
+    });
+
+    schoolSpecificItems.forEach((item) => {
+      mergedMap.set(
+        `${normalizeName(item.category)}-${normalizeName(item.item_name)}`,
+        item
+      );
+    });
+
+    return Array.from(mergedMap.values());
   }, [requirementItems, selectedClassroomId]);
 
   const selectedAgeGroups = selectedClassroom?.age_groups || [];
@@ -256,7 +460,7 @@ export default function LearnerRequirementsPage() {
 
   const assignedStationeryTemplate =
     assignedTemplateKeys.length === 0
-      ? "No template assigned"
+      ? "DailyBloom Standard Requirements"
       : assignedTemplateKeys
           .map((key) =>
             key === "0_2" ? "0-2 Years Template" : "2-6 Years Template"
@@ -272,40 +476,27 @@ export default function LearnerRequirementsPage() {
   );
 
   const learnerChecklistOverview = classLearners.map((learner) => {
-    const learnerChecklist = checklist.filter(
-      (item) =>
-        item.learner_id === learner.id &&
-        String(item.classroom_id || "") === selectedClassroomId
+    const stationeryTotals = stationeryRequirements.reduce(
+      (totals, requirement) => {
+        const requiredQuantity = parseRequiredQuantity(requirement.quantity);
+        const checklistItem = getLearnerChecklistItem(
+          learner.id,
+          requirement.item_name
+        );
+
+        const receivedQuantity = Math.min(
+          checklistItem?.received_quantity ??
+            (checklistItem?.received ? requiredQuantity : 0),
+          requiredQuantity
+        );
+
+        return {
+          required: totals.required + requiredQuantity,
+          received: totals.received + receivedQuantity,
+        };
+      },
+      { required: 0, received: 0 }
     );
-
-    const uniqueLearnerChecklistMap = new Map<string, ChecklistRow>();
-
-    learnerChecklist.forEach((item) => {
-      const key = normalizeName(item.item_name);
-
-      if (!key) return;
-
-      const existingItem = uniqueLearnerChecklistMap.get(key);
-
-      if (!existingItem) {
-        uniqueLearnerChecklistMap.set(key, item);
-        return;
-      }
-
-      if (!existingItem.received && item.received) {
-        uniqueLearnerChecklistMap.set(key, item);
-      }
-    });
-
-    const uniqueLearnerChecklist = Array.from(uniqueLearnerChecklistMap.values());
-
-    const receivedStationeryCount = stationeryRequirements.filter((requirement) => {
-      const requirementName = normalizeName(requirement.item_name);
-
-      return uniqueLearnerChecklist.some(
-        (item) => item.received === true && normalizeName(item.item_name) === requirementName
-      );
-    }).length;
 
     const uploadedDocumentCount = documentRequirements.filter((requirement) => {
       const requirementName = normalizeName(requirement.item_name);
@@ -318,17 +509,18 @@ export default function LearnerRequirementsPage() {
       );
     }).length;
 
-    const receivedCount = receivedStationeryCount + uploadedDocumentCount;
-    const totalCount = stationeryRequirements.length + documentRequirements.length;
-    const outstandingCount = Math.max(totalCount - receivedCount, 0);
+    const documentTotal = documentRequirements.length;
+    const totalRequired = stationeryTotals.required + documentTotal;
+    const totalReceived = stationeryTotals.received + uploadedDocumentCount;
+    const outstandingCount = Math.max(totalRequired - totalReceived, 0);
     const progress =
-      totalCount > 0 ? Math.round((receivedCount / totalCount) * 100) : 0;
+      totalRequired > 0 ? Math.round((totalReceived / totalRequired) * 100) : 0;
 
     return {
       learner,
-      receivedCount,
+      receivedCount: totalReceived,
       outstandingCount,
-      totalCount,
+      totalCount: totalRequired,
       progress,
     };
   });
@@ -367,9 +559,7 @@ export default function LearnerRequirementsPage() {
           <select
             className="db-input"
             value={selectedClassroomId}
-            onChange={(e) => {
-              setSelectedClassroomId(e.target.value);
-            }}
+            onChange={(e) => setSelectedClassroomId(e.target.value)}
           >
             <option value="">Select Class</option>
             {classrooms.map((classroom) => (
@@ -385,7 +575,9 @@ export default function LearnerRequirementsPage() {
               <p style={smallText}>{assignedStationeryTemplate}</p>
 
               <strong>Assigned Documents Template</strong>
-              <p style={smallText}>Required Learner Documents</p>
+              <p style={smallText}>
+                DailyBloom Standard Required Learner Documents
+              </p>
             </div>
           ) : null}
         </div>
@@ -395,7 +587,7 @@ export default function LearnerRequirementsPage() {
             className="db-card db-card-blue"
             style={{ padding: 16, marginBottom: 18 }}
           >
-            <h3 style={sectionTitle}>Required Stationery</h3>
+            <h3 style={sectionTitle}>Required Stationery and Hygiene</h3>
 
             {stationeryRequirements.length === 0 ? (
               <p className="db-helper">
@@ -411,19 +603,23 @@ export default function LearnerRequirementsPage() {
                       <div>
                         <strong>{item.item_name}</strong>
                         <p style={smallText}>
-                          {item.quantity || "No quantity"} -{" "}
+                          Required: {item.quantity || "1"} |{" "}
                           {item.category || "Other"}
                         </p>
                       </div>
                     </div>
 
-                    <button
-                      className="db-button-secondary"
-                      style={smallButton}
-                      onClick={() => deleteRequirementItem(item.id)}
-                    >
-                      Delete
-                    </button>
+                    {item.id > 0 ? (
+                      <button
+                        className="db-button-secondary"
+                        style={smallButton}
+                        onClick={() => deleteRequirementItem(item.id)}
+                      >
+                        Delete
+                      </button>
+                    ) : (
+                      <span style={smallText}>DailyBloom standard</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -451,17 +647,23 @@ export default function LearnerRequirementsPage() {
 
                       <div>
                         <strong>{item.item_name}</strong>
-                        <p style={smallText}>{item.quantity || "No quantity"}</p>
+                        <p style={smallText}>
+                          Required: {item.quantity || "1 copy"}
+                        </p>
                       </div>
                     </div>
 
-                    <button
-                      className="db-button-secondary"
-                      style={smallButton}
-                      onClick={() => deleteRequirementItem(item.id)}
-                    >
-                      Delete
-                    </button>
+                    {item.id > 0 ? (
+                      <button
+                        className="db-button-secondary"
+                        style={smallButton}
+                        onClick={() => deleteRequirementItem(item.id)}
+                      >
+                        Delete
+                      </button>
+                    ) : (
+                      <span style={smallText}>DailyBloom standard</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -483,12 +685,12 @@ export default function LearnerRequirementsPage() {
               </div>
 
               <div style={summaryCard}>
-                <strong>Total Completed Items</strong>
+                <strong>Total Received Quantity</strong>
                 <p style={summaryNumber}>{classCompletedItems}</p>
               </div>
 
               <div style={summaryCard}>
-                <strong>Total Outstanding Items</strong>
+                <strong>Total Outstanding Quantity</strong>
                 <p style={summaryNumber}>{classOutstandingItems}</p>
               </div>
             </div>
@@ -505,14 +707,14 @@ export default function LearnerRequirementsPage() {
             {learnerChecklistOverview.length === 0 ? (
               <p className="db-helper">No learners found in this class.</p>
             ) : (
-              <div style={{ display: "grid", gap: 10 }}>
+              <div style={{ display: "grid", gap: 12 }}>
                 {learnerChecklistOverview.map((item) => (
                   <div key={item.learner.id} style={categoryBox}>
                     <div style={learnerProgressHeader}>
                       <div>
                         <strong>{item.learner.name || "Unnamed learner"}</strong>
                         <p style={smallText}>
-                          Received: {item.receivedCount} / {item.totalCount} -{" "}
+                          Received: {item.receivedCount} / {item.totalCount} |{" "}
                           Outstanding: {item.outstandingCount}
                         </p>
                       </div>
@@ -533,6 +735,66 @@ export default function LearnerRequirementsPage() {
                           width: `${item.progress}%`,
                         }}
                       />
+                    </div>
+
+                    <div style={learnerItemsGrid}>
+                      {stationeryRequirements.map((requirement) => {
+                        const requiredQuantity = parseRequiredQuantity(
+                          requirement.quantity
+                        );
+                        const checklistItem = getLearnerChecklistItem(
+                          item.learner.id,
+                          requirement.item_name
+                        );
+
+                        const currentReceived =
+                          checklistItem?.received_quantity ??
+                          (checklistItem?.received ? requiredQuantity : 0);
+
+                        const outstanding = Math.max(
+                          requiredQuantity - currentReceived,
+                          0
+                        );
+
+                        const savingKey = `${item.learner.id}-${requirement.id}`;
+
+                        return (
+                          <div
+                            key={`${item.learner.id}-${requirement.id}`}
+                            style={learnerItemRow}
+                          >
+                            <div>
+                              <strong>{requirement.item_name}</strong>
+                              <p style={smallText}>
+                                Required: {requiredQuantity} | Outstanding:{" "}
+                                {outstanding}
+                              </p>
+                            </div>
+
+                            <input
+                              className="db-input"
+                              type="number"
+                              min={0}
+                              max={requiredQuantity}
+                              value={currentReceived}
+                              style={quantityInput}
+                              onChange={(e) =>
+                                updateLearnerQuantity(
+                                  item.learner,
+                                  requirement,
+                                  e.target.value
+                                )
+                              }
+                            />
+
+                            <span style={smallText}>
+                              {savingQuantityKey === savingKey
+                                ? "Saving..."
+                                : "Received"}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -558,7 +820,7 @@ export default function LearnerRequirementsPage() {
 
               <input
                 className="db-input"
-                placeholder="Quantity, e.g. 10x"
+                placeholder="Quantity, e.g. 4"
                 value={newQuantity}
                 onChange={(e) => setNewQuantity(e.target.value)}
               />
@@ -708,3 +970,25 @@ const smallButton = {
   padding: "8px 12px",
   fontSize: 13,
 } as const;
+
+const learnerItemsGrid = {
+  display: "grid",
+  gap: 8,
+  marginTop: 12,
+};
+
+const learnerItemRow = {
+  display: "grid",
+  gridTemplateColumns: "1fr 90px 80px",
+  gap: 10,
+  alignItems: "center",
+  background: "#FFFFFF",
+  border: "1px solid #F0E3D8",
+  borderRadius: 12,
+  padding: 10,
+};
+
+const quantityInput = {
+  marginBottom: 0,
+  minHeight: 36,
+};

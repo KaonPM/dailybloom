@@ -70,6 +70,10 @@ const fallbackRequiredDocuments = [
   "Contract",
 ];
 
+function normalizeName(value?: string | null) {
+  return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 export default function LearnerProfilePage() {
   const params = useParams();
   const router = useRouter();
@@ -204,8 +208,6 @@ export default function LearnerProfilePage() {
     }
 
     const existing = (existingChecklist || []) as ChecklistItem[];
-    const normalizeName = (value: string) =>
-      value.trim().toLowerCase().replace(/\s+/g, " ");
     const existingNames = new Set(
       existing.map((item) => normalizeName(item.item_name || ""))
     );
@@ -226,8 +228,10 @@ export default function LearnerProfilePage() {
       }));
 
       const { error: insertError } = await supabase
-        .from("learner_stationery_checklist")
-        .insert(rowsToInsert);
+       .from("learner_stationery_checklist")
+       .upsert(rowsToInsert, {
+       onConflict: "school_id,learner_id,classroom_id,item_name",
+      });
 
       if (insertError) {
         alert(insertError.message);
@@ -315,17 +319,22 @@ export default function LearnerProfilePage() {
         return;
       }
     } else {
-      const { error } = await supabase.from("learner_stationery_checklist").insert([
-        {
-          school_id: schoolId,
-          learner_id: learner.id,
-          classroom_id: learner.classroom_id,
-          stationery_item_id: null,
-          item_name: itemName.trim(),
-          quantity: quantity.trim() || null,
-          received: false,
-        },
-      ]);
+      const { error } = await supabase.from("learner_stationery_checklist").upsert(
+  [
+    {
+      school_id: schoolId,
+      learner_id: learner.id,
+      classroom_id: learner.classroom_id,
+      stationery_item_id: null,
+      item_name: itemName.trim(),
+      quantity: quantity.trim() || null,
+      received: false,
+    },
+  ],
+  {
+    onConflict: "school_id,learner_id,classroom_id,item_name",
+  }
+);
 
       if (error) {
         alert(error.message);
@@ -555,12 +564,38 @@ export default function LearnerProfilePage() {
   }
 
   const classroomName = learner.class || "Unassigned class";
-  const receivedRequirementCount = checklist.filter((item) => item.received).length;
-  const outstandingRequirementCount = checklist.length - receivedRequirementCount;
-  const requirementProgress =
-    checklist.length > 0
-      ? Math.round((receivedRequirementCount / checklist.length) * 100)
-      : 0;
+  const uniqueChecklistMap = new Map<string, ChecklistItem>();
+
+checklist.forEach((item) => {
+  const key = normalizeName(item.item_name);
+
+  if (!key) return;
+
+  const existingItem = uniqueChecklistMap.get(key);
+
+  if (!existingItem) {
+    uniqueChecklistMap.set(key, item);
+    return;
+  }
+
+  if (!existingItem.received && item.received) {
+    uniqueChecklistMap.set(key, item);
+  }
+});
+
+const uniqueChecklist = Array.from(uniqueChecklistMap.values());
+
+const receivedRequirementCount = uniqueChecklist.filter(
+  (item) => item.received
+).length;
+
+const outstandingRequirementCount =
+  uniqueChecklist.length - receivedRequirementCount;
+
+const requirementProgress =
+  uniqueChecklist.length > 0
+    ? Math.round((receivedRequirementCount / uniqueChecklist.length) * 100)
+    : 0;
 
   const uploadedDocumentCount = documentRequirements.filter((documentType) => {
     return Boolean(getDocument(documentType)?.file_url);
@@ -705,7 +740,7 @@ export default function LearnerProfilePage() {
             <div style={progressSummary}>
               <div>
                 <strong>
-                  Received: {receivedRequirementCount} / {checklist.length} items
+                  Received: {receivedRequirementCount} / {uniqueChecklist.length} items
                 </strong>
                 <p style={summaryText}>
                   Outstanding: {outstandingRequirementCount} items

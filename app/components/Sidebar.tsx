@@ -320,9 +320,11 @@ export default function Sidebar() {
     const masterSchoolMatch = pathname.match(/^\/master\/school\/(\d+)$/);
 
     if (schoolFromQuery) {
-      schoolId = Number(schoolFromQuery);
+      const parsedSchoolId = Number(schoolFromQuery);
+      schoolId = Number.isFinite(parsedSchoolId) ? parsedSchoolId : null;
     } else if (masterSchoolMatch?.[1]) {
-      schoolId = Number(masterSchoolMatch[1]);
+      const parsedSchoolId = Number(masterSchoolMatch[1]);
+      schoolId = Number.isFinite(parsedSchoolId) ? parsedSchoolId : null;
     } else if (currentProfile.role !== "master" && currentProfile.school_id) {
       schoolId = Number(currentProfile.school_id);
     }
@@ -343,11 +345,11 @@ export default function Sidebar() {
     setFilteredSchoolManagementNav(allowedSchoolManagement);
 
     if (currentProfile.role === "teacher") {
-    setFilteredTeacherQuickActionsNav(teacherQuickActionsNav);
-    setFilteredTeacherSchoolManagementNav(teacherSchoolManagementNav);
+      setFilteredTeacherQuickActionsNav(teacherQuickActionsNav);
+      setFilteredTeacherSchoolManagementNav(teacherSchoolManagementNav);
     } else {
-    setFilteredTeacherQuickActionsNav(allowedTeacherQuickActions);
-    setFilteredTeacherSchoolManagementNav(allowedTeacherManagement);
+      setFilteredTeacherQuickActionsNav(allowedTeacherQuickActions);
+      setFilteredTeacherSchoolManagementNav(allowedTeacherManagement);
     }
 
     if (!schoolId || Number.isNaN(schoolId)) {
@@ -385,11 +387,11 @@ export default function Sidebar() {
   const showSchoolActions = Boolean(school) || !isMaster;
 
   useEffect(() => {
-  if (isTeacher) {
-    setQuickActionsOpen(true);
-    setSchoolManagementOpen(true);
-  }
-}, [isTeacher]);
+    if (isTeacher) {
+      setQuickActionsOpen(true);
+      setSchoolManagementOpen(true);
+    }
+  }, [isTeacher]);
 
   const isBloomElite =
     String(subscriptionPlan || school?.package_name || "")
@@ -399,17 +401,31 @@ export default function Sidebar() {
   const showWageFlowStaffManagement =
     !isTeacher && (isBloomElite || school?.wageflow_enabled === true);
 
-  const dashboardHref = isMaster
-    ? `/master/school/${school?.id || ""}`
-    : isTeacher
-    ? "/teacher"
-    : "/dashboard";
+  function withSchoolContext(href: string) {
+    if (!isMaster || !school?.id) {
+      return href;
+    }
 
-  const dashboardMatch = isMaster
-    ? ["/master/school"]
-    : isTeacher
-    ? ["/teacher"]
-    : ["/dashboard"];
+    if (href.startsWith("http")) {
+      return href;
+    }
+
+    if (href.startsWith("/master")) {
+      return href;
+    }
+
+    const separator = href.includes("?") ? "&" : "?";
+    return `${href}${separator}school=${school.id}`;
+  }
+
+  const dashboardHref =
+    isMaster && school?.id
+      ? `/dashboard?school=${school.id}`
+      : isTeacher
+      ? "/teacher"
+      : "/dashboard";
+
+  const dashboardMatch = isTeacher ? ["/teacher"] : ["/dashboard"];
 
   function isActiveNav(item: NavItem) {
     if (item.view) {
@@ -655,23 +671,43 @@ export default function Sidebar() {
           )}
 
           {isMaster && school ? (
-            <Link
-              href={`/master/school/${school.id}`}
-              style={{
-                display: "inline-block",
-                marginTop: "12px",
-                textDecoration: "none",
-                background: "#7CCCF3",
-                color: "#2D2A3E",
-                padding: "10px 14px",
-                borderRadius: "12px",
-                fontWeight: 600,
-                fontSize: "13px",
-                border: "1px solid #CBEAF7",
-              }}
-            >
-              Open School Overview
-            </Link>
+            <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
+              <Link
+                href={`/dashboard?school=${school.id}`}
+                style={{
+                  display: "inline-block",
+                  textDecoration: "none",
+                  background: "#7CCCF3",
+                  color: "#2D2A3E",
+                  padding: "10px 14px",
+                  borderRadius: "12px",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  border: "1px solid #CBEAF7",
+                  textAlign: "center",
+                }}
+              >
+                Open School Dashboard
+              </Link>
+
+              <Link
+                href="/master?view=manage-schools"
+                style={{
+                  display: "inline-block",
+                  textDecoration: "none",
+                  background: "#FFFDFB",
+                  color: "#2D2A3E",
+                  padding: "10px 14px",
+                  borderRadius: "12px",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  border: "1px solid #F0E3D8",
+                  textAlign: "center",
+                }}
+              >
+                Change School
+              </Link>
+            </div>
           ) : null}
         </div>
 
@@ -716,7 +752,11 @@ export default function Sidebar() {
 
               {quickActionsOpen &&
                 visibleQuickActionsNav.map((item) => (
-                  <Link key={item.label} href={item.href} style={navStyle(item)}>
+                  <Link
+                    key={item.label}
+                    href={withSchoolContext(item.href)}
+                    style={navStyle(item)}
+                  >
                     {item.label}
                   </Link>
                 ))}
@@ -735,7 +775,11 @@ export default function Sidebar() {
                   ? filteredTeacherSchoolManagementNav
                   : filteredSchoolManagementNav
                 ).map((item) => (
-                  <Link key={item.label} href={item.href} style={navStyle(item)}>
+                  <Link
+                    key={item.label}
+                    href={withSchoolContext(item.href)}
+                    style={navStyle(item)}
+                  >
                     {item.label}
                   </Link>
                 ))}
@@ -768,7 +812,11 @@ export default function Sidebar() {
 
                   {dbeOpen &&
                     dbeNav.map((item) => (
-                      <Link key={item.label} href={item.href} style={navStyle(item)}>
+                      <Link
+                        key={item.label}
+                        href={withSchoolContext(item.href)}
+                        style={navStyle(item)}
+                      >
                         {item.label}
                       </Link>
                     ))}

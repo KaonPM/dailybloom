@@ -1,9 +1,12 @@
 "use client";
 
+import type { ChangeEvent } from "react";
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { resolveSchoolContext } from "../../lib/school-context";
+
+type TemplateKey = "0_2" | "2_6";
 
 type LearnerRow = {
   id: string;
@@ -30,6 +33,13 @@ type LearnerRow = {
   notes?: string | null;
 };
 
+type ClassroomRow = {
+  id: number;
+  classroom_name?: string | null;
+  age_groups?: string[] | null;
+  stationery_templates?: TemplateKey[] | null;
+};
+
 type RequirementTemplateItem = {
   id: number;
   school_id: number;
@@ -40,6 +50,10 @@ type RequirementTemplateItem = {
   is_active?: boolean | null;
 };
 
+type GlobalRequirementItem = RequirementTemplateItem & {
+  templateKey: TemplateKey | "all";
+};
+
 type ChecklistItem = {
   id: number;
   school_id: number;
@@ -48,6 +62,8 @@ type ChecklistItem = {
   stationery_item_id: number | null;
   item_name: string;
   quantity?: string | null;
+  required_quantity?: number | null;
+  received_quantity?: number | null;
   received: boolean;
   received_at?: string | null;
 };
@@ -63,15 +79,230 @@ type LearnerDocument = {
   uploaded_at?: string | null;
 };
 
-const fallbackRequiredDocuments = [
-  "Birth Certificate",
-  "Immunisation Card",
-  "Parent / Guardian ID",
-  "Contract",
+const GLOBAL_REQUIREMENT_ITEMS: GlobalRequirementItem[] = [
+  {
+    id: -1001,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "all",
+    item_name: "Birth Certificate",
+    quantity: "1 copy",
+    category: "Document",
+    is_active: true,
+  },
+  {
+    id: -1002,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "all",
+    item_name: "Immunisation Card",
+    quantity: "1 copy",
+    category: "Document",
+    is_active: true,
+  },
+  {
+    id: -1003,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "all",
+    item_name: "Parent / Guardian ID",
+    quantity: "1 copy",
+    category: "Document",
+    is_active: true,
+  },
+  {
+    id: -1004,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "all",
+    item_name: "Contract",
+    quantity: "1 copy",
+    category: "Document",
+    is_active: true,
+  },
+  {
+    id: -2001,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "0_2",
+    item_name: "Nappies",
+    quantity: "1 pack",
+    category: "Hygiene",
+    is_active: true,
+  },
+  {
+    id: -2002,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "0_2",
+    item_name: "Wet Wipes",
+    quantity: "2 packs",
+    category: "Hygiene",
+    is_active: true,
+  },
+  {
+    id: -2003,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "0_2",
+    item_name: "Tissues",
+    quantity: "2 boxes",
+    category: "Hygiene",
+    is_active: true,
+  },
+  {
+    id: -2004,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "0_2",
+    item_name: "Change of Clothes",
+    quantity: "2 sets",
+    category: "Clothing",
+    is_active: true,
+  },
+  {
+    id: -2005,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "0_2",
+    item_name: "Face Cloth",
+    quantity: "2",
+    category: "Hygiene",
+    is_active: true,
+  },
+  {
+    id: -3001,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "2_6",
+    item_name: "Pencils",
+    quantity: "4",
+    category: "Stationery",
+    is_active: true,
+  },
+  {
+    id: -3002,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "2_6",
+    item_name: "Crayons",
+    quantity: "1 pack",
+    category: "Stationery",
+    is_active: true,
+  },
+  {
+    id: -3003,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "2_6",
+    item_name: "Glue Stick",
+    quantity: "2",
+    category: "Stationery",
+    is_active: true,
+  },
+  {
+    id: -3004,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "2_6",
+    item_name: "A4 Exercise Book",
+    quantity: "2",
+    category: "Stationery",
+    is_active: true,
+  },
+  {
+    id: -3005,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "2_6",
+    item_name: "Tissues",
+    quantity: "2 boxes",
+    category: "Hygiene",
+    is_active: true,
+  },
+  {
+    id: -3006,
+    school_id: 0,
+    classroom_id: 0,
+    templateKey: "2_6",
+    item_name: "Lifebuoy Soap / Sunlight Bar Soap",
+    quantity: "4",
+    category: "Hygiene",
+    is_active: true,
+  },
 ];
+
+const fallbackRequiredDocuments = GLOBAL_REQUIREMENT_ITEMS.filter(
+  (item) => item.category === "Document"
+).map((item) => item.item_name);
 
 function normalizeName(value?: string | null) {
   return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function parseRequiredQuantity(value?: string | null) {
+  if (!value) return 1;
+
+  const match = value.match(/\d+/);
+  if (!match) return 1;
+
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function getRecommendedTemplateKeys(classroom?: ClassroomRow | null): TemplateKey[] {
+  const ageGroups = classroom?.age_groups || [];
+
+  const hasZeroToTwo = ageGroups.some(
+    (group) => group === "0-1 Years" || group === "1-2 Years"
+  );
+
+  const hasTwoToSix = ageGroups.some(
+    (group) =>
+      group === "2-3 Years" ||
+      group === "3-4 Years" ||
+      group === "4-5 Years" ||
+      group === "5-6 Years"
+  );
+
+  if (hasZeroToTwo && hasTwoToSix) return ["0_2", "2_6"];
+  if (hasZeroToTwo) return ["0_2"];
+  if (hasTwoToSix) return ["2_6"];
+
+  return ["2_6"];
+}
+
+function mergeRequirements(
+  classroom: ClassroomRow | null,
+  schoolSpecificItems: RequirementTemplateItem[]
+) {
+  const assignedTemplateKeys =
+    classroom?.stationery_templates && classroom.stationery_templates.length > 0
+      ? classroom.stationery_templates
+      : getRecommendedTemplateKeys(classroom);
+
+  const globalItemsForClass = GLOBAL_REQUIREMENT_ITEMS.filter((item) => {
+    if (item.templateKey === "all") return true;
+    return assignedTemplateKeys.includes(item.templateKey);
+  });
+
+  const mergedMap = new Map<string, RequirementTemplateItem>();
+
+  globalItemsForClass.forEach((item) => {
+    mergedMap.set(
+      `${normalizeName(item.category)}-${normalizeName(item.item_name)}`,
+      item
+    );
+  });
+
+  schoolSpecificItems.forEach((item) => {
+    mergedMap.set(
+      `${normalizeName(item.category)}-${normalizeName(item.item_name)}`,
+      item
+    );
+  });
+
+  return Array.from(mergedMap.values());
 }
 
 export default function LearnerProfilePage() {
@@ -104,6 +335,7 @@ export default function LearnerProfilePage() {
 
   const [loading, setLoading] = useState(true);
   const [savingItem, setSavingItem] = useState(false);
+  const [savingQuantityKey, setSavingQuantityKey] = useState("");
   const [savingDocumentRequirement, setSavingDocumentRequirement] =
     useState(false);
 
@@ -162,31 +394,67 @@ export default function LearnerProfilePage() {
     currentLearnerId: string,
     currentClassroomId: number
   ) {
-    const { data: templateItems, error: templateError } = await supabase
-      .from("classroom_requirement_items")
-      .select("*")
-      .eq("school_id", currentSchoolId)
-      .eq("classroom_id", currentClassroomId)
-      .eq("is_active", true)
-      .order("category", { ascending: true })
-      .order("item_name", { ascending: true });
+    const [
+      classroomResult,
+      templateResult,
+      existingChecklistResult,
+    ] = await Promise.all([
+      supabase
+        .from("classrooms")
+        .select("id, classroom_name, age_groups, stationery_templates")
+        .eq("id", currentClassroomId)
+        .eq("school_id", currentSchoolId)
+        .single(),
 
-    if (templateError) {
-      alert(templateError.message);
+      supabase
+        .from("classroom_requirement_items")
+        .select("*")
+        .eq("school_id", currentSchoolId)
+        .eq("classroom_id", currentClassroomId)
+        .eq("is_active", true)
+        .order("category", { ascending: true })
+        .order("item_name", { ascending: true }),
+
+      supabase
+        .from("learner_stationery_checklist")
+        .select("*")
+        .eq("school_id", currentSchoolId)
+        .eq("learner_id", currentLearnerId)
+        .eq("classroom_id", currentClassroomId)
+        .order("id", { ascending: true }),
+    ]);
+
+    if (classroomResult.error) {
+      alert(classroomResult.error.message);
       return;
     }
 
-    const allTemplates = (templateItems || []) as RequirementTemplateItem[];
+    if (templateResult.error) {
+      alert(templateResult.error.message);
+      return;
+    }
 
-    const stationeryTemplates = allTemplates.filter(
+    if (existingChecklistResult.error) {
+      alert(existingChecklistResult.error.message);
+      return;
+    }
+
+    const classroom = classroomResult.data as ClassroomRow;
+    const schoolSpecificTemplates =
+      (templateResult.data || []) as RequirementTemplateItem[];
+
+    const mergedTemplates = mergeRequirements(classroom, schoolSpecificTemplates);
+
+    const stationeryTemplates = mergedTemplates.filter(
       (item) =>
         item.category === "Stationery" ||
         item.category === "Hygiene" ||
         item.category === "Other" ||
+        item.category === "Clothing" ||
         !item.category
     );
 
-    const documentTemplates = allTemplates
+    const documentTemplates = mergedTemplates
       .filter((item) => item.category === "Document")
       .map((item) => item.item_name);
 
@@ -194,20 +462,7 @@ export default function LearnerProfilePage() {
       documentTemplates.length > 0 ? documentTemplates : fallbackRequiredDocuments
     );
 
-    const { data: existingChecklist, error: checklistError } = await supabase
-      .from("learner_stationery_checklist")
-      .select("*")
-      .eq("school_id", currentSchoolId)
-      .eq("learner_id", currentLearnerId)
-      .eq("classroom_id", currentClassroomId)
-      .order("id", { ascending: true });
-
-    if (checklistError) {
-      alert(checklistError.message);
-      return;
-    }
-
-    const existing = (existingChecklist || []) as ChecklistItem[];
+    const existing = (existingChecklistResult.data || []) as ChecklistItem[];
     const existingNames = new Set(
       existing.map((item) => normalizeName(item.item_name || ""))
     );
@@ -217,21 +472,28 @@ export default function LearnerProfilePage() {
     });
 
     if (missingTemplates.length > 0) {
-      const rowsToInsert = missingTemplates.map((template) => ({
-        school_id: currentSchoolId,
-        learner_id: currentLearnerId,
-        classroom_id: currentClassroomId,
-        stationery_item_id: null,
-        item_name: template.item_name,
-        quantity: template.quantity || null,
-        received: false,
-      }));
+      const rowsToInsert = missingTemplates.map((template) => {
+        const requiredQuantity = parseRequiredQuantity(template.quantity);
+
+        return {
+          school_id: currentSchoolId,
+          learner_id: currentLearnerId,
+          classroom_id: currentClassroomId,
+          stationery_item_id: template.id > 0 ? template.id : null,
+          item_name: template.item_name,
+          quantity: template.quantity || String(requiredQuantity),
+          required_quantity: requiredQuantity,
+          received_quantity: 0,
+          received: false,
+          received_at: null,
+        };
+      });
 
       const { error: insertError } = await supabase
-       .from("learner_stationery_checklist")
-       .upsert(rowsToInsert, {
-       onConflict: "school_id,learner_id,classroom_id,item_name",
-      });
+        .from("learner_stationery_checklist")
+        .upsert(rowsToInsert, {
+          onConflict: "school_id,learner_id,classroom_id,item_name",
+        });
 
       if (insertError) {
         alert(insertError.message);
@@ -253,7 +515,7 @@ export default function LearnerProfilePage() {
       .eq("school_id", currentSchoolId)
       .eq("learner_id", currentLearnerId)
       .eq("classroom_id", currentClassroomId)
-      .order("id", { ascending: true });
+      .order("item_name", { ascending: true });
 
     if (error) {
       alert(error.message);
@@ -300,12 +562,17 @@ export default function LearnerProfilePage() {
 
     setSavingItem(true);
 
+    const requiredQuantity = parseRequiredQuantity(quantity);
+    const receivedQuantity = itemReceived ? requiredQuantity : 0;
+
     if (editingItem) {
       const { error } = await supabase
         .from("learner_stationery_checklist")
         .update({
           item_name: itemName.trim(),
-          quantity: quantity.trim() || null,
+          quantity: quantity.trim() || String(requiredQuantity),
+          required_quantity: requiredQuantity,
+          received_quantity: receivedQuantity,
           received: itemReceived,
           received_at: itemReceived ? new Date().toISOString() : null,
         })
@@ -319,22 +586,27 @@ export default function LearnerProfilePage() {
         return;
       }
     } else {
-      const { error } = await supabase.from("learner_stationery_checklist").upsert(
-  [
-    {
-      school_id: schoolId,
-      learner_id: learner.id,
-      classroom_id: learner.classroom_id,
-      stationery_item_id: null,
-      item_name: itemName.trim(),
-      quantity: quantity.trim() || null,
-      received: false,
-    },
-  ],
-  {
-    onConflict: "school_id,learner_id,classroom_id,item_name",
-  }
-);
+      const { error } = await supabase
+        .from("learner_stationery_checklist")
+        .upsert(
+          [
+            {
+              school_id: schoolId,
+              learner_id: learner.id,
+              classroom_id: learner.classroom_id,
+              stationery_item_id: null,
+              item_name: itemName.trim(),
+              quantity: quantity.trim() || String(requiredQuantity),
+              required_quantity: requiredQuantity,
+              received_quantity: 0,
+              received: false,
+              received_at: null,
+            },
+          ],
+          {
+            onConflict: "school_id,learner_id,classroom_id,item_name",
+          }
+        );
 
       if (error) {
         alert(error.message);
@@ -374,17 +646,21 @@ export default function LearnerProfilePage() {
       return;
     }
 
-    await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
+    await syncAndFetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
   }
 
   async function toggleReceived(item: ChecklistItem) {
     if (!learner || !schoolId || !learner.classroom_id) return;
 
+    const requiredQuantity =
+      item.required_quantity || parseRequiredQuantity(item.quantity);
     const nextReceived = !item.received;
 
     const { error } = await supabase
       .from("learner_stationery_checklist")
       .update({
+        required_quantity: requiredQuantity,
+        received_quantity: nextReceived ? requiredQuantity : 0,
         received: nextReceived,
         received_at: nextReceived ? new Date().toISOString() : null,
       })
@@ -400,19 +676,54 @@ export default function LearnerProfilePage() {
     await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
   }
 
+  async function updateReceivedQuantity(item: ChecklistItem, value: string) {
+    if (!learner || !schoolId || !learner.classroom_id) return;
+
+    const requiredQuantity =
+      item.required_quantity || parseRequiredQuantity(item.quantity);
+    const receivedQuantity = Math.max(
+      0,
+      Math.min(Number(value || 0), requiredQuantity)
+    );
+    const isFullyReceived = receivedQuantity >= requiredQuantity;
+
+    setSavingQuantityKey(String(item.id));
+
+    const { error } = await supabase
+      .from("learner_stationery_checklist")
+      .update({
+        required_quantity: requiredQuantity,
+        received_quantity: receivedQuantity,
+        received: isFullyReceived,
+        received_at: isFullyReceived ? new Date().toISOString() : null,
+      })
+      .eq("id", item.id)
+      .eq("school_id", schoolId)
+      .eq("learner_id", learner.id);
+
+    setSavingQuantityKey("");
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
+  }
+
   function getDocument(documentType: string) {
     if (!learner) return undefined;
 
     return documents.find(
       (document) =>
         document.learner_id === learner.id &&
-        document.document_type === documentType
+        normalizeName(document.document_type) === normalizeName(documentType)
     );
   }
 
   async function handleDocumentUpload(
     documentType: string,
-    event: React.ChangeEvent<HTMLInputElement>
+    event: ChangeEvent<HTMLInputElement>
   ) {
     if (!learner || !schoolId) return;
 
@@ -531,7 +842,7 @@ export default function LearnerProfilePage() {
           school_id: schoolId,
           classroom_id: Number(learner.classroom_id),
           item_name: documentName,
-          quantity: null,
+          quantity: "1 copy",
           category: "Document",
           is_active: true,
         },
@@ -566,36 +877,59 @@ export default function LearnerProfilePage() {
   const classroomName = learner.class || "Unassigned class";
   const uniqueChecklistMap = new Map<string, ChecklistItem>();
 
-checklist.forEach((item) => {
-  const key = normalizeName(item.item_name);
+  checklist.forEach((item) => {
+    const key = normalizeName(item.item_name);
 
-  if (!key) return;
+    if (!key) return;
 
-  const existingItem = uniqueChecklistMap.get(key);
+    const existingItem = uniqueChecklistMap.get(key);
 
-  if (!existingItem) {
-    uniqueChecklistMap.set(key, item);
-    return;
-  }
+    if (!existingItem) {
+      uniqueChecklistMap.set(key, item);
+      return;
+    }
 
-  if (!existingItem.received && item.received) {
-    uniqueChecklistMap.set(key, item);
-  }
-});
+    const existingReceived =
+      existingItem.received_quantity ??
+      (existingItem.received
+        ? existingItem.required_quantity || parseRequiredQuantity(existingItem.quantity)
+        : 0);
 
-const uniqueChecklist = Array.from(uniqueChecklistMap.values());
+    const currentReceived =
+      item.received_quantity ??
+      (item.received
+        ? item.required_quantity || parseRequiredQuantity(item.quantity)
+        : 0);
 
-const receivedRequirementCount = uniqueChecklist.filter(
-  (item) => item.received
-).length;
+    if (currentReceived > existingReceived) {
+      uniqueChecklistMap.set(key, item);
+    }
+  });
 
-const outstandingRequirementCount =
-  uniqueChecklist.length - receivedRequirementCount;
+  const uniqueChecklist = Array.from(uniqueChecklistMap.values());
 
-const requirementProgress =
-  uniqueChecklist.length > 0
-    ? Math.round((receivedRequirementCount / uniqueChecklist.length) * 100)
-    : 0;
+  const totalRequiredQuantity = uniqueChecklist.reduce((total, item) => {
+    return total + (item.required_quantity || parseRequiredQuantity(item.quantity));
+  }, 0);
+
+  const totalReceivedQuantity = uniqueChecklist.reduce((total, item) => {
+    const requiredQuantity =
+      item.required_quantity || parseRequiredQuantity(item.quantity);
+    const receivedQuantity =
+      item.received_quantity ?? (item.received ? requiredQuantity : 0);
+
+    return total + Math.min(receivedQuantity, requiredQuantity);
+  }, 0);
+
+  const outstandingRequirementCount = Math.max(
+    totalRequiredQuantity - totalReceivedQuantity,
+    0
+  );
+
+  const requirementProgress =
+    totalRequiredQuantity > 0
+      ? Math.round((totalReceivedQuantity / totalRequiredQuantity) * 100)
+      : 0;
 
   const uploadedDocumentCount = documentRequirements.filter((documentType) => {
     return Boolean(getDocument(documentType)?.file_url);
@@ -740,7 +1074,7 @@ const requirementProgress =
             <div style={progressSummary}>
               <div>
                 <strong>
-                  Received: {receivedRequirementCount} / {uniqueChecklist.length} items
+                  Received: {totalReceivedQuantity} / {totalRequiredQuantity} items
                 </strong>
                 <p style={summaryText}>
                   Outstanding: {outstandingRequirementCount} items
@@ -763,54 +1097,79 @@ const requirementProgress =
               This learner is not linked to a classroom yet. Link the learner to
               a class first so the correct requirements can load automatically.
             </p>
-          ) : checklist.length === 0 ? (
+          ) : uniqueChecklist.length === 0 ? (
             <p className="db-helper" style={{ marginTop: 14 }}>
-              No requirements have been loaded for this learner yet. Please open
-              Learner Requirements, select the class, and add or confirm the
-              required stationery list.
+              No requirements have been loaded for this learner yet.
             </p>
           ) : (
             <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-              {checklist.map((item) => (
-                <div key={item.id} style={requirementRow}>
-                  <button
-                    type="button"
-                    onClick={() => toggleReceived(item)}
-                    style={checkboxButton}
-                    aria-label="Toggle received status"
-                  >
-                    {item.received ? "✓" : ""}
-                  </button>
+              {uniqueChecklist.map((item) => {
+                const requiredQuantity =
+                  item.required_quantity || parseRequiredQuantity(item.quantity);
+                const receivedQuantity =
+                  item.received_quantity ?? (item.received ? requiredQuantity : 0);
+                const outstandingQuantity = Math.max(
+                  requiredQuantity - receivedQuantity,
+                  0
+                );
 
-                  <div style={{ flex: 1 }}>
-                    <strong>{item.item_name}</strong>
-                    <p style={summaryText}>
-                      {item.quantity || "No quantity"} ·{" "}
-                      {item.received ? "Received" : "Outstanding"}
-                    </p>
-                  </div>
-
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                return (
+                  <div key={item.id} style={requirementRow}>
                     <button
                       type="button"
-                      className="db-button-secondary"
-                      style={smallButton}
-                      onClick={() => startEditItem(item)}
+                      onClick={() => toggleReceived(item)}
+                      style={checkboxButton}
+                      aria-label="Toggle received status"
                     >
-                      Edit
+                      {item.received ? "✓" : ""}
                     </button>
 
-                    <button
-                      type="button"
-                      className="db-button-secondary"
-                      style={smallButton}
-                      onClick={() => deleteRequirementItem(item)}
-                    >
-                      Delete
-                    </button>
+                    <div style={{ flex: 1 }}>
+                      <strong>{item.item_name}</strong>
+                      <p style={summaryText}>
+                        Required: {requiredQuantity} · Received:{" "}
+                        {receivedQuantity} · Outstanding: {outstandingQuantity}
+                      </p>
+                    </div>
+
+                    <input
+                      className="db-input"
+                      type="number"
+                      min={0}
+                      max={requiredQuantity}
+                      value={receivedQuantity}
+                      style={quantityInput}
+                      onChange={(event) =>
+                        updateReceivedQuantity(item, event.target.value)
+                      }
+                    />
+
+                    <span style={summaryText}>
+                      {savingQuantityKey === String(item.id) ? "Saving..." : ""}
+                    </span>
+
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="db-button-secondary"
+                        style={smallButton}
+                        onClick={() => startEditItem(item)}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        className="db-button-secondary"
+                        style={smallButton}
+                        onClick={() => deleteRequirementItem(item)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -837,14 +1196,14 @@ const requirementProgress =
                 className="db-input"
                 placeholder="Item name, e.g. Toilet Rolls"
                 value={itemName}
-                onChange={(e) => setItemName(e.target.value)}
+                onChange={(event) => setItemName(event.target.value)}
               />
 
               <input
                 className="db-input"
-                placeholder="Quantity, e.g. 10x"
+                placeholder="Quantity, e.g. 10"
                 value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
+                onChange={(event) => setQuantity(event.target.value)}
               />
 
               {editingItem ? (
@@ -852,7 +1211,7 @@ const requirementProgress =
                   <input
                     type="checkbox"
                     checked={itemReceived}
-                    onChange={(e) => setItemReceived(e.target.checked)}
+                    onChange={(event) => setItemReceived(event.target.checked)}
                   />
                   Mark as received
                 </label>
@@ -1123,6 +1482,7 @@ const requirementRow = {
   border: "1px solid #F0E3D8",
   borderRadius: 12,
   padding: "10px 12px",
+  flexWrap: "wrap" as const,
 };
 
 const documentRow = {
@@ -1188,3 +1548,9 @@ const smallButton = {
   padding: "7px 10px",
   fontSize: 12,
 } as const;
+
+const quantityInput = {
+  width: 82,
+  minHeight: 34,
+  margin: 0,
+};

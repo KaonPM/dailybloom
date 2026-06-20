@@ -377,6 +377,8 @@ export default function LearnerProfilePage() {
 
   const [learner, setLearner] = useState<LearnerRow | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [requirementNote, setRequirementNote] = useState("");
+  const [savingRequirementNote, setSavingRequirementNote] = useState(false);
 
   const [activeTab, setActiveTab] = useState<
     "overview" | "requirements" | "documents"
@@ -435,6 +437,7 @@ export default function LearnerProfilePage() {
 
     const currentLearner = data as LearnerRow;
     setLearner(currentLearner);
+    setRequirementNote(currentLearner.notes || "");
 
     if (currentLearner.classroom_id) {
       await syncAndFetchChecklist(
@@ -928,6 +931,32 @@ export default function LearnerProfilePage() {
     );
   }
 
+  async function saveRequirementNote() {
+    if (!learner || !schoolId) return;
+
+    setSavingRequirementNote(true);
+
+    const { error } = await supabase
+      .from("learners")
+      .update({ notes: requirementNote.trim() || null })
+      .eq("id", learner.id)
+      .eq("school_id", schoolId);
+
+    setSavingRequirementNote(false);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setLearner({
+      ...learner,
+      notes: requirementNote.trim() || null,
+    });
+
+    alert("Requirement note saved.");
+  }
+
   if (loading) {
     return <p>Loading learner profile...</p>;
   }
@@ -970,27 +999,26 @@ export default function LearnerProfilePage() {
 
   const uniqueChecklist = Array.from(uniqueChecklistMap.values());
 
-  const totalRequiredQuantity = uniqueChecklist.reduce((total, item) => {
-    return total + (item.required_quantity || parseRequiredQuantity(item.quantity));
-  }, 0);
-
-  const totalReceivedQuantity = uniqueChecklist.reduce((total, item) => {
+  const completedRequirementCount = uniqueChecklist.filter((item) => {
     const requiredQuantity =
       item.required_quantity || parseRequiredQuantity(item.quantity);
+
     const receivedQuantity =
       item.received_quantity ?? (item.received ? requiredQuantity : 0);
 
-    return total + Math.min(receivedQuantity, requiredQuantity);
-  }, 0);
+    return receivedQuantity >= requiredQuantity;
+  }).length;
+
+  const totalRequirementCount = uniqueChecklist.length;
 
   const outstandingRequirementCount = Math.max(
-    totalRequiredQuantity - totalReceivedQuantity,
+    totalRequirementCount - completedRequirementCount,
     0
   );
 
   const requirementProgress =
-    totalRequiredQuantity > 0
-      ? Math.round((totalReceivedQuantity / totalRequiredQuantity) * 100)
+    totalRequirementCount > 0
+      ? Math.round((completedRequirementCount / totalRequirementCount) * 100)
       : 0;
 
   const uploadedDocumentCount = documentRequirements.filter((documentType) => {
@@ -1136,10 +1164,10 @@ export default function LearnerProfilePage() {
             <div style={progressSummary}>
               <div>
                 <strong>
-                  Received: {totalReceivedQuantity} / {totalRequiredQuantity} items
+                  Completed: {completedRequirementCount} / {totalRequirementCount} requirements
                 </strong>
                 <p style={summaryText}>
-                  Outstanding: {outstandingRequirementCount} items
+                  Outstanding: {outstandingRequirementCount} requirements
                 </p>
               </div>
 
@@ -1153,6 +1181,31 @@ export default function LearnerProfilePage() {
               </div>
             </div>
           ) : null}
+
+          <div style={noteBox}>
+            <h4 style={noteTitle}>Requirement Note</h4>
+            <p style={summaryText}>
+              Add any notes about items still expected, parent promises, or special arrangements.
+            </p>
+
+            <textarea
+              className="db-input"
+              value={requirementNote}
+              onChange={(event) => setRequirementNote(event.target.value)}
+              placeholder="Example: Parent promised to bring the remaining toilet rolls on Friday."
+              style={noteTextarea}
+            />
+
+            <button
+              type="button"
+              className="db-button-primary"
+              onClick={saveRequirementNote}
+              disabled={savingRequirementNote}
+              style={noteButton}
+            >
+              {savingRequirementNote ? "Saving..." : "Save Note"}
+            </button>
+          </div>
 
           {!learner.classroom_id ? (
             <p className="db-helper" style={{ marginTop: 14 }}>
@@ -1609,6 +1662,35 @@ const smallButton = {
   minHeight: 32,
   padding: "7px 10px",
   fontSize: 12,
+} as const;
+
+const noteBox = {
+  background: "#FFFDFB",
+  border: "1px solid #DDEFD8",
+  borderRadius: 12,
+  padding: "12px 14px",
+  marginTop: 12,
+  marginBottom: 14,
+};
+
+const noteTitle = {
+  margin: "0 0 6px 0",
+  color: "#2D2A3E",
+  fontSize: 15,
+  fontWeight: 800 as const,
+};
+
+const noteTextarea = {
+  minHeight: 90,
+  resize: "vertical" as const,
+  marginTop: 10,
+};
+
+const noteButton = {
+  marginTop: 8,
+  minHeight: 34,
+  padding: "8px 14px",
+  fontSize: 13,
 } as const;
 
 const quantityInput = {

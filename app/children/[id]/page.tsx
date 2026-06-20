@@ -544,7 +544,7 @@ export default function LearnerProfilePage() {
           school_id: currentSchoolId,
           learner_id: currentLearnerId,
           classroom_id: currentClassroomId,
-          stationery_item_id: template.id > 0 ? template.id : null,
+          stationery_item_id: null,
           item_name: template.item_name,
           quantity: template.quantity || String(requiredQuantity),
           required_quantity: requiredQuantity,

@@ -21,7 +21,7 @@ type DbeRegistration = {
   health_certificate_status?: string | null;
   fire_certificate_status?: string | null;
   municipal_approval_status?: string | null;
-  popia_compliance_status?: string | null;
+  police_clearance_status?: string | null;
 };
 
 const registrationStatuses = [
@@ -30,7 +30,7 @@ const registrationStatuses = [
   "Not Registered",
 ];
 
-const complianceStatuses = ["Valid", "Expiring Soon", "Expired"];
+const complianceStatuses = ["Valid","Expired", "Outstanding"];
 
 export default function DbeRegistrationPage() {
   const router = useRouter();
@@ -46,7 +46,6 @@ export default function DbeRegistrationPage() {
     "Registration In Progress"
   );
   const [registrationDate, setRegistrationDate] = useState("");
-  const [renewalDate, setRenewalDate] = useState("");
   const [principalName, setPrincipalName] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
@@ -57,7 +56,7 @@ export default function DbeRegistrationPage() {
   const [fireCertificateStatus, setFireCertificateStatus] = useState("Valid");
   const [municipalApprovalStatus, setMunicipalApprovalStatus] =
     useState("Valid");
-  const [popiaComplianceStatus, setPopiaComplianceStatus] = useState("Valid");
+  const [policeClearanceStatus, setPoliceClearanceStatus] = useState("Valid");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -136,7 +135,6 @@ export default function DbeRegistrationPage() {
       record.registration_status || "Registration In Progress"
     );
     setRegistrationDate(record.registration_date || "");
-    setRenewalDate(record.renewal_date || "");
     setPrincipalName(record.principal_name || "");
     setContactNumber(record.contact_number || "");
     setEmailAddress(record.email_address || "");
@@ -144,7 +142,7 @@ export default function DbeRegistrationPage() {
     setHealthCertificateStatus(record.health_certificate_status || "Valid");
     setFireCertificateStatus(record.fire_certificate_status || "Valid");
     setMunicipalApprovalStatus(record.municipal_approval_status || "Valid");
-    setPopiaComplianceStatus(record.popia_compliance_status || "Valid");
+    setPoliceClearanceStatus(record.police_clearance_status || "Valid");
   }
 
   async function saveRegistration() {
@@ -168,7 +166,6 @@ export default function DbeRegistrationPage() {
       registration_number: registrationNumber.trim(),
       registration_status: registrationStatus,
       registration_date: registrationDate || null,
-      renewal_date: renewalDate || null,
       principal_name: principalName.trim() || null,
       contact_number: contactNumber.trim() || null,
       email_address: emailAddress.trim() || null,
@@ -176,7 +173,7 @@ export default function DbeRegistrationPage() {
       health_certificate_status: healthCertificateStatus,
       fire_certificate_status: fireCertificateStatus,
       municipal_approval_status: municipalApprovalStatus,
-      popia_compliance_status: popiaComplianceStatus,
+      police_clearance_status: policeClearanceStatus,
       updated_at: new Date().toISOString(),
     };
 
@@ -260,14 +257,6 @@ export default function DbeRegistrationPage() {
         </div>
 
         <div style={grid2}>
-          <Field label="Renewal Date">
-            <input
-              className="db-input"
-              type="date"
-              value={renewalDate}
-              onChange={(event) => setRenewalDate(event.target.value)}
-            />
-          </Field>
 
           <Field label="Principal Name">
             <input
@@ -335,10 +324,10 @@ export default function DbeRegistrationPage() {
             />
           </Field>
 
-          <Field label="POPIA Compliance">
+          <Field label="Police Clearance">
             <StatusSelect
-              value={popiaComplianceStatus}
-              onChange={setPopiaComplianceStatus}
+              value={policeClearanceStatus}
+              onChange={setPoliceClearanceStatus}
             />
           </Field>
         </div>

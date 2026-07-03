@@ -25,7 +25,6 @@ type LearnerRow = {
   guardian_id_number?: string | null;
   parent_phone?: string | null;
   parent_email?: string | null;
-  receiving_school?: string | null;
   ulin?: string | null;
   school_id?: number | null;
   is_deleted?: boolean | null;
@@ -74,7 +73,6 @@ export default function LearnersPage() {
   const [parentPhone, setParentPhone] = useState("");
   const [parentEmail, setParentEmail] = useState("");
 
-  const [receivingSchool, setReceivingSchool] = useState("");
   const [manualClassroomId, setManualClassroomId] = useState("");
   const [suggestedAgeGroup, setSuggestedAgeGroup] = useState("");
 
@@ -160,7 +158,6 @@ export default function LearnersPage() {
         guardian_id_number,
         parent_phone,
         parent_email,
-        receiving_school,
         ulin,
         school_id,
         is_deleted,
@@ -285,7 +282,6 @@ export default function LearnersPage() {
     setGuardianIdNumber("");
     setParentPhone("");
     setParentEmail("");
-    setReceivingSchool("");
     setManualClassroomId("");
     setSuggestedAgeGroup("");
     setSelectedLearner(null);
@@ -379,7 +375,6 @@ export default function LearnersPage() {
     setGuardianIdNumber(learner.guardian_id_number || "");
     setParentPhone(learner.parent_phone || "");
     setParentEmail(learner.parent_email || "");
-    setReceivingSchool(learner.receiving_school || "");
     setManualClassroomId(
       learner.classroom_id ? String(learner.classroom_id) : ""
     );
@@ -457,7 +452,7 @@ export default function LearnersPage() {
     }
 
     if (!parentPhone.trim()) {
-      alert("Please enter parent or guardian phone number.");
+      alert("Please enter a contact number.");
       return;
     }
 
@@ -498,7 +493,6 @@ export default function LearnersPage() {
       guardian_id_number: guardianIdNumber.trim() || null,
       parent_phone: parentPhone.trim(),
       parent_email: parentEmail.trim() || null,
-      receiving_school: receivingSchool.trim() || null,
       ulin: selectedLearner ? selectedLearner.ulin || null : null,
       school_id: schoolId,
     };
@@ -597,8 +591,7 @@ export default function LearnersPage() {
           </h3>
 
           <p style={helperText}>
-            Capture the learner’s legal identity, guardian details and Grade R
-            transition information in a structured format.
+             Capture the learner’s legal identity and parent or guardian details in a structured format.
           </p>
 
           <h4 style={subSectionTitle}>Learner Identity</h4>
@@ -732,7 +725,7 @@ export default function LearnersPage() {
 
           <div style={grid2}>
             <div>
-              <p style={labelText}>Guardian Full Name</p>
+              <p style={labelText}>Parent / Guardian Full Name</p>
               <input
                 className="db-input"
                 placeholder="Parent or guardian name"
@@ -746,13 +739,17 @@ export default function LearnersPage() {
               <select
                 className="db-input"
                 value={guardianRelationship}
-                onChange={(e) => setGuardianRelationship(e.target.value)}
-              >
+                onChange={(e)=>setGuardianRelationship(e.target.value)}
+>
                 <option value="">Select relationship</option>
                 <option value="Mother">Mother</option>
                 <option value="Father">Father</option>
                 <option value="Guardian">Guardian</option>
-                <option value="Grandparent">Grandparent</option>
+                <option value="Grandmother">Grandmother</option>
+                <option value="Grandfather">Grandfather</option>
+                <option value="Aunt">Aunt</option>
+                <option value="Uncle">Uncle</option>
+                <option value="Foster Parent">Foster Parent</option>
                 <option value="Other">Other</option>
               </select>
             </div>
@@ -760,7 +757,7 @@ export default function LearnersPage() {
 
           <div style={grid2}>
             <div>
-              <p style={labelText}>Guardian ID Number</p>
+              <p style={labelText}>Parent / Guardian ID Number</p>
               <input
                 className="db-input"
                 placeholder="ID or passport number"
@@ -770,7 +767,7 @@ export default function LearnersPage() {
             </div>
 
             <div>
-              <p style={labelText}>Parent / Guardian Phone</p>
+              <p style={labelText}>Contact Number</p>
               <input
                 className="db-input"
                 placeholder="Phone number"
@@ -782,23 +779,13 @@ export default function LearnersPage() {
 
           <div style={grid2}>
             <div>
-              <p style={labelText}>Parent / Guardian Email</p>
+              <p style={labelText}>Email Address</p>
               <input
                 className="db-input"
                 type="email"
                 placeholder="Email address"
                 value={parentEmail}
                 onChange={(e) => setParentEmail(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <p style={labelText}>Receiving School</p>
-              <input
-                className="db-input"
-                placeholder="Future Grade R or Grade 1 school"
-                value={receivingSchool}
-                onChange={(e) => setReceivingSchool(e.target.value)}
               />
             </div>
           </div>
@@ -988,14 +975,10 @@ export default function LearnersPage() {
                         {learner.guardian_id_number || "Not added"}
                       </p>
                       <p style={smallText}>
-                        Phone: {learner.parent_phone || "Not added"}
+                        Contact Number: {learner.parent_phone || "Not added"}
                       </p>
                       <p style={smallText}>
-                        Email: {learner.parent_email || "Not added"}
-                      </p>
-                      <p style={smallText}>
-                        Receiving School:{" "}
-                        {learner.receiving_school || "Not added"}
+                        Email Address: {learner.parent_email || "Not added"}
                       </p>
                       <p style={smallText}>
                         ULIN / LURITS Ref:{" "}

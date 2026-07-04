@@ -497,20 +497,66 @@ export default function LearnersPage() {
       school_id: schoolId,
     };
 
-    const { error } = selectedLearner
-      ? await supabase
-          .from("learners")
-          .update(learnerPayload)
-          .eq("id", selectedLearner.id)
-          .eq("school_id", schoolId)
-      : await supabase.from("learners").insert([learnerPayload]);
+    let learnerRecord;
 
-    if (error) {
-      alert(error.message);
-      setSaving(false);
-      return;
-    }
+if (selectedLearner) {
+  const { data, error } = await supabase
+    .from("learners")
+    .update(learnerPayload)
+    .eq("id", selectedLearner.id)
+    .eq("school_id", schoolId)
+    .select()
+    .single();
 
+  if (error) {
+    alert(error.message);
+    setSaving(false);
+    return;
+  }
+
+  learnerRecord = data;
+} else {
+  const { data, error } = await supabase
+    .from("learners")
+    .insert([learnerPayload])
+    .select()
+    .single();
+
+  if (error) {
+    alert(error.message);
+    setSaving(false);
+    return;
+  }
+
+  learnerRecord = data;
+}
+
+// Automatically link learner to parent portal
+const normalizedPhone = learnerRecord.parent_phone
+  ?.replace(/\D/g, "")
+  .replace(/^27/, "0");
+
+if (normalizedPhone) {
+  const { error: parentAccessError } =
+    await supabase
+      .from("parent_access")
+      .upsert(
+        {
+          phone: normalizedPhone,
+          learner_id: learnerRecord.id,
+        },
+        {
+          onConflict: "phone,learner_id",
+        }
+      );
+
+  if (parentAccessError) {
+    console.error(
+      "Parent access link failed:",
+      parentAccessError
+    );
+  }
+}
     resetForm();
     setShowForm(false);
     await fetchLearners(schoolId);

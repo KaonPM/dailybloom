@@ -103,18 +103,57 @@ export default function LandingPage() {
               <h2 style={heroHeading(isMobile)}>One Platform to Run Your Entire Preschool</h2>
 
               <p style={heroBody(isMobile)}>
-                From learner records and progress reports to parent communication, payment reminders
+                From learner records and progress reports to parent engagement, daily updates
                 and Grade RR readiness, DailyBloom helps preschools manage everything in one warm
                 and organised workspace.
               </p>
 
-              <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
-                <Link href="/legal" style={{ ...primaryButton, width: isMobile ? "100%" : "auto" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: isMobile ? "column" : "row",
+                  gap: 10,
+                  marginTop: 16,
+                  flexWrap: "wrap"
+                }}
+              >
+                <Link
+                  href="/legal"
+                  style={{
+                    ...primaryButton,
+                    width: isMobile ? "100%" : "auto"
+                  }}
+                >
                   Sign Up
                 </Link>
 
-                <Link href="/login" style={{ ...secondaryButton, width: isMobile ? "100%" : "auto" }}>
-                  Login
+                <Link
+                  href="/login"
+                  style={{
+                    ...secondaryButton,
+                    width: isMobile ? "100%" : "auto"
+                  }}
+                >
+                  School Login
+                </Link>
+
+                <Link
+                  href="/parent-login"
+                  style={{
+                    background: "#FCE7EF",
+                    color: "#F66BA0",
+                    border: "1px solid #FFD3E3",
+                    borderRadius: "14px",
+                    padding: "14px 24px",
+                    textDecoration: "none",
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: isMobile ? "100%" : "auto"
+                  }}
+                >
+                  Parent Portal
                 </Link>
               </div>
             </div>
@@ -137,7 +176,7 @@ export default function LandingPage() {
 
             <FeatureCard
               title="Parent Communication"
-              body="Prepare daily summaries, broadcasts, event updates and payment reminders for clear parent communication."
+              body="Share daily summaries, school announcements, parent messages and updates through a dedicated parent portal that keeps families connected."
               accent="#57C785"
               isMobile={isMobile}
             />
@@ -158,8 +197,8 @@ export default function LandingPage() {
             <WhyCard icon="🌈" text="Built for South African preschools" isMobile={isMobile} />
             <WhyCard icon="🎒" text="Grade RR ready" isMobile={isMobile} />
             <WhyCard icon="🧒" text="Centralised learner records" isMobile={isMobile} />
-            <WhyCard icon="💌" text="Parent communication made simple" isMobile={isMobile} />
-            <WhyCard icon="💳" text="Payment reminders" isMobile={isMobile} />
+            <WhyCard icon="💌" text="Dedicated parent portal" isMobile={isMobile} />
+            <WhyCard icon="📢" text="School updates and announcements" isMobile={isMobile} />
             <WhyCard icon="🌼" text="Less admin, more care" isMobile={isMobile} />
           </div>
         </section>
@@ -331,8 +370,8 @@ export default function LandingPage() {
             </p>
             <p style={footerText}>© 2026 DailyBloom. All rights reserved.</p>
             <p style={footerText}>
-              DailyBloom is a preschool management and parent communication platform for learner records,
-              attendance, classroom activities, daily summaries, announcements and payment reminders.
+              DailyBloom is a preschool management and parent engagement platform for learner records,
+              attendance, classroom activities, daily summaries, announcements and parent portal communication.
             </p>
             <p style={footerText}>
               DailyBloom may help schools communicate with parents or guardians by WhatsApp, SMS, email

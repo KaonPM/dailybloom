@@ -14,9 +14,10 @@ export default function ParentLoginPage() {
   const handleLogin = async () => {
     const digitsOnly = phone.replace(/\D/g, "");
 
-    const normalizedPhone = digitsOnly.startsWith("27")
-      ? "0" + digitsOnly.slice(2)
-      : digitsOnly;
+    const normalizedPhone =
+      digitsOnly.startsWith("27")
+        ? "0" + digitsOnly.slice(2)
+        : digitsOnly;
 
     if (!normalizedPhone) {
       alert("Please enter contact number");
@@ -31,41 +32,62 @@ export default function ParentLoginPage() {
     setLoading(true);
 
     try {
-      // Authenticate via server-side API (uses service role + bcrypt safely)
-      const res = await fetch("/api/parent-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: normalizedPhone, pin }),
-      });
+      const res = await fetch(
+        "/api/parent-login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            phone: normalizedPhone,
+            pin,
+          }),
+        }
+      );
 
-      const data = await res.json();
+      const data =
+        await res.json();
 
       if (!res.ok) {
-        alert(data.error || "Login failed");
+        alert(
+          data.error ||
+          "Login failed"
+        );
         return;
       }
 
-      // FIRST LOGIN — temp PIN accepted, needs to set a real PIN
-      if (data.needsPinCreation) {
-        router.push("/create-parent-pin");
+      // First login / reset flow
+      if (
+        data.needsPinCreation
+      ) {
+        router.push(
+          "/create-parent-pin"
+        );
+
         return;
       }
 
-      // EXISTING LOGIN — children returned by the API.
-      // Auth state itself lives in the server-set session cookie, not here —
-      // this is just UI convenience data for the next screen.
-      const children = data.children;
+      const children =
+        data.children;
 
       localStorage.setItem(
         "parentChildren",
-        JSON.stringify(children)
+        JSON.stringify(
+          children
+        )
       );
 
-      // Single child → skip selector
-      if (children.length === 1) {
+      // Single child
+      if (
+        children.length === 1
+      ) {
         localStorage.setItem(
           "selectedChild",
-          JSON.stringify(children[0])
+          JSON.stringify(
+            children[0]
+          )
         );
 
         router.push(
@@ -79,6 +101,14 @@ export default function ParentLoginPage() {
       router.push(
         "/parent/select-child"
       );
+
+    } catch (error) {
+      console.log(error);
+
+      alert(
+        "Something went wrong"
+      );
+
     } finally {
       setLoading(false);
     }
@@ -90,11 +120,15 @@ export default function ParentLoginPage() {
 
         <div className="parent-logo">
           <h1>
-            Daily<span>Bloom</span>
+            Daily
+            <span>
+              Bloom
+            </span>
           </h1>
 
           <div className="parent-tagline">
-            WHERE PRESCHOOLS BLOOM EVERY DAY
+            WHERE PRESCHOOLS
+            BLOOM EVERY DAY
           </div>
         </div>
 
@@ -118,7 +152,10 @@ export default function ParentLoginPage() {
             value={phone}
             onChange={(e) =>
               setPhone(
-                e.target.value.replace(/\s/g, "")
+                e.target.value.replace(
+                  /\s/g,
+                  ""
+                )
               )
             }
           />
@@ -126,16 +163,23 @@ export default function ParentLoginPage() {
 
         <div className="parent-input-wrap">
           <input
-            type={showPin ? "text" : "password"}
+            type={
+              showPin
+                ? "text"
+                : "password"
+            }
             placeholder="PIN"
             className="parent-input"
             value={pin}
-            maxLength={4}
+            maxLength={10}
             inputMode="numeric"
             pattern="[0-9]*"
             onChange={(e) =>
               setPin(
-                e.target.value.replace(/\D/g, "")
+                e.target.value.replace(
+                  /\D/g,
+                  ""
+                )
               )
             }
           />
@@ -144,46 +188,62 @@ export default function ParentLoginPage() {
             type="button"
             className="parent-eye"
             onClick={() =>
-              setShowPin(!showPin)
+              setShowPin(
+                !showPin
+              )
             }
           >
-            {showPin ? "🙈" : "👁️"}
+            {showPin
+              ? "🙈"
+              : "👁️"}
           </button>
         </div>
 
         <button
           className="parent-button"
-          onClick={handleLogin}
-          disabled={loading}
+          onClick={
+            handleLogin
+          }
+          disabled={
+            loading
+          }
         >
-          {loading ? "Logging in..." : "Login"}
+          {loading
+            ? "Logging in..."
+            : "Login"}
         </button>
 
         <div
-  style={{
-    textAlign: "center",
-    marginTop: "16px"
-  }}
->
-  <button
-    type="button"
-    onClick={() =>
-      router.push(
-        "/forgot-parent-pin"
-      )
-    }
-    style={{
-      border: "none",
-      background: "transparent",
-      color: "#FF5EA8",
-      cursor: "pointer",
-      fontWeight: 600
-    }}
-  >
-    Forgot PIN?
-  </button>
-</div>
-
+          style={{
+            textAlign:
+              "center",
+            marginTop:
+              "16px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() =>
+              router.push(
+                "/forgot-parent-pin"
+              )
+            }
+            style={{
+              border:
+                "none",
+              background:
+                "transparent",
+              color:
+                "#FF5EA8",
+              cursor:
+                "pointer",
+              fontWeight:
+                600,
+            }}
+          >
+            Forgot PIN?
+          </button>
+        </div>
 
       </div>
     </div>

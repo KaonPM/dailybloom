@@ -65,8 +65,20 @@ export default function RootLayout({
       >
         <RegisterServiceWorker />
 
-        <Suspense fallback={<div style={{ padding: "24px" }}>Loading...</div>}>
-          <AppChrome>{children}</AppChrome>
+        <Suspense
+          fallback={
+            <div
+              style={{
+                padding: "24px",
+              }}
+            >
+              Loading...
+            </div>
+          }
+        >
+          <AppChrome>
+            {children}
+          </AppChrome>
         </Suspense>
       </body>
     </html>

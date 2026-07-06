@@ -37,7 +37,7 @@ export default async function ParentLayout({
 }) {
   const parent = await getCurrentParent();
 
-  // Everything inside /parent requires login
+  // Protect parent area only
   if (!parent) {
     redirect("/parent-login");
   }

@@ -14,13 +14,17 @@ export default function AppChrome({
   const publicRoutes = [
     "/",
     "/login",
-    "/parent-login",
     "/signup",
     "/reset-password",
     "/change-password",
     "/legal",
     "/privacy",
     "/terms",
+
+    // Parent auth pages
+    "/parent-login",
+    "/forgot-parent-pin",
+    "/create-parent-pin",
   ];
 
   const isPublicRoute =
@@ -29,40 +33,37 @@ export default function AppChrome({
     pathname.startsWith("/privacy") ||
     pathname.startsWith("/terms");
 
-  // Login and public pages
+  // Public pages
   if (isPublicRoute) {
     return <>{children}</>;
   }
 
   // Parent portal pages
-  if (pathname.startsWith("/parent")) {
+  if (
+    pathname.startsWith("/parent") ||
+    pathname.startsWith("/forgot-parent-pin") ||
+    pathname.startsWith("/create-parent-pin")
+  ) {
     return (
       <div
         style={{
-          display: "flex",
           minHeight: "100vh",
           background: "#FFF8F5",
         }}
       >
-        <main
-          style={{
-            flex: 1,
-            width: "100%",
-          }}
-        >
-          {children}
-        </main>
+        {children}
       </div>
     );
   }
 
-  // School app pages
+  // School management pages
   return (
     <div className="db-app-shell">
       <Sidebar />
 
       <div className="db-main-shell">
         <Topbar />
+
         <main className="db-main-content">
           {children}
         </main>

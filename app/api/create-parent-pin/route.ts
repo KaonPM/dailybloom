@@ -1,28 +1,27 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
-import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { cookies } from "next/headers";
 
-function normalizePhone(phone: string) {
-  let clean = phone.replace(/\D/g, "");
-
-  // Convert +27 to local format
-  if (clean.startsWith("27")) {
-    clean = "0" + clean.slice(2);
-  }
-
-  return clean;
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(req: Request) {
   try {
-    const { phone } = await req.json();
 
-    const cleanPhone = normalizePhone(phone || "");
+    const { pin } =
+      await req.json();
 
-    if (!cleanPhone) {
+    if (
+      !pin ||
+      pin.length !== 4
+    ) {
       return NextResponse.json(
         {
-          error: "Contact number required",
+          error:
+            "PIN must be 4 digits",
         },
         {
           status: 400,
@@ -30,21 +29,45 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get all parent rows
+    const cookieStore =
+      await cookies();
+
+    const phone =
+      cookieStore.get(
+        "parent_pending_phone"
+      )?.value;
+
+    if (!phone) {
+      return NextResponse.json(
+        {
+          error:
+            "Session expired. Please login again.",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
+    const hashedPin =
+      await bcrypt.hash(
+        pin,
+        10
+      );
+
     const {
       data: parentRows,
       error: lookupError,
-    } = await supabaseAdmin
-      .from("parent_access")
+    } = await supabase
+      .from(
+        "parent_access"
+      )
       .select(
-        `
-        id,
-        phone
-        `
+        "id"
       )
       .eq(
         "phone",
-        cleanPhone
+        phone
       );
 
     if (
@@ -55,7 +78,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "Parent account not found",
+            "Parent not found",
         },
         {
           status: 404,
@@ -63,37 +86,28 @@ export async function POST(req: Request) {
       );
     }
 
-    // Temporary PIN = full phone number
-    const temporaryPin =
-      cleanPhone;
-
-    const hashedPin =
-      await bcrypt.hash(
-        temporaryPin,
-        10
-      );
-
     const rowIds =
       parentRows.map(
-        (row) => row.id
+        (r) => r.id
       );
 
     const {
       error: updateError,
-    } = await supabaseAdmin
-      .from("parent_access")
+    } = await supabase
+      .from(
+        "parent_access"
+      )
       .update({
-        pin_hash: hashedPin,
+        pin_hash:
+          hashedPin,
 
-        // force create-pin screen
-        must_change_pin: true,
+        must_change_pin:
+          false,
 
-        // clear failed login counters
         failed_login_attempts: 0,
-        locked_until: null,
 
-        // remove old session
-        session_token: null,
+        locked_until:
+          null,
       })
       .in(
         "id",
@@ -102,14 +116,13 @@ export async function POST(req: Request) {
 
     if (updateError) {
       console.log(
-        "Update error:",
         updateError
       );
 
       return NextResponse.json(
         {
           error:
-            "Could not reset PIN",
+            "Could not save PIN",
         },
         {
           status: 500,
@@ -117,15 +130,18 @@ export async function POST(req: Request) {
       );
     }
 
+    cookieStore.delete(
+      "parent_pending_phone"
+    );
+
     return NextResponse.json({
       success: true,
-      message:
-        "PIN reset successful",
     });
 
   } catch (err) {
+
     console.log(
-      "Reset error:",
+      "Create PIN error:",
       err
     );
 

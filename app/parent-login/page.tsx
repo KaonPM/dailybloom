@@ -159,17 +159,6 @@ export default function ParentLoginPage() {
           {loading ? "Logging in..." : "Login"}
         </button>
 
-        <div
-          style={{
-            marginTop: "20px",
-            textAlign: "center",
-            fontSize: "14px",
-            color: "#6D6888"
-          }}
-        >
-          First login uses the last 4 digits
-          of your contact number.
-        </div>
 
       </div>
     </div>

@@ -99,7 +99,7 @@ export async function POST(req: Request) {
 
   // FIRST LOGIN — no pin_hash set yet, expect last 4 digits of phone as temp PIN
   if (!primary.pin_hash) {
-    const tempPin = cleanPhone.slice(-4);
+    const tempPin = cleanPhone;
 
     if (pin !== tempPin) {
       await registerFailedAttempt();

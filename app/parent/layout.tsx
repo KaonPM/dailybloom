@@ -1,7 +1,7 @@
-"use client";
-
+import { ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { redirect } from "next/navigation";
+import { getCurrentParent } from "@/app/lib/getCurrentParent";
 
 const parentNav = [
   {
@@ -28,26 +28,22 @@ const parentNav = [
     label: "💬 Messages",
     href: "/parent/messages",
   },
-  {
-    label: "🚪 Logout",
-    href: "/parent-login",
-  },
 ];
 
-export default function ParentLayout({
+export default async function ParentLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
-  const pathname = usePathname();
 
-  // Hide sidebar on login and create PIN pages
-  const hideSidebar =
-    pathname === "/parent-login" ||
-    pathname === "/parent/create-pin";
+  const parent = await getCurrentParent();
 
-  if (hideSidebar) {
-    return <>{children}</>;
+  // Allow login and create pin pages
+  // without forcing authentication
+  const isPublicRoute = false;
+
+  if (!parent && !isPublicRoute) {
+    redirect("/parent-login");
   }
 
   return (
@@ -99,6 +95,21 @@ export default function ParentLayout({
               {item.label}
             </Link>
           ))}
+
+          <Link
+            href="/api/parent-logout"
+            style={{
+              textDecoration: "none",
+              color: "#2D2A3E",
+              background: "#FFFDFB",
+              padding: "12px",
+              borderRadius: "12px",
+              border: "1px solid #eee",
+              fontWeight: 600,
+            }}
+          >
+            🚪 Logout
+          </Link>
         </div>
       </aside>
 

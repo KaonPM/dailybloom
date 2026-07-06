@@ -47,7 +47,7 @@ export default function ParentLoginPage() {
 
       // FIRST LOGIN — temp PIN accepted, needs to set a real PIN
       if (data.needsPinCreation) {
-        router.push("/parent/create-pin");
+        router.push("/create-parent-pin");
         return;
       }
 
@@ -169,7 +169,7 @@ export default function ParentLoginPage() {
     type="button"
     onClick={() =>
       router.push(
-        "/parent/forgot-pin"
+        "/forgot-parent-pin"
       )
     }
     style={{

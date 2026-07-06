@@ -35,14 +35,10 @@ export default async function ParentLayout({
 }: {
   children: ReactNode;
 }) {
-
   const parent = await getCurrentParent();
 
-  // Allow login and create pin pages
-  // without forcing authentication
-  const isPublicRoute = false;
-
-  if (!parent && !isPublicRoute) {
+  // Everything inside /parent requires login
+  if (!parent) {
     redirect("/parent-login");
   }
 
@@ -54,7 +50,6 @@ export default async function ParentLayout({
         background: "#FFF8F5",
       }}
     >
-      {/* Sidebar */}
       <aside
         style={{
           width: "250px",
@@ -113,7 +108,6 @@ export default async function ParentLayout({
         </div>
       </aside>
 
-      {/* Main content */}
       <main
         style={{
           flex: 1,

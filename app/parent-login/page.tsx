@@ -159,6 +159,31 @@ export default function ParentLoginPage() {
           {loading ? "Logging in..." : "Login"}
         </button>
 
+        <div
+  style={{
+    textAlign: "center",
+    marginTop: "16px"
+  }}
+>
+  <button
+    type="button"
+    onClick={() =>
+      router.push(
+        "/parent/forgot-pin"
+      )
+    }
+    style={{
+      border: "none",
+      background: "transparent",
+      color: "#FF5EA8",
+      cursor: "pointer",
+      fontWeight: 600
+    }}
+  >
+    Forgot PIN?
+  </button>
+</div>
+
 
       </div>
     </div>

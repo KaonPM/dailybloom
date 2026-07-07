@@ -14,10 +14,9 @@ export default function ParentLoginPage() {
   const handleLogin = async () => {
     const digitsOnly = phone.replace(/\D/g, "");
 
-    const normalizedPhone =
-      digitsOnly.startsWith("27")
-        ? "0" + digitsOnly.slice(2)
-        : digitsOnly;
+    const normalizedPhone = digitsOnly.startsWith("27")
+      ? "0" + digitsOnly.slice(2)
+      : digitsOnly;
 
     if (!normalizedPhone) {
       alert("Please enter contact number");
@@ -32,83 +31,42 @@ export default function ParentLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(
-        "/api/parent-login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            phone: normalizedPhone,
-            pin,
-          }),
-        }
-      );
+      const res = await fetch("/api/parent-login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: normalizedPhone,
+          pin,
+        }),
+      });
 
-      const data =
-        await res.json();
+      const data = await res.json();
 
       if (!res.ok) {
-        alert(
-          data.error ||
-          "Login failed"
-        );
+        alert(data.error || "Login failed");
         return;
       }
 
-      // First login / reset flow
-      if (
-        data.needsPinCreation
-      ) {
-        router.push(
-          "/create-parent-pin"
-        );
-
+      if (data.needsPinCreation) {
+        router.push("/create-parent-pin");
         return;
       }
 
-      const children =
-        data.children;
+      const children = data.children || [];
 
-      localStorage.setItem(
-        "parentChildren",
-        JSON.stringify(
-          children
-        )
-      );
+      localStorage.setItem("parentChildren", JSON.stringify(children));
 
-      // Single child
-      if (
-        children.length === 1
-      ) {
-        localStorage.setItem(
-          "selectedChild",
-          JSON.stringify(
-            children[0]
-          )
-        );
-
-        router.push(
-          "/parent/dashboard"
-        );
-
-        return;
+      if (children.length > 0) {
+        localStorage.setItem("selectedChild", JSON.stringify(children[0]));
       }
 
-      // Multiple children
-      router.push(
-        "/parent/select-child"
-      );
-
+      router.push("/parent/dashboard");
+      return;
     } catch (error) {
       console.log(error);
-
-      alert(
-        "Something went wrong"
-      );
-
+      alert("Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -117,32 +75,22 @@ export default function ParentLoginPage() {
   return (
     <div className="parent-login-wrapper">
       <div className="parent-login-card">
-
         <div className="parent-logo">
           <h1>
             Daily
-            <span>
-              Bloom
-            </span>
+            <span>Bloom</span>
           </h1>
 
           <div className="parent-tagline">
-            WHERE PRESCHOOLS
-            BLOOM EVERY DAY
+            WHERE PRESCHOOLS BLOOM EVERY DAY
           </div>
         </div>
 
-        <div className="parent-portal-badge">
-          Parent Portal
-        </div>
+        <div className="parent-portal-badge">Parent Portal</div>
 
-        <h2 className="parent-title">
-          Welcome Back
-        </h2>
+        <h2 className="parent-title">Welcome Back</h2>
 
-        <p className="parent-subtitle">
-          Login to continue.
-        </p>
+        <p className="parent-subtitle">Login to continue.</p>
 
         <div className="parent-input-wrap">
           <input
@@ -150,101 +98,59 @@ export default function ParentLoginPage() {
             placeholder="Contact Number"
             className="parent-input"
             value={phone}
-            onChange={(e) =>
-              setPhone(
-                e.target.value.replace(
-                  /\s/g,
-                  ""
-                )
-              )
-            }
+            onChange={(e) => setPhone(e.target.value.replace(/\s/g, ""))}
           />
         </div>
 
         <div className="parent-input-wrap">
           <input
-            type={
-              showPin
-                ? "text"
-                : "password"
-            }
+            type={showPin ? "text" : "password"}
             placeholder="PIN"
             className="parent-input"
             value={pin}
             maxLength={10}
             inputMode="numeric"
             pattern="[0-9]*"
-            onChange={(e) =>
-              setPin(
-                e.target.value.replace(
-                  /\D/g,
-                  ""
-                )
-              )
-            }
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
           />
 
           <button
             type="button"
             className="parent-eye"
-            onClick={() =>
-              setShowPin(
-                !showPin
-              )
-            }
+            onClick={() => setShowPin(!showPin)}
           >
-            {showPin
-              ? "🙈"
-              : "👁️"}
+            {showPin ? "🙈" : "👁️"}
           </button>
         </div>
 
         <button
           className="parent-button"
-          onClick={
-            handleLogin
-          }
-          disabled={
-            loading
-          }
+          onClick={handleLogin}
+          disabled={loading}
         >
-          {loading
-            ? "Logging in..."
-            : "Login"}
+          {loading ? "Logging in..." : "Login"}
         </button>
 
         <div
           style={{
-            textAlign:
-              "center",
-            marginTop:
-              "16px",
+            textAlign: "center",
+            marginTop: "16px",
           }}
         >
           <button
             type="button"
-            onClick={() =>
-              router.push(
-                "/forgot-parent-pin"
-              )
-            }
+            onClick={() => router.push("/forgot-parent-pin")}
             style={{
-              border:
-                "none",
-              background:
-                "transparent",
-              color:
-                "#FF5EA8",
-              cursor:
-                "pointer",
-              fontWeight:
-                600,
+              border: "none",
+              background: "transparent",
+              color: "#FF5EA8",
+              cursor: "pointer",
+              fontWeight: 600,
             }}
           >
             Forgot PIN?
           </button>
         </div>
-
       </div>
     </div>
   );

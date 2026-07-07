@@ -1,34 +1,7 @@
 import { ReactNode } from "react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentParent } from "@/app/lib/getCurrentParent";
-
-const parentNav = [
-  {
-    label: "🏠 Dashboard",
-    href: "/parent/dashboard",
-  },
-  {
-    label: "📘 Summaries",
-    href: "/parent/summaries",
-  },
-  {
-    label: "📢 Broadcasts",
-    href: "/parent/broadcasts",
-  },
-  {
-    label: "✅ Attendance",
-    href: "/parent/attendance",
-  },
-  {
-    label: "📅 Events",
-    href: "/parent/events",
-  },
-  {
-    label: "💬 Messages",
-    href: "/parent/messages",
-  },
-];
+import ParentTopBar from "./components/ParentTopBar";
 
 export default async function ParentLayout({
   children,
@@ -37,81 +10,32 @@ export default async function ParentLayout({
 }) {
   const parent = await getCurrentParent();
 
-  // Protect parent area only
   if (!parent) {
     redirect("/parent-login");
   }
 
+  const child =
+    parent.children?.length > 0
+      ? parent.children[0]
+      : null;
+
   return (
     <div
       style={{
-        display: "flex",
         minHeight: "100vh",
         background: "#FFF8F5",
       }}
     >
-      <aside
-        style={{
-          width: "250px",
-          background: "#ffffff",
-          borderRight: "1px solid #eee",
-          padding: "20px",
-        }}
-      >
-        <h2
-          style={{
-            color: "#FF5EA8",
-            marginBottom: "30px",
-          }}
-        >
-          DailyBloom
-        </h2>
-
-        <div
-          style={{
-            display: "grid",
-            gap: "10px",
-          }}
-        >
-          {parentNav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              style={{
-                textDecoration: "none",
-                color: "#2D2A3E",
-                background: "#FFFDFB",
-                padding: "12px",
-                borderRadius: "12px",
-                border: "1px solid #eee",
-                fontWeight: 600,
-              }}
-            >
-              {item.label}
-            </Link>
-          ))}
-
-          <Link
-            href="/api/parent-logout"
-            style={{
-              textDecoration: "none",
-              color: "#2D2A3E",
-              background: "#FFFDFB",
-              padding: "12px",
-              borderRadius: "12px",
-              border: "1px solid #eee",
-              fontWeight: 600,
-            }}
-          >
-            🚪 Logout
-          </Link>
-        </div>
-      </aside>
+      <ParentTopBar
+        parent={parent}
+        child={child}
+      />
 
       <main
         style={{
-          flex: 1,
-          padding: "30px",
+          maxWidth: "1100px",
+          margin: "0 auto",
+          padding: "30px 24px",
         }}
       >
         {children}

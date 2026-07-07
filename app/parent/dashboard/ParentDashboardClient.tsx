@@ -116,7 +116,7 @@ export default function ParentDashboardClient({
           borderTop: `4px solid ${school?.primary_color || "#7CCCF3"}`,
         }}
       >
-        <div style={styles.contextInner}>
+        <div className="parent-dashboard-context" style={styles.contextInner}>
           <div>
             {children.length > 1 && (
               <select
@@ -146,6 +146,7 @@ export default function ParentDashboardClient({
           </div>
 
           <img
+            className="parent-dashboard-logo"
             src={school?.logo_url || "/school-placeholder.png"}
             alt="School"
             style={styles.logo}
@@ -334,20 +335,20 @@ const styles: Record<string, React.CSSProperties> = {
 
   notificationHeader: {
     width: "100%",
-    padding: "18px 20px",
+    padding: "24px 32px",
     border: "none",
     background: "transparent",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    fontSize: "17px",
+    fontSize: "18px",
     fontWeight: 700,
     cursor: "pointer",
     color: "#12304a",
   },
 
   notificationList: {
-    padding: "0 20px 18px",
+    padding: "0 32px 24px",
   },
 
   notificationItem: {
@@ -356,13 +357,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   section: {
-    marginBottom: "14px",
+    marginBottom: "18px",
     overflow: "hidden",
+    borderTop: "4px solid #7CCCF3",
   },
 
   sectionHeader: {
     width: "100%",
-    padding: "18px 20px",
+    padding: "24px 32px",
     border: "none",
     background: "transparent",
     display: "flex",
@@ -375,7 +377,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   sectionBody: {
-    padding: "0 20px 22px",
+    padding: "0 32px 26px",
   },
 
   tabs: {

@@ -42,6 +42,7 @@ export async function getCurrentParent() {
           name,
           school_id,
           classroom_id,
+          parent_name,
           parent_phone,
           date_of_birth,
 
@@ -64,13 +65,18 @@ export async function getCurrentParent() {
       .in("id", learnerIds);
 
     if (learnerError) {
-      console.error("Learner fetch error:", JSON.stringify(learnerError, null, 2));
+      console.error(
+        "Learner fetch error:",
+        JSON.stringify(learnerError, null, 2)
+      );
       return null;
     }
 
+    const parentName = children?.[0]?.parent_name?.trim() || "Parent";
+
     return {
       phone: parentRows[0].phone,
-      name: parentRows[0].phone,
+      name: parentName,
       children: children || [],
     };
   } catch (err) {

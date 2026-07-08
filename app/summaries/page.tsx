@@ -20,16 +20,17 @@ type Classroom = {
   classroom_name?: string | null;
 };
 
-type SummaryRow = {
+type PendingSummary = {
   id: number;
+  learner_id: string;
   learner_name?: string | null;
-  mood?: string | null;
+  health_safety?: string | null;
   meals?: string | null;
   rest?: string | null;
-  health_safety?: string | null;
+  mood?: string | null;
   today_highlight?: string | null;
   teacher_notes?: string | null;
-  whatsapp_sent?: boolean | null;
+  status?: string | null;
   created_at?: string | null;
 };
 
@@ -42,11 +43,28 @@ const healthSafetyOptions = [
   "Parent to note",
 ];
 
-const mealsOptions = ["Ate well", "Ate a little", "Did not eat much", "Refused meal"];
+const mealsOptions = [
+  "Ate well",
+  "Ate a little",
+  "Did not eat much",
+  "Refused meal",
+];
 
-const restOptions = ["Rested well", "Short nap", "Did not nap", "Quiet rest only"];
+const restOptions = [
+  "Rested well",
+  "Short nap",
+  "Did not nap",
+  "Quiet rest only",
+];
 
-const moodOptions = ["Happy", "Calm", "Playful", "Tired", "Emotional", "Quiet"];
+const moodOptions = [
+  "Happy",
+  "Calm",
+  "Playful",
+  "Tired",
+  "Emotional",
+  "Quiet",
+];
 
 const highlightOptions = [
   "Enjoyed class activities",
@@ -67,10 +85,15 @@ export default function SummariesPage() {
 
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [learners, setLearners] = useState<Learner[]>([]);
-  const [summaries, setSummaries] = useState<SummaryRow[]>([]);
+  const [pendingSummaries, setPendingSummaries] = useState<PendingSummary[]>(
+    []
+  );
 
   const [selectedClassroomId, setSelectedClassroomId] = useState("");
-  const [selectedLearnerId, setSelectedLearnerId] = useState<string | null>(null);
+  const [selectedLearnerId, setSelectedLearnerId] = useState<string | null>(
+    null
+  );
+  const [draftId, setDraftId] = useState<number | null>(null);
 
   const [healthSafety, setHealthSafety] = useState("");
   const [meals, setMeals] = useState("");
@@ -79,18 +102,8 @@ export default function SummariesPage() {
   const [todayHighlight, setTodayHighlight] = useState("");
   const [teacherNotes, setTeacherNotes] = useState("");
 
-  const [generatedMessage, setGeneratedMessage] = useState("");
-  const [generatedWhatsAppLink, setGeneratedWhatsAppLink] = useState("");
-  const [showSavedSummaries, setShowSavedSummaries] = useState(false);
-
-  const [selectedMonth, setSelectedMonth] = useState("");
-  const [savedSummaryLimit, setSavedSummaryLimit] = useState(10);
-  const [editingSummaryId, setEditingSummaryId] = useState<number | null>(null);
-  const [editingSummarySent, setEditingSummarySent] = useState(false);
-
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [generatingMessage, setGeneratingMessage] = useState(false);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     loadPage();
@@ -117,17 +130,15 @@ export default function SummariesPage() {
     }
 
     const currentSchoolId = Number(context.schoolId);
-    const currentRole = String(profile.role || "");
-    const currentTeacherClassroom = String(profile.classroom_name || "");
 
     setSchoolId(currentSchoolId);
-    setRole(currentRole);
-    setTeacherClassroom(currentTeacherClassroom);
+    setRole(String(profile.role || ""));
+    setTeacherClassroom(String(profile.classroom_name || ""));
 
     await Promise.all([
       fetchClassrooms(currentSchoolId),
       fetchLearners(currentSchoolId),
-      fetchSummaries(currentSchoolId),
+      fetchPendingSummaries(currentSchoolId),
     ]);
 
     setLoading(false);
@@ -163,13 +174,26 @@ export default function SummariesPage() {
     setLearners((data || []) as Learner[]);
   }
 
-  async function fetchSummaries(currentSchoolId: number) {
+  async function fetchPendingSummaries(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("summaries")
       .select(
-        "id, learner_name, mood, meals, rest, health_safety, today_highlight, teacher_notes, whatsapp_sent, created_at"
+        `
+          id,
+          learner_id,
+          learner_name,
+          health_safety,
+          meals,
+          rest,
+          mood,
+          today_highlight,
+          teacher_notes,
+          status,
+          created_at
+        `
       )
       .eq("school_id", currentSchoolId)
+      .eq("status", "draft")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -177,7 +201,7 @@ export default function SummariesPage() {
       return;
     }
 
-    setSummaries((data || []) as SummaryRow[]);
+    setPendingSummaries((data || []) as PendingSummary[]);
   }
 
   const selectedClassroom = useMemo(() => {
@@ -191,7 +215,9 @@ export default function SummariesPage() {
 
     if (!selectedClassroomId) return null;
 
-    return classrooms.find((room) => String(room.id) === String(selectedClassroomId));
+    return classrooms.find(
+      (room) => String(room.id) === String(selectedClassroomId)
+    );
   }, [classrooms, role, teacherClassroom, selectedClassroomId]);
 
   const visibleLearners = useMemo(() => {
@@ -204,15 +230,31 @@ export default function SummariesPage() {
       const learnerClass = String(learner.class || "").trim().toLowerCase();
       const classroomName = roomName.toLowerCase();
 
-      return learnerClass === classroomName || Number(learner.classroom_id) === Number(roomId);
+      return (
+        learnerClass === classroomName ||
+        Number(learner.classroom_id) === Number(roomId)
+      );
     });
   }, [learners, selectedClassroom]);
 
   const selectedLearner = useMemo(() => {
     if (!selectedLearnerId) return null;
 
-    return visibleLearners.find((learner) => learner.id === selectedLearnerId) || null;
+    return (
+      visibleLearners.find((learner) => learner.id === selectedLearnerId) ||
+      null
+    );
   }, [visibleLearners, selectedLearnerId]);
+
+  const visiblePendingSummaries = useMemo(() => {
+    if (!visibleLearners.length) return [];
+
+    const visibleIds = new Set(visibleLearners.map((learner) => learner.id));
+
+    return pendingSummaries.filter((summary) =>
+      visibleIds.has(summary.learner_id)
+    );
+  }, [pendingSummaries, visibleLearners]);
 
   function resetSummaryForm() {
     setHealthSafety("");
@@ -221,18 +263,96 @@ export default function SummariesPage() {
     setMood("");
     setTodayHighlight("");
     setTeacherNotes("");
-    setGeneratedMessage("");
-    setGeneratedWhatsAppLink("");
-    setEditingSummaryId(null);
-    setEditingSummarySent(false);
   }
 
-  function selectLearner(learner: Learner) {
-    setSelectedLearnerId((current) => (current === learner.id ? null : learner.id));
+  function closeSummaryForm() {
+    setSelectedLearnerId(null);
+    setDraftId(null);
     resetSummaryForm();
   }
 
-  async function saveSummary() {
+  function resumeDraft(draft: PendingSummary) {
+    setSelectedLearnerId(draft.learner_id);
+    setDraftId(draft.id);
+    setHealthSafety(draft.health_safety || "");
+    setMeals(draft.meals || "");
+    setRest(draft.rest || "");
+    setMood(draft.mood || "");
+    setTodayHighlight(draft.today_highlight || "");
+    setTeacherNotes(draft.teacher_notes || "");
+  }
+
+  async function discardDraft(id: number) {
+    const { error } = await supabase.from("summaries").delete().eq("id", id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setPendingSummaries((current) => current.filter((item) => item.id !== id));
+
+    if (draftId === id) {
+      closeSummaryForm();
+    }
+  }
+
+  async function saveDraft() {
+    if (!schoolId || !selectedLearner) return;
+
+    setSending(true);
+
+    const payload = {
+      school_id: schoolId,
+      learner_id: selectedLearner.id,
+      learner_name: selectedLearner.name,
+      health_safety: healthSafety || null,
+      meals: meals || null,
+      rest: rest || null,
+      mood: mood || null,
+      today_highlight: todayHighlight || null,
+      teacher_notes: teacherNotes.trim() || null,
+      status: "draft",
+    };
+
+    if (draftId) {
+      const { error } = await supabase
+        .from("summaries")
+        .update(payload)
+        .eq("id", draftId);
+
+      if (error) {
+        alert(error.message);
+        setSending(false);
+        return;
+      }
+    } else {
+      const { data, error } = await supabase
+        .from("summaries")
+        .insert([payload])
+        .select("id")
+        .single();
+
+      if (error) {
+        alert(error.message);
+        setSending(false);
+        return;
+      }
+
+      setDraftId(data.id);
+    }
+
+    await fetchPendingSummaries(schoolId);
+
+    resetSummaryForm();
+    setSelectedLearnerId(null);
+    setDraftId(null);
+    setSending(false);
+
+    alert("Draft saved.");
+  }
+
+  async function sendSummaryToParent() {
     if (!schoolId || !selectedLearner) return;
 
     if (!healthSafety || !meals || !rest || !mood || !todayHighlight) {
@@ -240,10 +360,11 @@ export default function SummariesPage() {
       return;
     }
 
-    setSaving(true);
+    setSending(true);
 
     const payload = {
       school_id: schoolId,
+      learner_id: selectedLearner.id,
       learner_name: selectedLearner.name,
       health_safety: healthSafety,
       meals,
@@ -251,175 +372,28 @@ export default function SummariesPage() {
       mood,
       today_highlight: todayHighlight,
       teacher_notes: teacherNotes.trim() || null,
+      status: "sent",
       whatsapp_sent: false,
     };
 
-    const { error } = editingSummaryId
-      ? await supabase.from("summaries").update(payload).eq("id", editingSummaryId)
+    const { error } = draftId
+      ? await supabase.from("summaries").update(payload).eq("id", draftId)
       : await supabase.from("summaries").insert([payload]);
 
     if (error) {
       alert(error.message);
-      setSaving(false);
+      setSending(false);
       return;
     }
 
-    await fetchSummaries(schoolId);
+    resetSummaryForm();
+    setSelectedLearnerId(null);
+    setDraftId(null);
+    setSending(false);
 
-    setSaving(false);
-    alert(editingSummaryId ? "Summary updated." : "Summary saved.");
-  }
+    await fetchPendingSummaries(schoolId);
 
-  function formatWhatsAppPhone(phone: string | null | undefined) {
-    const cleaned = String(phone || "")
-      .replace(/\s/g, "")
-      .replace(/-/g, "")
-      .replace(/\(/g, "")
-      .replace(/\)/g, "")
-      .replace("+", "");
-
-    if (!cleaned) return "";
-
-    if (cleaned.startsWith("0")) {
-      return `27${cleaned.slice(1)}`;
-    }
-
-    return cleaned;
-  }
-
-  function generateWhatsAppMessage() {
-    if (!selectedLearner) return;
-
-    if (!healthSafety || !meals || !rest || !mood || !todayHighlight) {
-      alert("Please complete the summary first.");
-      return;
-    }
-
-    setGeneratingMessage(true);
-
-    const message = `Good day parent/guardian.
-
-${selectedLearner.name} had a positive day at school today.
-
-Mood: ${mood}
-Meals: ${meals}
-Rest: ${rest}
-Health and Safety: ${healthSafety}
-Today's Highlight: ${todayHighlight}${teacherNotes.trim() ? `\nTeacher Note: ${teacherNotes.trim()}` : ""}
-
-Thank you.`;
-
-    setGeneratedMessage(message);
-
-    const phone = formatWhatsAppPhone(selectedLearner.parent_phone);
-
-    if (!phone) {
-      setGeneratedWhatsAppLink("");
-      setGeneratingMessage(false);
-      return;
-    }
-
-    setGeneratedWhatsAppLink(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`);
-
-    setGeneratingMessage(false);
-  }
-
-  function copyMessage() {
-    if (!generatedMessage) return;
-
-    navigator.clipboard.writeText(generatedMessage);
-    alert("Message copied.");
-  }
-
-  async function markSavedSummaryAsSent(summaryId: number) {
-    if (!schoolId) return;
-
-    const { error } = await supabase
-      .from("summaries")
-      .update({ whatsapp_sent: true })
-      .eq("id", summaryId);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    await fetchSummaries(schoolId);
-  }
-
-  async function markSummaryAsSent() {
-    if (!schoolId || !selectedLearner) return;
-
-    const latestSummary = summaries.find(
-      (summary) => summary.learner_name === selectedLearner.name
-    );
-
-    if (!latestSummary) {
-      alert("Please save the summary first before marking it as sent.");
-      return;
-    }
-
-    const { error } = await supabase
-      .from("summaries")
-      .update({ whatsapp_sent: true })
-      .eq("id", latestSummary.id);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    await fetchSummaries(schoolId);
-  }
-
-  const filteredSummaries = useMemo(() => {
-    let filtered = [...summaries];
-
-    if (selectedMonth) {
-      filtered = filtered.filter((summary) => {
-        if (!summary.created_at) return false;
-
-        const summaryMonth = new Date(summary.created_at).toISOString().slice(0, 7);
-
-        return summaryMonth === selectedMonth;
-      });
-    }
-
-    return filtered;
-  }, [summaries, selectedMonth]);
-
-  const visibleSummaries = filteredSummaries.slice(0, savedSummaryLimit);
-
-  function getSavedSummaryPhone(summary: SummaryRow) {
-    const learner = learners.find((item) => item.name === summary.learner_name);
-    return learner?.parent_phone || "";
-  }
-
-  function openSavedSummary(summary: SummaryRow) {
-    const learner = learners.find((item) => item.name === summary.learner_name);
-
-    if (!learner) {
-      alert("This learner could not be found in the current learner list.");
-      return;
-    }
-
-    if (role !== "teacher" && learner.classroom_id) {
-      setSelectedClassroomId(String(learner.classroom_id));
-    }
-
-    setSelectedLearnerId(learner.id);
-    setHealthSafety(summary.health_safety || "");
-    setMeals(summary.meals || "");
-    setRest(summary.rest || "");
-    setMood(summary.mood || "");
-    setTodayHighlight(summary.today_highlight || "");
-    setTeacherNotes(summary.teacher_notes || "");
-    setGeneratedMessage("");
-    setGeneratedWhatsAppLink("");
-    setEditingSummaryId(summary.id);
-    setEditingSummarySent(Boolean(summary.whatsapp_sent));
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    alert("Summary sent to Parent successfully.");
   }
 
   if (loading || !schoolId) {
@@ -430,8 +404,6 @@ Thank you.`;
     );
   }
 
-  console.log("Daily Summaries School ID:", schoolId);
-
   return (
     <SubscriptionGuard schoolId={schoolId} featureKey="daily_summaries">
       <div>
@@ -439,12 +411,15 @@ Thank you.`;
           <h2 className="db-page-title">Daily Summaries</h2>
 
           <p className="db-page-subtitle">
-            Save learner updates and prepare parent WhatsApp messages.
+            Send learner updates directly to the Parent Portal.
           </p>
         </div>
 
         {role !== "teacher" ? (
-          <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
+          <div
+            className="db-card db-card-blue"
+            style={{ padding: 16, marginBottom: 18 }}
+          >
             <p style={labelText}>Select Classroom</p>
 
             <select
@@ -453,6 +428,7 @@ Thank you.`;
               onChange={(e) => {
                 setSelectedClassroomId(e.target.value);
                 setSelectedLearnerId(null);
+                setDraftId(null);
                 resetSummaryForm();
               }}
             >
@@ -467,306 +443,232 @@ Thank you.`;
           </div>
         ) : null}
 
-        <div className="db-card db-card-lavender" style={{ padding: 16, marginBottom: 18 }}>
-          <h3 style={sectionTitle}>
-            Learners {selectedClassroom?.classroom_name ? `(${selectedClassroom.classroom_name})` : ""}
-          </h3>
+        <div
+          className="db-card db-card-lavender"
+          style={{
+            padding: 16,
+            marginBottom: 18,
+            minHeight: 0,
+            height: "auto",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <h3 style={{ ...sectionTitle, margin: 0 }}>Learners</h3>
+
+            {selectedClassroom && visibleLearners.length > 0 ? (
+              <select
+                className="db-input"
+                value={selectedLearnerId || ""}
+                onChange={(e) => {
+                  setSelectedLearnerId(e.target.value || null);
+                  setDraftId(null);
+                  resetSummaryForm();
+                }}
+                style={{ minWidth: 220 }}
+              >
+                <option value="">Select learner</option>
+
+                {visibleLearners.map((learner) => (
+                  <option key={learner.id} value={learner.id}>
+                    {learner.name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+          </div>
 
           {!selectedClassroom ? (
-            <p className="db-helper">
+            <p className="db-helper" style={{ marginTop: 10, marginBottom: 0 }}>
               {role === "teacher"
                 ? "No classroom assigned to this teacher."
                 : "Please select a classroom to view learners."}
             </p>
           ) : visibleLearners.length === 0 ? (
-            <p className="db-helper">No learners found for this classroom.</p>
-          ) : (
-            <div style={{ display: "grid", gap: 8 }}>
-              {visibleLearners.map((learner) => {
-                const active = selectedLearnerId === learner.id;
-
-                return (
-                  <button
-                    key={learner.id}
-                    type="button"
-                    onClick={() => selectLearner(learner)}
-                    style={{
-                      width: "100%",
-                      background: active ? "#EAF7FD" : "#FFFDFB",
-                      border: active ? "1px solid #CBEAF7" : "1px solid #F0E3D8",
-                      borderRadius: 14,
-                      padding: "10px 12px",
-                      color: "#2D2A3E",
-                      cursor: "pointer",
-                      textAlign: "left",
-                    }}
-                  >
-                    <strong>{learner.name}</strong>
-                    <p style={smallText}>{learner.class || "Unassigned"}</p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+            <p className="db-helper" style={{ marginTop: 10, marginBottom: 0 }}>
+              No learners found for this classroom.
+            </p>
+          ) : null}
         </div>
 
-        {selectedLearner ? (
-          <div className="db-card db-card-green" style={{ padding: 16, marginBottom: 18 }}>
+        {selectedClassroom && visiblePendingSummaries.length > 0 ? (
+          <div
+            className="db-card"
+            style={{
+              padding: 16,
+              marginBottom: 18,
+              minHeight: 0,
+              height: "auto",
+              border: "1px solid #F0E3D8",
+              borderTop: "4px solid #EF9F27",
+            }}
+          >
             <h3 style={sectionTitle}>
-              {editingSummaryId
-                ? editingSummarySent
-                  ? `Viewing summary for ${selectedLearner.name}`
-                  : `Editing summary for ${selectedLearner.name}`
-                : `Summary for ${selectedLearner.name}`}
+              Pending Summaries ({visiblePendingSummaries.length})
             </h3>
 
-            <OptionGroup label="Health and Safety" options={healthSafetyOptions} value={healthSafety} setValue={setHealthSafety} />
-            <OptionGroup label="Meals" options={mealsOptions} value={meals} setValue={setMeals} />
-            <OptionGroup label="Rest" options={restOptions} value={rest} setValue={setRest} />
-            <OptionGroup label="Mood" options={moodOptions} value={mood} setValue={setMood} />
-            <OptionGroup label="Today’s Highlight" options={highlightOptions} value={todayHighlight} setValue={setTodayHighlight} />
+            <div style={{ display: "grid", gap: 8 }}>
+              {visiblePendingSummaries.map((draft) => (
+                <div
+                  key={draft.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 10,
+                    background: "#FFFDFB",
+                    border: "1px solid #F0E3D8",
+                    borderRadius: 14,
+                    padding: "10px 12px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div>
+                    <strong>{draft.learner_name}</strong>
+                    <p style={smallText}>Draft saved, not yet sent</p>
+                  </div>
 
-            <div style={{ marginTop: 12 }}>
-              <p style={labelText}>Teacher Notes Optional</p>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      className="db-button-secondary"
+                      onClick={() => discardDraft(draft.id)}
+                    >
+                      Discard
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => resumeDraft(draft)}
+                      style={resumeButton}
+                    >
+                      Resume
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {selectedLearner ? (
+          <div style={summaryCard}>
+            <div style={summaryHeader}>
+              <h3 style={sectionTitle}>Daily Summary</h3>
+
+              <p style={smallText}>
+                {selectedLearner.name} • {selectedLearner.class || "Unassigned"}
+              </p>
+            </div>
+
+            <OptionGroup
+              label="Health and Safety"
+              options={healthSafetyOptions}
+              value={healthSafety}
+              setValue={setHealthSafety}
+            />
+
+            <OptionGroup
+              label="Meals"
+              options={mealsOptions}
+              value={meals}
+              setValue={setMeals}
+            />
+
+            <OptionGroup
+              label="Rest"
+              options={restOptions}
+              value={rest}
+              setValue={setRest}
+            />
+
+            <OptionGroup
+              label="Mood"
+              options={moodOptions}
+              value={mood}
+              setValue={setMood}
+            />
+
+            <OptionGroup
+              label="Today’s Highlight"
+              options={highlightOptions}
+              value={todayHighlight}
+              setValue={setTodayHighlight}
+            />
+
+            <div style={{ marginTop: 18 }}>
+              <p style={labelText}>Additional Notes (Optional)</p>
 
               <textarea
                 className="db-input"
                 value={teacherNotes}
                 onChange={(e) => setTeacherNotes(e.target.value)}
-                rows={3}
+                rows={4}
                 placeholder="Write a short note if needed."
-                style={{ width: "100%", resize: "vertical" }}
+                style={{
+                  width: "100%",
+                  resize: "vertical",
+                  minHeight: 100,
+                  boxSizing: "border-box",
+                }}
               />
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-              <button
-                type="button"
-                className="db-button-primary"
-                onClick={saveSummary}
-                disabled={saving}
-              >
-                {saving ? "Saving..." : editingSummaryId ? "Save Changes" : "Save Summary"}
-              </button>
-
-              <button
-                type="button"
-                className="db-button-secondary"
-                onClick={generateWhatsAppMessage}
-                disabled={generatingMessage}
-              >
-                {generatingMessage ? "Generating..." : "Generate WhatsApp Message"}
-              </button>
-            </div>
-
-            {generatedMessage ? (
-              <div
-                style={{
-                  marginTop: 14,
-                  background: "#FFFDFB",
-                  border: "1px solid #F0E3D8",
-                  borderRadius: 14,
-                  padding: 12,
-                }}
-              >
-                <p style={labelText}>WhatsApp Message Preview</p>
-
-                <textarea
-                  className="db-input"
-                  value={generatedMessage}
-                  onChange={(e) => {
-                    const updatedMessage = e.target.value;
-                    setGeneratedMessage(updatedMessage);
-
-                    if (selectedLearner?.parent_phone) {
-                      const phone = formatWhatsAppPhone(selectedLearner.parent_phone);
-                      setGeneratedWhatsAppLink(
-                        phone
-                          ? `https://wa.me/${phone}?text=${encodeURIComponent(updatedMessage)}`
-                          : ""
-                      );
-                    }
-                  }}
-                  rows={8}
-                  style={{
-                    width: "100%",
-                    resize: "vertical",
-                    lineHeight: 1.7,
-                    marginTop: 8,
-                  }}
-                />
-
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-                  <button type="button" className="db-button-secondary" onClick={copyMessage}>
-                    Copy WhatsApp Message
-                  </button>
-
-                  {generatedWhatsAppLink ? (
-                    <a
-                      href={generatedWhatsAppLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="db-button-primary"
-                      style={{
-                        textDecoration: "none",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                      onClick={markSummaryAsSent}
-                    >
-                      Send via WhatsApp
-                    </a>
-                  ) : (
-                    <button type="button" className="db-button-secondary" disabled>
-                      Parent phone missing
-                    </button>
-                  )}
-                </div>
+            <div style={actionBar}>
+              <div>
+                <p style={statusLabel}>Summary Status</p>
+                <strong style={statusText}>
+                  {draftId ? "Saved as draft" : "Ready to send to Parent"}
+                </strong>
               </div>
-            ) : null}
+
+              <div style={actionButtons}>
+                <button
+                  type="button"
+                  onClick={saveDraft}
+                  disabled={sending}
+                  style={{
+                    ...saveDraftButton,
+                    opacity: sending ? 0.7 : 1,
+                  }}
+                >
+                  {sending ? "Saving..." : "Save Draft"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={closeSummaryForm}
+                  disabled={sending}
+                  style={{
+                    ...closeButton,
+                    opacity: sending ? 0.7 : 1,
+                  }}
+                >
+                  Close
+                </button>
+
+                <button
+                  type="button"
+                  onClick={sendSummaryToParent}
+                  disabled={sending}
+                  style={{
+                    ...sendButton,
+                    opacity: sending ? 0.7 : 1,
+                  }}
+                >
+                  {sending ? "Sending..." : "Send to Parent"}
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
-
-        <div className="db-card db-card-yellow" style={{ padding: 16 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 10,
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <h3 style={sectionTitle}>Saved Summaries ({filteredSummaries.length})</h3>
-              <p style={smallText}>Open only when you need to review saved records.</p>
-            </div>
-
-            <button
-              type="button"
-              className="db-button-secondary"
-              onClick={() => setShowSavedSummaries((prev) => !prev)}
-            >
-              {showSavedSummaries ? "Hide" : "View Saved"}
-            </button>
-          </div>
-
-          <div style={{ marginTop: 12 }}>
-            <label style={labelText}>Filter by month</label>
-
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => {
-                setSelectedMonth(e.target.value);
-                setSavedSummaryLimit(10);
-              }}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #E0D8CF",
-                fontSize: 14,
-              }}
-            />
-          </div>
-
-          {showSavedSummaries ? (
-            filteredSummaries.length === 0 ? (
-              <p className="db-helper">No saved summaries yet.</p>
-            ) : (
-              <>
-                <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-                  {visibleSummaries.map((summary) => (
-                    <div key={summary.id} style={summaryRow}>
-                      <strong>{summary.learner_name || "Unnamed learner"}</strong>
-
-                      <p style={smallText}>
-                        Mood: {summary.mood || "Not added"} | Meals:{" "}
-                        {summary.meals || "Not added"}
-                      </p>
-
-                      <p style={smallText}>
-                        {summary.created_at ? summary.created_at.split("T")[0] : ""}
-                      </p>
-
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: 10,
-                          flexWrap: "wrap",
-                          marginTop: 14,
-                        }}
-                      >
-                        <p
-                          style={{
-                            margin: 0,
-                            color: summary.whatsapp_sent ? "#2E8B57" : "#B26A00",
-                            fontSize: 13,
-                            fontWeight: 700,
-                          }}
-                        >
-                          {summary.whatsapp_sent ? "WhatsApp Sent" : "Not Sent"}
-                        </p>
-
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginLeft: "auto" }}>
-                          <button
-                            type="button"
-                            className="db-button-secondary"
-                            onClick={() => openSavedSummary(summary)}
-                          >
-                            {summary.whatsapp_sent ? "View" : "Edit"}
-                          </button>
-
-                          {!summary.whatsapp_sent ? (
-                            getSavedSummaryPhone(summary) ? (
-                              <button
-                                type="button"
-                                className="db-button-secondary"
-                                onClick={() => {
-                                  const message = encodeURIComponent(
-                                    `Hello Parent. Here is ${summary.learner_name}'s daily summary.\n\nMood: ${summary.mood || "Not added"}\nMeals: ${summary.meals || "Not added"}\nRest: ${summary.rest || "Not added"}\nHealth and Safety: ${summary.health_safety || "Not added"}\nToday's Highlight: ${summary.today_highlight || "Not added"}\nTeacher Notes: ${summary.teacher_notes || "None"}`
-                                  );
-
-                                  const phone = formatWhatsAppPhone(getSavedSummaryPhone(summary));
-
-                                  window.open(`https://wa.me/${phone}?text=${message}`, "_blank");
-
-                                  markSavedSummaryAsSent(summary.id);
-                                }}
-                              >
-                                Send via WhatsApp
-                              </button>
-                            ) : (
-                              <button type="button" className="db-button-secondary" disabled>
-                                Parent phone missing
-                              </button>
-                            )
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {savedSummaryLimit < filteredSummaries.length ? (
-                  <div style={{ marginTop: 12 }}>
-                    <button
-                      type="button"
-                      className="db-button-secondary"
-                      onClick={() => setSavedSummaryLimit((prev) => prev + 10)}
-                    >
-                      Load Next 10
-                    </button>
-                  </div>
-                ) : null}
-              </>
-            )
-          ) : null}
-        </div>
       </div>
     </SubscriptionGuard>
   );
@@ -784,10 +686,10 @@ function OptionGroup({
   setValue: (value: string) => void;
 }) {
   return (
-    <div style={{ marginTop: 14 }}>
+    <div style={{ marginTop: 18 }}>
       <p style={labelText}>{label}</p>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div style={optionWrap}>
         {options.map((option) => {
           const active = value === option;
 
@@ -800,11 +702,15 @@ function OptionGroup({
                 background: active ? "#EAF7FD" : "#FFFDFB",
                 border: active ? "1px solid #7CCCF3" : "1px solid #F0E3D8",
                 borderRadius: 999,
-                padding: "8px 12px",
+                padding: "9px 14px",
                 color: "#2D2A3E",
                 cursor: "pointer",
                 fontSize: 13,
                 fontWeight: active ? 700 : 500,
+                whiteSpace: "normal",
+                lineHeight: 1.35,
+                maxWidth: "100%",
+                wordBreak: "normal",
               }}
             >
               {option}
@@ -836,10 +742,97 @@ const smallText = {
   fontSize: 13,
 };
 
-const summaryRow = {
-  background: "#FFFDFB",
+const summaryCard = {
+  background: "#fff",
   border: "1px solid #F0E3D8",
-  borderRadius: 12,
-  padding: "10px 12px",
-  color: "#2D2A3E",
+  borderTop: "6px solid #7CCB83",
+  borderRadius: 18,
+  padding: 20,
+  marginBottom: 22,
+  boxSizing: "border-box",
+  overflow: "visible",
+} as const;
+
+const summaryHeader = {
+  marginBottom: 20,
 };
+
+const optionWrap = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  alignItems: "flex-start",
+  maxWidth: "100%",
+  overflow: "visible",
+} as const;
+
+const actionBar = {
+  marginTop: 20,
+  paddingTop: 18,
+  borderTop: "1px solid #EDE3DA",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 14,
+  flexWrap: "wrap",
+} as const;
+
+const actionButtons = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+} as const;
+
+const statusLabel = {
+  margin: 0,
+  color: "#6D6888",
+  fontSize: 13,
+  fontWeight: 700,
+};
+
+const statusText = {
+  display: "block",
+  marginTop: 4,
+  color: "#2D2A3E",
+  fontSize: 14,
+};
+
+const sendButton = {
+  border: "none",
+  borderRadius: 999,
+  background: "#34A853",
+  color: "#fff",
+  padding: "11px 18px",
+  fontWeight: 800,
+  cursor: "pointer",
+} as const;
+
+const saveDraftButton = {
+  border: "none",
+  borderRadius: 999,
+  background: "#EF9F27",
+  color: "#fff",
+  padding: "11px 18px",
+  fontWeight: 800,
+  cursor: "pointer",
+} as const;
+
+const closeButton = {
+  border: "1px solid #E2D3C4",
+  borderRadius: 999,
+  background: "#F5EFE7",
+  color: "#6D6888",
+  padding: "11px 18px",
+  fontWeight: 700,
+  cursor: "pointer",
+} as const;
+
+const resumeButton = {
+  border: "none",
+  borderRadius: 999,
+  background: "#7CCCF3",
+  color: "#fff",
+  padding: "9px 16px",
+  fontWeight: 700,
+  cursor: "pointer",
+} as const;

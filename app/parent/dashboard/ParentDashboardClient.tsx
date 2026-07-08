@@ -1,8 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/app/lib/supabase";
 
 type Child = any;
+
+type SummaryRow = {
+  id: number;
+  learner_id?: string | null;
+  learner_name?: string | null;
+  mood?: string | null;
+  meals?: string | null;
+  rest?: string | null;
+  health_safety?: string | null;
+  today_highlight?: string | null;
+  teacher_notes?: string | null;
+  created_at?: string | null;
+};
+
+type AttendanceRow = {
+  id: number;
+  learner_id?: string | null;
+  learner_name?: string | null;
+  status?: string | null;
+  absence_reason?: string | null;
+  attendance_date?: string | null;
+  created_at?: string | null;
+};
+
+type BroadcastRow = {
+  id: number;
+  school_id?: number | null;
+  title?: string | null;
+  message?: string | null;
+  audience?: string | null;
+  recipient_count?: number | null;
+  created_at?: string | null;
+};
+
+type EventRow = {
+  id: number;
+  school_id?: number | null;
+  title?: string | null;
+  event_date?: string | null;
+  description?: string | null;
+  created_at?: string | null;
+};
+
+const PAGE_SIZE = 5;
 
 export default function ParentDashboardClient({
   children,
@@ -18,7 +63,28 @@ export default function ParentDashboardClient({
   const [summaryRange, setSummaryRange] = useState("Today");
   const [broadcastRange, setBroadcastRange] = useState("Today");
   const [attendanceRange, setAttendanceRange] = useState("Today");
+  const [eventRange, setEventRange] = useState("Today");
   const [reply, setReply] = useState("");
+
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaries, setSummaries] = useState<SummaryRow[]>([]);
+  const [summaryPage, setSummaryPage] = useState(0);
+  const [hasMoreSummaries, setHasMoreSummaries] = useState(false);
+
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceRows, setAttendanceRows] = useState<AttendanceRow[]>([]);
+  const [attendancePage, setAttendancePage] = useState(0);
+  const [hasMoreAttendance, setHasMoreAttendance] = useState(false);
+
+  const [broadcastLoading, setBroadcastLoading] = useState(false);
+  const [broadcastRows, setBroadcastRows] = useState<BroadcastRow[]>([]);
+  const [broadcastPage, setBroadcastPage] = useState(0);
+  const [hasMoreBroadcasts, setHasMoreBroadcasts] = useState(false);
+
+  const [eventLoading, setEventLoading] = useState(false);
+  const [eventRows, setEventRows] = useState<EventRow[]>([]);
+  const [eventPage, setEventPage] = useState(0);
+  const [hasMoreEvents, setHasMoreEvents] = useState(false);
 
   const child =
     children.find((item) => String(item.id) === selectedChildId) ||
@@ -31,6 +97,22 @@ export default function ParentDashboardClient({
   const classroom = Array.isArray(child.classrooms)
     ? child.classrooms[0]
     : child.classrooms;
+
+  useEffect(() => {
+    fetchSummaries();
+  }, [selectedChildId, summaryRange, summaryPage]);
+
+  useEffect(() => {
+    fetchAttendanceRecords();
+  }, [selectedChildId, attendanceRange, attendancePage]);
+
+  useEffect(() => {
+    fetchBroadcasts();
+  }, [selectedChildId, broadcastRange, broadcastPage]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [selectedChildId, eventRange, eventPage]);
 
   const getTeacherName = (classroom: any) => {
     if (!classroom) return "Not assigned";
@@ -49,7 +131,7 @@ export default function ParentDashboardClient({
   const notifications = [
     "Daily summary shared",
     "Attendance marked Present",
-    "Teacher Sarah sent a message",
+    "Teacher sent a message",
     "New school broadcast available",
     "Sports Day is tomorrow",
     "Activity completed",
@@ -57,8 +139,507 @@ export default function ParentDashboardClient({
     "Attendance updated",
   ];
 
+  async function fetchSummaries() {
+    if (!child?.id) return;
+
+    setSummaryLoading(true);
+
+    const from = summaryPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE;
+
+    let query = supabase
+      .from("summaries")
+      .select(
+        `
+          id,
+          learner_id,
+          learner_name,
+          mood,
+          meals,
+          rest,
+          health_safety,
+          today_highlight,
+          teacher_notes,
+          created_at
+        `
+      )
+      .eq("learner_id", child.id)
+      .eq("status", "sent")
+      .order("created_at", { ascending: false });
+
+    const startDate = getSummaryStartDate(summaryRange);
+
+    if (startDate) {
+      query = query.gte("created_at", startDate);
+    }
+
+    if (summaryRange === "Today") {
+      query = query.limit(1);
+    } else {
+      query = query.range(from, to);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Parent summary fetch error:", error);
+      setSummaries([]);
+      setHasMoreSummaries(false);
+      setSummaryLoading(false);
+      return;
+    }
+
+    const rows = data || [];
+
+    if (summaryRange === "Today") {
+      setSummaries(rows.slice(0, 1));
+      setHasMoreSummaries(false);
+    } else {
+      const visibleRows = rows.slice(0, PAGE_SIZE);
+
+      setSummaries((current) =>
+        summaryPage === 0 ? visibleRows : [...current, ...visibleRows]
+      );
+
+      setHasMoreSummaries(rows.length > PAGE_SIZE);
+    }
+
+    setSummaryLoading(false);
+  }
+
+  async function fetchAttendanceRecords() {
+    if (!child?.id) return;
+
+    setAttendanceLoading(true);
+
+    const from = attendancePage * PAGE_SIZE;
+    const to = from + PAGE_SIZE;
+
+    let query = supabase
+      .from("attendance")
+      .select(
+        `
+          id,
+          learner_id,
+          learner_name,
+          status,
+          absence_reason,
+          attendance_date,
+          created_at
+        `
+      )
+      .eq("learner_id", child.id)
+      .order("attendance_date", { ascending: false });
+
+    const startDate = getAttendanceStartDate(attendanceRange);
+
+    if (attendanceRange === "Today") {
+      query = query.eq("attendance_date", getTodayDate()).limit(1);
+    } else {
+      if (startDate) {
+        query = query.gte("attendance_date", startDate);
+      }
+
+      query = query.range(from, to);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Parent attendance fetch error:", error);
+      setAttendanceRows([]);
+      setHasMoreAttendance(false);
+      setAttendanceLoading(false);
+      return;
+    }
+
+    const rows = data || [];
+
+    if (attendanceRange === "Today") {
+      setAttendanceRows(rows.slice(0, 1));
+      setHasMoreAttendance(false);
+    } else {
+      const visibleRows = rows.slice(0, PAGE_SIZE);
+
+      setAttendanceRows((current) =>
+        attendancePage === 0 ? visibleRows : [...current, ...visibleRows]
+      );
+
+      setHasMoreAttendance(rows.length > PAGE_SIZE);
+    }
+
+    setAttendanceLoading(false);
+  }
+
+  async function fetchBroadcasts() {
+    if (!school?.id) return;
+
+    setBroadcastLoading(true);
+
+    const from = broadcastPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE;
+
+    let query = supabase
+      .from("broadcasts")
+      .select(
+        `
+          id,
+          school_id,
+          title,
+          message,
+          audience,
+          recipient_count,
+          created_at
+        `
+      )
+      .eq("school_id", school.id)
+      .eq("status", "sent")
+      .order("created_at", { ascending: false });
+
+    const startDate = getBroadcastStartDate(broadcastRange);
+
+    if (startDate) {
+      query = query.gte("created_at", startDate);
+    }
+
+    query = query.range(from, to);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Parent broadcast fetch error:", error);
+      setBroadcastRows([]);
+      setHasMoreBroadcasts(false);
+      setBroadcastLoading(false);
+      return;
+    }
+
+    const rows = data || [];
+    const visibleRows = rows.slice(0, PAGE_SIZE);
+
+    setBroadcastRows((current) =>
+      broadcastPage === 0 ? visibleRows : [...current, ...visibleRows]
+    );
+
+    setHasMoreBroadcasts(rows.length > PAGE_SIZE);
+    setBroadcastLoading(false);
+  }
+
+  async function fetchEvents() {
+    if (!school?.id) return;
+
+    setEventLoading(true);
+
+    const from = eventPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE;
+
+    let query = supabase
+      .from("events")
+      .select(
+        `
+          id,
+          school_id,
+          title,
+          event_date,
+          description,
+          created_at
+        `
+      )
+      .eq("school_id", school.id)
+      .order("event_date", { ascending: true })
+      .order("created_at", { ascending: true });
+
+    const dateFilter = getEventDateFilter(eventRange);
+
+    if (dateFilter.from) {
+      query = query.gte("event_date", dateFilter.from);
+    }
+
+    if (dateFilter.to) {
+      query = query.lte("event_date", dateFilter.to);
+    }
+
+    query = query.range(from, to);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Parent event fetch error:", error);
+      setEventRows([]);
+      setHasMoreEvents(false);
+      setEventLoading(false);
+      return;
+    }
+
+    const rows = data || [];
+    const visibleRows = rows.slice(0, PAGE_SIZE);
+
+    setEventRows((current) =>
+      eventPage === 0 ? visibleRows : [...current, ...visibleRows]
+    );
+
+    setHasMoreEvents(rows.length > PAGE_SIZE);
+    setEventLoading(false);
+  }
+
+  function getSummaryStartDate(range: string) {
+    const now = new Date();
+
+    if (range === "Today") {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return start.toISOString();
+    }
+
+    if (range === "Week") {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 7);
+      return start.toISOString();
+    }
+
+    if (range === "Month") {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      return start.toISOString();
+    }
+
+    return null;
+  }
+
+  function getTodayDate() {
+    return new Date().toISOString().split("T")[0];
+  }
+
+  function getAttendanceStartDate(range: string) {
+    const now = new Date();
+
+    if (range === "Week") {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 7);
+      return start.toISOString().split("T")[0];
+    }
+
+    if (range === "Month") {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      return start.toISOString().split("T")[0];
+    }
+
+    return null;
+  }
+
+  function getBroadcastStartDate(range: string) {
+    const now = new Date();
+
+    if (range === "Today") {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return start.toISOString();
+    }
+
+    if (range === "Week") {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 7);
+      return start.toISOString();
+    }
+
+    if (range === "Month") {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      return start.toISOString();
+    }
+
+    return null;
+  }
+
+  function getEventDateFilter(range: string) {
+    const now = new Date();
+    const todayValue = getTodayDate();
+
+    if (range === "Today") {
+      return {
+        from: todayValue,
+        to: todayValue,
+      };
+    }
+
+    if (range === "This Week") {
+      const end = new Date(now);
+      end.setDate(end.getDate() + 7);
+
+      return {
+        from: todayValue,
+        to: end.toISOString().split("T")[0],
+      };
+    }
+
+    if (range === "This Month") {
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+      return {
+        from: todayValue,
+        to: end.toISOString().split("T")[0],
+      };
+    }
+
+    const endOfYear = new Date(now.getFullYear(), 11, 31);
+
+    return {
+      from: todayValue,
+      to: endOfYear.toISOString().split("T")[0],
+    };
+  }
+
+  function formatSummaryDate(dateValue?: string | null) {
+    if (!dateValue) return "";
+
+    return new Date(dateValue).toLocaleDateString("en-ZA", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  function formatAttendanceDate(dateValue?: string | null) {
+    if (!dateValue) return "";
+
+    return new Date(dateValue).toLocaleDateString("en-ZA", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  function formatBroadcastDate(dateValue?: string | null) {
+    if (!dateValue) return "";
+
+    return new Date(dateValue).toLocaleDateString("en-ZA", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  function formatEventDate(dateValue?: string | null) {
+    if (!dateValue) return "";
+
+    return new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-ZA", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  function getAttendanceLabel(status?: string | null) {
+    const value = String(status || "").toLowerCase();
+
+    if (value === "present") return "Present ✓";
+    if (value === "absent") return "Absent";
+
+    return "Not marked";
+  }
+
+  function getAttendancePercentage() {
+    if (attendanceRows.length === 0) return "0%";
+
+    const present = attendanceRows.filter(
+      (row) => String(row.status || "").toLowerCase() === "present"
+    ).length;
+
+    return `${Math.round((present / attendanceRows.length) * 100)}%`;
+  }
+
+  function handleAttendanceRangeChange(value: string) {
+    setAttendanceRange(value);
+    setAttendancePage(0);
+    setAttendanceRows([]);
+  }
+
+  function handleBroadcastRangeChange(value: string) {
+    setBroadcastRange(value);
+    setBroadcastPage(0);
+    setBroadcastRows([]);
+  }
+
+  function handleEventRangeChange(value: string) {
+    setEventRange(value);
+    setEventPage(0);
+    setEventRows([]);
+  }
+
+  function getPresentCount() {
+    return attendanceRows.filter(
+      (row) => String(row.status || "").toLowerCase() === "present"
+    ).length;
+  }
+
+  function getAbsentCount() {
+    return attendanceRows.filter(
+      (row) => String(row.status || "").toLowerCase() === "absent"
+    ).length;
+  }
+
+  function getGreeting() {
+    const hour = new Date().getHours();
+
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+
+    return "Good evening";
+  }
+
+  function formatLower(value?: string | null) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function buildSummaryMessage(summary: SummaryRow) {
+    const learnerName = child?.name || summary.learner_name || "Your child";
+
+    const moodText = formatLower(summary.mood);
+    const mealsText = formatLower(summary.meals);
+    const restText = formatLower(summary.rest);
+    const healthText = formatLower(summary.health_safety);
+    const highlightText = formatLower(summary.today_highlight);
+
+    return (
+      <>
+        <p style={styles.summaryText}>
+          {getGreeting()} 👋
+          <br />
+          <br />
+          {learnerName}
+          {moodText
+            ? ` had a ${moodText} day today.`
+            : " had a lovely day today."}
+          {mealsText ? ` ${learnerName} ${mealsText}.` : ""}
+          {restText ? ` ${learnerName} had a ${restText}.` : ""}
+          {healthText ? ` Health and safety update: ${healthText}.` : ""}
+          {highlightText
+            ? ` Today's highlight was that ${learnerName} ${highlightText}.`
+            : ""}
+          <br />
+          <br />
+          Thank you for trusting us with another beautiful day.
+          <br />
+          <br />
+          {getTeacherName(classroom)}
+          <br />
+          {school?.school_name || "DailyBloom"}
+        </p>
+
+        {summary.teacher_notes ? (
+          <div style={styles.noteBox}>
+            <strong style={styles.noteTitle}>Additional note</strong>
+            <p style={styles.noteText}>{summary.teacher_notes}</p>
+          </div>
+        ) : null}
+      </>
+    );
+  }
+
   const toggleSection = (section: string) => {
     setOpenSection(openSection === section ? "" : section);
+  };
+
+  const handleSummaryRangeChange = (value: string) => {
+    setSummaryRange(value);
+    setSummaryPage(0);
+    setSummaries([]);
   };
 
   const RangeTabs = ({
@@ -70,6 +651,30 @@ export default function ParentDashboardClient({
   }) => (
     <div style={styles.tabs}>
       {["Today", "Week", "Month", "To Date"].map((item) => (
+        <button
+          key={item}
+          onClick={() => setActive(item)}
+          style={{
+            ...styles.tab,
+            ...(active === item ? styles.activeTab : {}),
+          }}
+        >
+          {item}
+        </button>
+      ))}
+    </div>
+  );
+
+
+  const EventTabs = ({
+    active,
+    setActive,
+  }: {
+    active: string;
+    setActive: (value: string) => void;
+  }) => (
+    <div style={styles.tabs}>
+      {["Today", "This Week", "This Month", "Upcoming"].map((item) => (
         <button
           key={item}
           onClick={() => setActive(item)}
@@ -121,7 +726,17 @@ export default function ParentDashboardClient({
             {children.length > 1 && (
               <select
                 value={selectedChildId}
-                onChange={(e) => setSelectedChildId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedChildId(e.target.value);
+                  setSummaryPage(0);
+                  setSummaries([]);
+                  setAttendancePage(0);
+                  setAttendanceRows([]);
+                  setBroadcastPage(0);
+                  setBroadcastRows([]);
+                  setEventPage(0);
+                  setEventRows([]);
+                }}
                 style={styles.childSelect}
               >
                 {children.map((learner) => (
@@ -175,26 +790,48 @@ export default function ParentDashboardClient({
       </div>
 
       <Section id="summary" title="📝 Today's Summary">
-        <RangeTabs active={summaryRange} setActive={setSummaryRange} />
+        <RangeTabs active={summaryRange} setActive={handleSummaryRangeChange} />
 
         <h3 style={styles.contentTitle}>{summaryRange}'s Summary</h3>
 
-        <p style={styles.summaryText}>
-          Good afternoon 👋
-          <br />
-          <br />
-          {child.name} had a cheerful and active day today. He enjoyed painting
-          and outdoor play with friends. He participated well in class
-          activities and interacted positively with others.
-          <br />
-          <br />
-          Thank you for trusting us with another beautiful day.
-          <br />
-          <br />
-          {getTeacherName(classroom)}
-          <br />
-          {school?.school_name || "DailyBloom"}
-        </p>
+        {summaryLoading && summaries.length === 0 ? (
+          <p style={styles.emptyText}>Loading summary...</p>
+        ) : summaries.length > 0 ? (
+          <div style={styles.summaryTimeline}>
+            {summaries.map((summary) => (
+              <div key={summary.id} style={styles.summaryCard}>
+                {summary.created_at ? (
+                  <p style={styles.summaryDate}>
+                    {summaryRange === "Today"
+                      ? `Shared on ${formatSummaryDate(summary.created_at)}`
+                      : formatSummaryDate(summary.created_at)}
+                  </p>
+                ) : null}
+
+                {buildSummaryMessage(summary)}
+              </div>
+            ))}
+
+            {summaryRange !== "Today" && hasMoreSummaries ? (
+              <button
+                type="button"
+                onClick={() => setSummaryPage((current) => current + 1)}
+                style={styles.loadMoreButton}
+                disabled={summaryLoading}
+              >
+                {summaryLoading ? "Loading..." : "Load next 5"}
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <div style={styles.emptyState}>
+            <p style={styles.emptyTitle}>No summary shared yet.</p>
+            <p style={styles.emptyText}>
+              When the teacher sends a summary for {child.name}, it will appear
+              here.
+            </p>
+          </div>
+        )}
       </Section>
 
       <Section id="messages" title="💬 Messages (2 unread)">
@@ -227,55 +864,193 @@ export default function ParentDashboardClient({
         </div>
       </Section>
 
-      <Section id="broadcasts" title="📢 Broadcasts (3)">
-        <RangeTabs active={broadcastRange} setActive={setBroadcastRange} />
+      <Section id="broadcasts" title={`📢 Broadcasts (${broadcastRows.length})`}>
+        <RangeTabs
+          active={broadcastRange}
+          setActive={handleBroadcastRangeChange}
+        />
 
-        <div style={styles.list}>
-          <p>School closes early Friday.</p>
-          <hr />
-          <p>Pyjama Day</p>
-          <hr />
-          <p>Parent Meeting</p>
+        <div style={styles.schoolAnnouncementBadge}>
+          <strong>📢 School Announcement</strong>
         </div>
+
+        <h3 style={styles.contentTitle}>{broadcastRange} Broadcasts</h3>
+
+        {broadcastLoading && broadcastRows.length === 0 ? (
+          <p style={styles.emptyText}>Loading broadcasts...</p>
+        ) : broadcastRows.length > 0 ? (
+          <div style={styles.broadcastTimeline}>
+            {broadcastRows.map((broadcast) => (
+              <div key={broadcast.id} style={styles.broadcastCard}>
+                <div style={styles.broadcastHeader}>
+                  <div>
+                    <p style={styles.broadcastDate}>
+                      {broadcast.created_at
+                        ? formatBroadcastDate(broadcast.created_at)
+                        : "No date"}
+                    </p>
+
+                    <h4 style={styles.broadcastTitle}>
+                      📢 {broadcast.title || "School announcement"}
+                    </h4>
+                  </div>
+
+                  <span style={styles.broadcastAudience}>All parents</span>
+                </div>
+
+                <p style={styles.broadcastMessage}>
+                  {broadcast.message || "No message saved."}
+                </p>
+              </div>
+            ))}
+
+            {hasMoreBroadcasts ? (
+              <button
+                type="button"
+                onClick={() => setBroadcastPage((current) => current + 1)}
+                style={styles.loadMoreButton}
+                disabled={broadcastLoading}
+              >
+                {broadcastLoading ? "Loading..." : "Load next 5"}
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <div style={styles.emptyState}>
+            <p style={styles.emptyTitle}>No school announcements yet.</p>
+            <p style={styles.emptyText}>
+              When your school shares an announcement, it will appear here.
+            </p>
+          </div>
+        )}
       </Section>
 
       <Section id="attendance" title="✔ Attendance">
-        <RangeTabs active={attendanceRange} setActive={setAttendanceRange} />
+        <RangeTabs
+          active={attendanceRange}
+          setActive={handleAttendanceRangeChange}
+        />
 
-        <div style={styles.attendanceGrid}>
-          <div>
-            <p style={styles.muted}>Today</p>
-            <h3 style={styles.present}>Present ✓</h3>
+        <h3 style={styles.contentTitle}>{attendanceRange} Attendance</h3>
+
+        {attendanceLoading && attendanceRows.length === 0 ? (
+          <p style={styles.emptyText}>Loading attendance...</p>
+        ) : attendanceRows.length > 0 ? (
+          <>
+            <div style={styles.attendanceGrid}>
+              <div>
+                <p style={styles.muted}>
+                  {attendanceRange === "Today" ? "Today" : "Present"}
+                </p>
+
+                <h3
+                  style={
+                    attendanceRows[0]?.status === "absent"
+                      ? styles.absent
+                      : styles.present
+                  }
+                >
+                  {attendanceRange === "Today"
+                    ? getAttendanceLabel(attendanceRows[0]?.status)
+                    : `${getPresentCount()} / ${attendanceRows.length}`}
+                </h3>
+              </div>
+
+              <div>
+                <p style={styles.muted}>Attendance</p>
+                <h3>{getAttendancePercentage()}</h3>
+              </div>
+            </div>
+
+            <div style={styles.attendanceTimeline}>
+              {attendanceRows.map((row) => (
+                <div key={row.id} style={styles.attendanceRow}>
+                  <div>
+                    <strong>{formatAttendanceDate(row.attendance_date)}</strong>
+
+                    <p style={styles.attendanceStatus}>
+                      {getAttendanceLabel(row.status)}
+                    </p>
+
+                    {row.absence_reason ? (
+                      <p style={styles.attendanceReason}>
+                        Reason: {row.absence_reason}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {attendanceRange !== "Today" && hasMoreAttendance ? (
+              <button
+                type="button"
+                onClick={() => setAttendancePage((current) => current + 1)}
+                style={styles.loadMoreButton}
+                disabled={attendanceLoading}
+              >
+                {attendanceLoading ? "Loading..." : "Load next 5"}
+              </button>
+            ) : null}
+          </>
+        ) : (
+          <div style={styles.emptyState}>
+            <p style={styles.emptyTitle}>No attendance marked yet.</p>
+            <p style={styles.emptyText}>
+              When attendance is saved for {child.name}, it will appear here.
+            </p>
           </div>
-
-          <div>
-            <p style={styles.muted}>Attendance</p>
-            <h3>94%</h3>
-          </div>
-        </div>
-
-        <div style={styles.calendar}>
-          {["P", "A", "P", "P", "P"].map((day, index) => (
-            <span key={index} style={styles.calendarDay}>
-              {day}
-            </span>
-          ))}
-        </div>
+        )}
       </Section>
 
-      <Section id="events" title="📅 Events">
-        <div style={styles.events}>
-          {[
-            ["Sports Day", "10 July"],
-            ["Parent Meeting", "14 July"],
-            ["Pyjama Day", "25 July"],
-          ].map(([title, date]) => (
-            <div key={title} style={styles.eventChip}>
-              <strong>{title}</strong>
-              <span>{date}</span>
-            </div>
-          ))}
+      <Section id="events" title={`📅 Events (${eventRows.length})`}>
+        <EventTabs active={eventRange} setActive={handleEventRangeChange} />
+
+        <div style={styles.schoolEventBadge}>
+          <strong>📅 School Event</strong>
         </div>
+
+        <h3 style={styles.contentTitle}>{eventRange} Events</h3>
+
+        {eventLoading && eventRows.length === 0 ? (
+          <p style={styles.emptyText}>Loading events...</p>
+        ) : eventRows.length > 0 ? (
+          <div style={styles.eventTimeline}>
+            {eventRows.map((event) => (
+              <div key={event.id} style={styles.eventCard}>
+                <p style={styles.eventDate}>
+                  {event.event_date ? formatEventDate(event.event_date) : "No date"}
+                </p>
+
+                <h4 style={styles.eventTitle}>
+                  📅 {event.title || "School event"}
+                </h4>
+
+                <p style={styles.eventDescription}>
+                  {event.description || "No description added."}
+                </p>
+              </div>
+            ))}
+
+            {hasMoreEvents ? (
+              <button
+                type="button"
+                onClick={() => setEventPage((current) => current + 1)}
+                style={styles.loadMoreButton}
+                disabled={eventLoading}
+              >
+                {eventLoading ? "Loading..." : "Load next 5"}
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <div style={styles.emptyState}>
+            <p style={styles.emptyTitle}>No upcoming school events.</p>
+            <p style={styles.emptyText}>
+              When your school creates an event, it will appear here.
+            </p>
+          </div>
+        )}
       </Section>
     </div>
   );
@@ -407,10 +1182,80 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: "10px",
   },
 
+  summaryTimeline: {
+    display: "grid",
+    gap: "16px",
+  },
+
+  summaryCard: {
+    border: "1px solid #e2ece9",
+    borderRadius: "16px",
+    padding: "18px 20px",
+    background: "#fff",
+  },
+
+  summaryDate: {
+    margin: "0 0 14px",
+    color: "#6D6888",
+    fontSize: "13px",
+    fontWeight: 800,
+  },
+
   summaryText: {
+    margin: 0,
     lineHeight: 1.7,
     color: "#333",
     whiteSpace: "pre-line",
+  },
+
+  noteBox: {
+    marginTop: "18px",
+    padding: "14px 16px",
+    background: "#FFF8E8",
+    border: "1px solid #FFE3A3",
+    borderRadius: "14px",
+  },
+
+  noteTitle: {
+    display: "block",
+    marginBottom: "6px",
+    color: "#7A5600",
+  },
+
+  noteText: {
+    margin: 0,
+    color: "#4A3A12",
+    lineHeight: 1.6,
+  },
+
+  loadMoreButton: {
+    border: "1px solid #d9e7e4",
+    background: "#fff",
+    color: "#12304a",
+    borderRadius: "999px",
+    padding: "10px 16px",
+    cursor: "pointer",
+    fontWeight: 700,
+    width: "fit-content",
+  },
+
+  emptyState: {
+    padding: "16px",
+    background: "#FFFDFB",
+    border: "1px solid #F0E3D8",
+    borderRadius: "14px",
+  },
+
+  emptyTitle: {
+    margin: "0 0 6px",
+    color: "#2D2A3E",
+    fontWeight: 800,
+  },
+
+  emptyText: {
+    margin: 0,
+    color: "#6D6888",
+    lineHeight: 1.6,
   },
 
   chat: {
@@ -461,6 +1306,72 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
 
+  schoolAnnouncementBadge: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "10px",
+    flexWrap: "wrap",
+    background: "#FFF8E8",
+    border: "1px solid #FFE3A3",
+    borderRadius: "14px",
+    padding: "12px 14px",
+    color: "#4A3A12",
+    marginBottom: "18px",
+  },
+
+  broadcastTimeline: {
+    display: "grid",
+    gap: "16px",
+  },
+
+  broadcastCard: {
+    border: "1px solid #e2ece9",
+    borderRadius: "16px",
+    padding: "18px 20px",
+    background: "#fff",
+  },
+
+  broadcastHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "12px",
+    flexWrap: "wrap",
+    marginBottom: "12px",
+  },
+
+  broadcastDate: {
+    margin: "0 0 8px",
+    color: "#6D6888",
+    fontSize: "13px",
+    fontWeight: 800,
+  },
+
+  broadcastTitle: {
+    margin: 0,
+    color: "#2D2A3E",
+    fontSize: "17px",
+    fontWeight: 800,
+  },
+
+  broadcastAudience: {
+    background: "#EAF7FD",
+    border: "1px solid #CBEAF7",
+    borderRadius: "999px",
+    padding: "5px 10px",
+    color: "#2D2A3E",
+    fontSize: "12px",
+    fontWeight: 800,
+  },
+
+  broadcastMessage: {
+    margin: 0,
+    color: "#333",
+    lineHeight: 1.7,
+    whiteSpace: "pre-line",
+  },
+
   list: {
     color: "#333",
     lineHeight: 1.6,
@@ -475,6 +1386,36 @@ const styles: Record<string, React.CSSProperties> = {
 
   present: {
     color: "#2f9e44",
+  },
+
+  absent: {
+    color: "#d94848",
+  },
+
+  attendanceTimeline: {
+    display: "grid",
+    gap: "10px",
+    marginTop: "14px",
+  },
+
+  attendanceRow: {
+    border: "1px solid #e2ece9",
+    borderRadius: "14px",
+    padding: "12px 14px",
+    background: "#fff",
+  },
+
+  attendanceStatus: {
+    margin: "6px 0 0",
+    color: "#2D2A3E",
+    fontWeight: 700,
+    textTransform: "capitalize",
+  },
+
+  attendanceReason: {
+    margin: "6px 0 0",
+    color: "#6D6888",
+    fontSize: "13px",
   },
 
   calendar: {
@@ -492,6 +1433,53 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     fontWeight: 700,
+  },
+
+  schoolEventBadge: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "10px",
+    flexWrap: "wrap",
+    background: "#FFF8E8",
+    border: "1px solid #FFE3A3",
+    borderRadius: "14px",
+    padding: "12px 14px",
+    color: "#4A3A12",
+    marginBottom: "18px",
+  },
+
+  eventTimeline: {
+    display: "grid",
+    gap: "16px",
+  },
+
+  eventCard: {
+    border: "1px solid #e2ece9",
+    borderRadius: "16px",
+    padding: "18px 20px",
+    background: "#fff",
+  },
+
+  eventDate: {
+    margin: "0 0 8px",
+    color: "#6D6888",
+    fontSize: "13px",
+    fontWeight: 800,
+  },
+
+  eventTitle: {
+    margin: "0 0 10px",
+    color: "#2D2A3E",
+    fontSize: "17px",
+    fontWeight: 800,
+  },
+
+  eventDescription: {
+    margin: 0,
+    color: "#333",
+    lineHeight: 1.7,
+    whiteSpace: "pre-line",
   },
 
   events: {

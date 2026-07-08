@@ -17,6 +17,7 @@ type Broadcast = {
   title?: string | null;
   message?: string | null;
   recipient_count?: number | null;
+  status?: string | null;
   created_at?: string | null;
 };
 
@@ -89,7 +90,7 @@ export default function BroadcastsPage() {
   async function fetchBroadcasts(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("broadcasts")
-      .select("id, school_id, title, message, recipient_count, created_at")
+      .select("id, school_id, title, message, recipient_count, status, created_at")
       .eq("school_id", currentSchoolId)
       .gte("created_at", `${fromDate} 00:00:00`)
       .lte("created_at", `${toDate} 23:59:59`)
@@ -107,7 +108,7 @@ export default function BroadcastsPage() {
     String(learner.parent_phone || "").trim()
   );
 
-  async function createBroadcast() {
+  async function submitBroadcast(status: "draft" | "sent") {
     if (!schoolId) return;
 
     if (!title.trim()) {
@@ -120,7 +121,7 @@ export default function BroadcastsPage() {
       return;
     }
 
-    if (parentsWithPhones.length === 0) {
+    if (status === "sent" && parentsWithPhones.length === 0) {
       alert("No parent phone numbers found.");
       return;
     }
@@ -134,7 +135,8 @@ export default function BroadcastsPage() {
           school_id: schoolId,
           title: title.trim(),
           message: message.trim(),
-          recipient_count: parentsWithPhones.length,
+          recipient_count: status === "sent" ? parentsWithPhones.length : 0,
+          status,
         },
       ])
       .select()
@@ -146,17 +148,19 @@ export default function BroadcastsPage() {
       return;
     }
 
-    const communicationRows = parentsWithPhones.map((learner) => ({
-      school_id: schoolId,
-      learner_name: learner.name || null,
-      parent_phone: learner.parent_phone || null,
-      communication_type: "Broadcast",
-      message: message.trim(),
-      status: "Pending WhatsApp",
-      sent_date: today,
-    }));
+    if (status === "sent") {
+      const communicationRows = parentsWithPhones.map((learner) => ({
+        school_id: schoolId,
+        learner_name: learner.name || null,
+        parent_phone: learner.parent_phone || null,
+        communication_type: "Broadcast",
+        message: message.trim(),
+        status: "Sent",
+        sent_date: today,
+      }));
 
-    await supabase.from("communications").insert(communicationRows);
+      await supabase.from("communications").insert(communicationRows);
+    }
 
     setTitle("");
     setMessage("");
@@ -166,7 +170,63 @@ export default function BroadcastsPage() {
     await fetchBroadcasts(schoolId);
 
     setSaving(false);
-    alert("Broadcast created and added to communication tracking.");
+    alert(
+      status === "sent"
+        ? "Broadcast sent to parents."
+        : "Broadcast saved as draft."
+    );
+  }
+
+  async function sendExistingDraft(broadcast: Broadcast) {
+    if (!schoolId) return;
+
+    if (parentsWithPhones.length === 0) {
+      alert("No parent phone numbers found.");
+      return;
+    }
+
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("broadcasts")
+      .update({
+        status: "sent",
+        recipient_count: parentsWithPhones.length,
+      })
+      .eq("id", broadcast.id);
+
+    if (error) {
+      alert(error.message);
+      setSaving(false);
+      return;
+    }
+
+    const communicationRows = parentsWithPhones.map((learner) => ({
+      school_id: schoolId,
+      learner_name: learner.name || null,
+      parent_phone: learner.parent_phone || null,
+      communication_type: "Broadcast",
+      message: broadcast.message || "",
+      status: "Sent",
+      sent_date: today,
+    }));
+
+    await supabase.from("communications").insert(communicationRows);
+
+    await fetchBroadcasts(schoolId);
+
+    setSelectedBroadcast((current) =>
+      current && current.id === broadcast.id
+        ? {
+            ...current,
+            status: "sent",
+            recipient_count: parentsWithPhones.length,
+          }
+        : current
+    );
+
+    setSaving(false);
+    alert("Broadcast sent to parents.");
   }
 
   function copyBroadcastMessage() {
@@ -195,7 +255,7 @@ export default function BroadcastsPage() {
           <div>
             <h2 className="db-page-title">Broadcasts</h2>
             <p className="db-page-subtitle">
-              Create parent broadcasts and prepare WhatsApp communication records.
+              Create parent broadcasts and prepare communication records.
             </p>
           </div>
 
@@ -239,26 +299,57 @@ export default function BroadcastsPage() {
             />
           </div>
 
-          <button
-            type="button"
-            className="db-button-primary"
-            onClick={createBroadcast}
-            disabled={saving}
-            style={{ width: "100%", marginTop: 12 }}
-          >
-            {saving ? "Creating..." : "Create Broadcast"}
-          </button>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+            <button
+              type="button"
+              onClick={() => submitBroadcast("draft")}
+              disabled={saving}
+              style={{ ...saveDraftButton, opacity: saving ? 0.7 : 1 }}
+            >
+              {saving ? "Saving..." : "Save Draft"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => submitBroadcast("sent")}
+              disabled={saving}
+              style={{ ...sendButton, opacity: saving ? 0.7 : 1 }}
+            >
+              {saving ? "Sending..." : "Send to Parent"}
+            </button>
+          </div>
 
           <p style={smallText}>
-            WhatsApp API sending will be connected later. For now, this saves the
-            broadcast and creates communication tracking records.
+            Sent broadcasts are added to your communication tracking log.
+            Drafts stay saved here until you're ready to send them.
           </p>
         </div>
       ) : null}
 
       {selectedBroadcast ? (
-        <div className="db-card db-card-green" style={{ padding: 16, marginBottom: 18 }}>
-          <h3 style={sectionTitle}>{selectedBroadcast.title || "Broadcast"}</h3>
+        <div
+          className="db-card db-card-green"
+          style={{ padding: 16, marginBottom: 18 }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <h3 style={sectionTitle}>{selectedBroadcast.title || "Broadcast"}</h3>
+
+            <span
+              style={
+                selectedBroadcast.status === "draft" ? pillAmber : pillGreen
+              }
+            >
+              {selectedBroadcast.status === "draft" ? "Draft" : "Sent"}
+            </span>
+          </div>
 
           <p style={smallText}>
             Recipients: {selectedBroadcast.recipient_count || 0}
@@ -274,8 +365,19 @@ export default function BroadcastsPage() {
               className="db-button-secondary"
               onClick={copyBroadcastMessage}
             >
-              Copy WhatsApp Message
+              Copy Message
             </button>
+
+            {selectedBroadcast.status === "draft" ? (
+              <button
+                type="button"
+                onClick={() => sendExistingDraft(selectedBroadcast)}
+                disabled={saving}
+                style={{ ...sendButton, opacity: saving ? 0.7 : 1 }}
+              >
+                {saving ? "Sending..." : "Send to Parent"}
+              </button>
+            ) : null}
 
             <button
               type="button"
@@ -359,6 +461,14 @@ export default function BroadcastsPage() {
                   >
                     <strong>{broadcast.title || "Untitled broadcast"}</strong>
 
+                    <span
+                      style={
+                        broadcast.status === "draft" ? pillAmber : pillGreen
+                      }
+                    >
+                      {broadcast.status === "draft" ? "Draft" : "Sent"}
+                    </span>
+
                     <span style={pillBlue}>
                       {broadcast.recipient_count || 0} parents
                     </span>
@@ -420,7 +530,7 @@ const messageBox = {
 const broadcastButton = {
   width: "100%",
   display: "grid",
-  gridTemplateColumns: "1fr 120px 120px",
+  gridTemplateColumns: "1fr 90px 120px 120px",
   gap: 8,
   alignItems: "center",
   background: "#FFFDFB",
@@ -451,3 +561,45 @@ const pillNeutral = {
   color: "#2D2A3E",
   textAlign: "center" as const,
 };
+
+const pillGreen = {
+  background: "#DFF4DF",
+  border: "1px solid #BFE6BF",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 12,
+  fontWeight: 700 as const,
+  color: "#3F7A3F",
+  textAlign: "center" as const,
+};
+
+const pillAmber = {
+  background: "#FFF2BF",
+  border: "1px solid #F3E4A3",
+  borderRadius: 999,
+  padding: "4px 10px",
+  fontSize: 12,
+  fontWeight: 700 as const,
+  color: "#8A6812",
+  textAlign: "center" as const,
+};
+
+const saveDraftButton = {
+  border: "none",
+  borderRadius: 16,
+  background: "#EF9F27",
+  color: "#fff",
+  padding: "12px 18px",
+  fontWeight: 800,
+  cursor: "pointer",
+} as const;
+
+const sendButton = {
+  border: "none",
+  borderRadius: 16,
+  background: "#34A853",
+  color: "#fff",
+  padding: "12px 18px",
+  fontWeight: 800,
+  cursor: "pointer",
+} as const;

@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 
 type Learner = {
-  id: number;
+  id: string;
   name: string;
   class?: string | null;
   classroom_id?: number | null;
@@ -19,6 +19,7 @@ type Classroom = {
 type AttendanceRow = {
   id?: number;
   school_id?: number;
+  learner_id?: string | null;
   learner_name?: string;
   status?: string;
   absence_reason?: string | null;
@@ -296,6 +297,7 @@ export default function AttendancePage() {
       .filter((learner) => attendance[learner.name])
       .map((learner) => ({
         school_id: schoolId,
+        learner_id: learner.id,
         learner_name: learner.name,
         status: attendance[learner.name],
         absence_reason:

@@ -122,7 +122,7 @@ export default function EventsPage() {
       await fetchEvents(schoolId);
 
       setSaving(false);
-      alert("Event updated.");
+      alert("School event updated.");
       return;
     }
 
@@ -146,11 +146,11 @@ export default function EventsPage() {
     await fetchEvents(schoolId);
 
     setSaving(false);
-    alert("Event saved.");
+    alert("School event published to the Parent Portal.");
   }
 
   async function deleteEvent(eventId: number) {
-    const confirmed = confirm("Delete this event?");
+    const confirmed = confirm("Delete this school event?");
     if (!confirmed) return;
 
     const { error } = await supabase.from("events").delete().eq("id", eventId);
@@ -168,7 +168,7 @@ export default function EventsPage() {
       await fetchEvents(schoolId);
     }
 
-    alert("Event deleted.");
+    alert("School event deleted.");
   }
 
   if (loading) {
@@ -190,7 +190,7 @@ export default function EventsPage() {
           <div>
             <h2 className="db-page-title">Events</h2>
             <p className="db-page-subtitle">
-              View upcoming events first and add new events only when needed.
+              Create and manage upcoming school events for parents.
             </p>
 
             {schoolParam && schoolId ? (
@@ -208,7 +208,7 @@ export default function EventsPage() {
               setShowForm((prev) => !prev);
             }}
           >
-            {showForm ? "Close" : "Add Event"}
+            {showForm ? "Close" : "Create School Event"}
           </button>
         </div>
       </div>
@@ -218,7 +218,7 @@ export default function EventsPage() {
           className="db-card db-card-blue"
           style={{ padding: 16, marginBottom: 18 }}
         >
-          <h3 style={sectionTitle}>{editingId ? "Edit Event" : "Add Event"}</h3>
+          <h3 style={sectionTitle}>{editingId ? "Edit School Event" : "Create School Event"}</h3>
 
           <div style={grid2}>
             <div>
@@ -237,7 +237,7 @@ export default function EventsPage() {
                 className="db-input"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Parent Meeting, Theme Day, School Outing..."
+                placeholder="Sports Day, Pyjama Day, Parent Meeting..."
               />
             </div>
           </div>
@@ -260,13 +260,13 @@ export default function EventsPage() {
             onClick={saveEvent}
             disabled={saving}
           >
-            {saving ? "Saving..." : editingId ? "Update Event" : "Save Event"}
+            {saving ? "Saving..." : editingId ? "Update School Event" : "Publish School Event"}
           </button>
         </div>
       ) : null}
 
       <div className="db-card db-card-green" style={{ padding: 16 }}>
-        <h3 style={sectionTitle}>Upcoming Events ({events.length})</h3>
+        <h3 style={sectionTitle}>Upcoming School Events ({events.length})</h3>
 
         {events.length === 0 ? (
           <p className="db-helper">No upcoming events added yet.</p>

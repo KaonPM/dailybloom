@@ -751,8 +751,6 @@ gap:24px;
 }
 
 .db-card{
-min-height:260px;
-height:260px;
 display:flex;
 flex-direction:column;
 padding:24px;

@@ -2,6 +2,7 @@ import "./globals.css";
 import AppChrome from "./components/AppChrome";
 import RegisterServiceWorker from "./components/RegisterServiceWorker";
 import { Suspense } from "react";
+import Script from "next/script";
 
 export const metadata = {
   title: "DailyBloom",
@@ -63,6 +64,11 @@ export default function RootLayout({
           background: "#FFF8F2",
         }}
       >
+        <Script
+          src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
+          strategy="afterInteractive"
+        />
+
         <RegisterServiceWorker />
 
         <Suspense

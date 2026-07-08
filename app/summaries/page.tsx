@@ -386,6 +386,21 @@ export default function SummariesPage() {
       return;
     }
 
+    fetch("/api/notifications/parent-push", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        type: "daily_summary",
+        school_id: schoolId,
+        learner_name: selectedLearner.name,
+        parent_phone: selectedLearner.parent_phone,
+      }),
+    }).catch((pushError) => {
+      console.error("Could not send summary push notification:", pushError);
+    });
+
     resetSummaryForm();
     setSelectedLearnerId(null);
     setDraftId(null);

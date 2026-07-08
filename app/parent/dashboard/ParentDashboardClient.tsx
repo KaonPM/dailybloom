@@ -47,24 +47,45 @@ type EventRow = {
   created_at?: string | null;
 };
 
+type MessageRow = {
+  id: number;
+  school_id?: number | null;
+  learner_id?: string | null;
+  sender_id?: string | null;
+  sender_name?: string | null;
+  recipient_id?: string | null;
+  recipient_role?: string | null;
+  message?: string | null;
+  is_read?: boolean | null;
+  created_at?: string | null;
+};
+
+type ParentContext = {
+  phone?: string | null;
+  name?: string | null;
+};
+
 const PAGE_SIZE = 5;
 
 export default function ParentDashboardClient({
-  children,
+  learners,
+  parent,
 }: {
-  children: Child[];
+  learners: Child[];
+  parent: ParentContext;
 }) {
+  const children = learners;
   const [selectedChildId, setSelectedChildId] = useState(
     String(children[0]?.id || "")
   );
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [openSection, setOpenSection] = useState("");
+  const [seenUpdateTypes, setSeenUpdateTypes] = useState<Record<string, boolean>>({});
   const [summaryRange, setSummaryRange] = useState("Today");
   const [broadcastRange, setBroadcastRange] = useState("Today");
   const [attendanceRange, setAttendanceRange] = useState("Today");
   const [eventRange, setEventRange] = useState("Today");
-  const [reply, setReply] = useState("");
 
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaries, setSummaries] = useState<SummaryRow[]>([]);
@@ -85,6 +106,8 @@ export default function ParentDashboardClient({
   const [eventRows, setEventRows] = useState<EventRow[]>([]);
   const [eventPage, setEventPage] = useState(0);
   const [hasMoreEvents, setHasMoreEvents] = useState(false);
+  const [messageLoading, setMessageLoading] = useState(false);
+  const [dashboardMessages, setDashboardMessages] = useState<MessageRow[]>([]);
 
   const child =
     children.find((item) => String(item.id) === selectedChildId) ||
@@ -127,17 +150,6 @@ export default function ParentDashboardClient({
 
     return "Not assigned";
   };
-
-  const notifications = [
-    "Daily summary shared",
-    "Attendance marked Present",
-    "Teacher sent a message",
-    "New school broadcast available",
-    "Sports Day is tomorrow",
-    "Activity completed",
-    "Storybook uploaded",
-    "Attendance updated",
-  ];
 
   async function fetchSummaries() {
     if (!child?.id) return;
@@ -382,6 +394,75 @@ export default function ParentDashboardClient({
     setEventLoading(false);
   }
 
+  async function fetchMessageSummary() {
+    if (!child?.id || !school?.id || !parent?.phone) return;
+
+    setMessageLoading(true);
+
+    const response = await fetch("/api/messages/parent-summary", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        school_id: school.id,
+        learner_id: child.id,
+        parent_phone: parent.phone,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error("Parent message summary fetch error:", result.error);
+      setDashboardMessages([]);
+      setMessageLoading(false);
+      return;
+    }
+
+    setDashboardMessages((result.messages || []) as MessageRow[]);
+    setMessageLoading(false);
+  }
+
+  useEffect(() => {
+    fetchMessageSummary();
+  }, [selectedChildId]);
+
+  useEffect(() => {
+    if (!school?.id || !parent?.phone) return;
+
+    const channel = supabase
+      .channel(`parent-dashboard-messages-${school.id}-${parent.phone}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          const nextMessage = payload.new as MessageRow | null;
+
+          if (!nextMessage || Number(nextMessage.school_id) !== Number(school.id)) {
+            return;
+          }
+
+          const isParentMessage =
+            String(nextMessage.sender_id || "") === String(parent.phone) ||
+            String(nextMessage.recipient_id || "") === String(parent.phone);
+
+          if (isParentMessage) {
+            fetchMessageSummary();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [school?.id, parent?.phone, selectedChildId]);
+
   function getSummaryStartDate(range: string) {
     const now = new Date();
 
@@ -406,6 +487,12 @@ export default function ParentDashboardClient({
 
   function getTodayDate() {
     return new Date().toISOString().split("T")[0];
+  }
+
+  function getTomorrowDate() {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split("T")[0];
   }
 
   function getAttendanceStartDate(range: string) {
@@ -633,8 +720,19 @@ export default function ParentDashboardClient({
   }
 
   const toggleSection = (section: string) => {
+    if (openSection !== section) {
+      markUpdateTypeSeen(section);
+    }
+
     setOpenSection(openSection === section ? "" : section);
   };
+
+  function markUpdateTypeSeen(type: string) {
+    setSeenUpdateTypes((current) => ({
+      ...current,
+      [type]: true,
+    }));
+  }
 
   const handleSummaryRangeChange = (value: string) => {
     setSummaryRange(value);
@@ -712,6 +810,42 @@ export default function ParentDashboardClient({
     );
   };
 
+  const unreadMessages = dashboardMessages.filter((message) => {
+    const sentToParent = String(message.recipient_id || "") === String(parent?.phone);
+    return sentToParent && message.is_read === false;
+  });
+
+  const unreadCount = unreadMessages.length;
+  const lastMessage = dashboardMessages[0] || null;
+  const lastMessagePreview = lastMessage?.message || "";
+  const lastMessageSender =
+    lastMessage?.sender_name || (lastMessage?.sender_id === parent?.phone ? "You" : "School");
+  const tomorrowEvents = eventRows.filter(
+    (event) => String(event.event_date || "") === getTomorrowDate()
+  );
+  const notifications = [
+    ...(summaries.length > 0 && !seenUpdateTypes.summary
+      ? [{ type: "summary", text: "Daily summary shared" }]
+      : []),
+    ...(!seenUpdateTypes.messages
+      ? unreadMessages.map((message) => ({
+          type: "messages",
+          text: `New message from ${message.sender_name || "DailyBloom"}`,
+        }))
+      : []),
+    ...(broadcastRows.length > 0 && !seenUpdateTypes.broadcasts
+      ? [{ type: "broadcasts", text: "New school broadcast available" }]
+      : []),
+    ...(tomorrowEvents.length > 0 && !seenUpdateTypes.events
+      ? [
+          {
+            type: "events",
+            text: `${tomorrowEvents[0]?.title || "School event"} is tomorrow`,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div style={styles.page}>
       <div
@@ -736,6 +870,7 @@ export default function ParentDashboardClient({
                   setBroadcastRows([]);
                   setEventPage(0);
                   setEventRows([]);
+                  setSeenUpdateTypes({});
                 }}
                 style={styles.childSelect}
               >
@@ -780,19 +915,23 @@ export default function ParentDashboardClient({
 
         {notificationsOpen && (
           <div style={styles.notificationList}>
-            {notifications.map((item, index) => (
-              <p key={index} style={styles.notificationItem}>
-                • {item}
-              </p>
-            ))}
+            {notifications.length > 0 ? (
+              notifications.map((item, index) => (
+                <p key={index} style={styles.notificationItem}>
+                  • {item.text}
+                </p>
+              ))
+            ) : (
+              <p style={styles.notificationItem}>No new updates.</p>
+            )}
           </div>
         )}
       </div>
 
-      <Section id="summary" title="📝 Today's Summary">
+      <Section id="summary" title={`📝 Today's Summary`}>
         <RangeTabs active={summaryRange} setActive={handleSummaryRangeChange} />
 
-        <h3 style={styles.contentTitle}>{summaryRange}'s Summary</h3>
+        <h3 style={styles.contentTitle}>{`${summaryRange}'s Summary`}</h3>
 
         {summaryLoading && summaries.length === 0 ? (
           <p style={styles.emptyText}>Loading summary...</p>
@@ -834,34 +973,41 @@ export default function ParentDashboardClient({
         )}
       </Section>
 
-      <Section id="messages" title="💬 Messages (2 unread)">
-        <div style={styles.chat}>
-          <div style={styles.messageTeacher}>
-            <strong>{getTeacherName(classroom)}</strong>
-            <p>Please bring crayons tomorrow.</p>
-          </div>
-
-          <div style={styles.messageParent}>
-            <strong>You</strong>
-            <p>Thank you.</p>
-          </div>
-
-          <div style={styles.messageTeacher}>
-            <strong>{getTeacherName(classroom)}</strong>
-            <p>Perfect.</p>
-          </div>
+      <Section id="messages" title="💬 Messages">
+        <div style={styles.parentMessageIntro}>
+          <h3 style={styles.contentTitle}>
+            Messages{unreadCount > 0 ? ` (${unreadCount} unread)` : ""}
+          </h3>
+          <p style={styles.emptyText}>
+            {messageLoading
+              ? "Checking messages..."
+              : unreadCount > 0
+                ? `You have ${unreadCount} unread message${unreadCount === 1 ? "" : "s"}.`
+                : "No unread messages."}
+          </p>
         </div>
 
-        <div style={styles.replyBox}>
-          <textarea
-            value={reply}
-            onChange={(e) => setReply(e.target.value)}
-            placeholder="Reply..."
-            style={styles.textarea}
-          />
-
-          <button style={styles.sendButton}>Send</button>
+        <div style={styles.parentMessageSummaryBox}>
+          <strong style={styles.emptyTitle}>Last message</strong>
+          {lastMessage ? (
+            <>
+              <p style={styles.parentMessageSender}>{lastMessageSender}</p>
+              <p style={styles.parentMessagePreview}>{lastMessagePreview}</p>
+            </>
+          ) : (
+            <p style={styles.parentContactText}>
+              New messages from the teacher or principal will appear here.
+            </p>
+          )}
         </div>
+
+        <a
+          href="/parent/messages"
+          onClick={() => markUpdateTypeSeen("messages")}
+          style={styles.openMessagesButton}
+        >
+          Open Messages →
+        </a>
       </Section>
 
       <Section id="broadcasts" title={`📢 Broadcasts (${broadcastRows.length})`}>
@@ -1256,6 +1402,83 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
     color: "#6D6888",
     lineHeight: 1.6,
+  },
+
+  parentMessageIntro: {
+    marginBottom: "16px",
+  },
+
+  parentMessageSummaryBox: {
+    border: "1px solid #e2ece9",
+    borderRadius: "16px",
+    padding: "16px",
+    background: "#fff",
+    color: "#2D2A3E",
+    marginBottom: "16px",
+  },
+
+  parentMessageGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: "12px",
+    marginBottom: "16px",
+  },
+
+  parentContactCard: {
+    display: "flex",
+    gap: "12px",
+    alignItems: "center",
+    border: "1px solid #e2ece9",
+    borderRadius: "16px",
+    padding: "16px",
+    background: "#fff",
+    color: "#2D2A3E",
+  },
+
+  parentContactIcon: {
+    width: "42px",
+    height: "42px",
+    borderRadius: "14px",
+    background: "#EAF7FD",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
+  },
+
+  parentContactText: {
+    margin: "5px 0 0",
+    color: "#6D6888",
+    fontSize: "13px",
+    lineHeight: 1.5,
+  },
+
+  parentMessageSender: {
+    margin: "10px 0 6px",
+    color: "#2D2A3E",
+    fontSize: "14px",
+    fontWeight: 800,
+  },
+
+  parentMessagePreview: {
+    margin: 0,
+    color: "#6D6888",
+    fontSize: "15px",
+    lineHeight: 1.5,
+  },
+
+  openMessagesButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "none",
+    borderRadius: "14px",
+    background: "#7CCCF3",
+    color: "#fff",
+    padding: "13px 18px",
+    fontWeight: 800,
+    cursor: "pointer",
+    textDecoration: "none",
   },
 
   chat: {

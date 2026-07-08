@@ -141,6 +141,21 @@ export default function EventsPage() {
       return;
     }
 
+    fetch("/api/notifications/parent-push", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        type: "event_reminder",
+        school_id: schoolId,
+        title: title.trim(),
+        event_date: eventDate,
+      }),
+    }).catch((pushError) => {
+      console.error("Could not send event reminder push notification:", pushError);
+    });
+
     resetForm();
     setShowForm(false);
     await fetchEvents(schoolId);

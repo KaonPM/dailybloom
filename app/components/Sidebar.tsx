@@ -41,6 +41,7 @@ export default function Sidebar() {
   const [subscriptionPlan, setSubscriptionPlan] = useState("");
   const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
   const [filteredQuickActionsNav, setFilteredQuickActionsNav] = useState<NavItem[]>([]);
   const [filteredTeacherQuickActionsNav, setFilteredTeacherQuickActionsNav] = useState<NavItem[]>([]);
@@ -304,6 +305,7 @@ export default function Sidebar() {
       setProfile(null);
       setSchool(null);
       setSubscriptionPlan("");
+      setUnreadMessageCount(0);
       setFilteredQuickActionsNav([]);
       setFilteredTeacherQuickActionsNav([]);
       setFilteredSchoolManagementNav([]);
@@ -313,6 +315,7 @@ export default function Sidebar() {
     }
 
     setProfile(currentProfile);
+    fetchUnreadMessageCount(String(currentProfile.id || ""));
 
     let schoolId: number | null = null;
 
@@ -382,6 +385,26 @@ export default function Sidebar() {
     setLoading(false);
   }
 
+  async function fetchUnreadMessageCount(profileId: string) {
+    if (!profileId) {
+      setUnreadMessageCount(0);
+      return;
+    }
+
+    const { count, error } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("recipient_id", profileId)
+      .eq("is_read", false);
+
+    if (error) {
+      setUnreadMessageCount(0);
+      return;
+    }
+
+    setUnreadMessageCount(count || 0);
+  }
+
   const isMaster = profile?.role === "master";
   const isTeacher = profile?.role === "teacher";
   const showSchoolActions = Boolean(school) || !isMaster;
@@ -392,6 +415,41 @@ export default function Sidebar() {
       setSchoolManagementOpen(true);
     }
   }, [isTeacher]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const channel = supabase
+      .channel(`sidebar-messages-${profile.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          const nextMessage = payload.new as
+            | { recipient_id?: string | null; sender_id?: string | null }
+            | null;
+          const oldMessage = payload.old as
+            | { recipient_id?: string | null; sender_id?: string | null }
+            | null;
+
+          if (
+            String(nextMessage?.recipient_id || "") === String(profile.id) ||
+            String(oldMessage?.recipient_id || "") === String(profile.id)
+          ) {
+            fetchUnreadMessageCount(String(profile.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id]);
 
   const isBloomElite =
     String(subscriptionPlan || school?.package_name || "")
@@ -741,6 +799,24 @@ export default function Sidebar() {
                 Dashboard
               </Link>
 
+              {!isMaster ? (
+                <Link
+                  href="/messages"
+                  style={navStyle({
+                    label: "Messages",
+                    href: "/messages",
+                    match: ["/messages"],
+                  })}
+                >
+                  <span style={messageNavInner}>
+                    <span>Messages</span>
+                    {unreadMessageCount > 0 ? (
+                      <span style={messageBadge}>{unreadMessageCount}</span>
+                    ) : null}
+                  </span>
+                </Link>
+              ) : null}
+
               <button
                 type="button"
                 onClick={() => setQuickActionsOpen((prev) => !prev)}
@@ -862,6 +938,28 @@ export default function Sidebar() {
     </aside>
   );
 }
+
+const messageNavInner = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "10px",
+} as const;
+
+const messageBadge = {
+  minWidth: "24px",
+  height: "24px",
+  borderRadius: "999px",
+  background: "#E53935",
+  color: "#FFFFFF",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0 7px",
+  fontSize: "12px",
+  fontWeight: 800,
+  lineHeight: 1,
+} as const;
 
 function NavSection({
   title,

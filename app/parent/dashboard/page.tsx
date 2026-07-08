@@ -20,5 +20,5 @@ export default async function ParentDashboard() {
     );
   }
 
-  return <ParentDashboardClient children={children} />;
+  return <ParentDashboardClient learners={children} parent={parent} />;
 }

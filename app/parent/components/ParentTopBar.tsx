@@ -5,11 +5,7 @@ import { useState } from "react";
 
 const menuItems = [
   { label: "Dashboard", href: "/parent/dashboard" },
-  { label: "Daily Summaries", href: "/parent/summaries" },
   { label: "Messages", href: "/parent/messages" },
-  { label: "Broadcasts", href: "/parent/broadcasts" },
-  { label: "Attendance", href: "/parent/attendance" },
-  { label: "Events", href: "/parent/events" },
 ];
 
 export default function ParentTopBar({
@@ -68,43 +64,40 @@ export default function ParentTopBar({
       </header>
 
       {open && (
-        <div
-          style={{
-            position: "absolute",
-            right: "20px",
-            top: "82px",
-            background: "#fff",
-            width: "260px",
-            borderRadius: "16px",
-            boxShadow: "0 12px 30px rgba(0,0,0,.12)",
-            overflow: "hidden",
-            zIndex: 500,
-            border: "1px solid #eee",
-          }}
-        >
-          {menuItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              style={menuLink}
-            >
-              {item.label}
-            </Link>
-          ))}
+        <>
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+            style={menuBackdrop}
+          />
 
-          <Link
-            href="/api/parent-logout"
-            style={{
-              ...menuLink,
-              color: "#E53935",
-              fontWeight: 700,
-              borderBottom: "none",
-            }}
-          >
-            Logout
-          </Link>
-        </div>
+          <div style={menuPanel}>
+            {menuItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                style={menuLink}
+              >
+                {item.label}
+              </Link>
+            ))}
+
+            <Link
+              href="/api/parent-logout"
+              onClick={() => setOpen(false)}
+              style={{
+                ...menuLink,
+                color: "#E53935",
+                fontWeight: 700,
+                borderBottom: "none",
+              }}
+            >
+              Logout
+            </Link>
+          </div>
+        </>
       )}
     </>
   );
@@ -117,6 +110,28 @@ const iconButton = {
   cursor: "pointer",
   color: "#2D2A3E",
   padding: 0,
+} as const;
+
+const menuBackdrop = {
+  position: "fixed",
+  inset: 0,
+  border: "none",
+  background: "transparent",
+  cursor: "default",
+  zIndex: 400,
+} as const;
+
+const menuPanel = {
+  position: "absolute",
+  right: "20px",
+  top: "82px",
+  background: "#fff",
+  width: "260px",
+  borderRadius: "16px",
+  boxShadow: "0 12px 30px rgba(0,0,0,.12)",
+  overflow: "hidden",
+  zIndex: 500,
+  border: "1px solid #eee",
 } as const;
 
 const menuLink = {

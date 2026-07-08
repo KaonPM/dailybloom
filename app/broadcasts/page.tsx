@@ -160,6 +160,22 @@ export default function BroadcastsPage() {
       }));
 
       await supabase.from("communications").insert(communicationRows);
+
+      fetch("/api/notifications/parent-push", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "broadcast",
+          school_id: schoolId,
+          title: title.trim(),
+          message: message.trim(),
+          parent_phones: parentsWithPhones.map((learner) => learner.parent_phone),
+        }),
+      }).catch((pushError) => {
+        console.error("Could not send broadcast push notification:", pushError);
+      });
     }
 
     setTitle("");
@@ -212,6 +228,22 @@ export default function BroadcastsPage() {
     }));
 
     await supabase.from("communications").insert(communicationRows);
+
+    fetch("/api/notifications/parent-push", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        type: "broadcast",
+        school_id: schoolId,
+        title: broadcast.title || "New school broadcast",
+        message: broadcast.message || "A new school broadcast is available.",
+        parent_phones: parentsWithPhones.map((learner) => learner.parent_phone),
+      }),
+    }).catch((pushError) => {
+      console.error("Could not send broadcast push notification:", pushError);
+    });
 
     await fetchBroadcasts(schoolId);
 

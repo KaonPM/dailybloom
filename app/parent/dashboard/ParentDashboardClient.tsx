@@ -137,6 +137,32 @@ export default function ParentDashboardClient({
     fetchEvents();
   }, [selectedChildId, eventRange, eventPage]);
 
+  useEffect(() => {
+    function refreshParentUpdates() {
+      if (document.visibilityState === "visible") {
+        fetchSummaries();
+        fetchBroadcasts();
+        fetchMessageSummary();
+      }
+    }
+
+    document.addEventListener("visibilitychange", refreshParentUpdates);
+    window.addEventListener("focus", refreshParentUpdates);
+
+    return () => {
+      document.removeEventListener("visibilitychange", refreshParentUpdates);
+      window.removeEventListener("focus", refreshParentUpdates);
+    };
+  }, [
+    selectedChildId,
+    school?.id,
+    parent?.phone,
+    summaryRange,
+    summaryPage,
+    broadcastRange,
+    broadcastPage,
+  ]);
+
   const getTeacherName = (classroom: any) => {
     if (!classroom) return "Not assigned";
 
@@ -152,56 +178,34 @@ export default function ParentDashboardClient({
   };
 
   async function fetchSummaries() {
-    if (!child?.id) return;
+    if (!child?.id || !school?.id) return;
 
     setSummaryLoading(true);
 
-    const from = summaryPage * PAGE_SIZE;
-    const to = from + PAGE_SIZE;
+    const params = new URLSearchParams({
+      learner_id: String(child.id),
+      school_id: String(school.id),
+      summary_range: summaryRange,
+      summary_page: String(summaryPage),
+      broadcast_range: broadcastRange,
+      broadcast_page: String(broadcastPage),
+      t: String(Date.now()),
+    });
 
-    let query = supabase
-      .from("summaries")
-      .select(
-        `
-          id,
-          learner_id,
-          learner_name,
-          mood,
-          meals,
-          rest,
-          health_safety,
-          today_highlight,
-          teacher_notes,
-          created_at
-        `
-      )
-      .eq("learner_id", child.id)
-      .eq("status", "sent")
-      .order("created_at", { ascending: false });
+    const response = await fetch(`/api/parent-dashboard/updates?${params}`, {
+      cache: "no-store",
+    });
+    const result = await response.json();
 
-    const startDate = getSummaryStartDate(summaryRange);
-
-    if (startDate) {
-      query = query.gte("created_at", startDate);
-    }
-
-    if (summaryRange === "Today") {
-      query = query.limit(1);
-    } else {
-      query = query.range(from, to);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Parent summary fetch error:", error);
+    if (!response.ok) {
+      console.error("Parent summary fetch error:", result.error);
       setSummaries([]);
       setHasMoreSummaries(false);
       setSummaryLoading(false);
       return;
     }
 
-    const rows = data || [];
+    const rows = result.summaries || [];
 
     if (summaryRange === "Today") {
       setSummaries(rows.slice(0, 1));
@@ -213,7 +217,7 @@ export default function ParentDashboardClient({
         summaryPage === 0 ? visibleRows : [...current, ...visibleRows]
       );
 
-      setHasMoreSummaries(rows.length > PAGE_SIZE);
+      setHasMoreSummaries(Boolean(result.hasMoreSummaries));
     }
 
     setSummaryLoading(false);
@@ -284,56 +288,41 @@ export default function ParentDashboardClient({
   }
 
   async function fetchBroadcasts() {
-    if (!school?.id) return;
+    if (!child?.id || !school?.id) return;
 
     setBroadcastLoading(true);
 
-    const from = broadcastPage * PAGE_SIZE;
-    const to = from + PAGE_SIZE;
+    const params = new URLSearchParams({
+      learner_id: String(child.id),
+      school_id: String(school.id),
+      summary_range: summaryRange,
+      summary_page: String(summaryPage),
+      broadcast_range: broadcastRange,
+      broadcast_page: String(broadcastPage),
+      t: String(Date.now()),
+    });
 
-    let query = supabase
-      .from("broadcasts")
-      .select(
-        `
-          id,
-          school_id,
-          title,
-          message,
-          audience,
-          recipient_count,
-          created_at
-        `
-      )
-      .eq("school_id", school.id)
-      .eq("status", "sent")
-      .order("created_at", { ascending: false });
+    const response = await fetch(`/api/parent-dashboard/updates?${params}`, {
+      cache: "no-store",
+    });
+    const result = await response.json();
 
-    const startDate = getBroadcastStartDate(broadcastRange);
-
-    if (startDate) {
-      query = query.gte("created_at", startDate);
-    }
-
-    query = query.range(from, to);
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Parent broadcast fetch error:", error);
+    if (!response.ok) {
+      console.error("Parent broadcast fetch error:", result.error);
       setBroadcastRows([]);
       setHasMoreBroadcasts(false);
       setBroadcastLoading(false);
       return;
     }
 
-    const rows = data || [];
+    const rows = result.broadcasts || [];
     const visibleRows = rows.slice(0, PAGE_SIZE);
 
     setBroadcastRows((current) =>
       broadcastPage === 0 ? visibleRows : [...current, ...visibleRows]
     );
 
-    setHasMoreBroadcasts(rows.length > PAGE_SIZE);
+    setHasMoreBroadcasts(Boolean(result.hasMoreBroadcasts));
     setBroadcastLoading(false);
   }
 

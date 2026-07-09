@@ -13,6 +13,18 @@ declare global {
 const ONESIGNAL_APP_ID =
   process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID ||
   "3934f676-2dfd-4520-9145-3344ad88aa33";
+const ONESIGNAL_ALLOWED_HOSTS = new Set([
+  "dailybloom.co.za",
+  "www.dailybloom.co.za",
+]);
+
+function canInitializeOneSignal() {
+  if (typeof window === "undefined" || !ONESIGNAL_APP_ID) {
+    return false;
+  }
+
+  return ONESIGNAL_ALLOWED_HOSTS.has(window.location.hostname);
+}
 
 export default function RegisterServiceWorker() {
   useEffect(() => {
@@ -26,7 +38,7 @@ export default function RegisterServiceWorker() {
   }, []);
 
   useEffect(() => {
-    if (!ONESIGNAL_APP_ID || typeof window === "undefined") {
+    if (!canInitializeOneSignal()) {
       return;
     }
 

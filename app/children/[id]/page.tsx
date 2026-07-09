@@ -379,6 +379,7 @@ export default function LearnerProfilePage() {
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [requirementNote, setRequirementNote] = useState("");
   const [savingRequirementNote, setSavingRequirementNote] = useState(false);
+  const [requirementsExpanded, setRequirementsExpanded] = useState(false);
 
   const [activeTab, setActiveTab] = useState<
     "overview" | "requirements" | "documents"
@@ -682,10 +683,12 @@ export default function LearnerProfilePage() {
 
     resetItemForm();
     await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
+    setRequirementsExpanded(false);
     setSavingItem(false);
   }
 
   function startEditItem(item: ChecklistItem) {
+    setRequirementsExpanded(true);
     setEditingItem(item);
     setItemName(item.item_name || "");
     setQuantity(item.quantity || "");
@@ -712,6 +715,7 @@ export default function LearnerProfilePage() {
     }
 
     await syncAndFetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
+    setRequirementsExpanded(false);
   }
 
   async function toggleReceived(item: ChecklistItem) {
@@ -739,6 +743,7 @@ export default function LearnerProfilePage() {
     }
 
     await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
+    setRequirementsExpanded(false);
   }
 
   async function updateReceivedQuantity(item: ChecklistItem, value: string) {
@@ -774,6 +779,7 @@ export default function LearnerProfilePage() {
     }
 
     await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
+    setRequirementsExpanded(false);
   }
 
   function getDocument(documentType: string) {
@@ -954,6 +960,7 @@ export default function LearnerProfilePage() {
       notes: requirementNote.trim() || null,
     });
 
+    setRequirementsExpanded(false);
     alert("Requirement note saved.");
   }
 
@@ -1182,6 +1189,29 @@ export default function LearnerProfilePage() {
             </div>
           ) : null}
 
+          {!requirementsExpanded ? (
+            <div style={collapsedPanel}>
+              <div>
+                <strong>Requirement list saved</strong>
+                <p style={summaryText}>
+                  {requirementProgress}% complete. {outstandingRequirementCount} outstanding.
+                </p>
+                <p style={summaryText}>
+                  {learner.notes || "No requirement note saved."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="db-button-secondary"
+                style={smallButton}
+                onClick={() => setRequirementsExpanded(true)}
+              >
+                View / Edit Requirements
+              </button>
+            </div>
+          ) : (
+            <>
           <div style={noteBox}>
             <h4 style={noteTitle}>Requirement Note</h4>
             <p style={summaryText}>
@@ -1356,6 +1386,8 @@ export default function LearnerProfilePage() {
               ) : null}
             </div>
           </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1565,6 +1597,19 @@ const progressFill = {
   height: "100%",
   borderRadius: 999,
   background: "#7BC67E",
+};
+
+const collapsedPanel = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  flexWrap: "wrap" as const,
+  background: "#FFFDFB",
+  border: "1px solid #DDEFD8",
+  borderRadius: 12,
+  padding: "12px 14px",
+  marginTop: 12,
 };
 
 const infoBox = {

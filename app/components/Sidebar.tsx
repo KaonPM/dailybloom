@@ -197,26 +197,15 @@ export default function Sidebar() {
       },
       { label: "Broadcasts", href: "/broadcasts", match: ["/broadcasts"] },
       {
+        label: "Incident Reports",
+        href: "/incident-reports",
+        match: ["/incident-reports"],
+      },
+      {
         label: "Payments",
         href: "/payments",
         match: ["/payments"],
         featureKey: "payment_tracking",
-      },
-      { label: "Billing", href: "/billing", match: ["/billing"] },
-      {
-        label: "Communications",
-        href: "/communications",
-        match: ["/communications"],
-      },
-      {
-        label: "School Printable Documents",
-        href: "/school-documents",
-        match: ["/school-documents"],
-      },
-      {
-        label: "Progress Reports",
-        href: "/progress-reports",
-        match: ["/progress-reports"],
       },
       {
         label: "Learner Requirements",
@@ -225,16 +214,32 @@ export default function Sidebar() {
         featureKey: "learner_requirements",
       },
       {
-        label: "School Analytics",
-        href: "/analytics",
-        match: ["/analytics"],
-        featureKey: "advanced_school_analytics",
+        label: "Progress Reports",
+        href: "/progress-reports",
+        match: ["/progress-reports"],
+      },
+      {
+        label: "Communications",
+        href: "/communications",
+        match: ["/communications"],
       },
       {
         label: "Reports",
         href: "/reports",
         match: ["/reports"],
       },
+      {
+        label: "School Analytics",
+        href: "/analytics",
+        match: ["/analytics"],
+        featureKey: "advanced_school_analytics",
+      },
+      {
+        label: "School Printable Documents",
+        href: "/school-documents",
+        match: ["/school-documents"],
+      },
+      { label: "Billing", href: "/billing", match: ["/billing"] },
     ],
     []
   );
@@ -255,6 +260,11 @@ export default function Sidebar() {
         label: "Attendance",
         href: "/attendance",
         match: ["/attendance"],
+      },
+      {
+        label: "Incident Reports",
+        href: "/incident-reports",
+        match: ["/incident-reports"],
       },
       {
         label: "Daily Summaries",

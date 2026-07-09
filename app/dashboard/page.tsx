@@ -19,7 +19,7 @@ type DashboardStats = {
   classrooms: number;
   events: number;
   summaries: number;
-  healthSafetyFlags: number;
+  incidentReports: number;
 };
 
 type EventItem = {
@@ -94,7 +94,7 @@ export default function PrincipalDashboardPage() {
     classrooms: 0,
     events: 0,
     summaries: 0,
-    healthSafetyFlags: 0,
+    incidentReports: 0,
   });
 
   const [todayEvents, setTodayEvents] = useState<EventItem[]>([]);
@@ -179,11 +179,11 @@ export default function PrincipalDashboardPage() {
 
     const [
       learnersResult,
-      teachersResult,
+      teachersResponse,
       classroomsResult,
       eventsResult,
       summariesResult,
-      healthSafetyResult,
+      incidentReportsResult,
     ] = await Promise.all([
       supabase
         .from("learners")
@@ -191,10 +191,15 @@ export default function PrincipalDashboardPage() {
         .eq("school_id", currentSchoolId)
         .or("is_deleted.is.null,is_deleted.eq.false"),
 
-      supabase
-        .from("teachers")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", currentSchoolId),
+      fetch("/api/list-teachers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          school_id: currentSchoolId,
+        }),
+      }),
 
       supabase
         .from("classrooms")
@@ -216,23 +221,24 @@ export default function PrincipalDashboardPage() {
         .lte("created_at", `${yearEnd} 23:59:59`),
 
       supabase
-        .from("summaries")
+        .from("incident_reports")
         .select("*", { count: "exact", head: true })
         .eq("school_id", currentSchoolId)
-        .gte("created_at", `${yearStart} 00:00:00`)
-        .lte("created_at", `${yearEnd} 23:59:59`)
-        .not("health_safety", "is", null)
-        .neq("health_safety", "")
-        .neq("health_safety", "No incident"),
+        .gte("incident_date", yearStart)
+        .lte("incident_date", yearEnd),
     ]);
+
+    const teachersPayload = teachersResponse.ok
+      ? await teachersResponse.json()
+      : { teachers: [] };
 
     setStats({
       learners: learnersResult.count || 0,
-      teachers: teachersResult.count || 0,
+      teachers: teachersPayload.teachers?.length || 0,
       classrooms: classroomsResult.count || 0,
       events: eventsResult.count || 0,
       summaries: summariesResult.count || 0,
-      healthSafetyFlags: healthSafetyResult.count || 0,
+      incidentReports: incidentReportsResult.count || 0,
     });
   }
 
@@ -734,17 +740,9 @@ export default function PrincipalDashboardPage() {
           />
 
           <StatLinkCard
-            label="Summaries To Date"
-            value={stats.summaries}
-            href="/summaries"
-            background="#EAF7FD"
-            border="#CBEAF7"
-          />
-
-          <StatLinkCard
-            label="Health & Safety Flags To Date"
-            value={stats.healthSafetyFlags}
-            href="/reports"
+            label="Incident Reports"
+            value={stats.incidentReports}
+            href="/incident-reports"
             background="#F8E8F0"
             border="#EBC9D8"
           />

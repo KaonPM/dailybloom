@@ -29,6 +29,7 @@ export default function DbeComplianceDocumentsPage() {
   const [uploading, setUploading] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [showUploadForm, setShowUploadForm] = useState(true);
 
   useEffect(() => {
     loadPage();
@@ -139,6 +140,7 @@ export default function DbeComplianceDocumentsPage() {
     }
 
     await fetchDocuments(schoolId);
+    setShowUploadForm(false);
     setUploading(false);
     alert("Compliance document uploaded.");
   }
@@ -230,40 +232,77 @@ export default function DbeComplianceDocumentsPage() {
         </p>
       </div>
 
-      <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
-        <h3 style={sectionTitle}>Upload Compliance Document</h3>
+      {showUploadForm ? (
+        <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
+          <div style={formHeader}>
+            <h3 style={sectionTitle}>Upload Compliance Document</h3>
 
-        <div style={grid2}>
-          <Field label="Document Name">
-            <input
-              className="db-input"
-              placeholder="Example: NPO Certificate"
-              value={documentName}
-              onChange={(event) => setDocumentName(event.target.value)}
-            />
-          </Field>
+            {documents.length > 0 ? (
+              <button
+                type="button"
+                className="db-button-secondary"
+                onClick={() => setShowUploadForm(false)}
+              >
+                Close
+              </button>
+            ) : null}
+          </div>
 
-          <Field label="Choose File">
-            <input
-              id="dbe-compliance-document-file"
-              className="db-input"
-              type="file"
-              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
-              onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
-            />
-          </Field>
+          <div style={grid2}>
+            <Field label="Document Name">
+              <input
+                className="db-input"
+                placeholder="Example: NPO Certificate"
+                value={documentName}
+                onChange={(event) => setDocumentName(event.target.value)}
+              />
+            </Field>
+
+            <Field label="File">
+              <input
+                id="dbe-compliance-document-file"
+                style={hiddenFileInput}
+                type="file"
+                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+              />
+              <label htmlFor="dbe-compliance-document-file" style={uploadButton}>
+                Choose File
+              </label>
+              <p style={smallText}>{selectedFile?.name || "No file selected"}</p>
+            </Field>
+          </div>
+
+          <button
+            type="button"
+            className="db-button-primary"
+            style={{ width: "100%", marginTop: 12 }}
+            onClick={uploadDocument}
+            disabled={uploading}
+          >
+            {uploading ? "Uploading..." : "Upload Document"}
+          </button>
         </div>
+      ) : (
+        <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
+          <div style={formHeader}>
+            <div>
+              <h3 style={sectionTitle}>Compliance Documents Ready</h3>
+              <p className="db-helper" style={{ marginTop: 4 }}>
+                Upload form closed after the last saved document.
+              </p>
+            </div>
 
-        <button
-          type="button"
-          className="db-button-primary"
-          style={{ width: "100%", marginTop: 12 }}
-          onClick={uploadDocument}
-          disabled={uploading}
-        >
-          {uploading ? "Uploading..." : "Upload Document"}
-        </button>
-      </div>
+            <button
+              type="button"
+              className="db-button-primary"
+              onClick={() => setShowUploadForm(true)}
+            >
+              Upload Document
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="db-card db-card-lavender" style={{ padding: 16 }}>
         <h3 style={sectionTitle}>
@@ -404,4 +443,37 @@ const grid2 = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 10,
+};
+
+const formHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap" as const,
+  marginBottom: 10,
+};
+
+const hiddenFileInput = {
+  position: "absolute",
+  inlineSize: 1,
+  blockSize: 1,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  whiteSpace: "nowrap",
+  clipPath: "inset(50%)",
+} as const;
+
+const uploadButton = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 44,
+  padding: "10px 14px",
+  borderRadius: 12,
+  border: "1px solid #CBEAF7",
+  background: "#EAF7FD",
+  color: "#2D2A3E",
+  fontWeight: 800,
+  cursor: "pointer",
 };

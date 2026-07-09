@@ -60,6 +60,7 @@ export default function DbeRegistrationPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingRegistration, setEditingRegistration] = useState(true);
 
   useEffect(() => {
     loadPage();
@@ -124,7 +125,10 @@ export default function DbeRegistrationPage() {
       return;
     }
 
-    if (!data) return;
+    if (!data) {
+      setEditingRegistration(true);
+      return;
+    }
 
     const record = data as DbeRegistration;
 
@@ -143,6 +147,7 @@ export default function DbeRegistrationPage() {
     setFireCertificateStatus(record.fire_certificate_status || "Valid");
     setMunicipalApprovalStatus(record.municipal_approval_status || "Valid");
     setPoliceClearanceStatus(record.police_clearance_status || "Valid");
+    setEditingRegistration(false);
   }
 
   async function saveRegistration() {
@@ -192,6 +197,7 @@ export default function DbeRegistrationPage() {
     }
 
     await loadRegistration(schoolId);
+    setEditingRegistration(false);
     setSaving(false);
     alert("DBE registration information saved.");
   }
@@ -209,139 +215,171 @@ export default function DbeRegistrationPage() {
         </p>
       </div>
 
-      <div className="db-card db-card-blue" style={{ padding: 16 }}>
-        <h3 style={sectionTitle}>Registration Details</h3>
+      {!editingRegistration && recordId ? (
+        <div className="db-card db-card-blue" style={{ padding: 16 }}>
+          <div style={summaryHeader}>
+            <div>
+              <h3 style={sectionTitle}>Registration Details</h3>
+              <p className="db-helper" style={{ marginTop: 4 }}>
+                Saved registration and compliance information.
+              </p>
+            </div>
 
-        <div style={grid2}>
-          <Field label="School Name">
-            <input
-              className="db-input"
-              value={schoolName}
-              onChange={(event) => setSchoolName(event.target.value)}
-            />
-          </Field>
-
-          <Field label="NPO / Registration Number">
-            <input
-              className="db-input"
-              value={registrationNumber}
-              onChange={(event) => setRegistrationNumber(event.target.value)}
-              placeholder="Example: NPO-123456 or 2025/123456/08"
-            />
-          </Field>
-        </div>
-
-        <div style={grid2}>
-          <Field label="Registration Status">
-            <select
-              className="db-input"
-              value={registrationStatus}
-              onChange={(event) => setRegistrationStatus(event.target.value)}
+            <button
+              type="button"
+              className="db-button-secondary"
+              onClick={() => setEditingRegistration(true)}
             >
-              {registrationStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </Field>
+              Edit Registration Details
+            </button>
+          </div>
 
-          <Field label="Registration Date">
-            <input
-              className="db-input"
-              type="date"
-              value={registrationDate}
-              onChange={(event) => setRegistrationDate(event.target.value)}
-            />
-          </Field>
+          <div style={summaryGrid}>
+            <SummaryItem label="School" value={schoolName} />
+            <SummaryItem label="Registration Number" value={registrationNumber} />
+            <SummaryItem label="Status" value={registrationStatus} />
+            <SummaryItem label="Registration Date" value={registrationDate || "Not added"} />
+            <SummaryItem label="Principal" value={principalName || "Not added"} />
+            <SummaryItem label="Contact" value={contactNumber || "Not added"} />
+          </div>
         </div>
+      ) : (
+        <>
+          <div className="db-card db-card-blue" style={{ padding: 16 }}>
+            <h3 style={sectionTitle}>Registration Details</h3>
 
-        <div style={grid2}>
+            <div style={grid2}>
+              <Field label="School Name">
+                <input
+                  className="db-input"
+                  value={schoolName}
+                  onChange={(event) => setSchoolName(event.target.value)}
+                />
+              </Field>
 
-          <Field label="Principal Name">
-            <input
-              className="db-input"
-              value={principalName}
-              onChange={(event) => setPrincipalName(event.target.value)}
-            />
-          </Field>
-        </div>
+              <Field label="NPO / Registration Number">
+                <input
+                  className="db-input"
+                  value={registrationNumber}
+                  onChange={(event) => setRegistrationNumber(event.target.value)}
+                  placeholder="Example: NPO-123456 or 2025/123456/08"
+                />
+              </Field>
+            </div>
 
-        <div style={grid2}>
-          <Field label="Contact Number">
-            <input
-              className="db-input"
-              value={contactNumber}
-              onChange={(event) => setContactNumber(event.target.value)}
-            />
-          </Field>
+            <div style={grid2}>
+              <Field label="Registration Status">
+                <select
+                  className="db-input"
+                  value={registrationStatus}
+                  onChange={(event) => setRegistrationStatus(event.target.value)}
+                >
+                  {registrationStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </Field>
 
-          <Field label="Email Address">
-            <input
-              className="db-input"
-              type="email"
-              value={emailAddress}
-              onChange={(event) => setEmailAddress(event.target.value)}
-            />
-          </Field>
-        </div>
+              <Field label="Registration Date">
+                <input
+                  className="db-input"
+                  type="date"
+                  value={registrationDate}
+                  onChange={(event) => setRegistrationDate(event.target.value)}
+                />
+              </Field>
+            </div>
 
-        <Field label="Physical Address">
-          <textarea
-            className="db-input"
-            value={physicalAddress}
-            onChange={(event) => setPhysicalAddress(event.target.value)}
-            style={{ minHeight: 80, resize: "vertical" }}
-          />
-        </Field>
-      </div>
+            <div style={grid2}>
 
-      <div
-        className="db-card db-card-lavender"
-        style={{ padding: 16, marginTop: 18 }}
-      >
-        <h3 style={sectionTitle}>Compliance Status</h3>
+              <Field label="Principal Name">
+                <input
+                  className="db-input"
+                  value={principalName}
+                  onChange={(event) => setPrincipalName(event.target.value)}
+                />
+              </Field>
+            </div>
 
-        <div style={grid2}>
-          <Field label="Health Certificate">
-            <StatusSelect
-              value={healthCertificateStatus}
-              onChange={setHealthCertificateStatus}
-            />
-          </Field>
+            <div style={grid2}>
+              <Field label="Contact Number">
+                <input
+                  className="db-input"
+                  value={contactNumber}
+                  onChange={(event) => setContactNumber(event.target.value)}
+                />
+              </Field>
 
-          <Field label="Fire Certificate">
-            <StatusSelect
-              value={fireCertificateStatus}
-              onChange={setFireCertificateStatus}
-            />
-          </Field>
+              <Field label="Email Address">
+                <input
+                  className="db-input"
+                  type="email"
+                  value={emailAddress}
+                  onChange={(event) => setEmailAddress(event.target.value)}
+                />
+              </Field>
+            </div>
 
-          <Field label="Municipal Approval">
-            <StatusSelect
-              value={municipalApprovalStatus}
-              onChange={setMunicipalApprovalStatus}
-            />
-          </Field>
+            <Field label="Physical Address">
+              <textarea
+                className="db-input"
+                value={physicalAddress}
+                onChange={(event) => setPhysicalAddress(event.target.value)}
+                style={{ minHeight: 80, resize: "vertical" }}
+              />
+            </Field>
+          </div>
 
-          <Field label="Police Clearance">
-            <StatusSelect
-              value={policeClearanceStatus}
-              onChange={setPoliceClearanceStatus}
-            />
-          </Field>
-        </div>
+          <div
+            className="db-card db-card-lavender"
+            style={{ padding: 16, marginTop: 18 }}
+          >
+            <h3 style={sectionTitle}>Compliance Status</h3>
 
-        <button
-          type="button"
-          className="db-button-primary"
-          style={{ width: "100%", marginTop: 12 }}
-          onClick={saveRegistration}
-          disabled={saving}
-        >
-          {saving ? "Saving..." : "Save Registration Information"}
-        </button>
-      </div>
+            <div style={grid2}>
+              <Field label="Health Certificate">
+                <StatusSelect
+                  value={healthCertificateStatus}
+                  onChange={setHealthCertificateStatus}
+                />
+              </Field>
+
+              <Field label="Fire Certificate">
+                <StatusSelect
+                  value={fireCertificateStatus}
+                  onChange={setFireCertificateStatus}
+                />
+              </Field>
+
+              <Field label="Municipal Approval">
+                <StatusSelect
+                  value={municipalApprovalStatus}
+                  onChange={setMunicipalApprovalStatus}
+                />
+              </Field>
+
+              <Field label="Police Clearance">
+                <StatusSelect
+                  value={policeClearanceStatus}
+                  onChange={setPoliceClearanceStatus}
+                />
+              </Field>
+            </div>
+
+            <button
+              type="button"
+              className="db-button-primary"
+              style={{ width: "100%", marginTop: 12 }}
+              onClick={saveRegistration}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save Registration Information"}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -383,6 +421,15 @@ function StatusSelect({
   );
 }
 
+function SummaryItem({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div style={summaryItem}>
+      <strong style={labelText}>{label}</strong>
+      <p style={summaryValue}>{value || "Not added"}</p>
+    </div>
+  );
+}
+
 const sectionTitle = {
   margin: "0 0 10px 0",
   color: "#2D2A3E",
@@ -401,4 +448,32 @@ const grid2 = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 10,
+};
+
+const summaryHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap" as const,
+  marginBottom: 12,
+};
+
+const summaryGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: 10,
+};
+
+const summaryItem = {
+  background: "#FFFDFB",
+  border: "1px solid #F0E3D8",
+  borderRadius: 12,
+  padding: "10px 12px",
+};
+
+const summaryValue = {
+  margin: "5px 0 0",
+  color: "#2D2A3E",
+  fontSize: 14,
 };

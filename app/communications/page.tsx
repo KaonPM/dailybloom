@@ -27,8 +27,8 @@ type CommunicationRow = {
 const communicationTypes = [
   "All",
   "Daily Summary",
-  "Payment Reminder",
   "Broadcast",
+  "Payment Reminder",
   "General Message",
 ];
 
@@ -225,7 +225,7 @@ export default function CommunicationsPage() {
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">Communications</h2>
         <p className="db-page-subtitle">
-          Track parent communication by type, learner, phone number, and date range.
+          Track broadcast and generated parent communication records by type, learner, phone number, and date range. Private conversations are managed from Messages.
         </p>
       </div>
 

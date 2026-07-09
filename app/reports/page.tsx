@@ -30,7 +30,7 @@ const reportTypes = [
   "Daily Summaries",
   "Classroom Activities",
   "Events",
-  "Health & Safety Incidents",
+  "Incident Reports",
   "Payments",
   "Outstanding Fees",
 ];
@@ -189,6 +189,18 @@ export default function ReportsPage() {
   return "Teaching Day";
 }
 
+  function reportTypeHelper() {
+    if (reportType === "School Analytics") {
+      return "School Analytics produces a report output. Open the results only when you need to review, export or print that output.";
+    }
+
+    if (reportType === "Incident Reports") {
+      return "Incident Reports uses submitted and acknowledged incident report records.";
+    }
+
+    return "Choose a report type, run the report, then open the results when you need to review the output.";
+  }
+
   async function runReport() {
     if (!schoolId) return;
 
@@ -215,7 +227,7 @@ export default function ReportsPage() {
     if (reportType === "Learner Register") await runLearnerRegisterReport();
     if (reportType === "Daily Summaries") await runSummariesReport();
     if (reportType === "Classroom Activities") await runActivitiesReport();
-    if (reportType === "Health & Safety Incidents") await runIncidentsReport();
+    if (reportType === "Incident Reports") await runIncidentsReport();
     if (reportType === "Payments") await runPaymentsReport();
     if (reportType === "Outstanding Fees") await runOutstandingFeesReport();
     if (reportType === "Events") await runEventsReport();
@@ -459,12 +471,12 @@ export default function ReportsPage() {
 
   async function runIncidentsReport() {
     const { data, error } = await supabase
-      .from("summaries")
+      .from("incident_reports")
       .select("*")
       .eq("school_id", schoolId)
-      .gte("created_at", `${fromDate} 00:00:00`)
-      .lte("created_at", `${toDate} 23:59:59`)
-      .order("created_at", { ascending: false });
+      .gte("incident_date", fromDate)
+      .lte("incident_date", toDate)
+      .order("incident_date", { ascending: false });
 
     if (error) {
       alert(error.message);
@@ -473,17 +485,13 @@ export default function ReportsPage() {
 
     const rows: ReportRow[] = (data || [])
       .filter((item: any) => isInScopeByLearner(item.learner_name))
-      .filter((item: any) => {
-        const value = String(item.health_safety || "").trim().toLowerCase();
-        return value && value !== "no incident";
-      })
       .map((item: any) => ({
-        date: item.created_at ? item.created_at.split("T")[0] : "",
+        date: item.incident_date || (item.created_at ? item.created_at.split("T")[0] : ""),
         learner: item.learner_name || "",
-        classroom: getLearnerClass(item.learner_name),
-        type: "Health & Safety Incident",
-        detail: item.health_safety || "",
-        extra: item.teacher_notes || "",
+        classroom: item.classroom_name || getLearnerClass(item.learner_name),
+        type: "Incident Report",
+        detail: `${item.incident_type || "Incident"} | ${item.status || "Submitted"}`,
+        extra: `Location: ${item.incident_location || "Not added"} | Teacher: ${item.teacher_name || "Not added"} | Principal: ${item.principal_acknowledged_by || "Not acknowledged"}`,
       }));
 
     setReportRows(rows);
@@ -578,6 +586,8 @@ export default function ReportsPage() {
       teacherAttendanceResult,
       paymentsResult,
       summariesResult,
+      broadcastsResult,
+      incidentReportsResult,
       requirementsResult,
       documentsResult,
     ] = await Promise.all([
@@ -603,6 +613,20 @@ export default function ReportsPage() {
         .eq("school_id", schoolId)
         .gte("created_at", `${fromDate} 00:00:00`)
         .lte("created_at", `${toDate} 23:59:59`),
+
+      supabase
+        .from("broadcasts")
+        .select("*")
+        .eq("school_id", schoolId)
+        .gte("created_at", `${fromDate} 00:00:00`)
+        .lte("created_at", `${toDate} 23:59:59`),
+
+      supabase
+        .from("incident_reports")
+        .select("*")
+        .eq("school_id", schoolId)
+        .gte("incident_date", fromDate)
+        .lte("incident_date", toDate),
 
       supabase
         .from("learner_stationery_checklist")
@@ -635,6 +659,16 @@ export default function ReportsPage() {
       return;
     }
 
+    if (broadcastsResult.error) {
+      alert(broadcastsResult.error.message);
+      return;
+    }
+
+    if (incidentReportsResult.error) {
+      alert(incidentReportsResult.error.message);
+      return;
+    }
+
     if (requirementsResult.error) {
       alert(requirementsResult.error.message);
       return;
@@ -649,6 +683,8 @@ export default function ReportsPage() {
     const teacherAttendance = teacherAttendanceResult.data || [];
     const payments = paymentsResult.data || [];
     const summaries = summariesResult.data || [];
+    const broadcasts = broadcastsResult.data || [];
+    const incidentReports = incidentReportsResult.data || [];
     const requirements = requirementsResult.data || [];
     const documents = documentsResult.data || [];
 
@@ -715,6 +751,24 @@ export default function ReportsPage() {
         ? Math.round((summariesSent / summaries.length) * 100)
         : 0;
 
+    const sentBroadcasts = broadcasts.filter(
+      (item: any) => String(item.status || "").toLowerCase() === "sent"
+    );
+
+    const broadcastRecipientTotal = sentBroadcasts.reduce(
+      (sum: number, item: any) => sum + Number(item.recipient_count || 0),
+      0
+    );
+
+    const acknowledgedIncidentReports = incidentReports.filter(
+      (item: any) => String(item.status || "").toLowerCase() === "acknowledged"
+    ).length;
+
+    const incidentAcknowledgementRate =
+      incidentReports.length > 0
+        ? Math.round((acknowledgedIncidentReports / incidentReports.length) * 100)
+        : 100;
+
     const outstandingStationery = requirements.filter(
       (item: any) => item.received === false
     ).length;
@@ -726,8 +780,9 @@ export default function ReportsPage() {
       (learnerAttendanceRate +
         teacherAttendanceRate +
         collectionRate +
-        summarySendRate) /
-        4
+        summarySendRate +
+        incidentAcknowledgementRate) /
+        5
     );
 
     const rows: ReportRow[] = [
@@ -772,6 +827,22 @@ export default function ReportsPage() {
         type: "Daily Summary Analytics",
         detail: "Daily Summary Send Rate",
         extra: `${summarySendRate}% | Sent: ${summariesSent} | Total: ${summaries.length}`,
+      },
+      {
+        date: `${fromDate} to ${toDate}`,
+        learner: "Broadcasts",
+        classroom: "All",
+        type: "Broadcast Analytics",
+        detail: "Broadcasts Sent",
+        extra: `Sent: ${sentBroadcasts.length} | Recipients: ${broadcastRecipientTotal}`,
+      },
+      {
+        date: `${fromDate} to ${toDate}`,
+        learner: "Incident Reports",
+        classroom: "All",
+        type: "Incident Report Analytics",
+        detail: "Incident Report Acknowledgement",
+        extra: `Reports: ${incidentReports.length} | Acknowledged: ${acknowledgedIncidentReports} | Rate: ${incidentAcknowledgementRate}%`,
       },
       {
         date: `${fromDate} to ${toDate}`,
@@ -1028,6 +1099,7 @@ export default function ReportsPage() {
                 <option key={type}>{type}</option>
               ))}
             </select>
+            <p style={smallText}>{reportTypeHelper()}</p>
           </div>
 
           <div>
@@ -1135,7 +1207,7 @@ export default function ReportsPage() {
           <div>
             <h3 style={sectionTitle}>Report Results ({reportRows.length})</h3>
             <p style={smallText}>
-              Open only when you need to review the report output.
+              Use View Results only when you need to review the report output.
             </p>
           </div>
 

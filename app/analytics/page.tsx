@@ -62,6 +62,19 @@ type SummaryRow = {
   created_at?: string | null;
 };
 
+type BroadcastRow = {
+  id: number;
+  status?: string | null;
+  recipient_count?: number | null;
+  created_at?: string | null;
+};
+
+type IncidentReportRow = {
+  id: number;
+  status?: string | null;
+  created_at?: string | null;
+};
+
 type RequirementRow = {
   id: number;
   learner_id?: string | null;
@@ -99,6 +112,8 @@ export default function AnalyticsPage() {
   const [teacherAttendance, setTeacherAttendance] = useState<TeacherAttendanceRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [summaries, setSummaries] = useState<SummaryRow[]>([]);
+  const [broadcasts, setBroadcasts] = useState<BroadcastRow[]>([]);
+  const [incidentReports, setIncidentReports] = useState<IncidentReportRow[]>([]);
   const [requirements, setRequirements] = useState<RequirementRow[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("month");
@@ -130,6 +145,8 @@ export default function AnalyticsPage() {
       teacherAttendanceResult,
       paymentsResult,
       summariesResult,
+      broadcastsResult,
+      incidentReportsResult,
       requirementsResult,
       documentsResult,
     ] = await Promise.all([
@@ -166,6 +183,16 @@ export default function AnalyticsPage() {
         .eq("school_id", context.schoolId),
 
       supabase
+        .from("broadcasts")
+        .select("id, status, recipient_count, created_at")
+        .eq("school_id", context.schoolId),
+
+      supabase
+        .from("incident_reports")
+        .select("id, status, created_at")
+        .eq("school_id", context.schoolId),
+
+      supabase
         .from("learner_stationery_checklist")
         .select("id, learner_id, received")
         .eq("school_id", context.schoolId),
@@ -182,6 +209,8 @@ export default function AnalyticsPage() {
     if (teacherAttendanceResult.error) alert(teacherAttendanceResult.error.message);
     if (paymentsResult.error) alert(paymentsResult.error.message);
     if (summariesResult.error) alert(summariesResult.error.message);
+    if (broadcastsResult.error) alert(broadcastsResult.error.message);
+    if (incidentReportsResult.error) alert(incidentReportsResult.error.message);
     if (requirementsResult.error) alert(requirementsResult.error.message);
     if (documentsResult.error) alert(documentsResult.error.message);
 
@@ -191,6 +220,8 @@ export default function AnalyticsPage() {
     setTeacherAttendance((teacherAttendanceResult.data || []) as TeacherAttendanceRow[]);
     setPayments((paymentsResult.data || []) as PaymentRow[]);
     setSummaries((summariesResult.data || []) as SummaryRow[]);
+    setBroadcasts((broadcastsResult.data || []) as BroadcastRow[]);
+    setIncidentReports((incidentReportsResult.data || []) as IncidentReportRow[]);
     setRequirements((requirementsResult.data || []) as RequirementRow[]);
     setDocuments((documentsResult.data || []) as DocumentRow[]);
 
@@ -226,6 +257,18 @@ export default function AnalyticsPage() {
       isWithinSelectedPeriod(summary.created_at || "", periodFilter)
     );
   }, [summaries, periodFilter]);
+
+  const filteredBroadcasts = useMemo(() => {
+    return broadcasts.filter((broadcast) =>
+      isWithinSelectedPeriod(broadcast.created_at || "", periodFilter)
+    );
+  }, [broadcasts, periodFilter]);
+
+  const filteredIncidentReports = useMemo(() => {
+    return incidentReports.filter((report) =>
+      isWithinSelectedPeriod(report.created_at || "", periodFilter)
+    );
+  }, [incidentReports, periodFilter]);
 
   const analytics = useMemo(() => {
     const learnerPresent = filteredAttendance.filter(
@@ -292,6 +335,24 @@ export default function AnalyticsPage() {
         ? Math.round((sentSummaries / filteredSummaries.length) * 100)
         : 0;
 
+    const sentBroadcasts = filteredBroadcasts.filter(
+      (item) => String(item.status || "").toLowerCase() === "sent"
+    );
+
+    const broadcastRecipientTotal = sentBroadcasts.reduce(
+      (sum, item) => sum + Number(item.recipient_count || 0),
+      0
+    );
+
+    const acknowledgedIncidentReports = filteredIncidentReports.filter(
+      (item) => String(item.status || "").toLowerCase() === "acknowledged"
+    ).length;
+
+    const incidentAcknowledgementRate =
+      filteredIncidentReports.length > 0
+        ? Math.round((acknowledgedIncidentReports / filteredIncidentReports.length) * 100)
+        : 100;
+
     const outstandingStationery = requirements.filter(
       (item) => item.received === false
     ).length;
@@ -327,6 +388,7 @@ export default function AnalyticsPage() {
       teacherAttendanceRate,
       collectionRate,
       summarySendRate,
+      incidentAcknowledgementRate,
       documentCompletionRate,
     ];
 
@@ -341,6 +403,11 @@ export default function AnalyticsPage() {
       teacherAttendanceRate,
       collectionRate,
       summarySendRate,
+      sentBroadcasts: sentBroadcasts.length,
+      broadcastRecipientTotal,
+      incidentReportCount: filteredIncidentReports.length,
+      acknowledgedIncidentReports,
+      incidentAcknowledgementRate,
       documentCompletionRate,
       totalCollected,
       totalOutstanding,
@@ -358,6 +425,8 @@ export default function AnalyticsPage() {
     filteredTeacherAttendance,
     filteredPayments,
     filteredSummaries,
+    filteredBroadcasts,
+    filteredIncidentReports,
     requirements,
     documents,
   ]);
@@ -435,7 +504,7 @@ export default function AnalyticsPage() {
           <h2 className="db-page-title">School Analytics</h2>
           <p className="db-page-subtitle">
             View school health, learner attendance, teacher attendance, payments,
-            parent communication and learner requirement insights.
+            parent communication, broadcasts, incident reports and learner requirement insights.
           </p>
         </div>
 
@@ -504,7 +573,7 @@ export default function AnalyticsPage() {
           <p style={healthScore}>{analytics.schoolHealthScore}%</p>
           <p style={smallText}>
             {periodLabel} view based on learner attendance, teacher attendance,
-            fee collection, parent communication and document completion.
+            fee collection, parent communication, incident reporting and document completion.
           </p>
         </div>
 
@@ -515,6 +584,10 @@ export default function AnalyticsPage() {
           <InsightCard title="Teacher Attendance Rate" value={`${analytics.teacherAttendanceRate}%`} helper={`${periodLabel} teacher attendance records`} />
           <InsightCard title="Collection Rate" value={`${analytics.collectionRate}%`} helper={`${periodLabel} paid payment records`} />
           <InsightCard title="Daily Summary Send Rate" value={`${analytics.summarySendRate}%`} helper={`${periodLabel} summaries marked as sent`} />
+          <InsightCard title="Broadcasts Sent" value={analytics.sentBroadcasts} helper={`${periodLabel} broadcasts sent to parents`} />
+          <InsightCard title="Broadcast Recipients" value={analytics.broadcastRecipientTotal} helper={`${periodLabel} total parent broadcast recipients`} />
+          <InsightCard title="Incident Reports" value={analytics.incidentReportCount} helper={`${periodLabel} submitted and acknowledged reports`} />
+          <InsightCard title="Acknowledged Incidents" value={analytics.acknowledgedIncidentReports} helper={`${periodLabel} reports acknowledged by principal`} />
           <InsightCard title="Document Completion" value={`${analytics.documentCompletionRate}%`} helper="Current learner documents uploaded" />
           <InsightCard title="Fees Collected" value={`R${analytics.totalCollected.toFixed(2)}`} helper={`${periodLabel} paid records total`} />
           <InsightCard title="Outstanding Fees" value={`R${analytics.totalOutstanding.toFixed(2)}`} helper={`${periodLabel} pending, partial and overdue records`} />
@@ -562,6 +635,9 @@ export default function AnalyticsPage() {
             )}
             {analytics.teacherAbsent > 0 && (
               <li>{analytics.teacherAbsent} teacher absence record(s) captured for {periodLabel.toLowerCase()}.</li>
+            )}
+            {analytics.incidentReportCount > analytics.acknowledgedIncidentReports && (
+              <li>{analytics.incidentReportCount - analytics.acknowledgedIncidentReports} incident report(s) still need principal acknowledgement.</li>
             )}
             {analytics.schoolHealthScore >= 80 && (
               <li>The school is performing well overall for this snapshot.</li>

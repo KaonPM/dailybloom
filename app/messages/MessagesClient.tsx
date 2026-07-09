@@ -98,6 +98,7 @@ export default function MessagesClient({
 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const selectedChild = useMemo(() => {
     return (
@@ -136,6 +137,19 @@ export default function MessagesClient({
 
   useEffect(() => {
     loadMessagesPage();
+  }, []);
+
+  useEffect(() => {
+    function updateLayoutMode() {
+      setIsMobile(window.innerWidth < 760);
+    }
+
+    updateLayoutMode();
+    window.addEventListener("resize", updateLayoutMode);
+
+    return () => {
+      window.removeEventListener("resize", updateLayoutMode);
+    };
   }, []);
 
   useEffect(() => {
@@ -854,9 +868,15 @@ export default function MessagesClient({
   }
 
   return (
-    <div>
-      <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
-        <div style={pageHeader}>
+    <div style={pageShell}>
+      <div
+        className="db-soft-card"
+        style={{
+          padding: isMobile ? 14 : 18,
+          marginBottom: isMobile ? 12 : 18,
+        }}
+      >
+        <div style={{ ...pageHeader, ...(isMobile ? mobilePageHeader : {}) }}>
           <div>
             <h2 className="db-page-title">Messages</h2>
             <p className="db-page-subtitle">
@@ -872,15 +892,18 @@ export default function MessagesClient({
                   ? "/teacher"
                   : "/dashboard"
             }
-            style={backLink}
+            style={{ ...backLink, ...(isMobile ? mobileBackLink : {}) }}
           >
             Back to dashboard
           </Link>
         </div>
       </div>
 
-      <div style={layout}>
-        <div className="db-card db-card-lavender" style={sidebar}>
+      <div style={{ ...layout, ...(isMobile ? mobileLayout : {}) }}>
+        <div
+          className="db-card db-card-lavender"
+          style={{ ...sidebar, ...(isMobile ? mobileSidebar : {}) }}
+        >
           {mode === "parent"
             ? renderParentSidebar()
             : role === "teacher"
@@ -888,12 +911,15 @@ export default function MessagesClient({
               : renderPrincipalSidebar()}
         </div>
 
-        <div className="db-card db-card-blue" style={chatPanel}>
+        <div
+          className="db-card db-card-blue"
+          style={{ ...chatPanel, ...(isMobile ? mobileChatPanel : {}) }}
+        >
           {!activeContact ? (
             <p className="db-helper">Select a conversation.</p>
           ) : (
             <>
-              <div style={chatHeader}>
+              <div style={{ ...chatHeader, ...(isMobile ? mobileChatHeader : {}) }}>
                 <div>
                   <h3 style={sectionTitle}>{activeContact.name}</h3>
 
@@ -906,7 +932,7 @@ export default function MessagesClient({
                 <span style={rolePill}>{getRoleLabel(activeContact.role)}</span>
               </div>
 
-              <div style={messageList}>
+              <div style={{ ...messageList, ...(isMobile ? mobileMessageList : {}) }}>
                 {messages.length === 0 ? (
                   <div style={emptyConversation}>
                     <strong>No messages yet.</strong>
@@ -924,6 +950,7 @@ export default function MessagesClient({
                         key={message.id}
                         style={{
                           ...messageBubble,
+                          ...(isMobile ? mobileMessageBubble : {}),
                           alignSelf: mine ? "flex-end" : "flex-start",
                           background: mine ? "#E8F7EE" : "#FFFFFF",
                         }}
@@ -939,14 +966,19 @@ export default function MessagesClient({
                 )}
               </div>
 
-              <div style={replyBox}>
+              <div style={{ ...replyBox, ...(isMobile ? mobileReplyBox : {}) }}>
                 <textarea
                   className="db-input"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type your message..."
                   rows={3}
-                  style={{ resize: "vertical", flex: 1 }}
+                  style={{
+                    resize: "vertical",
+                    flex: 1,
+                    minWidth: 0,
+                    width: "100%",
+                  }}
                 />
 
                 <button
@@ -954,7 +986,7 @@ export default function MessagesClient({
                   className="db-button-primary"
                   onClick={sendMessage}
                   disabled={sending}
-                  style={sendButton}
+                  style={{ ...sendButton, ...(isMobile ? mobileSendButton : {}) }}
                 >
                   {sending ? "Sending..." : "Send"}
                 </button>
@@ -967,15 +999,34 @@ export default function MessagesClient({
   );
 }
 
+const pageShell = {
+  width: "100%",
+  maxWidth: "100%",
+  overflow: "hidden",
+} as const;
+
 const layout = {
   display: "grid",
-  gridTemplateColumns: "320px 1fr",
+  gridTemplateColumns: "minmax(260px, 320px) minmax(0, 1fr)",
   gap: 18,
+  width: "100%",
+  maxWidth: "100%",
+} as const;
+
+const mobileLayout = {
+  gridTemplateColumns: "minmax(0, 1fr)",
+  gap: 12,
 } as const;
 
 const sidebar = {
   padding: 16,
   minHeight: 520,
+  minWidth: 0,
+} as const;
+
+const mobileSidebar = {
+  padding: 14,
+  minHeight: 0,
 } as const;
 
 const chatPanel = {
@@ -983,6 +1034,12 @@ const chatPanel = {
   minHeight: 520,
   display: "flex",
   flexDirection: "column",
+  minWidth: 0,
+} as const;
+
+const mobileChatPanel = {
+  padding: 14,
+  minHeight: 520,
 } as const;
 
 const pageHeader = {
@@ -991,6 +1048,10 @@ const pageHeader = {
   gap: 14,
   alignItems: "center",
   flexWrap: "wrap",
+} as const;
+
+const mobilePageHeader = {
+  alignItems: "stretch",
 } as const;
 
 const backLink = {
@@ -1005,6 +1066,10 @@ const backLink = {
   padding: "10px 14px",
   fontWeight: 800,
   fontSize: 13,
+} as const;
+
+const mobileBackLink = {
+  width: "100%",
 } as const;
 
 const sectionTitle = {
@@ -1105,6 +1170,10 @@ const chatHeader = {
   marginBottom: 12,
 } as const;
 
+const mobileChatHeader = {
+  flexWrap: "wrap",
+} as const;
+
 const rolePill = {
   background: "#FFF8E8",
   border: "1px solid #FFE3A3",
@@ -1124,6 +1193,11 @@ const messageList = {
   padding: "8px 0",
 } as const;
 
+const mobileMessageList = {
+  minHeight: 260,
+  maxHeight: "60vh",
+} as const;
+
 const emptyConversation = {
   border: "1px solid #F0E3D8",
   borderRadius: 14,
@@ -1138,6 +1212,10 @@ const messageBubble = {
   borderRadius: 16,
   padding: "10px 12px",
   color: "#2D2A3E",
+} as const;
+
+const mobileMessageBubble = {
+  maxWidth: "100%",
 } as const;
 
 const timeText = {
@@ -1156,7 +1234,16 @@ const replyBox = {
   marginTop: 12,
 } as const;
 
+const mobileReplyBox = {
+  flexDirection: "column",
+  alignItems: "stretch",
+} as const;
+
 const sendButton = {
   minWidth: 120,
   height: 46,
+} as const;
+
+const mobileSendButton = {
+  width: "100%",
 } as const;

@@ -127,6 +127,7 @@ const menuPanel = {
   top: "82px",
   background: "#fff",
   width: "260px",
+  maxWidth: "calc(100vw - 32px)",
   borderRadius: "16px",
   boxShadow: "0 12px 30px rgba(0,0,0,.12)",
   overflow: "hidden",

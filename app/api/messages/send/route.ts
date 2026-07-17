@@ -137,14 +137,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    sendPushNotification({
+    await sendPushNotification({
       schoolId,
       recipientId,
       recipientRole,
-      senderName,
+      senderName: authorization.kind === "staff" ? (senderName || "DailyBloom staff") : (authorization.parent?.name || "Parent/guardian"),
       message,
-    }).catch((pushError) => {
-      console.error("Could not send OneSignal notification:", pushError);
     });
 
     return NextResponse.json({ message: data });

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const menuItems = [
   { label: "Dashboard", href: "/parent/dashboard" },
@@ -15,6 +15,25 @@ export default function ParentTopBar({
   child: any;
 }) {
   const [open, setOpen] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  useEffect(() => {
+    if (typeof Notification !== "undefined") {
+      setNotificationsEnabled(Notification.permission === "granted");
+    }
+  }, []);
+
+  function enableNotifications() {
+    const deferred = ((window as any).OneSignalDeferred ||= []);
+    deferred.push(async (OneSignal: any) => {
+      try {
+        await OneSignal.Notifications.requestPermission();
+        setNotificationsEnabled(Boolean(OneSignal.Notifications.permission));
+      } catch {
+        alert("Notifications could not be enabled. Check this site's notification permission in your browser settings.");
+      }
+    });
+  }
 
   return (
     <>
@@ -54,13 +73,10 @@ export default function ParentTopBar({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          style={iconButton}
-        >
-          ☰
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {!notificationsEnabled ? <button type="button" onClick={enableNotifications} className="db-main-pill db-main-pill-yellow">Enable Notifications</button> : null}
+          <button type="button" onClick={() => setOpen(!open)} style={iconButton}>☰</button>
+        </div>
       </header>
 
       {open && (

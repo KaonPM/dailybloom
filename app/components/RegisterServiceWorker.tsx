@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 
 declare global {
   interface Window {
     OneSignalDeferred?: Array<(oneSignal: any) => Promise<void> | void>;
+    DailyBloomOneSignalInitialized?: boolean;
   }
 }
 
@@ -27,6 +29,7 @@ function canInitializeOneSignal() {
 }
 
 export default function RegisterServiceWorker() {
+  const pathname = usePathname();
   useEffect(() => {
     if ("serviceWorker" in navigator && !ONESIGNAL_APP_ID) {
       navigator.serviceWorker
@@ -45,13 +48,16 @@ export default function RegisterServiceWorker() {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async (OneSignal) => {
       try {
-        await OneSignal.init({
-          appId: ONESIGNAL_APP_ID,
-          serviceWorkerParam: {
-            scope: "/",
-          },
-          serviceWorkerPath: "OneSignalSDKWorker.js",
-        });
+        if (!window.DailyBloomOneSignalInitialized) {
+          await OneSignal.init({
+            appId: ONESIGNAL_APP_ID,
+            serviceWorkerParam: {
+              scope: "/",
+            },
+            serviceWorkerPath: "OneSignalSDKWorker.js",
+          });
+          window.DailyBloomOneSignalInitialized = true;
+        }
 
         const { profile } = await getCurrentProfile();
 
@@ -70,7 +76,7 @@ export default function RegisterServiceWorker() {
         console.error("OneSignal initialization failed:", error);
       }
     });
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;

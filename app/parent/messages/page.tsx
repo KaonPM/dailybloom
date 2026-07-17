@@ -18,20 +18,20 @@ export default async function ParentMessagesPage() {
     ),
   ];
 
-  const { data: principals } =
+  const { data: schoolStaff } =
     schoolIds.length > 0
       ? await supabaseAdmin
           .from("profiles")
-          .select("id, full_name, role, school_id")
+          .select("id, full_name, role, school_id, classroom_name")
           .in("school_id", schoolIds)
-          .in("role", ["principal", "master", "owner", "admin"])
+          .in("role", ["teacher", "principal", "master", "owner", "admin"])
       : { data: [] };
 
   return (
     <MessagesClient
       initialParent={{
         ...parent,
-        schoolPrincipals: principals || [],
+        schoolStaff: schoolStaff || [],
       }}
       mode="parent"
     />

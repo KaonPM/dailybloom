@@ -296,9 +296,17 @@ export default function MessagesClient({
 
     const currentSchoolId = Number(child.school_id || school?.id);
     const contacts: Contact[] = [];
+    const serverStaff = (initialParent?.schoolStaff || []).filter(
+      (staff: any) => Number(staff.school_id) === currentSchoolId
+    );
 
     if (classroom?.teacher_name) {
-      const { data: teachers } = await supabase
+      const serverTeacher = serverStaff.find((staff: any) =>
+        String(staff.role) === "teacher" &&
+        (String(staff.classroom_name || "") === String(classroom.classroom_name || "") ||
+          String(staff.full_name || "") === String(classroom.teacher_name || ""))
+      );
+      const { data: teachers } = serverTeacher ? { data: [serverTeacher] } : await supabase
         .from("profiles")
         .select("id, full_name, role, classroom_name")
         .eq("school_id", currentSchoolId)
@@ -320,9 +328,8 @@ export default function MessagesClient({
       });
     }
 
-    const serverPrincipals = (initialParent?.schoolPrincipals || []).filter(
-      (principal: PrincipalOption) =>
-        Number(principal.school_id) === currentSchoolId
+    const serverPrincipals = serverStaff.filter(
+      (staff: any) => ["principal", "master", "owner", "admin"].includes(String(staff.role))
     );
 
     const { data: fetchedPrincipals } = serverPrincipals.length

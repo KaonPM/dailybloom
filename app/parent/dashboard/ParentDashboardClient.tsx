@@ -917,6 +917,10 @@ export default function ParentDashboardClient({
         )}
       </div>
 
+      <a href="/parent/incidents" className="db-soft-card" style={{ ...styles.section, display: "flex", justifyContent: "space-between", alignItems: "center", color: "#2D2A3E", textDecoration: "none", fontWeight: 800 }}>
+        <span>Incident Reports</span><span>View and acknowledge →</span>
+      </a>
+
       <Section id="summary" title={`📝 Today's Summary`}>
         <RangeTabs active={summaryRange} setActive={handleSummaryRangeChange} />
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
-type ParentPushType = "daily_summary" | "broadcast" | "event_reminder";
+type ParentPushType = "daily_summary" | "broadcast" | "event_reminder" | "incident_report";
 
 function getTomorrowDate() {
   const tomorrow = new Date();
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL || "https://www.dailybloom.co.za";
 
-    if (!schoolId || !["daily_summary", "broadcast", "event_reminder"].includes(type)) {
+    if (!schoolId || !["daily_summary", "broadcast", "event_reminder", "incident_report"].includes(type)) {
       return NextResponse.json(
         { error: "Missing or unsupported parent notification type." },
         { status: 400 }
@@ -133,6 +133,13 @@ export async function POST(request: Request) {
       externalIds = await getParentPhonesForSchool(schoolId);
       title = schoolName;
       message = `${body.title || "A school event"} is tomorrow.`;
+    }
+
+    if (type === "incident_report") {
+      externalIds = uniqueValues([body.parent_phone]);
+      title = schoolName;
+      message = `${body.learner_name || "Your child"} has an incident report ready for acknowledgement.`;
+      url = `${siteUrl}/parent/incidents`;
     }
 
     const result = await sendOneSignalPush({

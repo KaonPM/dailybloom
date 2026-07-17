@@ -292,6 +292,7 @@ export default function LearnerRequirementsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const schoolParam = searchParams.get("school");
+  const requestedLearnerId = searchParams.get("learner") || "";
 
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [learners, setLearners] = useState<LearnerRow[]>([]);
@@ -391,29 +392,43 @@ export default function LearnerRequirementsPage() {
       return alert(requirementItemsResult.error.message);
     }
 
-    setLearners((learnersResult.data || []) as LearnerRow[]);
-    setClassrooms((classroomsResult.data || []) as ClassroomRow[]);
+    const loadedLearners = (learnersResult.data || []) as LearnerRow[];
+    const loadedClassrooms = (classroomsResult.data || []) as ClassroomRow[];
+    setLearners(loadedLearners);
+    setClassrooms(loadedClassrooms);
     setChecklist((checklistResult.data || []) as ChecklistRow[]);
     setDocuments((documentsResult.data || []) as DocumentRow[]);
     setRequirementItems((requirementItemsResult.data || []) as RequirementItemRow[]);
+    if (String(currentProfile?.role || "").toLowerCase() === "teacher") {
+      const assignedClassroom = loadedClassrooms.find((classroom) =>
+        Number(classroom.id) === Number(currentProfile?.classroom_id || 0) ||
+        String(classroom.classroom_name || "") === String(currentProfile?.classroom_name || "")
+      );
+      if (assignedClassroom) {
+        const assignedId = String(assignedClassroom.id);
+        setSelectedClassroomId(assignedId);
+        setExpandedLearnerId(requestedLearnerId);
+        await loadClassRecords(assignedId, context.schoolId, loadedLearners);
+      }
+    }
     setLoading(false);
   }
 
-  async function loadClassRecords(classroomId: string) {
-    if (!schoolId || !classroomId) return;
-    const learnerIds = learners
+  async function loadClassRecords(classroomId: string, currentSchoolId = schoolId, currentLearners = learners) {
+    if (!currentSchoolId || !classroomId) return;
+    const learnerIds = currentLearners
       .filter((learner) => String(learner.classroom_id || "") === classroomId)
       .map((learner) => learner.id);
     const [checklistResult, documentsResult, requirementItemsResult] = await Promise.all([
       supabase.from("learner_stationery_checklist")
         .select("id, learner_id, classroom_id, stationery_item_id, item_name, quantity, required_quantity, received_quantity, received, received_at")
-        .eq("school_id", schoolId).eq("classroom_id", Number(classroomId)).order("item_name", { ascending: true }),
+        .eq("school_id", currentSchoolId).eq("classroom_id", Number(classroomId)).order("item_name", { ascending: true }),
       learnerIds.length
-        ? supabase.from("learner_documents").select("id, learner_id, document_type, file_url").eq("school_id", schoolId).in("learner_id", learnerIds)
+        ? supabase.from("learner_documents").select("id, learner_id, document_type, file_url").eq("school_id", currentSchoolId).in("learner_id", learnerIds)
         : Promise.resolve({ data: [], error: null }),
       supabase.from("classroom_requirement_items")
         .select("id, school_id, classroom_id, item_name, quantity, category, is_active")
-        .eq("school_id", schoolId).eq("classroom_id", Number(classroomId)).eq("is_active", true)
+        .eq("school_id", currentSchoolId).eq("classroom_id", Number(classroomId)).eq("is_active", true)
         .order("category", { ascending: true }).order("item_name", { ascending: true }),
     ]);
     const error = checklistResult.error || documentsResult.error || requirementItemsResult.error;
@@ -672,6 +687,7 @@ export default function LearnerRequirementsPage() {
   const classCompletionPercentage = classRequirementTotal > 0 ? Math.round((classCompletedItems / classRequirementTotal) * 100) : 0;
 
   const canManageRequirements = ["master", "owner", "principal", "admin"].includes(String(profile?.role || "").toLowerCase());
+  const isTeacher = String(profile?.role || "").toLowerCase() === "teacher";
   const visibleRequirements = stationeryRequirements.filter((item) => categoryFilter === "all" || item.category === categoryFilter);
   const visibleLearners = learnerChecklistOverview.filter((item) => {
     const matchesSearch = normalizeName(item.learner.name).includes(normalizeName(learnerSearch));
@@ -756,20 +772,27 @@ export default function LearnerRequirementsPage() {
           className="db-card db-card-lavender"
           style={{ padding: 16, marginBottom: 18 }}
         >
-          <h3 style={sectionTitle}>Select Class</h3>
+          <h3 style={sectionTitle}>{isTeacher ? "Your Assigned Class" : "Select Class"}</h3>
 
-          <select
-            className="db-input"
-            value={selectedClassroomId}
-            onChange={(e) => { const value = e.target.value; setSelectedClassroomId(value); setSelectedLearnerIds([]); setExpandedLearnerId(""); if (value) void loadClassRecords(value); else { setChecklist([]); setDocuments([]); setRequirementItems([]); } }}
-          >
-            <option value="">Select Class</option>
-            {classrooms.map((classroom) => (
-              <option key={classroom.id} value={classroom.id}>
-                {classroom.classroom_name || "Unnamed class"}
-              </option>
-            ))}
-          </select>
+          {isTeacher ? (
+            <div style={templateSummaryBox}>
+              <strong>{selectedClassroom?.classroom_name || "No classroom assigned"}</strong>
+              <p style={smallText}>{selectedClassroom ? "Showing requirements for your classroom." : "Ask your principal to assign your teacher profile to a classroom."}</p>
+            </div>
+          ) : (
+            <select
+              className="db-input"
+              value={selectedClassroomId}
+              onChange={(e) => { const value = e.target.value; setSelectedClassroomId(value); setSelectedLearnerIds([]); setExpandedLearnerId(""); if (value) void loadClassRecords(value); else { setChecklist([]); setDocuments([]); setRequirementItems([]); } }}
+            >
+              <option value="">Select Class</option>
+              {classrooms.map((classroom) => (
+                <option key={classroom.id} value={classroom.id}>
+                  {classroom.classroom_name || "Unnamed class"}
+                </option>
+              ))}
+            </select>
+          )}
 
           {selectedClassroomId ? (
             <div style={templateSummaryBox}>

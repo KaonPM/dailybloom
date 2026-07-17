@@ -123,7 +123,6 @@ export default function ClassroomActivitiesPage() {
   const [weekStart, setWeekStart] = useState(getMonday(new Date()));
   const [plannerRows, setPlannerRows] = useState<PlannerRow[]>([]);
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
-  const [weeklyDefaultTheme, setWeeklyDefaultTheme] = useState("");
   const [copySourceWeekStart, setCopySourceWeekStart] = useState("");
 
   const [selectedTodayPlanId, setSelectedTodayPlanId] = useState<number | null>(null);
@@ -743,30 +742,6 @@ export default function ClassroomActivitiesPage() {
 
         return updated;
       })
-    );
-  }
-
-  function applyThemeToTeachingWeek() {
-    if (!weeklyDefaultTheme) {
-      alert("Please select a weekly theme first.");
-      return;
-    }
-
-    setPlannerRows((current) =>
-      current.map((row) =>
-        isTeachingDay(row.day_type)
-          ? {
-              ...row,
-              theme: weeklyDefaultTheme,
-              activities: [{
-                activity_library_id: "",
-                activity_name: "",
-                description: "",
-                developmental_area: "",
-              }],
-            }
-          : row
-      )
     );
   }
 
@@ -1408,22 +1383,6 @@ export default function ClassroomActivitiesPage() {
                   {saving ? "Saving..." : "Save Week Plan"}
                 </button>
               </div>
-            </div>
-
-            <div style={{ ...filterGrid, marginBottom: "12px" }}>
-              <select
-                className="db-input"
-                value={weeklyDefaultTheme}
-                onChange={(event) => setWeeklyDefaultTheme(event.target.value)}
-              >
-                <option value="">Select a theme for the week</option>
-                {allThemes().map((theme) => (
-                  <option key={theme} value={theme}>{theme}</option>
-                ))}
-              </select>
-              <button type="button" className="db-button-primary" style={smallButton} onClick={applyThemeToTeachingWeek}>
-                Apply Theme to Teaching Days
-              </button>
             </div>
 
             <div style={{ display: "grid", gap: "8px" }}>

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:classroom-activities": "tsx --test app/lib/classroom-activity-dates.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.0",

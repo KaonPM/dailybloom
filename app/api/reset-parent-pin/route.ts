@@ -29,12 +29,13 @@ export async function POST(request: Request) {
     .from("parent_access")
     .select("id, reset_otp_hash, reset_otp_expires_at, reset_otp_attempts")
     .eq("phone", phone);
-  const primary = rows?.[0];
+  const accessRows = rows ?? [];
+  const primary = accessRows[0];
   if (!primary?.reset_otp_hash || !primary.reset_otp_expires_at || new Date(primary.reset_otp_expires_at) <= new Date()) {
     return NextResponse.json({ error: INVALID_CODE }, { status: 400 });
   }
 
-  const rowIds = rows.map((row) => row.id);
+  const rowIds = accessRows.map((row) => row.id);
   const attempts = Number(primary.reset_otp_attempts || 0);
   if (attempts >= 5) {
     await supabaseAdmin.from("parent_access").update({ reset_otp_hash: null, reset_otp_expires_at: null }).in("id", rowIds);

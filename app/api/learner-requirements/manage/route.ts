@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const body = await request.json();
   const schoolId = Number(body.school_id);
   const action = String(body.action || "");
-  const permission = action === "bulk_receive" ? PERMISSIONS.REQUIREMENTS_TRACK : PERMISSIONS.REQUIREMENTS_MANAGE;
+  const permission = ["bulk_receive", "set_received"].includes(action) ? PERMISSIONS.REQUIREMENTS_TRACK : PERMISSIONS.REQUIREMENTS_MANAGE;
   const authorization = await requireStaffPermission(request, permission, schoolId);
   if (!authorization.ok) return authorization.response;
 
@@ -74,6 +74,37 @@ export async function POST(request: Request) {
     }
     await writeSecurityAudit(authorization.staff, "requirements.bulk_received", { classroom_id: classroomId, item_name: itemName, learner_count: validIds.length });
     return NextResponse.json({ success: true, updated: validIds.length });
+  }
+
+  if (action === "set_received") {
+    const classroomId = Number(body.classroom_id);
+    const learnerId = String(body.learner_id || "");
+    const itemName = String(body.item_name || "").trim().slice(0, 160);
+    const requiredQuantity = Math.max(1, Number(body.required_quantity) || 1);
+    const receivedQuantity = Math.max(0, Math.min(requiredQuantity, Number(body.received_quantity) || 0));
+    if (!classroomId || !learnerId || !itemName || !(await classroomBelongsToSchool(classroomId, schoolId))) {
+      return NextResponse.json({ error: "Valid learner, classroom and requirement are required." }, { status: 400 });
+    }
+    if (authorization.staff.role === "teacher") {
+      const { data: assignedClassroom } = await supabaseAdmin.from("classrooms").select("classroom_name").eq("id", classroomId).eq("school_id", schoolId).maybeSingle();
+      const assignedName = String(authorization.staff.profile.classroom_name || "").trim().toLowerCase();
+      if (!assignedClassroom || String(assignedClassroom.classroom_name || "").trim().toLowerCase() !== assignedName) {
+        return NextResponse.json({ error: "Teachers may only update requirements for their assigned classroom." }, { status: 403 });
+      }
+    }
+    const { data: learner } = await supabaseAdmin.from("learners").select("id").eq("id", learnerId).eq("school_id", schoolId).eq("classroom_id", classroomId).maybeSingle();
+    if (!learner) return NextResponse.json({ error: "Learner is not in this classroom." }, { status: 403 });
+    const { data: existing } = await supabaseAdmin.from("learner_stationery_checklist").select("id")
+      .eq("school_id", schoolId).eq("classroom_id", classroomId).eq("learner_id", learnerId).eq("item_name", itemName)
+      .order("id", { ascending: false }).limit(1).maybeSingle();
+    const now = new Date().toISOString();
+    const values = { required_quantity: requiredQuantity, received_quantity: receivedQuantity, received: receivedQuantity >= requiredQuantity, received_at: receivedQuantity > 0 ? now : null, received_by: authorization.staff.userId, received_by_name: authorization.staff.profile.full_name || authorization.staff.profile.email, updated_at: now };
+    const result = existing
+      ? await supabaseAdmin.from("learner_stationery_checklist").update(values).eq("id", existing.id)
+      : await supabaseAdmin.from("learner_stationery_checklist").insert({ school_id: schoolId, classroom_id: classroomId, learner_id: learnerId, stationery_item_id: Number(body.item_id) > 0 ? Number(body.item_id) : null, item_name: itemName, quantity: String(body.quantity || requiredQuantity), ...values });
+    if (result.error) return NextResponse.json({ error: result.error.message }, { status: 400 });
+    await writeSecurityAudit(authorization.staff, "requirements.quantity_received", { classroom_id: classroomId, learner_id: learnerId, item_name: itemName, received_quantity: receivedQuantity, required_quantity: requiredQuantity });
+    return NextResponse.json({ success: true, received_quantity: receivedQuantity, complete: receivedQuantity >= requiredQuantity });
   }
 
   return NextResponse.json({ error: "Unsupported requirement action." }, { status: 400 });

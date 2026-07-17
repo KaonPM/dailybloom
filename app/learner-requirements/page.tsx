@@ -317,6 +317,8 @@ export default function LearnerRequirementsPage() {
   const [workingAction, setWorkingAction] = useState("");
   const [stationeryOpen, setStationeryOpen] = useState(false);
   const [documentsOpen, setDocumentsOpen] = useState(false);
+  const [expandedRequirementId, setExpandedRequirementId] = useState<number | null>(null);
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadPage();
@@ -424,7 +426,7 @@ export default function LearnerRequirementsPage() {
     const [checklistResult, documentsResult, requirementItemsResult] = await Promise.all([
       supabase.from("learner_stationery_checklist")
         .select("id, learner_id, classroom_id, stationery_item_id, item_name, quantity, required_quantity, received_quantity, received, received_at")
-        .eq("school_id", currentSchoolId).eq("classroom_id", Number(classroomId)).order("item_name", { ascending: true }),
+        .eq("school_id", currentSchoolId).eq("classroom_id", Number(classroomId)).order("item_name", { ascending: true }).order("id", { ascending: false }),
       learnerIds.length
         ? supabase.from("learner_documents").select("id, learner_id, document_type, file_url").eq("school_id", currentSchoolId).in("learner_id", learnerIds)
         : Promise.resolve({ data: [], error: null }),
@@ -715,6 +717,29 @@ export default function LearnerRequirementsPage() {
     await loadClassRecords(selectedClassroomId);
   }
 
+  function receivedQuantityFor(item: RequirementItemRow, learnerId: string) {
+    const required = parseRequiredQuantity(item.quantity);
+    const record = checklist.find((row) => row.learner_id === learnerId && normalizeName(row.item_name) === normalizeName(item.item_name));
+    return record?.received_quantity ?? (record?.received ? required : 0);
+  }
+
+  async function saveReceivedQuantity(item: RequirementItemRow, learnerId: string, quantity?: number) {
+    if (!schoolId) return;
+    const requiredQuantity = parseRequiredQuantity(item.quantity);
+    const key = `${item.id}-${learnerId}`;
+    const receivedQuantity = Math.max(0, Math.min(requiredQuantity, quantity ?? Number(quantityDrafts[key] ?? receivedQuantityFor(item, learnerId))));
+    setWorkingAction(`quantity-${key}`);
+    const response = await authenticatedFetch("/api/learner-requirements/manage", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_received", school_id: schoolId, classroom_id: Number(selectedClassroomId), learner_id: learnerId, item_id: item.id, item_name: item.item_name, quantity: item.quantity, required_quantity: requiredQuantity, received_quantity: receivedQuantity }),
+    });
+    const result = await response.json();
+    setWorkingAction("");
+    if (!response.ok) return alert(result.error || "The received quantity could not be saved.");
+    setQuantityDrafts((current) => ({ ...current, [key]: String(receivedQuantity) }));
+    await loadClassRecords(selectedClassroomId);
+  }
+
   async function notifyParent(item: (typeof learnerChecklistOverview)[number]) {
     if (!schoolId || !item.learner.parent_phone || !item.outstandingItems.length || !profile?.id) {
       return alert("This learner needs a valid parent contact number before a reminder can be sent.");
@@ -826,8 +851,8 @@ export default function LearnerRequirementsPage() {
                 <option value="Other">Other</option>
               </select>
               <div style={templateSummaryBox}>
-                <strong>{selectedLearnerIds.length} learner{selectedLearnerIds.length === 1 ? "" : "s"} selected</strong>
-                <p style={smallText}>Select learners below, then record an item for all of them here.</p>
+                <strong>Record received quantities</strong>
+                <p style={smallText}>Open an item, then enter the quantity received for each learner.</p>
               </div>
             </div>
 
@@ -838,26 +863,28 @@ export default function LearnerRequirementsPage() {
             ) : (
               <div style={{ display: "grid", gap: 8 }}>
                 {visibleRequirements.map((item) => (
-                  <div key={`${item.category}-${item.id}`} style={checklistRow}>
-                    <div style={checkArea}>
-                      <span style={checkboxIcon}>☐</span>
-
-                      <div>
-                        <strong>{item.item_name}</strong>
-                        <p style={smallText}>
-                          Required: {item.quantity || "1"} | {item.category || "Other"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <button className="db-button-primary" style={smallButton} disabled={!selectedLearnerIds.length || workingAction === `receive-${item.id}`} onClick={() => bulkReceive(item)}>
-                        {workingAction === `receive-${item.id}` ? "Saving..." : "Receive for Selected"}
-                      </button>
-                      {item.id > 0 && canManageRequirements ? (
-                        <button className="db-button-secondary" style={smallButton} onClick={() => deleteRequirementItem(item.id)}>Archive</button>
-                      ) : item.id < 0 ? <span style={smallText}>DailyBloom standard</span> : null}
-                    </div>
+                  <div key={`${item.category}-${item.id}`} style={{ ...checklistRow, display: "block", padding: 0, overflow: "hidden" }}>
+                    <button type="button" style={itemToggleButton} onClick={() => setExpandedRequirementId(expandedRequirementId === item.id ? null : item.id)}>
+                      <div><strong>{item.item_name}</strong><p style={smallText}>Required: {item.quantity || "1"} · {item.category || "Other"}</p></div>
+                      <span>{expandedRequirementId === item.id ? "▲" : "▼"}</span>
+                    </button>
+                    {expandedRequirementId === item.id ? <div style={compactLearnerList}>
+                      {classLearners.map((learner) => {
+                        const required = parseRequiredQuantity(item.quantity);
+                        const current = receivedQuantityFor(item, learner.id);
+                        const key = `${item.id}-${learner.id}`;
+                        return <div key={learner.id} style={compactQuantityRow}>
+                          <div><strong>{learner.name || "Unnamed learner"}</strong><p style={smallText}>{current >= required ? "Received in full" : `${current} of ${required} received`}</p></div>
+                          <div style={quantityActions}>
+                            <input aria-label={`Quantity received for ${learner.name || "learner"}`} type="number" min={0} max={required} value={quantityDrafts[key] ?? String(current)} onChange={(event) => setQuantityDrafts((drafts) => ({ ...drafts, [key]: event.target.value }))} style={quantityInput} />
+                            <span style={smallText}>of {required}</span>
+                            <button className="db-button-secondary" style={smallButton} disabled={workingAction === `quantity-${key}`} onClick={() => saveReceivedQuantity(item, learner.id)}>{workingAction === `quantity-${key}` ? "Saving..." : "Save"}</button>
+                            <button className="db-button-primary" style={smallButton} disabled={workingAction === `quantity-${key}` || current >= required} onClick={() => saveReceivedQuantity(item, learner.id, required)}>Received in Full</button>
+                          </div>
+                        </div>;
+                      })}
+                      {item.id > 0 && canManageRequirements ? <button className="db-button-secondary" style={{ ...smallButton, marginTop: 8 }} onClick={() => deleteRequirementItem(item.id)}>Archive Requirement</button> : null}
+                    </div> : null}
                   </div>
                 ))}
               </div>
@@ -953,9 +980,6 @@ export default function LearnerRequirementsPage() {
                 <option value="complete">Complete only</option>
               </select>
             </div>
-            {visibleLearners.length ? <button type="button" className="db-main-pill" style={{ marginBottom: 12 }} onClick={() => setSelectedLearnerIds(selectedLearnerIds.length === visibleLearners.length ? [] : visibleLearners.map((item) => item.learner.id))}>
-              {selectedLearnerIds.length === visibleLearners.length ? "Clear Selection" : "Select Visible Learners"}
-            </button> : null}
             {visibleLearners.some((item) => item.outstandingItems.length > 0) ? <button type="button" className="db-main-pill db-main-pill-yellow" style={{ marginBottom: 12, marginLeft: 8 }} disabled={workingAction === "notify-all"} onClick={notifyAllOutstandingParents}>
               {workingAction === "notify-all" ? "Sending Reminders..." : "Notify All Outstanding Parents"}
             </button> : null}
@@ -967,14 +991,11 @@ export default function LearnerRequirementsPage() {
                 {visibleLearners.map((item) => (
                   <div key={item.learner.id} style={categoryBox}>
                     <div style={learnerProgressHeader}>
-                      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                        <input type="checkbox" checked={selectedLearnerIds.includes(item.learner.id)} onChange={() => toggleSelectedLearner(item.learner.id)} aria-label={`Select ${item.learner.name || "learner"}`} />
-                        <div>
+                      <div>
                         <strong>{item.learner.name || "Unnamed learner"}</strong>
                         <p style={smallText}>
                           Received: {item.receivedCount} / {item.totalCount} | Outstanding: {item.outstandingCount}
                         </p>
-                        </div>
                       </div>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         <button className="db-button-secondary" style={smallButton} onClick={() => setExpandedLearnerId(expandedLearnerId === item.learner.id ? "" : item.learner.id)}>{expandedLearnerId === item.learner.id ? "Hide Details" : "View Outstanding"}</button>
@@ -1126,6 +1147,56 @@ const collapseHeader = {
   fontWeight: 800,
   cursor: "pointer",
   textAlign: "left" as const,
+};
+
+const itemToggleButton = {
+  width: "100%",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  padding: "10px 12px",
+  border: "none",
+  background: "#FFFFFF",
+  color: "#2D2A3E",
+  textAlign: "left" as const,
+  cursor: "pointer",
+};
+
+const compactLearnerList = {
+  display: "grid",
+  gap: 6,
+  padding: "8px 10px 10px",
+  background: "#FFFDFB",
+  borderTop: "1px solid #F0E3D8",
+};
+
+const compactQuantityRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap" as const,
+  padding: "8px 10px",
+  borderRadius: 12,
+  background: "#FFFFFF",
+  border: "1px solid #F0E3D8",
+};
+
+const quantityActions = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  flexWrap: "wrap" as const,
+};
+
+const quantityInput = {
+  width: 64,
+  minHeight: 34,
+  padding: "6px 8px",
+  border: "1px solid #DCCFC4",
+  borderRadius: 10,
+  color: "#2D2A3E",
 };
 
 const categoryBox = {

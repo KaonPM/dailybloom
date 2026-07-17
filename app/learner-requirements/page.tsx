@@ -315,6 +315,8 @@ export default function LearnerRequirementsPage() {
   const [expandedLearnerId, setExpandedLearnerId] = useState("");
   const [selectedLearnerIds, setSelectedLearnerIds] = useState<string[]>([]);
   const [workingAction, setWorkingAction] = useState("");
+  const [stationeryOpen, setStationeryOpen] = useState(false);
+  const [documentsOpen, setDocumentsOpen] = useState(false);
 
   useEffect(() => {
     loadPage();
@@ -759,8 +761,8 @@ export default function LearnerRequirementsPage() {
 
   return (
     <SubscriptionGuard schoolId={schoolId} featureKey="learner_requirements">
-      <div>
-        <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <div className="db-soft-card" style={{ padding: 18, marginBottom: 18, order: 0 }}>
           <h2 className="db-page-title">Learner Requirements</h2>
           <p className="db-page-subtitle">
             Manage required stationery, required documents, and learner completion
@@ -770,7 +772,7 @@ export default function LearnerRequirementsPage() {
 
         <div
           className="db-card db-card-lavender"
-          style={{ padding: 16, marginBottom: 18 }}
+          style={{ padding: 16, marginBottom: 18, order: 2 }}
         >
           <h3 style={sectionTitle}>{isTeacher ? "Your Assigned Class" : "Select Class"}</h3>
 
@@ -808,9 +810,13 @@ export default function LearnerRequirementsPage() {
         {selectedClassroomId ? (
           <div
             className="db-card db-card-blue"
-            style={{ padding: 16, marginBottom: 18 }}
+            style={{ padding: 16, marginBottom: 18, order: 4 }}
           >
-            <h3 style={sectionTitle}>Required Stationery and Hygiene</h3>
+            <button type="button" onClick={() => setStationeryOpen((current) => !current)} style={collapseHeader}>
+              <span>Required Stationery and Hygiene</span><span>{stationeryOpen ? "▲" : "▼"}</span>
+            </button>
+
+            {stationeryOpen ? <>
 
             <div style={filterGrid}>
               <select className="db-input" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
@@ -856,15 +862,20 @@ export default function LearnerRequirementsPage() {
                 ))}
               </div>
             )}
+            </> : null}
           </div>
         ) : null}
 
         {selectedClassroomId ? (
           <div
             className="db-card db-card-yellow"
-            style={{ padding: 16, marginBottom: 18 }}
+            style={{ padding: 16, marginBottom: 18, order: 5 }}
           >
-            <h3 style={sectionTitle}>Required Documents</h3>
+            <button type="button" onClick={() => setDocumentsOpen((current) => !current)} style={collapseHeader}>
+              <span>Required Documents</span><span>{documentsOpen ? "▲" : "▼"}</span>
+            </button>
+
+            {documentsOpen ? <>
 
             {documentRequirements.length === 0 ? (
               <p className="db-helper">
@@ -898,13 +909,14 @@ export default function LearnerRequirementsPage() {
                 ))}
               </div>
             )}
+            </> : null}
           </div>
         ) : null}
 
         {selectedClassroomId ? (
           <div
             className="db-card db-card-lavender"
-            style={{ padding: 16, marginBottom: 18 }}
+            style={{ padding: 16, marginBottom: 18, order: 1 }}
           >
             <h3 style={sectionTitle}>Class Progress Summary</h3>
 
@@ -930,7 +942,7 @@ export default function LearnerRequirementsPage() {
         {selectedClassroomId ? (
           <div
             className="db-card db-card-green"
-            style={{ padding: 16, marginBottom: 18 }}
+            style={{ padding: 16, marginBottom: 18, order: 3 }}
           >
             <h3 style={sectionTitle}>Learner Checklist Overview</h3>
             <div style={filterGrid}>
@@ -993,7 +1005,7 @@ export default function LearnerRequirementsPage() {
         {selectedClassroomId && canManageRequirements ? (
           <div
             className="db-card db-card-lavender"
-            style={{ padding: 16, marginBottom: 18 }}
+            style={{ padding: 16, marginBottom: 18, order: 6 }}
           >
             <h3 style={sectionTitle}>Add Extra Requirement</h3>
 
@@ -1098,6 +1110,22 @@ const sectionTitle = {
   color: "#2D2A3E",
   fontSize: 20,
   fontWeight: 800 as const,
+};
+
+const collapseHeader = {
+  width: "100%",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  border: "none",
+  background: "transparent",
+  color: "#2D2A3E",
+  padding: "2px 0 12px",
+  fontSize: 20,
+  fontWeight: 800,
+  cursor: "pointer",
+  textAlign: "left" as const,
 };
 
 const categoryBox = {

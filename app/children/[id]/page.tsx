@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { resolveSchoolContext } from "../../lib/school-context";
+import { authenticatedFetch } from "../../lib/authenticated-fetch";
 
 type TemplateKey = "0_2" | "2_6";
 
@@ -76,6 +77,7 @@ type LearnerDocument = {
   document_name: string;
   file_name?: string | null;
   file_url?: string | null;
+  file_path?: string | null;
   uploaded_at?: string | null;
 };
 
@@ -401,6 +403,8 @@ export default function LearnerProfilePage() {
   const [loading, setLoading] = useState(true);
   const [savingItem, setSavingItem] = useState(false);
   const [savingQuantityKey, setSavingQuantityKey] = useState("");
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
+  const [documentAction, setDocumentAction] = useState("");
   const [savingDocumentRequirement, setSavingDocumentRequirement] =
     useState(false);
 
@@ -725,23 +729,19 @@ export default function LearnerProfilePage() {
       item.required_quantity || parseRequiredQuantity(item.quantity);
     const nextReceived = !item.received;
 
-    const { error } = await supabase
-      .from("learner_stationery_checklist")
-      .update({
-        required_quantity: requiredQuantity,
-        received_quantity: nextReceived ? requiredQuantity : 0,
-        received: nextReceived,
-        received_at: nextReceived ? new Date().toISOString() : null,
-      })
-      .eq("id", item.id)
-      .eq("school_id", schoolId)
-      .eq("learner_id", learner.id);
+    const response = await authenticatedFetch("/api/learner-requirements/manage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_received", school_id: schoolId, classroom_id: learner.classroom_id, learner_id: learner.id, item_id: item.stationery_item_id, item_name: item.item_name, quantity: item.quantity, required_quantity: requiredQuantity, received_quantity: nextReceived ? requiredQuantity : 0 }),
+    });
+    const result = await response.json();
+    if (!response.ok) return alert(result.error || "The received quantity could not be saved.");
 
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
+    setQuantityDrafts((drafts) => {
+      const next = { ...drafts };
+      delete next[String(item.id)];
+      return next;
+    });
     await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
     setRequirementsExpanded(false);
   }
@@ -755,29 +755,21 @@ export default function LearnerProfilePage() {
       0,
       Math.min(Number(value || 0), requiredQuantity)
     );
-    const isFullyReceived = receivedQuantity >= requiredQuantity;
-
     setSavingQuantityKey(String(item.id));
-
-    const { error } = await supabase
-      .from("learner_stationery_checklist")
-      .update({
-        required_quantity: requiredQuantity,
-        received_quantity: receivedQuantity,
-        received: isFullyReceived,
-        received_at: isFullyReceived ? new Date().toISOString() : null,
-      })
-      .eq("id", item.id)
-      .eq("school_id", schoolId)
-      .eq("learner_id", learner.id);
-
+    const response = await authenticatedFetch("/api/learner-requirements/manage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_received", school_id: schoolId, classroom_id: learner.classroom_id, learner_id: learner.id, item_id: item.stationery_item_id, item_name: item.item_name, quantity: item.quantity, required_quantity: requiredQuantity, received_quantity: receivedQuantity }),
+    });
+    const result = await response.json();
     setSavingQuantityKey("");
+    if (!response.ok) return alert(result.error || "The received quantity could not be saved.");
 
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
+    setQuantityDrafts((drafts) => {
+      const next = { ...drafts };
+      delete next[String(item.id)];
+      return next;
+    });
     await fetchChecklist(schoolId, learner.id, Number(learner.classroom_id));
     setRequirementsExpanded(false);
   }
@@ -796,76 +788,37 @@ export default function LearnerProfilePage() {
     documentType: string,
     event: ChangeEvent<HTMLInputElement>
   ) {
-    if (!learner || !schoolId) return;
+    if (!learner || !schoolId || !learner.classroom_id) return;
 
     const file = event.target.files?.[0];
 
     if (!file) return;
 
     setUploadingDocumentType(documentType);
-
-    const existingDocument = getDocument(documentType);
-    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-    const filePath = `${schoolId}/${learner.id}/${documentType.replace(
-      /[^a-zA-Z0-9]/g,
-      "-"
-    )}-${Date.now()}-${safeFileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("learner-documents")
-      .upload(filePath, file, {
-        upsert: true,
-      });
-
-    if (uploadError) {
-      alert(uploadError.message);
-      setUploadingDocumentType("");
-      event.target.value = "";
-      return;
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from("learner-documents")
-      .getPublicUrl(filePath);
-
-    const payload = {
-      school_id: schoolId,
-      learner_id: learner.id,
-      document_type: documentType,
-      document_name: documentType,
-      file_name: file.name,
-      file_url: publicUrlData.publicUrl,
-      uploaded_at: new Date().toISOString(),
-    };
-
-    if (existingDocument) {
-      const { error } = await supabase
-        .from("learner_documents")
-        .update(payload)
-        .eq("id", existingDocument.id)
-        .eq("school_id", schoolId)
-        .eq("learner_id", learner.id);
-
-      if (error) {
-        alert(error.message);
-        setUploadingDocumentType("");
-        event.target.value = "";
-        return;
-      }
-    } else {
-      const { error } = await supabase.from("learner_documents").insert([payload]);
-
-      if (error) {
-        alert(error.message);
-        setUploadingDocumentType("");
-        event.target.value = "";
-        return;
-      }
-    }
-
-    await fetchDocuments(schoolId, learner.id);
+    setDocumentAction(`upload-${documentType}`);
+    const form = new FormData();
+    form.set("school_id", String(schoolId));
+    form.set("classroom_id", String(learner.classroom_id));
+    form.set("learner_id", learner.id);
+    form.set("document_type", documentType);
+    form.set("file", file);
+    const response = await authenticatedFetch("/api/learner-requirements/documents", { method: "POST", body: form });
+    const result = await response.json();
+    if (!response.ok) alert(result.error || "The document could not be uploaded.");
+    else await fetchDocuments(schoolId, learner.id);
     setUploadingDocumentType("");
+    setDocumentAction("");
     event.target.value = "";
+  }
+
+  async function viewDocument(document: LearnerDocument) {
+    if (!schoolId) return;
+    setDocumentAction(`view-${document.id}`);
+    const response = await authenticatedFetch(`/api/learner-requirements/documents?school_id=${schoolId}&document_id=${document.id}`);
+    const result = await response.json();
+    setDocumentAction("");
+    if (!response.ok || !result.url) return alert(result.error || "The document could not be opened.");
+    window.open(result.url, "_blank", "noopener,noreferrer");
   }
 
   async function deleteDocument(document: LearnerDocument) {
@@ -875,18 +828,15 @@ export default function LearnerProfilePage() {
 
     if (!confirmed) return;
 
-    const { error } = await supabase
-      .from("learner_documents")
-      .delete()
-      .eq("id", document.id)
-      .eq("school_id", schoolId)
-      .eq("learner_id", learner.id);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
+    setDocumentAction(`delete-${document.id}`);
+    const response = await authenticatedFetch("/api/learner-requirements/documents", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ school_id: schoolId, document_id: document.id }),
+    });
+    const result = await response.json();
+    setDocumentAction("");
+    if (!response.ok) return alert(result.error || "The document could not be deleted.");
     await fetchDocuments(schoolId, learner.id);
   }
 
@@ -1029,7 +979,8 @@ export default function LearnerProfilePage() {
       : 0;
 
   const uploadedDocumentCount = documentRequirements.filter((documentType) => {
-    return Boolean(getDocument(documentType)?.file_url);
+    const document = getDocument(documentType);
+    return Boolean(document?.file_url || document?.file_path);
   }).length;
 
   const missingDocumentCount = documentRequirements.length - uploadedDocumentCount;
@@ -1282,18 +1233,32 @@ export default function LearnerProfilePage() {
                       type="number"
                       min={0}
                       max={requiredQuantity}
-                      value={receivedQuantity}
+                      value={quantityDrafts[String(item.id)] ?? String(receivedQuantity)}
                       style={quantityInput}
-                      onChange={(event) =>
-                        updateReceivedQuantity(item, event.target.value)
-                      }
+                      onChange={(event) => setQuantityDrafts((drafts) => ({ ...drafts, [String(item.id)]: event.target.value }))}
                     />
 
-                    <span style={summaryText}>
-                      {savingQuantityKey === String(item.id) ? "Saving..." : ""}
-                    </span>
-
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="db-button-secondary"
+                        style={smallButton}
+                        disabled={savingQuantityKey === String(item.id)}
+                        onClick={() => updateReceivedQuantity(item, quantityDrafts[String(item.id)] ?? String(receivedQuantity))}
+                      >
+                        {savingQuantityKey === String(item.id) ? "Saving..." : "Save"}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="db-button-primary"
+                        style={smallButton}
+                        disabled={savingQuantityKey === String(item.id) || receivedQuantity >= requiredQuantity}
+                        onClick={() => updateReceivedQuantity(item, String(requiredQuantity))}
+                      >
+                        Received in Full
+                      </button>
+
                       <button
                         type="button"
                         className="db-button-secondary"
@@ -1421,7 +1386,7 @@ export default function LearnerProfilePage() {
           <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
             {documentRequirements.map((documentType) => {
               const document = getDocument(documentType);
-              const uploaded = Boolean(document?.file_url);
+              const uploaded = Boolean(document?.file_url || document?.file_path);
               const isUploading = uploadingDocumentType === documentType;
 
               return (
@@ -1441,29 +1406,29 @@ export default function LearnerProfilePage() {
                       {uploaded ? "Uploaded" : "Missing"}
                     </span>
 
-                    <label className="db-button-secondary" style={smallButton}>
+                    <label className="db-button-secondary" style={{ ...smallButton, cursor: documentAction ? "not-allowed" : "pointer", opacity: documentAction ? 0.65 : 1 }}>
                       {isUploading ? "Uploading..." : uploaded ? "Replace" : "Upload"}
                       <input
                         type="file"
-                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                        accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                         style={{ display: "none" }}
                         onChange={(event) =>
                           handleDocumentUpload(documentType, event)
                         }
-                        disabled={isUploading}
+                        disabled={Boolean(documentAction)}
                       />
                     </label>
 
-                    {uploaded && document?.file_url ? (
-                      <a
-                        href={document.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    {uploaded && document ? (
+                      <button
+                        type="button"
                         className="db-button-secondary"
-                        style={{ ...smallButton, textDecoration: "none" }}
+                        style={smallButton}
+                        disabled={Boolean(documentAction)}
+                        onClick={() => viewDocument(document)}
                       >
-                        Download
-                      </a>
+                        {documentAction === `view-${document.id}` ? "Opening..." : "View"}
+                      </button>
                     ) : null}
 
                     {uploaded && document ? (
@@ -1471,9 +1436,10 @@ export default function LearnerProfilePage() {
                         type="button"
                         className="db-button-secondary"
                         style={smallButton}
+                        disabled={Boolean(documentAction)}
                         onClick={() => deleteDocument(document)}
                       >
-                        Delete
+                        {documentAction === `delete-${document.id}` ? "Deleting..." : "Delete"}
                       </button>
                     ) : null}
                   </div>

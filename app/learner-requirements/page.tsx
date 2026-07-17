@@ -920,7 +920,7 @@ export default function LearnerRequirementsPage() {
                         const current = receivedQuantityFor(item, learner.id);
                         const key = `${item.id}-${learner.id}`;
                         return <div key={learner.id} style={compactQuantityRow}>
-                          <div><strong>{learner.name || "Unnamed learner"}</strong><p style={smallText}>{current >= required ? "Received in full" : `${current} of ${required} received`}</p></div>
+                          <div><strong>{learner.name || "Unnamed learner"}</strong><p style={smallText}>Required: {required} · Received: {current} · Outstanding: {Math.max(required - current, 0)}</p></div>
                           <div style={quantityActions}>
                             <input aria-label={`Quantity received for ${learner.name || "learner"}`} type="number" min={0} max={required} value={quantityDrafts[key] ?? String(current)} onChange={(event) => setQuantityDrafts((drafts) => ({ ...drafts, [key]: event.target.value }))} style={quantityInput} />
                             <span style={smallText}>of {required}</span>

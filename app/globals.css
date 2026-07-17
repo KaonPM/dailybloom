@@ -126,13 +126,34 @@ textarea {
   justify-content: center;
   min-height: 46px;
   padding: 12px 18px;
-  border: 1px solid var(--db-border);
+  border: 1px solid #ad99f8;
   border-radius: var(--db-radius-button);
-  background: #ffffff;
-  color: var(--db-text);
-  font-weight: 600;
+  background: var(--db-lavender);
+  color: #352b58;
+  font-weight: 700;
   text-decoration: none;
   cursor: pointer;
+  box-shadow: 0 4px 12px rgba(111, 86, 191, 0.12);
+  transition: 0.18s ease;
+}
+
+.db-button-secondary:hover {
+  background: #b6a4fb;
+  border-color: #9b84ef;
+  transform: translateY(-1px);
+}
+
+.db-button-primary:focus-visible,
+.db-button-secondary:focus-visible {
+  outline: 3px solid rgba(124, 204, 243, 0.4);
+  outline-offset: 2px;
+}
+
+.db-button-primary:disabled,
+.db-button-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none;
 }
 
 .db-input {

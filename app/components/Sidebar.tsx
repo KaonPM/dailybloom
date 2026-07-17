@@ -148,6 +148,11 @@ export default function Sidebar() {
         href: "/progress-reports",
         match: ["/progress-reports"],
       },
+      {
+        label: "Achievement Awards",
+        href: "/achievement-awards",
+        match: ["/achievement-awards"],
+      },
     ],
     []
   );
@@ -217,6 +222,11 @@ export default function Sidebar() {
         label: "Progress Reports",
         href: "/progress-reports",
         match: ["/progress-reports"],
+      },
+      {
+        label: "Achievement Awards",
+        href: "/achievement-awards",
+        match: ["/achievement-awards"],
       },
       {
         label: "Communications",

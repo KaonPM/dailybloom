@@ -9,44 +9,17 @@ import {
   gradeRRRatingScale,
 } from "../lib/grade-rr-categories";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { awardDefinitions } from "../lib/award-types";
 
 const reportLevels = ["NP", "PA", "A", "G", "VG"];
 
-const certificateTypes = [
-  "Certificate of Achievement",
-  "Certificate of Participation",
-  "Certificate of Excellence",
-  "Certificate of Good Progress",
-];
-
-const certificateReasonOptions: Record<string, string[]> = {
-  "Certificate of Achievement": [
-    "Having achieved above average",
-    "Outstanding academic achievement",
-    "Excellent classroom performance",
-    "Consistent hard work and dedication",
-  ],
-  "Certificate of Participation": [
-    "Active participation in class activities",
-    "Positive participation and teamwork",
-    "Enthusiastic involvement in school activities",
-    "Taking part with confidence and effort",
-  ],
-  "Certificate of Excellence": [
-    "Excellent achievement and effort",
-    "Outstanding excellence in learning",
-    "Exceptional progress and dedication",
-    "Excellent behaviour and leadership",
-  ],
-  "Certificate of Good Progress": [
-    "Good progress throughout the year",
-    "Steady improvement and commitment",
-    "Growing confidence and effort",
-    "Positive progress in learning",
-  ],
-};
+const certificateTypes = awardDefinitions.map((award) => award.name);
+const certificateReasonOptions = Object.fromEntries(
+  awardDefinitions.map((award) => [award.name, award.reasons])
+);
 
 const teacherAssessmentStatusFilters = [
   "draft",
@@ -3255,7 +3228,17 @@ export default function ProgressReportsPage() {
           style={{ padding: "20px", marginBottom: "24px" }}
         >
         <div onClick={() => setShowAwards(!showAwards)} style={collapsibleHeader}>
-          <h3 style={{ ...sectionTitle, margin: 0 }}>Achievement Awards</h3>
+          <div>
+            <h3 style={{ ...sectionTitle, margin: 0 }}>Achievement Awards</h3>
+            <Link
+              href="/achievement-awards"
+              className="db-button-primary"
+              style={{ display: "inline-block", marginTop: "10px", textDecoration: "none" }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              Open Achievement Awards Module
+            </Link>
+          </div>
           <span style={chevron}>{showAwards ? "-" : "+"}</span>
         </div>
 

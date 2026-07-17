@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/app/lib/supabase";
 import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 import { getCurrentProfile } from "@/app/lib/auth";
@@ -75,6 +76,7 @@ export default function MessagesClient({
   initialParent: any;
   mode?: Mode;
 }) {
+  const searchParams = useSearchParams();
   const messageFetch = initialParent ? fetch : authenticatedFetch;
   const [role, setRole] = useState<UserRole | "">("");
   const [schoolId, setSchoolId] = useState<number | null>(null);
@@ -329,7 +331,7 @@ export default function MessagesClient({
       .from("profiles")
       .select("id, full_name, role")
       .eq("school_id", currentSchoolId)
-      .in("role", ["principal", "master", "owner"])
+      .in("role", ["principal", "master", "owner", "admin"])
       .limit(5);
 
     ((fetchedPrincipals || []) as PrincipalOption[]).forEach((principal) => {
@@ -345,7 +347,13 @@ export default function MessagesClient({
     });
 
     if (contacts.length > 0) {
-      setActiveContact(contacts[0]);
+      const requestedContactId = searchParams.get("contact");
+      const requestedLearnerId = searchParams.get("learner");
+      const requestedContact = contacts.find((contact) =>
+        (!requestedContactId || String(contact.id) === requestedContactId) &&
+        (!requestedLearnerId || String(contact.learner_id || "") === requestedLearnerId)
+      );
+      setActiveContact(requestedContact || contacts[0]);
     } else {
       setActiveContact(null);
     }

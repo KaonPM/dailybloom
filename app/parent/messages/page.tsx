@@ -24,7 +24,7 @@ export default async function ParentMessagesPage() {
           .from("profiles")
           .select("id, full_name, role, school_id")
           .in("school_id", schoolIds)
-          .in("role", ["principal", "master", "owner"])
+          .in("role", ["principal", "master", "owner", "admin"])
       : { data: [] };
 
   return (

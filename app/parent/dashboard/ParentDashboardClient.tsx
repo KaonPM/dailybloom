@@ -841,6 +841,11 @@ export default function ParentDashboardClient({
   const lastMessagePreview = lastMessage?.message || "";
   const lastMessageSender =
     lastMessage?.sender_name || (lastMessage?.sender_id === parent?.phone ? "You" : "School");
+  const lastMessageContactId = lastMessage
+    ? String(lastMessage.sender_id) === String(parent?.phone)
+      ? lastMessage.recipient_id
+      : lastMessage.sender_id
+    : null;
   const unacknowledgedIncidents = incidentReports.filter(
     (report) => !report.parent_acknowledged_at
   );
@@ -1032,7 +1037,7 @@ export default function ParentDashboardClient({
         </div>
 
         <a
-          href="/parent/messages"
+          href={lastMessageContactId ? `/parent/messages?contact=${encodeURIComponent(String(lastMessageContactId))}&learner=${encodeURIComponent(String(lastMessage?.learner_id || child?.id || ""))}` : "/parent/messages"}
           onClick={() => markUpdateTypeSeen("messages")}
           style={styles.openMessagesButton}
         >

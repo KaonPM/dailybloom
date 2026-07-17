@@ -59,6 +59,9 @@ type DocumentRow = {
   learner_id: string;
   document_type: string;
   file_url?: string | null;
+  file_path?: string | null;
+  file_name?: string | null;
+  uploaded_at?: string | null;
 };
 
 function normalizeName(value?: string | null) {
@@ -319,6 +322,8 @@ export default function LearnerRequirementsPage() {
   const [documentsOpen, setDocumentsOpen] = useState(false);
   const [expandedRequirementId, setExpandedRequirementId] = useState<number | null>(null);
   const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
+  const [expandedDocumentId, setExpandedDocumentId] = useState<number | null>(null);
+  const [documentAction, setDocumentAction] = useState("");
 
   useEffect(() => {
     loadPage();
@@ -374,7 +379,7 @@ export default function LearnerRequirementsPage() {
 
       supabase
         .from("learner_documents")
-        .select("id, learner_id, document_type, file_url")
+        .select("id, learner_id, document_type, file_url, file_path, file_name, uploaded_at")
         .eq("school_id", context.schoolId)
         .limit(0),
 
@@ -428,7 +433,7 @@ export default function LearnerRequirementsPage() {
         .select("id, learner_id, classroom_id, stationery_item_id, item_name, quantity, required_quantity, received_quantity, received, received_at")
         .eq("school_id", currentSchoolId).eq("classroom_id", Number(classroomId)).order("item_name", { ascending: true }).order("id", { ascending: false }),
       learnerIds.length
-        ? supabase.from("learner_documents").select("id, learner_id, document_type, file_url").eq("school_id", currentSchoolId).in("learner_id", learnerIds)
+        ? supabase.from("learner_documents").select("id, learner_id, document_type, file_url, file_path, file_name, uploaded_at").eq("school_id", currentSchoolId).in("learner_id", learnerIds)
         : Promise.resolve({ data: [], error: null }),
       supabase.from("classroom_requirement_items")
         .select("id, school_id, classroom_id, item_name, quantity, category, is_active")
@@ -740,6 +745,47 @@ export default function LearnerRequirementsPage() {
     await loadClassRecords(selectedClassroomId);
   }
 
+  function learnerDocument(documentType: string, learnerId: string) {
+    return documents.find((document) => document.learner_id === learnerId && normalizeName(document.document_type) === normalizeName(documentType));
+  }
+
+  async function uploadLearnerDocument(item: RequirementItemRow, learnerId: string, file?: File) {
+    if (!file || !schoolId) return;
+    const key = `${item.id}-${learnerId}`;
+    setDocumentAction(`upload-${key}`);
+    const form = new FormData();
+    form.set("school_id", String(schoolId));
+    form.set("classroom_id", selectedClassroomId);
+    form.set("learner_id", learnerId);
+    form.set("document_type", item.item_name);
+    form.set("file", file);
+    const response = await authenticatedFetch("/api/learner-requirements/documents", { method: "POST", body: form });
+    const result = await response.json();
+    setDocumentAction("");
+    if (!response.ok) return alert(result.error || "The document could not be uploaded.");
+    await loadClassRecords(selectedClassroomId);
+  }
+
+  async function viewLearnerDocument(document: DocumentRow) {
+    if (!schoolId) return;
+    setDocumentAction(`view-${document.id}`);
+    const response = await authenticatedFetch(`/api/learner-requirements/documents?school_id=${schoolId}&document_id=${document.id}`);
+    const result = await response.json();
+    setDocumentAction("");
+    if (!response.ok || !result.url) return alert(result.error || "The document could not be opened.");
+    window.open(result.url, "_blank", "noopener,noreferrer");
+  }
+
+  async function deleteLearnerDocument(document: DocumentRow) {
+    if (!schoolId || !confirm(`Delete ${document.document_type}? This cannot be undone.`)) return;
+    setDocumentAction(`delete-${document.id}`);
+    const response = await authenticatedFetch("/api/learner-requirements/documents", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ school_id: schoolId, document_id: document.id }) });
+    const result = await response.json();
+    setDocumentAction("");
+    if (!response.ok) return alert(result.error || "The document could not be deleted.");
+    await loadClassRecords(selectedClassroomId);
+  }
+
   async function notifyParent(item: (typeof learnerChecklistOverview)[number]) {
     if (!schoolId || !item.learner.parent_phone || !item.outstandingItems.length || !profile?.id) {
       return alert("This learner needs a valid parent contact number before a reminder can be sent.");
@@ -911,27 +957,32 @@ export default function LearnerRequirementsPage() {
             ) : (
               <div style={{ display: "grid", gap: 8 }}>
                 {documentRequirements.map((item) => (
-                  <div key={`${item.category}-${item.id}`} style={checklistRow}>
-                    <div style={checkArea}>
-                      <span style={checkboxIcon}>☐</span>
-
-                      <div>
-                        <strong>{item.item_name}</strong>
-                        <p style={smallText}>Required: {item.quantity || "1 copy"}</p>
-                      </div>
-                    </div>
-
-                    {item.id > 0 && canManageRequirements ? (
-                      <button
-                        className="db-button-secondary"
-                        style={smallButton}
-                        onClick={() => deleteRequirementItem(item.id)}
-                      >
-                        Archive
-                      </button>
-                    ) : (
-                      <span style={smallText}>DailyBloom standard</span>
-                    )}
+                  <div key={`${item.category}-${item.id}`} style={{ ...checklistRow, display: "block", padding: 0, overflow: "hidden" }}>
+                    <button type="button" style={itemToggleButton} onClick={() => setExpandedDocumentId(expandedDocumentId === item.id ? null : item.id)}>
+                      <div><strong>{item.item_name}</strong><p style={smallText}>Required: {item.quantity || "1 copy"}</p></div>
+                      <span>{expandedDocumentId === item.id ? "▲" : "▼"}</span>
+                    </button>
+                    {expandedDocumentId === item.id ? <div style={compactLearnerList}>
+                      {classLearners.map((learner) => {
+                        const document = learnerDocument(item.item_name, learner.id);
+                        const uploadKey = `${item.id}-${learner.id}`;
+                        const isUploading = documentAction === `upload-${uploadKey}`;
+                        const isViewing = document ? documentAction === `view-${document.id}` : false;
+                        const isDeleting = document ? documentAction === `delete-${document.id}` : false;
+                        return <div key={learner.id} style={compactQuantityRow}>
+                          <div><strong>{learner.name || "Unnamed learner"}</strong><p style={smallText}>{document ? `Uploaded${document.file_name ? ` · ${document.file_name}` : ""}` : "Missing"}</p></div>
+                          <div style={quantityActions}>
+                            {document ? <button type="button" className="db-button-secondary" style={smallButton} disabled={Boolean(documentAction)} onClick={() => viewLearnerDocument(document)}>{isViewing ? "Opening..." : "View"}</button> : null}
+                            {canManageRequirements ? <label className="db-button-primary" style={{ ...smallButton, cursor: documentAction ? "not-allowed" : "pointer", opacity: documentAction ? 0.65 : 1 }}>
+                              {isUploading ? "Uploading..." : document ? "Replace" : "Upload"}
+                              <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" disabled={Boolean(documentAction)} style={{ display: "none" }} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadLearnerDocument(item, learner.id, file); event.currentTarget.value = ""; }} />
+                            </label> : null}
+                            {document && canManageRequirements ? <button type="button" className="db-button-secondary" style={smallButton} disabled={Boolean(documentAction)} onClick={() => deleteLearnerDocument(document)}>{isDeleting ? "Deleting..." : "Delete"}</button> : null}
+                          </div>
+                        </div>;
+                      })}
+                      {item.id > 0 && canManageRequirements ? <button type="button" className="db-button-secondary" style={{ ...smallButton, marginTop: 8 }} onClick={() => deleteRequirementItem(item.id)}>Archive Requirement</button> : null}
+                    </div> : null}
                   </div>
                 ))}
               </div>

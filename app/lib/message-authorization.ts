@@ -2,14 +2,14 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { getCurrentParent } from "./getCurrentParent";
 import { requireStaffPermission } from "./server-authorization";
-import { PERMISSIONS } from "./permissions";
+import { PERMISSIONS, type Permission } from "./permissions";
 
 type MessageAuthorization =
   | { ok: true; kind: "staff"; userId: string; role: string; parent: null }
   | { ok: true; kind: "parent"; userId: string; role: "parent"; parent: any }
   | { ok: false; response: NextResponse };
 
-export async function authorizeMessageUser(request: Request, schoolId: number, claimedUserId?: string, learnerId?: string | null, permission = PERMISSIONS.MESSAGE_VIEW): Promise<MessageAuthorization> {
+export async function authorizeMessageUser(request: Request, schoolId: number, claimedUserId?: string, learnerId?: string | null, permission: Permission = PERMISSIONS.MESSAGE_VIEW): Promise<MessageAuthorization> {
   if (request.headers.get("authorization")) {
     const authorization = await requireStaffPermission(request, permission, schoolId);
     if (!authorization.ok) return authorization;

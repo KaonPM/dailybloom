@@ -18,6 +18,8 @@ test("preschool admin cannot review incidents or manage billing", () => {
 test("teacher cannot manage staff or classrooms", () => {
   assert.equal(ROLE_PERMISSIONS.teacher.includes(PERMISSIONS.STAFF_MANAGE), false);
   assert.equal(ROLE_PERMISSIONS.teacher.includes(PERMISSIONS.CLASSROOM_ASSIGN), false);
+  assert.equal(ROLE_PERMISSIONS.teacher.includes(PERMISSIONS.REQUIREMENTS_TRACK), true);
+  assert.equal(ROLE_PERMISSIONS.teacher.includes(PERMISSIONS.REQUIREMENTS_MANAGE), false);
 });
 
 test("owner is school-scoped and cannot onboard platform schools", () => {

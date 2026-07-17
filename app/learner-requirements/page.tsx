@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
+import { getCurrentProfile } from "../lib/auth";
 import SubscriptionGuard from "../components/SubscriptionGuard";
 
 type TemplateKey = "0_2" | "2_6";
@@ -14,6 +16,8 @@ type LearnerRow = {
   name?: string | null;
   class?: string | null;
   classroom_id?: number | null;
+  parent_name?: string | null;
+  parent_phone?: string | null;
 };
 
 type ClassroomRow = {
@@ -303,6 +307,13 @@ export default function LearnerRequirementsPage() {
 
   const [loading, setLoading] = useState(true);
   const [savingItem, setSavingItem] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
+  const [learnerSearch, setLearnerSearch] = useState("");
+  const [progressFilter, setProgressFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [expandedLearnerId, setExpandedLearnerId] = useState("");
+  const [selectedLearnerIds, setSelectedLearnerIds] = useState<string[]>([]);
+  const [workingAction, setWorkingAction] = useState("");
 
   useEffect(() => {
     loadPage();
@@ -324,6 +335,8 @@ export default function LearnerRequirementsPage() {
     }
 
     setSchoolId(context.schoolId);
+    const { profile: currentProfile } = await getCurrentProfile();
+    setProfile(currentProfile || null);
 
     const [
       learnersResult,
@@ -334,7 +347,7 @@ export default function LearnerRequirementsPage() {
     ] = await Promise.all([
       supabase
         .from("learners")
-        .select("id, name, class, classroom_id")
+        .select("id, name, class, classroom_id, parent_name, parent_phone")
         .eq("school_id", context.schoolId)
         .or("is_deleted.is.null,is_deleted.eq.false")
         .order("name", { ascending: true }),
@@ -351,18 +364,21 @@ export default function LearnerRequirementsPage() {
           "id, learner_id, classroom_id, stationery_item_id, item_name, quantity, required_quantity, received_quantity, received, received_at"
         )
         .eq("school_id", context.schoolId)
+        .limit(0)
         .order("item_name", { ascending: true }),
 
       supabase
         .from("learner_documents")
         .select("id, learner_id, document_type, file_url")
-        .eq("school_id", context.schoolId),
+        .eq("school_id", context.schoolId)
+        .limit(0),
 
       supabase
         .from("classroom_requirement_items")
         .select("id, school_id, classroom_id, item_name, quantity, category, is_active")
         .eq("school_id", context.schoolId)
         .eq("is_active", true)
+        .limit(0)
         .order("category", { ascending: true })
         .order("item_name", { ascending: true }),
     ]);
@@ -383,6 +399,30 @@ export default function LearnerRequirementsPage() {
     setLoading(false);
   }
 
+  async function loadClassRecords(classroomId: string) {
+    if (!schoolId || !classroomId) return;
+    const learnerIds = learners
+      .filter((learner) => String(learner.classroom_id || "") === classroomId)
+      .map((learner) => learner.id);
+    const [checklistResult, documentsResult, requirementItemsResult] = await Promise.all([
+      supabase.from("learner_stationery_checklist")
+        .select("id, learner_id, classroom_id, stationery_item_id, item_name, quantity, required_quantity, received_quantity, received, received_at")
+        .eq("school_id", schoolId).eq("classroom_id", Number(classroomId)).order("item_name", { ascending: true }),
+      learnerIds.length
+        ? supabase.from("learner_documents").select("id, learner_id, document_type, file_url").eq("school_id", schoolId).in("learner_id", learnerIds)
+        : Promise.resolve({ data: [], error: null }),
+      supabase.from("classroom_requirement_items")
+        .select("id, school_id, classroom_id, item_name, quantity, category, is_active")
+        .eq("school_id", schoolId).eq("classroom_id", Number(classroomId)).eq("is_active", true)
+        .order("category", { ascending: true }).order("item_name", { ascending: true }),
+    ]);
+    const error = checklistResult.error || documentsResult.error || requirementItemsResult.error;
+    if (error) return alert(error.message);
+    setChecklist((checklistResult.data || []) as ChecklistRow[]);
+    setDocuments((documentsResult.data || []) as DocumentRow[]);
+    setRequirementItems((requirementItemsResult.data || []) as RequirementItemRow[]);
+  }
+
   async function addRequirementItem() {
     if (!schoolId) return alert("School not found.");
     if (!selectedClassroomId) return alert("Please select a class first.");
@@ -390,29 +430,21 @@ export default function LearnerRequirementsPage() {
 
     setSavingItem(true);
 
-    const { error } = await supabase.from("classroom_requirement_items").upsert(
-      [
-        {
-          school_id: schoolId,
-          classroom_id: Number(selectedClassroomId),
-          item_name: newItemName.trim(),
-          quantity: newQuantity.trim() || null,
-          category: newCategory,
-          is_active: true,
-        },
-      ],
-      { onConflict: "school_id,classroom_id,item_name" }
-    );
+    const response = await authenticatedFetch("/api/learner-requirements/manage", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "add_item", school_id: schoolId, classroom_id: Number(selectedClassroomId), item_name: newItemName.trim(), quantity: newQuantity.trim() || null, category: newCategory }),
+    });
+    const result = await response.json();
 
     setSavingItem(false);
 
-    if (error) return alert(error.message);
+    if (!response.ok) return alert(result.error || "Requirement could not be added.");
 
     setNewItemName("");
     setNewQuantity("");
     setNewCategory("Stationery");
 
-    await loadPage();
+    await loadClassRecords(selectedClassroomId);
   }
 
   async function deleteRequirementItem(itemId: number) {
@@ -421,14 +453,14 @@ export default function LearnerRequirementsPage() {
     const confirmed = confirm("Delete this requirement from the requirements list?");
     if (!confirmed) return;
 
-    const { error } = await supabase
-      .from("classroom_requirement_items")
-      .update({ is_active: false })
-      .eq("id", itemId);
+    const response = await authenticatedFetch("/api/learner-requirements/manage", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "archive_item", school_id: schoolId, item_id: itemId }),
+    });
+    const result = await response.json();
+    if (!response.ok) return alert(result.error || "Requirement could not be archived.");
 
-    if (error) return alert(error.message);
-
-    await loadPage();
+    await loadClassRecords(selectedClassroomId);
   }
 
   function learnerProfileHref(learnerId: string) {
@@ -596,6 +628,18 @@ export default function LearnerRequirementsPage() {
           Boolean(document.file_url)
       );
     }).length;
+    const outstandingStationery = stationeryRequirements.filter((requirement) => {
+      const requiredQuantity = parseRequiredQuantity(requirement.quantity);
+      const checklistItem = uniqueLearnerChecklist.find(
+        (item) => normalizeName(item.item_name) === normalizeName(requirement.item_name)
+      );
+      const receivedQuantity = checklistItem?.received_quantity ??
+        (checklistItem?.received ? requiredQuantity : 0);
+      return receivedQuantity < requiredQuantity;
+    }).map((requirement) => requirement.item_name);
+    const missingDocuments = documentRequirements.filter((requirement) =>
+      !documents.some((document) => document.learner_id === learner.id && normalizeName(document.document_type) === normalizeName(requirement.item_name) && Boolean(document.file_url))
+    ).map((requirement) => requirement.item_name);
 
     const totalRequired = stationeryTotals.required + documentRequirements.length;
     const totalReceived = stationeryTotals.received + uploadedDocumentCount;
@@ -609,6 +653,7 @@ export default function LearnerRequirementsPage() {
       outstandingCount,
       totalCount: totalRequired,
       progress,
+      outstandingItems: [...outstandingStationery, ...missingDocuments],
     };
   });
 
@@ -621,6 +666,76 @@ export default function LearnerRequirementsPage() {
     (total, item) => total + item.outstandingCount,
     0
   );
+  const fullyCompleteLearners = learnerChecklistOverview.filter((item) => item.outstandingCount === 0 && item.totalCount > 0).length;
+  const learnersWithOutstanding = learnerChecklistOverview.filter((item) => item.outstandingCount > 0).length;
+  const classRequirementTotal = classCompletedItems + classOutstandingItems;
+  const classCompletionPercentage = classRequirementTotal > 0 ? Math.round((classCompletedItems / classRequirementTotal) * 100) : 0;
+
+  const canManageRequirements = ["master", "owner", "principal", "admin"].includes(String(profile?.role || "").toLowerCase());
+  const visibleRequirements = stationeryRequirements.filter((item) => categoryFilter === "all" || item.category === categoryFilter);
+  const visibleLearners = learnerChecklistOverview.filter((item) => {
+    const matchesSearch = normalizeName(item.learner.name).includes(normalizeName(learnerSearch));
+    const matchesProgress = progressFilter === "all" || (progressFilter === "outstanding" ? item.outstandingCount > 0 : item.outstandingCount === 0);
+    return matchesSearch && matchesProgress;
+  });
+
+  function toggleSelectedLearner(learnerId: string) {
+    setSelectedLearnerIds((current) => current.includes(learnerId) ? current.filter((id) => id !== learnerId) : [...current, learnerId]);
+  }
+
+  async function bulkReceive(item: RequirementItemRow) {
+    if (!schoolId || !selectedLearnerIds.length) return alert("Select at least one learner first.");
+    setWorkingAction(`receive-${item.id}`);
+    const response = await authenticatedFetch("/api/learner-requirements/manage", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "bulk_receive", school_id: schoolId, classroom_id: Number(selectedClassroomId), learner_ids: selectedLearnerIds, item_id: item.id, item_name: item.item_name, quantity: item.quantity, required_quantity: parseRequiredQuantity(item.quantity) }),
+    });
+    const result = await response.json();
+    setWorkingAction("");
+    if (!response.ok) return alert(result.error || "Received items could not be saved.");
+    setSelectedLearnerIds([]);
+    await loadClassRecords(selectedClassroomId);
+  }
+
+  async function notifyParent(item: (typeof learnerChecklistOverview)[number]) {
+    if (!schoolId || !item.learner.parent_phone || !item.outstandingItems.length || !profile?.id) {
+      return alert("This learner needs a valid parent contact number before a reminder can be sent.");
+    }
+    const preview = item.outstandingItems.slice(0, 8).join(", ");
+    const extra = item.outstandingItems.length > 8 ? ` and ${item.outstandingItems.length - 8} more` : "";
+    const message = `Requirements reminder for ${item.learner.name || "your child"}: the following items are still outstanding: ${preview}${extra}. Please contact the preschool if you need assistance.`;
+    if (!confirm(`Send this Parent Portal reminder to ${item.learner.parent_name || "the parent"}?\n\n${message}`)) return;
+    setWorkingAction(`notify-${item.learner.id}`);
+    const response = await authenticatedFetch("/api/messages/send", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ school_id: schoolId, learner_id: item.learner.id, sender_role: profile.role, sender_id: profile.id, sender_name: profile.full_name || "DailyBloom staff", recipient_role: "parent", recipient_id: item.learner.parent_phone, recipient_name: item.learner.parent_name || "Parent/guardian", message }),
+    });
+    const result = await response.json();
+    setWorkingAction("");
+    if (!response.ok) return alert(result.error || "The reminder could not be sent.");
+    alert("Outstanding requirements reminder sent to the Parent Portal.");
+  }
+
+  async function notifyAllOutstandingParents() {
+    if (!schoolId || !profile?.id) return;
+    const recipients = visibleLearners.filter((item) => item.outstandingItems.length > 0 && item.learner.parent_phone);
+    if (!recipients.length) return alert("No visible learners with outstanding requirements and valid parent contact numbers were found.");
+    if (!confirm(`Send Parent Portal reminders to ${recipients.length} parent${recipients.length === 1 ? "" : "s"}?`)) return;
+    setWorkingAction("notify-all");
+    let sent = 0;
+    for (const item of recipients) {
+      const preview = item.outstandingItems.slice(0, 8).join(", ");
+      const extra = item.outstandingItems.length > 8 ? ` and ${item.outstandingItems.length - 8} more` : "";
+      const message = `Requirements reminder for ${item.learner.name || "your child"}: the following items are still outstanding: ${preview}${extra}. Please contact the preschool if you need assistance.`;
+      const response = await authenticatedFetch("/api/messages/send", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ school_id: schoolId, learner_id: item.learner.id, sender_role: profile.role, sender_id: profile.id, sender_name: profile.full_name || "DailyBloom staff", recipient_role: "parent", recipient_id: item.learner.parent_phone, recipient_name: item.learner.parent_name || "Parent/guardian", message }),
+      });
+      if (response.ok) sent += 1;
+    }
+    setWorkingAction("");
+    alert(`${sent} of ${recipients.length} Parent Portal reminder${recipients.length === 1 ? "" : "s"} sent.`);
+  }
 
   if (loading) {
     return <p>Loading learner requirements...</p>;
@@ -646,7 +761,7 @@ export default function LearnerRequirementsPage() {
           <select
             className="db-input"
             value={selectedClassroomId}
-            onChange={(e) => setSelectedClassroomId(e.target.value)}
+            onChange={(e) => { const value = e.target.value; setSelectedClassroomId(value); setSelectedLearnerIds([]); setExpandedLearnerId(""); if (value) void loadClassRecords(value); else { setChecklist([]); setDocuments([]); setRequirementItems([]); } }}
           >
             <option value="">Select Class</option>
             {classrooms.map((classroom) => (
@@ -674,13 +789,26 @@ export default function LearnerRequirementsPage() {
           >
             <h3 style={sectionTitle}>Required Stationery and Hygiene</h3>
 
-            {stationeryRequirements.length === 0 ? (
+            <div style={filterGrid}>
+              <select className="db-input" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+                <option value="all">All categories</option>
+                <option value="Stationery">Stationery</option>
+                <option value="Hygiene">Hygiene</option>
+                <option value="Other">Other</option>
+              </select>
+              <div style={templateSummaryBox}>
+                <strong>{selectedLearnerIds.length} learner{selectedLearnerIds.length === 1 ? "" : "s"} selected</strong>
+                <p style={smallText}>Select learners below, then record an item for all of them here.</p>
+              </div>
+            </div>
+
+            {visibleRequirements.length === 0 ? (
               <p className="db-helper">
                 No stationery requirements loaded for this class yet.
               </p>
             ) : (
               <div style={{ display: "grid", gap: 8 }}>
-                {stationeryRequirements.map((item) => (
+                {visibleRequirements.map((item) => (
                   <div key={`${item.category}-${item.id}`} style={checklistRow}>
                     <div style={checkArea}>
                       <span style={checkboxIcon}>☐</span>
@@ -693,17 +821,14 @@ export default function LearnerRequirementsPage() {
                       </div>
                     </div>
 
-                    {item.id > 0 ? (
-                      <button
-                        className="db-button-secondary"
-                        style={smallButton}
-                        onClick={() => deleteRequirementItem(item.id)}
-                      >
-                        Delete
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button className="db-button-primary" style={smallButton} disabled={!selectedLearnerIds.length || workingAction === `receive-${item.id}`} onClick={() => bulkReceive(item)}>
+                        {workingAction === `receive-${item.id}` ? "Saving..." : "Receive for Selected"}
                       </button>
-                    ) : (
-                      <span style={smallText}>DailyBloom standard</span>
-                    )}
+                      {item.id > 0 && canManageRequirements ? (
+                        <button className="db-button-secondary" style={smallButton} onClick={() => deleteRequirementItem(item.id)}>Archive</button>
+                      ) : item.id < 0 ? <span style={smallText}>DailyBloom standard</span> : null}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -735,13 +860,13 @@ export default function LearnerRequirementsPage() {
                       </div>
                     </div>
 
-                    {item.id > 0 ? (
+                    {item.id > 0 && canManageRequirements ? (
                       <button
                         className="db-button-secondary"
                         style={smallButton}
                         onClick={() => deleteRequirementItem(item.id)}
                       >
-                        Delete
+                        Archive
                       </button>
                     ) : (
                       <span style={smallText}>DailyBloom standard</span>
@@ -762,18 +887,18 @@ export default function LearnerRequirementsPage() {
 
             <div style={summaryGrid}>
               <div style={summaryCard}>
-                <strong>Total Learners</strong>
-                <p style={summaryNumber}>{classLearners.length}</p>
+                <strong>Learners Complete</strong>
+                <p style={summaryNumber}>{fullyCompleteLearners} / {classLearners.length}</p>
               </div>
 
               <div style={summaryCard}>
-                <strong>Total Received Quantity</strong>
-                <p style={summaryNumber}>{classCompletedItems}</p>
+                <strong>Learners Outstanding</strong>
+                <p style={summaryNumber}>{learnersWithOutstanding}</p>
               </div>
 
               <div style={summaryCard}>
-                <strong>Total Outstanding Quantity</strong>
-                <p style={summaryNumber}>{classOutstandingItems}</p>
+                <strong>Overall Completion</strong>
+                <p style={summaryNumber}>{classCompletionPercentage}%</p>
               </div>
             </div>
           </div>
@@ -785,28 +910,42 @@ export default function LearnerRequirementsPage() {
             style={{ padding: 16, marginBottom: 18 }}
           >
             <h3 style={sectionTitle}>Learner Checklist Overview</h3>
+            <div style={filterGrid}>
+              <input className="db-input" placeholder="Search learner" value={learnerSearch} onChange={(event) => setLearnerSearch(event.target.value)} />
+              <select className="db-input" value={progressFilter} onChange={(event) => setProgressFilter(event.target.value)}>
+                <option value="all">All learners</option>
+                <option value="outstanding">Outstanding only</option>
+                <option value="complete">Complete only</option>
+              </select>
+            </div>
+            {visibleLearners.length ? <button type="button" className="db-main-pill" style={{ marginBottom: 12 }} onClick={() => setSelectedLearnerIds(selectedLearnerIds.length === visibleLearners.length ? [] : visibleLearners.map((item) => item.learner.id))}>
+              {selectedLearnerIds.length === visibleLearners.length ? "Clear Selection" : "Select Visible Learners"}
+            </button> : null}
+            {visibleLearners.some((item) => item.outstandingItems.length > 0) ? <button type="button" className="db-main-pill db-main-pill-yellow" style={{ marginBottom: 12, marginLeft: 8 }} disabled={workingAction === "notify-all"} onClick={notifyAllOutstandingParents}>
+              {workingAction === "notify-all" ? "Sending Reminders..." : "Notify All Outstanding Parents"}
+            </button> : null}
 
             {learnerChecklistOverview.length === 0 ? (
               <p className="db-helper">No learners found in this class.</p>
             ) : (
               <div style={{ display: "grid", gap: 10 }}>
-                {learnerChecklistOverview.map((item) => (
+                {visibleLearners.map((item) => (
                   <div key={item.learner.id} style={categoryBox}>
                     <div style={learnerProgressHeader}>
-                      <div>
+                      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                        <input type="checkbox" checked={selectedLearnerIds.includes(item.learner.id)} onChange={() => toggleSelectedLearner(item.learner.id)} aria-label={`Select ${item.learner.name || "learner"}`} />
+                        <div>
                         <strong>{item.learner.name || "Unnamed learner"}</strong>
                         <p style={smallText}>
                           Received: {item.receivedCount} / {item.totalCount} | Outstanding: {item.outstandingCount}
                         </p>
+                        </div>
                       </div>
-
-                      <Link
-                        href={learnerProfileHref(item.learner.id)}
-                        className="db-button-secondary"
-                        style={linkButton}
-                      >
-                        View Learner
-                      </Link>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button className="db-button-secondary" style={smallButton} onClick={() => setExpandedLearnerId(expandedLearnerId === item.learner.id ? "" : item.learner.id)}>{expandedLearnerId === item.learner.id ? "Hide Details" : "View Outstanding"}</button>
+                        {item.outstandingCount > 0 ? <button className="db-button-primary" style={smallButton} disabled={workingAction === `notify-${item.learner.id}`} onClick={() => notifyParent(item)}>{workingAction === `notify-${item.learner.id}` ? "Sending..." : "Notify Parent"}</button> : null}
+                        <Link href={learnerProfileHref(item.learner.id)} className="db-button-secondary" style={linkButton}>Open Learner</Link>
+                      </div>
                     </div>
 
                     <div style={progressBar}>
@@ -817,6 +956,10 @@ export default function LearnerRequirementsPage() {
                         }}
                       />
                     </div>
+                    {expandedLearnerId === item.learner.id ? <div style={templateSummaryBox}>
+                      <strong>{item.outstandingItems.length ? "Outstanding items" : "All requirements complete"}</strong>
+                      {item.outstandingItems.length ? <ul style={{ marginBottom: 0 }}>{item.outstandingItems.map((name) => <li key={name}>{name}</li>)}</ul> : <p style={smallText}>Nothing is currently outstanding.</p>}
+                    </div> : null}
                   </div>
                 ))}
               </div>
@@ -824,7 +967,7 @@ export default function LearnerRequirementsPage() {
           </div>
         ) : null}
 
-        {selectedClassroomId ? (
+        {selectedClassroomId && canManageRequirements ? (
           <div
             className="db-card db-card-lavender"
             style={{ padding: 16, marginBottom: 18 }}

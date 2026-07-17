@@ -60,6 +60,15 @@ type MessageRow = {
   created_at?: string | null;
 };
 
+type IncidentRow = {
+  id: number;
+  learner_id?: string | null;
+  incident_type?: string | null;
+  incident_date?: string | null;
+  parent_portal_published_at?: string | null;
+  parent_acknowledged_at?: string | null;
+};
+
 type ParentContext = {
   phone?: string | null;
   name?: string | null;
@@ -108,6 +117,8 @@ export default function ParentDashboardClient({
   const [hasMoreEvents, setHasMoreEvents] = useState(false);
   const [messageLoading, setMessageLoading] = useState(false);
   const [dashboardMessages, setDashboardMessages] = useState<MessageRow[]>([]);
+  const [incidentLoading, setIncidentLoading] = useState(false);
+  const [incidentReports, setIncidentReports] = useState<IncidentRow[]>([]);
 
   const child =
     children.find((item) => String(item.id) === selectedChildId) ||
@@ -143,6 +154,7 @@ export default function ParentDashboardClient({
         fetchSummaries();
         fetchBroadcasts();
         fetchMessageSummary();
+        fetchIncidentSummary();
       }
     }
 
@@ -413,8 +425,28 @@ export default function ParentDashboardClient({
     setMessageLoading(false);
   }
 
+  async function fetchIncidentSummary() {
+    if (!child?.id) return;
+    setIncidentLoading(true);
+    try {
+      const response = await fetch("/api/parent-incidents", { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok) {
+        console.error("Parent incident summary fetch error:", result.error);
+        setIncidentReports([]);
+        return;
+      }
+      setIncidentReports((result.reports || []).filter(
+        (report: IncidentRow) => String(report.learner_id) === String(child.id)
+      ));
+    } finally {
+      setIncidentLoading(false);
+    }
+  }
+
   useEffect(() => {
     fetchMessageSummary();
+    fetchIncidentSummary();
   }, [selectedChildId]);
 
   useEffect(() => {
@@ -809,6 +841,9 @@ export default function ParentDashboardClient({
   const lastMessagePreview = lastMessage?.message || "";
   const lastMessageSender =
     lastMessage?.sender_name || (lastMessage?.sender_id === parent?.phone ? "You" : "School");
+  const unacknowledgedIncidents = incidentReports.filter(
+    (report) => !report.parent_acknowledged_at
+  );
   const tomorrowEvents = eventRows.filter(
     (event) => String(event.event_date || "") === getTomorrowDate()
   );
@@ -832,6 +867,12 @@ export default function ParentDashboardClient({
             text: `${tomorrowEvents[0]?.title || "School event"} is tomorrow`,
           },
         ]
+      : []),
+    ...(unacknowledgedIncidents.length > 0 && !seenUpdateTypes.incidents
+      ? [{
+          type: "incidents",
+          text: `${unacknowledgedIncidents.length} incident report${unacknowledgedIncidents.length === 1 ? "" : "s"} require${unacknowledgedIncidents.length === 1 ? "s" : ""} acknowledgement`,
+        }]
       : []),
   ];
 
@@ -916,10 +957,6 @@ export default function ParentDashboardClient({
           </div>
         )}
       </div>
-
-      <a href="/parent/incidents" className="db-soft-card" style={{ ...styles.section, display: "flex", justifyContent: "space-between", alignItems: "center", color: "#2D2A3E", textDecoration: "none", fontWeight: 800 }}>
-        <span>Incident Reports</span><span>View and acknowledge →</span>
-      </a>
 
       <Section id="summary" title={`📝 Today's Summary`}>
         <RangeTabs active={summaryRange} setActive={handleSummaryRangeChange} />
@@ -1140,6 +1177,32 @@ export default function ParentDashboardClient({
             </p>
           </div>
         )}
+      </Section>
+
+      <Section id="incidents" title={`⚠ Incident Reports${unacknowledgedIncidents.length ? ` (${unacknowledgedIncidents.length} new)` : ""}`}>
+        <div style={styles.parentMessageIntro}>
+          <h3 style={styles.contentTitle}>Incident Reports</h3>
+          <p style={styles.emptyText}>
+            {incidentLoading
+              ? "Checking for incident updates..."
+              : unacknowledgedIncidents.length > 0
+                ? `${unacknowledgedIncidents.length} report${unacknowledgedIncidents.length === 1 ? " is" : "s are"} waiting for your acknowledgement.`
+                : incidentReports.length > 0
+                  ? "All shared incident reports have been acknowledged."
+                  : "No incident reports have been shared."}
+          </p>
+        </div>
+        {incidentReports[0] ? (
+          <div style={styles.parentMessageSummaryBox}>
+            <strong style={styles.emptyTitle}>{incidentReports[0].incident_type || "Incident report"}</strong>
+            <p style={styles.parentContactText}>
+              {incidentReports[0].incident_date || "Date not recorded"} · {incidentReports[0].parent_acknowledged_at ? "Acknowledged" : "Acknowledgement required"}
+            </p>
+          </div>
+        ) : null}
+        <a href="/parent/incidents" onClick={() => markUpdateTypeSeen("incidents")} style={styles.openMessagesButton}>
+          View Incident Reports →
+        </a>
       </Section>
 
       <Section id="events" title={`📅 Events (${eventRows.length})`}>

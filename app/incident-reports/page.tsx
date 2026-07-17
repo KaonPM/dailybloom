@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type Learner = {
   id: string;
@@ -465,7 +466,7 @@ export default function IncidentReportsPage() {
       parent_portal_published_by: profile.full_name || profile.id,
     }, "published_to_parent_portal");
     const learner = learners.find((item) => String(item.id) === String(report.learner_id));
-    fetch("/api/notifications/parent-push", { method: "POST", headers: { "Content-Type": "application/json" },
+    authenticatedFetch("/api/notifications/parent-push", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "incident_report", school_id: schoolId, parent_phone: learner?.parent_phone,
         learner_name: report.learner_name }) }).catch(() => undefined);
     alert("Incident report published securely to the Parent Portal.");

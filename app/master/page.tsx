@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type SchoolItem = {
   id: number;
@@ -372,7 +373,7 @@ export default function MasterPage() {
       return;
     }
 
-    const inviteResponse = await fetch("/api/invite-principal", {
+    const inviteResponse = await authenticatedFetch("/api/invite-principal", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -455,7 +456,7 @@ export default function MasterPage() {
       return;
     }
 
-    const emailResponse = await fetch("/api/school-status-email", {
+    const emailResponse = await authenticatedFetch("/api/school-status-email", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -554,7 +555,7 @@ export default function MasterPage() {
 
     setApprovingSignup(true);
 
-    const response = await fetch("/api/approve-signup", {
+    const response = await authenticatedFetch("/api/approve-signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

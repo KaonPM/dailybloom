@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { authorizeMessageUser } from "@/app/lib/message-authorization";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const schoolId = Number(body.school_id);
     const recipientId = String(body.recipient_id || "").trim();
+    const authorization = await authorizeMessageUser(request, schoolId, recipientId);
+    if (!authorization.ok) return authorization.response;
 
     if (!schoolId || !recipientId) {
       return NextResponse.json(

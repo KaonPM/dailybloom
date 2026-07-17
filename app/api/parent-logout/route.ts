@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import { hashParentSessionToken } from "@/app/lib/parent-session";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,10 +22,12 @@ export async function GET() {
       .from("parent_access")
       .update({
         session_token: null,
+        session_token_hash: null,
+        session_expires_at: null,
       })
       .eq(
-        "session_token",
-        sessionToken
+        "session_token_hash",
+        hashParentSessionToken(sessionToken)
       );
   }
 

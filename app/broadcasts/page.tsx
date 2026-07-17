@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type Learner = {
   id: number;
@@ -161,7 +162,7 @@ export default function BroadcastsPage() {
 
       await supabase.from("communications").insert(communicationRows);
 
-      fetch("/api/notifications/parent-push", {
+      authenticatedFetch("/api/notifications/parent-push", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -229,7 +230,7 @@ export default function BroadcastsPage() {
 
     await supabase.from("communications").insert(communicationRows);
 
-    fetch("/api/notifications/parent-push", {
+    authenticatedFetch("/api/notifications/parent-push", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendLoginEmail } from "../../lib/send-login-email";
+import { requireStaffPermission, writeSecurityAudit } from "../../lib/server-authorization";
+import { PERMISSIONS } from "../../lib/permissions";
 
 function generateTempPassword() {
   const randomPart = Math.random().toString(36).slice(-8);
@@ -12,6 +14,9 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const email = String(body.email || "").trim().toLowerCase();
+    const schoolId = Number(body.school_id);
+    const authorization = await requireStaffPermission(request, PERMISSIONS.STAFF_MANAGE, schoolId);
+    if (!authorization.ok) return authorization.response;
 
     if (!email) {
       return NextResponse.json(
@@ -39,8 +44,9 @@ export async function POST(request: Request) {
 
     const { data: profile, error: profileError } = await admin
       .from("profiles")
-      .select("id, full_name, email, role")
+      .select("id, full_name, email, role, school_id")
       .eq("email", email)
+      .eq("school_id", schoolId)
       .eq("role", "teacher")
       .maybeSingle();
 
@@ -95,6 +101,7 @@ export async function POST(request: Request) {
       temporaryPassword: newPassword,
       roleLabel: "teacher",
     });
+    await writeSecurityAudit(authorization.staff, "teacher.login_reset", { teacher_id: profile.id, school_id: schoolId });
 
     return NextResponse.json({
       success: true,

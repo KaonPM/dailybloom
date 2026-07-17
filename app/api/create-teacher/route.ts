@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendLoginEmail } from "../../lib/send-login-email";
+import { requireStaffPermission, writeSecurityAudit } from "../../lib/server-authorization";
+import { PERMISSIONS } from "../../lib/permissions";
 
 export async function POST(request: Request) {
   try {
@@ -11,6 +13,8 @@ export async function POST(request: Request) {
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "").trim();
     const classroomName = String(body.classroom_name || "").trim();
+    const authorization = await requireStaffPermission(request, PERMISSIONS.STAFF_MANAGE, schoolId);
+    if (!authorization.ok) return authorization.response;
 
     const strongPasswordRegex =
       /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
@@ -110,6 +114,7 @@ export async function POST(request: Request) {
       temporaryPassword: password,
       roleLabel: "teacher",
     });
+    await writeSecurityAudit(authorization.staff, "teacher.created", { teacher_id: userId, school_id: schoolId });
 
     return NextResponse.json({
       success: true,

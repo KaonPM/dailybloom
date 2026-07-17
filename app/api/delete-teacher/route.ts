@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireStaffPermission, writeSecurityAudit } from "../../lib/server-authorization";
+import { PERMISSIONS } from "../../lib/permissions";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const teacherId = String(body.teacher_id || "").trim();
+    const schoolId = Number(body.school_id);
+    const authorization = await requireStaffPermission(request, PERMISSIONS.STAFF_MANAGE, schoolId);
+    if (!authorization.ok) return authorization.response;
 
     if (!teacherId) {
       return NextResponse.json(
@@ -30,10 +35,16 @@ export async function POST(request: Request) {
       },
     });
 
+    const { data: targetTeacher } = await admin.from("profiles").select("id")
+      .eq("id", teacherId).eq("school_id", schoolId).eq("role", "teacher").maybeSingle();
+    if (!targetTeacher) return NextResponse.json({ error: "Teacher not found in this school." }, { status: 404 });
+
     const { error: profileError } = await admin
       .from("profiles")
       .delete()
-      .eq("id", teacherId);
+      .eq("id", teacherId)
+      .eq("school_id", schoolId)
+      .eq("role", "teacher");
 
     if (profileError) {
       return NextResponse.json(
@@ -51,6 +62,7 @@ export async function POST(request: Request) {
       );
     }
 
+    await writeSecurityAudit(authorization.staff, "teacher.deleted", { teacher_id: teacherId, school_id: schoolId });
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
+import { enforceRateLimit } from "@/app/lib/rate-limit";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,6 +49,8 @@ export async function POST(req: Request) {
         }
       );
     }
+    const limited = await enforceRateLimit(req, "parent-pin-create", 5, 900, phone);
+    if (limited) return limited;
 
     const hashedPin =
       await bcrypt.hash(
@@ -103,6 +106,7 @@ export async function POST(req: Request) {
 
         must_change_pin:
           false,
+        temporary_pin_expires_at: null,
 
         failed_login_attempts: 0,
 

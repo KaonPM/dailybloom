@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { authorizeMessageUser } from "@/app/lib/message-authorization";
 
 export async function POST(request: Request) {
   try {
@@ -9,6 +10,8 @@ export async function POST(request: Request) {
     const currentUserId = String(body.current_user_id || "").trim();
     const contactId = String(body.contact_id || "").trim();
     const learnerId = body.learner_id ? String(body.learner_id) : null;
+    const authorization = await authorizeMessageUser(request, schoolId, currentUserId, learnerId);
+    if (!authorization.ok) return authorization.response;
 
     if (!schoolId || !currentUserId || !contactId) {
       return NextResponse.json(
@@ -42,7 +45,7 @@ export async function POST(request: Request) {
     const unreadIds = messages
       .filter(
         (message) =>
-          String(message.recipient_id || "") === currentUserId &&
+          String(message.recipient_id || "") === authorization.userId &&
           message.is_read === false
       )
       .map((message) => message.id);

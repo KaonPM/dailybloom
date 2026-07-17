@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { enforceRateLimit } from "@/app/lib/rate-limit";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const limited = await enforceRateLimit(request, "public-contact", 5, 3600, String(body.email || ""));
+    if (limited) return limited;
 
     const { name, email, phone, message } = body;
 
@@ -24,11 +27,11 @@ export async function POST(request: Request) {
       subject: `New DailyBloom enquiry from ${name}`,
       html: `
         <h2>New Contact Form Enquiry</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Phone:</strong> ${phone || "Not provided"}</p>
+        <p><strong>Name:</strong> ${escapeHtml(String(name))}</p>
+        <p><strong>Email:</strong> ${escapeHtml(String(email))}</p>
+        <p><strong>Phone:</strong> ${escapeHtml(String(phone || "Not provided"))}</p>
         <p><strong>Message:</strong></p>
-        <p>${message}</p>
+        <p>${escapeHtml(String(message))}</p>
       `,
     });
 
@@ -38,7 +41,7 @@ export async function POST(request: Request) {
       to: email,
       subject: "We Have Received Your Email",
       html: `
-        <p>Dear ${name},</p>
+        <p>Dear ${escapeHtml(String(name))},</p>
 
         <p>Thank you for reaching out to DailyBloom.</p>
 
@@ -82,4 +85,8 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+function escapeHtml(value: string) {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }

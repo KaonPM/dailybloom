@@ -1,5 +1,5 @@
-import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import { getParentSessionHash } from "./parent-session";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,10 +8,8 @@ const supabase = createClient(
 
 export async function getCurrentParent() {
   try {
-    const cookieStore = await cookies();
-    const session = cookieStore.get("parent_session");
-
-    if (!session?.value) {
+    const sessionHash = await getParentSessionHash();
+    if (!sessionHash) {
       return null;
     }
 
@@ -23,7 +21,8 @@ export async function getCurrentParent() {
           learner_id
         `
       )
-      .eq("session_token", session.value);
+      .eq("session_token_hash", sessionHash)
+      .gt("session_expires_at", new Date().toISOString());
 
     if (error || !parentRows || parentRows.length === 0) {
       console.error("Parent access error:", JSON.stringify(error, null, 2));

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
+import { requireStaffPermission, writeSecurityAudit } from "../../lib/server-authorization";
+import { PERMISSIONS } from "../../lib/permissions";
 
 const DAILYBLOOM_URL = "https://www.dailybloom.co.za";
 
@@ -18,6 +20,8 @@ export async function POST(request: Request) {
       isSponsored,
       sponsorProgrammeId,
     } = body;
+    const authorization = await requireStaffPermission(request, PERMISSIONS.SCHOOL_ONBOARD);
+    if (!authorization.ok) return authorization.response;
 
     const packageSelected =
       body.packageSelected || body.packageName || body.selectedPackage || "Bloom";
@@ -152,6 +156,8 @@ export async function POST(request: Request) {
       packageSelected,
       tempPassword,
     });
+    await admin.from("school_memberships").upsert({ user_id: authUser.user.id, school_id: school.id, role: "principal", status: "active", accepted_at: new Date().toISOString() }, { onConflict: "user_id,school_id" });
+    await writeSecurityAudit(authorization.staff, "school.signup_approved", { school_id: school.id, request_id: requestId });
 
     return NextResponse.json({
       success: true,

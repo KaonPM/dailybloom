@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { authorizeMessageUser } from "@/app/lib/message-authorization";
+import { PERMISSIONS } from "@/app/lib/permissions";
 
 async function getSchoolName(schoolId: number) {
   const { data, error } = await supabaseAdmin
@@ -85,6 +87,8 @@ export async function POST(request: Request) {
     const recipientId = String(body.recipient_id || "").trim();
     const recipientName = String(body.recipient_name || "").trim();
     const learnerId = body.learner_id ? String(body.learner_id) : null;
+    const authorization = await authorizeMessageUser(request, schoolId, senderId, learnerId, PERMISSIONS.MESSAGE_SEND);
+    if (!authorization.ok) return authorization.response;
 
     if (
       !schoolId ||
@@ -100,15 +104,25 @@ export async function POST(request: Request) {
       );
     }
 
+    if (recipientRole === "parent") {
+      const { data: linkedParent } = await supabaseAdmin.from("learners").select("id")
+        .eq("school_id", schoolId).eq("id", learnerId || "").eq("parent_phone", recipientId).maybeSingle();
+      if (!linkedParent) return NextResponse.json({ error: "The selected parent is not linked to this learner and school." }, { status: 403 });
+    } else {
+      const { data: linkedStaff } = await supabaseAdmin.from("profiles").select("id")
+        .eq("id", recipientId).eq("school_id", schoolId).in("role", ["teacher", "principal", "admin", "owner"]).maybeSingle();
+      if (!linkedStaff) return NextResponse.json({ error: "The selected staff recipient does not belong to this school." }, { status: 403 });
+    }
+
     const { data, error } = await supabaseAdmin
       .from("messages")
       .insert([
         {
           school_id: schoolId,
           learner_id: learnerId,
-          sender_role: senderRole,
-          sender_id: senderId,
-          sender_name: senderName || "DailyBloom user",
+          sender_role: authorization.role,
+          sender_id: authorization.userId,
+          sender_name: authorization.kind === "staff" ? (senderName || "DailyBloom staff") : (authorization.parent?.name || "Parent/guardian"),
           recipient_role: recipientRole,
           recipient_id: recipientId,
           recipient_name: recipientName || "Recipient",

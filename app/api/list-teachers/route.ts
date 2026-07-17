@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireStaffPermission } from "../../lib/server-authorization";
+import { PERMISSIONS } from "../../lib/permissions";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const schoolId = Number(body.school_id);
+    const authorization = await requireStaffPermission(request, PERMISSIONS.STAFF_VIEW, schoolId);
+    if (!authorization.ok) return authorization.response;
 
     if (!schoolId) {
       return NextResponse.json(

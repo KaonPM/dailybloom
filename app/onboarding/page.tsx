@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { useRouter } from "next/navigation";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 const statuses = [
   "Not started",
@@ -203,7 +204,7 @@ export default function OnboardingPage() {
       return;
     }
 
-    const emailResponse = await fetch("/api/school-activated-email", {
+    const emailResponse = await authenticatedFetch("/api/school-activated-email", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

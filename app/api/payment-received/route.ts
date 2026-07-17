@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
+import { PERMISSIONS } from "@/app/lib/permissions";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const schoolId = Number(body.school_id);
+    const authorization = await requireStaffPermission(request, PERMISSIONS.BILLING_MANAGE, schoolId);
+    if (!authorization.ok) return authorization.response;
 
     const {
       principalEmail,
@@ -65,6 +70,7 @@ export async function POST(request: Request) {
         </div>
       `,
     });
+    await writeSecurityAudit(authorization.staff, "billing.receipt_sent", { school_id: schoolId, receipt_number: receiptNumber });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

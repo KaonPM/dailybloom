@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type School = {
   id: number;
@@ -398,12 +399,13 @@ export default function BillingPage() {
     let emailSent = false;
 
     if (principalContact?.email) {
-      const emailResponse = await fetch("/api/payment-received", {
+      const emailResponse = await authenticatedFetch("/api/payment-received", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          school_id: subscription.school_id,
           principalEmail: principalContact.email,
           principalName: principalContact.full_name,
           schoolName: subscription.schools?.school_name || "your school",

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { requireStaffPermission } from "@/app/lib/server-authorization";
+import { PERMISSIONS } from "@/app/lib/permissions";
 
 export async function POST(req: Request) {
   try {
@@ -12,6 +14,8 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
+    const authorization = await requireStaffPermission(req, PERMISSIONS.MESSAGE_SEND, Number(body.school_id));
+    if (!authorization.ok) return authorization.response;
 
     const {
       learnerName,

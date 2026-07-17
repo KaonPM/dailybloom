@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
 import SubscriptionGuard from "../components/SubscriptionGuard";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type Learner = {
   id: string;
@@ -386,7 +387,7 @@ export default function SummariesPage() {
       return;
     }
 
-    fetch("/api/notifications/parent-push", {
+    authenticatedFetch("/api/notifications/parent-push", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

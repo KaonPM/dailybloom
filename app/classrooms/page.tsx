@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type TemplateKey = "0_2" | "2_6";
 
@@ -137,7 +138,7 @@ export default function ClassroomsPage() {
   }
 
   async function fetchTeachers(currentSchoolId: number) {
-    const response = await fetch("/api/list-teachers", {
+    const response = await authenticatedFetch("/api/list-teachers", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -350,7 +351,7 @@ export default function ClassroomsPage() {
 
     const roomName = getClassroomName(selectedClassroom);
 
-    const response = await fetch("/api/assign-classroom-teacher", {
+    const response = await authenticatedFetch("/api/assign-classroom-teacher", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

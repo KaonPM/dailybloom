@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/app/lib/supabase";
+import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 import { getCurrentProfile } from "@/app/lib/auth";
 
 type Mode = "staff" | "parent";
@@ -74,6 +75,7 @@ export default function MessagesClient({
   initialParent: any;
   mode?: Mode;
 }) {
+  const messageFetch = initialParent ? fetch : authenticatedFetch;
   const [role, setRole] = useState<UserRole | "">("");
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -359,7 +361,7 @@ export default function MessagesClient({
   async function fetchUnreadConversationCounts() {
     if (!schoolId || !currentUserId) return;
 
-    const response = await fetch("/api/messages/unread", {
+    const response = await messageFetch("/api/messages/unread", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -380,7 +382,7 @@ export default function MessagesClient({
   }
 
   async function fetchStaffDirectory(currentSchoolId: number) {
-    const response = await fetch("/api/messages/staff-directory", {
+    const response = await messageFetch("/api/messages/staff-directory", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -529,7 +531,7 @@ export default function MessagesClient({
   async function fetchConversation(contact: Contact) {
     if (!schoolId || !currentUserId) return;
 
-    const response = await fetch("/api/messages/conversation", {
+    const response = await messageFetch("/api/messages/conversation", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -580,7 +582,7 @@ export default function MessagesClient({
     setSending(true);
 
     try {
-      const response = await fetch("/api/messages/send", {
+      const response = await messageFetch("/api/messages/send", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

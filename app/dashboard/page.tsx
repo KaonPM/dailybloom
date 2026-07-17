@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import LearnerSupportWidget from "../components/LearnerSupportWidget";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type School = {
   id: number;
@@ -191,7 +192,7 @@ export default function PrincipalDashboardPage() {
         .eq("school_id", currentSchoolId)
         .or("is_deleted.is.null,is_deleted.eq.false"),
 
-      fetch("/api/list-teachers", {
+      authenticatedFetch("/api/list-teachers", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

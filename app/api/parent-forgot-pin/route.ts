@@ -1,86 +1,57 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import { enforceRateLimit } from "@/app/lib/rate-limit";
+import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { sendSms } from "@/app/lib/sms-portal";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-function normalizePhone(phone: string) {
-  let clean = phone.replace(/\D/g, "");
-
-  if (clean.startsWith("27")) {
-    clean = "0" + clean.slice(2);
-  }
-
-  return clean;
+function normalizePhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.startsWith("27") ? `0${digits.slice(2)}` : digits;
 }
 
-export async function POST(req: Request) {
-  const { phone } = await req.json();
+const GENERIC_MESSAGE = "If that contact number is linked to DailyBloom, a verification code has been sent by SMS.";
 
-  const cleanPhone =
-    normalizePhone(phone || "");
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => ({}));
+  const phone = normalizePhone(String(body.phone || ""));
+  const limited = await enforceRateLimit(request, "parent-forgot-pin", 5, 3600, phone);
+  if (limited) return limited;
 
-  if (!cleanPhone) {
-    return NextResponse.json(
-      { error: "Contact number required" },
-      { status: 400 }
-    );
+  if (!/^0\d{9}$/.test(phone)) {
+    return NextResponse.json({ success: true, message: GENERIC_MESSAGE });
   }
 
-  const { data: records } =
-    await supabase
-      .from("parent_access")
-      .select("id")
-      .eq(
-        "phone",
-        cleanPhone
-      );
+  const { data: rows } = await supabaseAdmin
+    .from("parent_access")
+    .select("id")
+    .eq("phone", phone);
 
-  if (
-    !records ||
-    records.length === 0
-  ) {
-    return NextResponse.json(
-      {
-        error:
-          "Parent account not found"
-      },
-      { status: 404 }
-    );
+  if (!rows?.length) {
+    return NextResponse.json({ success: true, message: GENERIC_MESSAGE });
   }
 
-  const ids =
-    records.map(
-      (r) => r.id
-    );
+  const otp = String(crypto.randomInt(100000, 1000000));
+  const otpHash = await bcrypt.hash(otp, 10);
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const rowIds = rows.map((row) => row.id);
 
-  const { error } =
-    await supabase
-      .from("parent_access")
-      .update({
-        pin_hash: null,
-        failed_login_attempts: 0,
-        locked_until: null,
-        session_token: null,
-      })
-      .in(
-        "id",
-        ids
-      );
+  await supabaseAdmin.from("parent_access").update({
+    reset_otp_hash: otpHash,
+    reset_otp_expires_at: expiresAt,
+    reset_otp_attempts: 0,
+  }).in("id", rowIds);
 
-  if (error) {
-    return NextResponse.json(
-      {
-        error:
-          "Could not reset PIN"
-      },
-      { status: 500 }
-    );
+  try {
+    await sendSms(phone, `DailyBloom Parent Portal verification code: ${otp}. It expires in 10 minutes. Do not share this code.`);
+  } catch (error) {
+    console.error("Parent PIN reset SMS failed:", error);
+    await supabaseAdmin.from("parent_access").update({
+      reset_otp_hash: null,
+      reset_otp_expires_at: null,
+      reset_otp_attempts: 0,
+    }).in("id", rowIds);
   }
 
-  return NextResponse.json({
-    success: true,
-  });
+  return NextResponse.json({ success: true, message: GENERIC_MESSAGE });
 }

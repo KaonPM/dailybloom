@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type School = {
   id: number;
@@ -292,7 +293,7 @@ export default function PrincipalsPage() {
 
     setActionLoadingId(principal.id);
 
-    const response = await fetch("/api/invite-principal", {
+    const response = await authenticatedFetch("/api/invite-principal", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { authorizeMessageUser } from "@/app/lib/message-authorization";
 
 export async function POST(request: Request) {
   try {
@@ -7,6 +8,8 @@ export async function POST(request: Request) {
     const schoolId = Number(body.school_id);
     const learnerId = String(body.learner_id || "").trim();
     const parentPhone = String(body.parent_phone || "").trim();
+    const authorization = await authorizeMessageUser(request, schoolId, parentPhone, learnerId);
+    if (!authorization.ok || authorization.kind !== "parent") return authorization.ok ? NextResponse.json({ error: "Parent session required." }, { status: 403 }) : authorization.response;
 
     if (!schoolId || !learnerId || !parentPhone) {
       return NextResponse.json(

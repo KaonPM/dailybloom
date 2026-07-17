@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
+import { requireStaffPermission, writeSecurityAudit } from "../../lib/server-authorization";
+import { PERMISSIONS } from "../../lib/permissions";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,6 +19,8 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { schoolId } = body;
+    const authorization = await requireStaffPermission(req, PERMISSIONS.SCHOOL_ONBOARD, Number(schoolId));
+    if (!authorization.ok) return authorization.response;
 
     if (!schoolId) {
       return NextResponse.json(
@@ -139,6 +143,7 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+    await writeSecurityAudit(authorization.staff, "school.activation_email_sent", { school_id: Number(schoolId) });
 
     return NextResponse.json({
       success: true,

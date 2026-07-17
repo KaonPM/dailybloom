@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { getParentSessionHash } from "@/app/lib/parent-session";
 
 async function getParentSession() {
-  const token = (await cookies()).get("parent_session")?.value;
-  if (!token) return null;
+  const sessionHash = await getParentSessionHash();
+  if (!sessionHash) return null;
   const { data } = await supabaseAdmin.from("parent_access")
-    .select("phone, learner_id").eq("session_token", token);
+    .select("phone, learner_id").eq("session_token_hash", sessionHash)
+    .gt("session_expires_at", new Date().toISOString());
   if (!data?.length) return null;
   const learnerIds = data.map((row) => String(row.learner_id));
   const { data: learners } = await supabaseAdmin.from("learners").select("parent_name").in("id", learnerIds).limit(1);

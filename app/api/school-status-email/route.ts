@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabaseAdmin } from "../../lib/supabase-admin";
+import { requireStaffPermission, writeSecurityAudit } from "../../lib/server-authorization";
+import { PERMISSIONS } from "../../lib/permissions";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   try {
     const { schoolId, status } = await request.json();
+    const authorization = await requireStaffPermission(request, PERMISSIONS.SCHOOL_STATUS, Number(schoolId));
+    if (!authorization.ok) return authorization.response;
 
     if (!schoolId || !status) {
       return NextResponse.json(
@@ -82,6 +86,7 @@ export async function POST(request: Request) {
         </div>
       `,
     });
+    await writeSecurityAudit(authorization.staff, "school.status_email_sent", { school_id: Number(schoolId), status });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

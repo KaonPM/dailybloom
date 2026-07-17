@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireStaffPermission, writeSecurityAudit } from "../../lib/server-authorization";
+import { PERMISSIONS } from "../../lib/permissions";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,6 +12,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { full_name, email, school_id } = body;
+    const authorization = await requireStaffPermission(request, PERMISSIONS.PRINCIPAL_MANAGE, Number(school_id));
+    if (!authorization.ok) return authorization.response;
 
     if (!full_name || !email || !school_id) {
       return NextResponse.json(
@@ -59,7 +63,10 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+      await supabaseAdmin.from("school_memberships").upsert({ user_id: invitedUserId, school_id: Number(school_id), role: "principal", status: "invited", invited_by: authorization.staff.userId, invited_at: new Date().toISOString() }, { onConflict: "user_id,school_id" });
     }
+
+    await writeSecurityAudit(authorization.staff, "principal.invited", { principal_id: invitedUserId, school_id: Number(school_id) });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

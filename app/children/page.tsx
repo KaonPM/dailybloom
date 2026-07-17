@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { getCurrentProfile } from "../lib/auth";
 
 type LearnerRow = {
@@ -531,30 +532,20 @@ if (selectedLearner) {
   learnerRecord = data;
 }
 
-// Automatically link learner to parent portal
+// Securely link learner to the Parent Portal and generate a one-time PIN when needed.
 const normalizedPhone = learnerRecord.parent_phone
   ?.replace(/\D/g, "")
   .replace(/^27/, "0");
 
 if (normalizedPhone) {
-  const { error: parentAccessError } =
-    await supabase
-      .from("parent_access")
-      .upsert(
-        {
-          phone: normalizedPhone,
-          learner_id: learnerRecord.id,
-        },
-        {
-          onConflict: "phone,learner_id",
-        }
-      );
-
-  if (parentAccessError) {
-    console.error(
-      "Parent access link failed:",
-      parentAccessError
-    );
+  const parentAccessResponse = await authenticatedFetch("/api/link-parent-access", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ school_id: schoolId, learner_id: learnerRecord.id, phone: normalizedPhone }),
+  });
+  const parentAccessResult = await parentAccessResponse.json();
+  if (!parentAccessResponse.ok) console.error("Parent access link failed:", parentAccessResult.error);
+  if (parentAccessResult.temporary_pin) {
+    alert(`Parent Portal access created. Give the verified parent this temporary PIN: ${parentAccessResult.temporary_pin}`);
   }
 }
     resetForm();
@@ -613,16 +604,21 @@ if (normalizedPhone) {
           </div>
 
           {canAddLearner && activeFilter !== "birthdays-today" ? (
-            <button
-              type="button"
-              className="db-button-primary"
-              onClick={() => {
-                resetForm();
-                setShowForm((prev) => !prev);
-              }}
-            >
-              {showForm ? "Close" : "+ Add Learner"}
-            </button>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Link href={`/parent-access${schoolId ? `?school=${schoolId}` : ""}`} className="db-button-secondary">
+                Parent Portal Access
+              </Link>
+              <button
+                type="button"
+                className="db-button-primary"
+                onClick={() => {
+                  resetForm();
+                  setShowForm((prev) => !prev);
+                }}
+              >
+                {showForm ? "Close" : "+ Add Learner"}
+              </button>
+            </div>
           ) : null}
         </div>
       </div>

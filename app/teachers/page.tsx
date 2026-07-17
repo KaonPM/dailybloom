@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type TeacherRow = {
   id: string;
@@ -73,7 +74,7 @@ export default function TeachersPage() {
   }
 
   async function loadTeachers(id: number) {
-    const response = await fetch("/api/list-teachers", {
+    const response = await authenticatedFetch("/api/list-teachers", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -166,7 +167,7 @@ export default function TeachersPage() {
       return;
     }
 
-    const response = await fetch("/api/create-teacher", {
+    const response = await authenticatedFetch("/api/create-teacher", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -211,13 +212,13 @@ export default function TeachersPage() {
     try {
       setResendingId(teacher.id);
 
-      const response = await fetch("/api/resend-teacher-login", {
+      const response = await authenticatedFetch("/api/resend-teacher-login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email: teacher.email,
+          email: teacher.email, school_id: schoolId,
         }),
       });
 
@@ -263,13 +264,13 @@ export default function TeachersPage() {
 
     if (!confirmed) return;
 
-    const response = await fetch("/api/delete-teacher", {
+    const response = await authenticatedFetch("/api/delete-teacher", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        teacher_id: teacher.id,
+        teacher_id: teacher.id, school_id: schoolId,
       }),
     });
 

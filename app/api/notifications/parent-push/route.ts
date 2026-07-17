@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
+import { PERMISSIONS } from "@/app/lib/permissions";
 
 type ParentPushType = "daily_summary" | "broadcast" | "event_reminder" | "incident_report";
 
@@ -95,6 +97,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const type = String(body.type || "") as ParentPushType;
     const schoolId = Number(body.school_id);
+    const authorization = await requireStaffPermission(request, PERMISSIONS.PARENT_NOTIFY, schoolId);
+    if (!authorization.ok) return authorization.response;
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL || "https://www.dailybloom.co.za";
 
@@ -110,17 +114,18 @@ export async function POST(request: Request) {
     let message = "You have a new update.";
     let url = `${siteUrl}/parent/dashboard`;
     const schoolName = await getSchoolName(schoolId);
+    const allowedParentPhones = await getParentPhonesForSchool(schoolId);
 
     if (type === "daily_summary") {
-      externalIds = uniqueValues([body.parent_phone]);
+      externalIds = uniqueValues([body.parent_phone]).filter((phone) => allowedParentPhones.includes(phone));
       title = schoolName;
       message = `${body.learner_name || "Your child"} has a new daily summary.`;
     }
 
     if (type === "broadcast") {
       externalIds = body.parent_phones?.length
-        ? uniqueValues(body.parent_phones)
-        : await getParentPhonesForSchool(schoolId);
+        ? uniqueValues(body.parent_phones).filter((phone) => allowedParentPhones.includes(phone))
+        : allowedParentPhones;
       title = schoolName;
       message = body.title || body.message || "A new school broadcast is available.";
     }
@@ -130,13 +135,13 @@ export async function POST(request: Request) {
         return NextResponse.json({ skipped: true, reason: "Event is not tomorrow." });
       }
 
-      externalIds = await getParentPhonesForSchool(schoolId);
+      externalIds = allowedParentPhones;
       title = schoolName;
       message = `${body.title || "A school event"} is tomorrow.`;
     }
 
     if (type === "incident_report") {
-      externalIds = uniqueValues([body.parent_phone]);
+      externalIds = uniqueValues([body.parent_phone]).filter((phone) => allowedParentPhones.includes(phone));
       title = schoolName;
       message = `${body.learner_name || "Your child"} has an incident report ready for acknowledgement.`;
       url = `${siteUrl}/parent/incidents`;
@@ -148,6 +153,7 @@ export async function POST(request: Request) {
       message,
       url,
     });
+    await writeSecurityAudit(authorization.staff, "parent.notification_sent", { school_id: schoolId, type, recipients: externalIds.length });
 
     return NextResponse.json({
       ...result,

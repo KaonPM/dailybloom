@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../lib/supabase-admin";
 import { sendLoginEmail } from "../../lib/send-login-email";
+import { requireStaffPermission, writeSecurityAudit } from "../../lib/server-authorization";
+import { PERMISSIONS } from "../../lib/permissions";
 
 export async function POST(req: Request) {
   try {
@@ -11,6 +13,8 @@ export async function POST(req: Request) {
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "").trim();
     const requestId = body.requestId;
+    const authorization = await requireStaffPermission(req, PERMISSIONS.PRINCIPAL_MANAGE, schoolId);
+    if (!authorization.ok) return authorization.response;
 
     const strongPasswordRegex =
       /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
@@ -106,6 +110,8 @@ export async function POST(req: Request) {
         .update({ status: "completed" })
         .eq("id", requestId);
     }
+    await supabaseAdmin.from("school_memberships").upsert({ user_id: userId, school_id: schoolId, role: "owner", status: "active", accepted_at: new Date().toISOString() }, { onConflict: "user_id,school_id" });
+    await writeSecurityAudit(authorization.staff, "school.owner_created", { owner_id: userId, school_id: schoolId });
 
     return NextResponse.json({
       success: true,

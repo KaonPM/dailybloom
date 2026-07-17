@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { cookies } from "next/headers";
+import { enforceRateLimit } from "@/app/lib/rate-limit";
+import { hashParentSessionToken } from "@/app/lib/parent-session";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,6 +29,8 @@ export async function POST(req: Request) {
 
   const cleanPhone =
     normalizePhone(phone || "");
+  const limited = await enforceRateLimit(req, "parent-login", 10, 900, cleanPhone);
+  if (limited) return limited;
 
   if (!cleanPhone || !pin) {
     return NextResponse.json(
@@ -50,6 +54,7 @@ export async function POST(req: Request) {
       phone,
       pin_hash,
       must_change_pin,
+      temporary_pin_expires_at,
       failed_login_attempts,
       locked_until,
       learner_id
@@ -67,7 +72,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          "Parent not found",
+          "The contact number or PIN is incorrect",
       },
       {
         status: 401,
@@ -170,50 +175,14 @@ export async function POST(req: Request) {
 
   // No PIN exists
   if (!primary.pin_hash) {
-
-    const tempPin =
-      cleanPhone;
-
-    if (
-      pin !== tempPin
-    ) {
-      await registerFailedAttempt();
-
-      return NextResponse.json(
-        {
-          error:
-            "Use your full contact number as your temporary PIN",
-        },
-        {
-          status: 401,
-        }
-      );
-    }
-
-    const cookieStore =
-      await cookies();
-
-    cookieStore.set(
-      "parent_pending_phone",
-      cleanPhone,
-      {
-        httpOnly: true,
-        secure:
-          process.env.NODE_ENV ===
-          "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge:
-          60 * 10,
-      }
-    );
-
-    return NextResponse.json({
-      needsPinCreation: true,
-    });
+    return NextResponse.json({ error: "Parent Portal access has not been activated. Please contact your preschool." }, { status: 403 });
   }
 
   // Existing PIN validation
+
+  if (primary.must_change_pin && primary.temporary_pin_expires_at && new Date(primary.temporary_pin_expires_at) <= new Date()) {
+    return NextResponse.json({ error: "Your temporary PIN has expired. Please request a new invitation from your preschool." }, { status: 403 });
+  }
 
   const validPin =
     await bcrypt.compare(
@@ -228,7 +197,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          "Incorrect PIN",
+          "The contact number or PIN is incorrect",
       },
       {
         status: 401,
@@ -314,6 +283,7 @@ export async function POST(req: Request) {
 
   const sessionToken =
     crypto.randomUUID();
+  const sessionExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const {
     error: sessionError,
@@ -322,8 +292,9 @@ export async function POST(req: Request) {
       "parent_access"
     )
     .update({
-      session_token:
-        sessionToken,
+      session_token: null,
+      session_token_hash: hashParentSessionToken(sessionToken),
+      session_expires_at: sessionExpiresAt,
     })
     .in(
       "id",

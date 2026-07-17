@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type EventRow = {
   id: number;
@@ -141,7 +142,7 @@ export default function EventsPage() {
       return;
     }
 
-    fetch("/api/notifications/parent-push", {
+    authenticatedFetch("/api/notifications/parent-push", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -19,7 +19,7 @@ export async function requireStaffPermission(request: Request, permission: Permi
 
   const userId = userData.user.id;
   const [{ data: profile }, { data: platformRole }, { data: memberships }] = await Promise.all([
-    supabaseAdmin.from("profiles").select("id, school_id, role, full_name, email, is_active, classroom_id, classroom_name").eq("id", userId).maybeSingle(),
+    supabaseAdmin.from("profiles").select("id, school_id, role, full_name, email, is_active, classroom_name").eq("id", userId).maybeSingle(),
     supabaseAdmin.from("platform_user_roles").select("role, status, permissions").eq("user_id", userId).eq("status", "active").maybeSingle(),
     supabaseAdmin.from("school_memberships").select("school_id, role, status, permissions").eq("user_id", userId).eq("status", "active"),
   ]);

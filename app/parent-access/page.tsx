@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { resolveSchoolContext } from "../lib/school-context";
 
@@ -48,7 +49,11 @@ export default function ParentAccessPage() {
     <div className="db-soft-card" style={{ padding: 18, marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
         <div><h1 className="db-page-title">Parent Portal Access</h1><p className="db-page-subtitle">Invite existing parents securely by SMS. One phone number receives one account for all linked learners.</p></div>
-        <button className="db-button-primary" type="button" onClick={sendInvites} disabled={!selected.length || sending}>{sending ? "Sending..." : `Send ${selected.length || ""} Invitation${selected.length === 1 ? "" : "s"}`}</button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <Link className="db-button-secondary" href={`/children${schoolId ? `?school=${schoolId}` : ""}`}>Back to Learners</Link>
+          <Link className="db-button-secondary" href={`/dashboard${schoolId ? `?school=${schoolId}` : ""}`}>Dashboard</Link>
+          <button className="db-button-primary" type="button" onClick={sendInvites} disabled={!selected.length || sending}>{sending ? "Sending..." : `Send ${selected.length || ""} Invitation${selected.length === 1 ? "" : "s"}`}</button>
+        </div>
       </div>
     </div>
     {loading ? <p>Loading parent access...</p> : <div style={{ display: "grid", gap: 10 }}>

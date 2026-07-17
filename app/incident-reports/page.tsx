@@ -161,10 +161,13 @@ export default function IncidentReportsPage() {
 
   const canCreate = profile?.role === "teacher" || profile?.role === "principal" || profile?.role === "master";
   const canAcknowledge = profile?.role === "principal" || profile?.role === "master";
-  const filteredReports = reports.filter((report) =>
-    (statusFilter === "all" || report.status === statusFilter) &&
-    (typeFilter === "all" || report.incident_type === typeFilter)
-  );
+  const filteredReports = reports.filter((report) => {
+    const matchesStatus = statusFilter === "all"
+      || (statusFilter === "urgent" && report.urgency === "urgent" && report.status !== "resolved")
+      || (statusFilter === "awaiting_parent" && Boolean(report.parent_portal_published_at) && !report.parent_acknowledged_at)
+      || report.status === statusFilter;
+    return matchesStatus && (typeFilter === "all" || report.incident_type === typeFilter);
+  });
   const submittedReports = filteredReports.filter((report) => report.status !== "resolved");
   const acknowledgedReports = filteredReports.filter((report) => report.status === "resolved");
   const isBehaviourIncident = behaviourTypes.has(incidentType);
@@ -711,13 +714,30 @@ export default function IncidentReportsPage() {
         </div>
       ) : null}
 
-      <div className="db-soft-card" style={{ padding: 16, marginBottom: 18 }}>
-        <div style={{ ...grid2, marginBottom: 12 }}>
-          {([['Awaiting review', reports.filter((r) => r.status === 'submitted').length], ['Follow-up required', reports.filter((r) => r.status === 'follow_up_required').length], ['Urgent', reports.filter((r) => r.urgency === 'urgent' && r.status !== 'resolved').length], ['Awaiting parent', reports.filter((r) => r.parent_portal_published_at && !r.parent_acknowledged_at).length], ['Resolved', reports.filter((r) => r.status === 'resolved').length]] as [string, number][]).map(([label, value]) => <div key={label} style={summaryCard}><span style={smallText}>{label}</span><strong style={{ fontSize: 26 }}>{value}</strong></div>)}
+      <div className="db-soft-card" style={{ padding: 14, marginBottom: 18 }}>
+        <div style={summaryGrid}>
+          {([
+            ['submitted', 'Awaiting review', reports.filter((r) => r.status === 'submitted').length, '#FFF3CD', '#8A6400'],
+            ['follow_up_required', 'Follow-up', reports.filter((r) => r.status === 'follow_up_required').length, '#EAF7FD', '#23607B'],
+            ['urgent', 'Urgent', reports.filter((r) => r.urgency === 'urgent' && r.status !== 'resolved').length, '#FDECEC', '#A33A3A'],
+            ['awaiting_parent', 'Awaiting parent', reports.filter((r) => r.parent_portal_published_at && !r.parent_acknowledged_at).length, '#F3EDFF', '#6542A6'],
+            ['resolved', 'Resolved', reports.filter((r) => r.status === 'resolved').length, '#EEF9EE', '#276738'],
+          ] as [string, string, number, string, string][]).map(([filter, label, value, background, color]) => (
+            <button
+              key={filter}
+              type="button"
+              aria-pressed={statusFilter === filter}
+              onClick={() => setStatusFilter((current) => current === filter ? "all" : filter)}
+              style={{ ...summaryCard, background, color, ...(statusFilter === filter ? selectedSummaryCard : {}) }}
+            >
+              <strong style={summaryNumber}>{value}</strong>
+              <span style={summaryLabel}>{label}</span>
+            </button>
+          ))}
         </div>
-        <div style={grid2}>
-          <Field label="Filter by status"><select className="db-input" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All statuses</option><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="follow_up_required">Follow-up required</option><option value="resolved">Resolved</option></select></Field>
-          <Field label="Filter by incident type"><select className="db-input" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="all">All incident types</option>{incidentTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></Field>
+        <div style={filterGrid}>
+          <Field label="Status"><select className="db-input" style={compactSelect} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All statuses</option><option value="submitted">Awaiting review</option><option value="under_review">Under review</option><option value="follow_up_required">Follow-up required</option><option value="urgent">Urgent</option><option value="awaiting_parent">Awaiting parent acknowledgement</option><option value="resolved">Resolved</option></select></Field>
+          <Field label="Incident type"><select className="db-input" style={compactSelect} value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="all">All incident types</option>{incidentTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></Field>
         </div>
       </div>
 
@@ -804,13 +824,55 @@ const stack = {
 } as const;
 
 const summaryCard = {
+  minWidth: 0,
+  display: "flex",
+  alignItems: "center",
+  gap: 9,
+  minHeight: 58,
+  border: "1px solid transparent",
+  borderRadius: 13,
+  padding: "9px 12px",
+  cursor: "pointer",
+  textAlign: "left",
+  fontFamily: "inherit",
+  transition: "transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease",
+} as const;
+
+const selectedSummaryCard = {
+  borderColor: "currentColor",
+  boxShadow: "0 4px 14px rgba(45, 42, 62, 0.12)",
+  transform: "translateY(-1px)",
+} as const;
+
+const summaryGrid = {
   display: "grid",
-  gap: 4,
-  border: "1px solid #F0E3D8",
-  borderRadius: 14,
-  padding: 12,
-  background: "#FFFDFB",
-  color: "#2D2A3E",
+  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+  gap: 9,
+  marginBottom: 8,
+} as const;
+
+const summaryNumber = {
+  fontSize: 24,
+  lineHeight: 1,
+  minWidth: 28,
+} as const;
+
+const summaryLabel = {
+  fontSize: 13,
+  lineHeight: 1.2,
+  fontWeight: 800,
+} as const;
+
+const filterGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 10,
+} as const;
+
+const compactSelect = {
+  minHeight: 42,
+  padding: "8px 12px",
+  fontSize: 14,
 } as const;
 
 const bodyMapGrid = {

@@ -126,21 +126,53 @@ textarea {
   justify-content: center;
   min-height: 46px;
   padding: 12px 18px;
-  border: 1px solid #ad99f8;
+  border: 1px solid var(--db-border);
   border-radius: var(--db-radius-button);
-  background: var(--db-lavender);
-  color: #352b58;
-  font-weight: 700;
+  background: #ffffff;
+  color: var(--db-text);
+  font-weight: 600;
   text-decoration: none;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(111, 86, 191, 0.12);
   transition: 0.18s ease;
 }
 
 .db-button-secondary:hover {
-  background: #b6a4fb;
-  border-color: #9b84ef;
+  background: #fffaf6;
+  border-color: #dfd0c4;
+}
+
+.db-main-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid #cbeaf7 !important;
+  border-radius: 12px;
+  background: #eaf7fd !important;
+  color: #443e5e !important;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.db-main-pill:hover {
+  background: #d9f0fa !important;
+  border-color: #abdced !important;
   transform: translateY(-1px);
+}
+
+.db-main-pill-yellow {
+  background: #fff3c4 !important;
+  border-color: #f3e4a3 !important;
+}
+
+.db-main-pill-pink {
+  background: #f8e8f0 !important;
+  border-color: #ebc9d8 !important;
 }
 
 .db-button-primary:focus-visible,

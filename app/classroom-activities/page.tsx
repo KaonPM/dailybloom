@@ -1248,7 +1248,7 @@ export default function ClassroomActivitiesPage() {
         </p>
 
         {schoolParam && schoolId ? (
-          <Link href={`/master/school/${schoolId}`} style={backButton}>
+          <Link href={`/master/school/${schoolId}`} className="db-main-pill" style={backButton}>
             Back to School Overview
           </Link>
         ) : null}

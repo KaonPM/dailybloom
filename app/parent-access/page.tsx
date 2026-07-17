@@ -50,8 +50,8 @@ export default function ParentAccessPage() {
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
         <div><h1 className="db-page-title">Parent Portal Access</h1><p className="db-page-subtitle">Invite existing parents securely by SMS. One phone number receives one account for all linked learners.</p></div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <Link className="db-button-secondary" href={`/children${schoolId ? `?school=${schoolId}` : ""}`}>Back to Learners</Link>
-          <Link className="db-button-secondary" href={`/dashboard${schoolId ? `?school=${schoolId}` : ""}`}>Dashboard</Link>
+          <Link className="db-main-pill db-main-pill-yellow" href={`/children${schoolId ? `?school=${schoolId}` : ""}`}>Back to Learners</Link>
+          <Link className="db-main-pill db-main-pill-pink" href={`/dashboard${schoolId ? `?school=${schoolId}` : ""}`}>Dashboard</Link>
           <button className="db-button-primary" type="button" onClick={sendInvites} disabled={!selected.length || sending}>{sending ? "Sending..." : `Send ${selected.length || ""} Invitation${selected.length === 1 ? "" : "s"}`}</button>
         </div>
       </div>

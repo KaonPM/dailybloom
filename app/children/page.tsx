@@ -597,7 +597,7 @@ if (normalizedPhone) {
             </p>
 
             {schoolParam && schoolId ? (
-              <Link href={`/master/school/${schoolId}`} style={backButton}>
+              <Link href={`/master/school/${schoolId}`} className="db-main-pill" style={backButton}>
                 Back to School Overview
               </Link>
             ) : null}
@@ -605,7 +605,7 @@ if (normalizedPhone) {
 
           {canAddLearner && activeFilter !== "birthdays-today" ? (
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Link href={`/parent-access${schoolId ? `?school=${schoolId}` : ""}`} className="db-button-secondary">
+              <Link href={`/parent-access${schoolId ? `?school=${schoolId}` : ""}`} className="db-main-pill">
                 Parent Portal Access
               </Link>
               <button

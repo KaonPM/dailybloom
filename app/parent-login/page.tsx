@@ -135,15 +135,6 @@ export default function ParentLoginPage() {
 
         <div className="parent-portal-badge">Parent Portal</div>
 
-        {!isInstalled ? (
-          <div className="parent-install-area">
-            <button type="button" className="parent-install-button" onClick={handleInstall}>
-              Install DailyBloom App
-            </button>
-            {installHelp ? <p className="parent-install-help" aria-live="polite">{installHelp}</p> : null}
-          </div>
-        ) : null}
-
         <h2 className="parent-title">Welcome Back</h2>
 
         <p className="parent-subtitle">Login to continue.</p>
@@ -207,6 +198,15 @@ export default function ParentLoginPage() {
             Forgot PIN?
           </button>
         </div>
+
+        {!isInstalled ? (
+          <div className="parent-install-area">
+            <button type="button" className="parent-install-button" onClick={handleInstall}>
+              Install DailyBloom App
+            </button>
+            {installHelp ? <p className="parent-install-help" aria-live="polite">{installHelp}</p> : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

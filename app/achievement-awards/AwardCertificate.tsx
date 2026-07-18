@@ -1,7 +1,11 @@
 "use client";
 
 type AwardCertificateProps = {
-  school: any;
+  school?: {
+    school_name?: string | null;
+    primary_color?: string | null;
+    secondary_color?: string | null;
+  } | null;
   learnerName: string;
   awardName: string;
   awardSubtitle: string;

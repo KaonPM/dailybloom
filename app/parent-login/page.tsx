@@ -1,7 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
 
 export default function ParentLoginPage() {
   const router = useRouter();
@@ -10,6 +15,48 @@ export default function ParentLoginPage() {
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [installHelp, setInstallHelp] = useState("");
+
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+    setIsInstalled(standalone);
+
+    const captureInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    const markInstalled = () => {
+      setIsInstalled(true);
+      setInstallPrompt(null);
+      setInstallHelp("");
+    };
+
+    window.addEventListener("beforeinstallprompt", captureInstallPrompt);
+    window.addEventListener("appinstalled", markInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", captureInstallPrompt);
+      window.removeEventListener("appinstalled", markInstalled);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      if (choice.outcome === "accepted") setIsInstalled(true);
+      setInstallPrompt(null);
+      return;
+    }
+
+    const isAppleMobile = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    setInstallHelp(
+      isAppleMobile
+        ? "On iPhone or iPad: tap Share in Safari, then choose Add to Home Screen."
+        : "Open your browser menu and choose Install app or Add to Home screen."
+    );
+  };
 
   const handleLogin = async () => {
     const digitsOnly = phone.replace(/\D/g, "");
@@ -87,6 +134,15 @@ export default function ParentLoginPage() {
         </div>
 
         <div className="parent-portal-badge">Parent Portal</div>
+
+        {!isInstalled ? (
+          <div className="parent-install-area">
+            <button type="button" className="parent-install-button" onClick={handleInstall}>
+              Install DailyBloom App
+            </button>
+            {installHelp ? <p className="parent-install-help" aria-live="polite">{installHelp}</p> : null}
+          </div>
+        ) : null}
 
         <h2 className="parent-title">Welcome Back</h2>
 

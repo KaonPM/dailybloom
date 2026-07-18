@@ -820,3 +820,34 @@ justify-content:flex-start;
     height: 64px !important;
   }
 }
+
+.parent-install-area{
+text-align:center;
+margin:0 auto 18px;
+}
+
+.parent-install-button{
+border:1px solid #D9CCFF;
+border-radius:999px;
+padding:9px 16px;
+background:#F0EAFF;
+color:#5B3FD8;
+font:inherit;
+font-size:14px;
+font-weight:800;
+cursor:pointer;
+transition:background .2s,transform .2s;
+}
+
+.parent-install-button:hover{
+background:#E6DCFF;
+transform:translateY(-1px);
+}
+
+.parent-install-help{
+max-width:330px;
+margin:9px auto 0;
+color:#6D6680;
+font-size:13px;
+line-height:1.45;
+}

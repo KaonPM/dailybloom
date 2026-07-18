@@ -164,9 +164,9 @@ export async function POST(request: Request) {
       schoolId: school.id,
       tempPassword,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error.message || "Approval failed." },
+      { error: error instanceof Error ? error.message : "Approval failed." },
       { status: 500 }
     );
   }

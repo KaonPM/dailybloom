@@ -120,9 +120,9 @@ export async function POST(request: Request) {
       success: true,
       message: "Teacher created successfully. Login email sent.",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message || "Could not create teacher." },
+      { error: error instanceof Error ? error.message : "Could not create teacher." },
       { status: 500 }
     );
   }

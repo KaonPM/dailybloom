@@ -64,9 +64,9 @@ export async function POST(request: Request) {
 
     await writeSecurityAudit(authorization.staff, "teacher.deleted", { teacher_id: teacherId, school_id: schoolId });
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message || "Could not delete teacher." },
+      { error: error instanceof Error ? error.message : "Could not delete teacher." },
       { status: 500 }
     );
   }

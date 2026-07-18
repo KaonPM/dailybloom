@@ -57,9 +57,9 @@ export async function POST(request: Request) {
 
     await writeSecurityAudit(authorization.staff, "classroom.teacher_assigned", { teacher_id: teacherId, classroom_name: classroomName });
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message || "Could not assign teacher." },
+      { error: error instanceof Error ? error.message : "Could not assign teacher." },
       { status: 500 }
     );
   }

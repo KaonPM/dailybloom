@@ -32,6 +32,9 @@ type LibraryRow = {
   created_at?: string | null;
 };
 
+type ClassroomRow = { id: number; classroom_name: string };
+type LearnerRow = { id: string; name?: string | null };
+
 const developmentalAreas = [
   "Language and Communication",
   "Early Mathematics",
@@ -62,8 +65,8 @@ export default function ActivitiesPage() {
   const isMaster = normalizedRole === "master";
   const canManageLibrary = isPrincipal || isMaster;
 
-  const [classrooms, setClassrooms] = useState<any[]>([]);
-  const [learners, setLearners] = useState<any[]>([]);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
+  const [learners, setLearners] = useState<LearnerRow[]>([]);
   const [selectedClassName, setSelectedClassName] = useState("");
 
   const [activities, setActivities] = useState<ActivityRow[]>([]);

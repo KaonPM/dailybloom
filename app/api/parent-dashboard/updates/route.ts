@@ -7,6 +7,8 @@ export const revalidate = 0;
 
 const PAGE_SIZE = 5;
 const TIMEZONE_OFFSET_HOURS = 2;
+type ParentContext = NonNullable<Awaited<ReturnType<typeof getCurrentParent>>>;
+type ParentChild = ParentContext["children"][number];
 
 function toDateOnly(date: Date) {
   return date.toISOString().split("T")[0];
@@ -72,14 +74,14 @@ function getDateRange(range: string) {
   };
 }
 
-function parentHasLearner(parent: any, learnerId: string) {
+function parentHasLearner(parent: ParentContext, learnerId: string) {
   return (parent?.children || []).some(
-    (child: any) => String(child.id) === String(learnerId)
+    (child: ParentChild) => String(child.id) === String(learnerId)
   );
 }
 
-function parentHasSchool(parent: any, schoolId: number) {
-  return (parent?.children || []).some((child: any) => {
+function parentHasSchool(parent: ParentContext, schoolId: number) {
+  return (parent?.children || []).some((child: ParentChild) => {
     const school = Array.isArray(child.schools) ? child.schools[0] : child.schools;
     return Number(child.school_id || school?.id) === schoolId;
   });
@@ -215,10 +217,10 @@ export async function GET(request: Request) {
         },
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Parent dashboard updates failed:", error);
     return NextResponse.json(
-      { error: error?.message || "Could not load parent dashboard updates." },
+      { error: error instanceof Error ? error.message : "Could not load parent dashboard updates." },
       { status: 500 }
     );
   }

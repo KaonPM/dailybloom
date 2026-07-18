@@ -48,9 +48,9 @@ export async function POST(request: Request) {
         (principal) => principal.is_active !== false
       ),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message || "Could not load message contacts." },
+      { error: error instanceof Error ? error.message : "Could not load message contacts." },
       { status: 500 }
     );
   }

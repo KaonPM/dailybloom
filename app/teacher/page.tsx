@@ -84,6 +84,18 @@ type OutstandingRequirementItem = {
   missingItems: string[];
 };
 
+type StationeryChecklistSource = {
+  learner_id: number;
+  item_name?: string | null;
+  received?: boolean | null;
+};
+
+type OtherRequirementSource = {
+  learner_id: number;
+  requirement_name?: string | null;
+  completed?: boolean | null;
+};
+
 export default function TeacherDashboardPage() {
   const router = useRouter();
 
@@ -468,7 +480,7 @@ export default function TeacherDashboardPage() {
 
     const missingByLearner = new Map<number, string[]>();
 
-    (stationeryRes.data || []).forEach((item: any) => {
+    ((stationeryRes.data || []) as StationeryChecklistSource[]).forEach((item) => {
       if (item.received === true) return;
 
       const learnerId = Number(item.learner_id);
@@ -479,7 +491,7 @@ export default function TeacherDashboardPage() {
       missingByLearner.set(learnerId, currentItems);
     });
 
-    (otherRequirementsRes.data || []).forEach((item: any) => {
+    ((otherRequirementsRes.data || []) as OtherRequirementSource[]).forEach((item) => {
       if (item.completed === true) return;
 
       const learnerId = Number(item.learner_id);

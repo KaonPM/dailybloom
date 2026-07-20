@@ -45,3 +45,9 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Install Chromium for end-to-end tests
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end smoke tests
+        run: npm run test:e2e

@@ -107,9 +107,9 @@ export async function POST(request: Request) {
       success: true,
       message: "Teacher login email resent with a new temporary password.",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message || "Could not resend teacher login email." },
+      { error: error instanceof Error ? error.message : "Could not resend teacher login email." },
       { status: 500 }
     );
   }

@@ -89,9 +89,9 @@ export async function POST(request: Request) {
     await writeSecurityAudit(authorization.staff, "school.status_email_sent", { school_id: Number(schoolId), status });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error.message || "Could not send school status email" },
+      { error: error instanceof Error ? error.message : "Could not send school status email" },
       { status: 500 }
     );
   }

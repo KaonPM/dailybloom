@@ -4,9 +4,20 @@ import { getCurrentParent } from "./getCurrentParent";
 import { requireStaffPermission } from "./server-authorization";
 import { PERMISSIONS, type Permission } from "./permissions";
 
+type ParentChild = {
+  id: string | number;
+  school_id?: number | null;
+};
+
+type AuthorizedParent = {
+  phone?: string | null;
+  name?: string | null;
+  children: ParentChild[];
+};
+
 type MessageAuthorization =
   | { ok: true; kind: "staff"; userId: string; role: string; parent: null }
-  | { ok: true; kind: "parent"; userId: string; role: "parent"; parent: any }
+  | { ok: true; kind: "parent"; userId: string; role: "parent"; parent: AuthorizedParent }
   | { ok: false; response: NextResponse };
 
 export async function authorizeMessageUser(request: Request, schoolId: number, claimedUserId?: string, learnerId?: string | null, permission: Permission = PERMISSIONS.MESSAGE_VIEW): Promise<MessageAuthorization> {
@@ -22,9 +33,9 @@ export async function authorizeMessageUser(request: Request, schoolId: number, c
   const parent = await getCurrentParent();
   if (!parent) return { ok: false, response: NextResponse.json({ error: "Authentication required." }, { status: 401 }) };
   const phone = String(parent.phone || "");
-  const children = parent.children || [];
-  const hasSchool = children.some((child: any) => Number(child.school_id) === schoolId);
-  const hasLearner = !learnerId || children.some((child: any) => String(child.id) === String(learnerId) && Number(child.school_id) === schoolId);
+  const children = (parent.children || []) as ParentChild[];
+  const hasSchool = children.some((child) => Number(child.school_id) === schoolId);
+  const hasLearner = !learnerId || children.some((child) => String(child.id) === String(learnerId) && Number(child.school_id) === schoolId);
   if (!hasSchool || !hasLearner || (claimedUserId && claimedUserId !== phone)) {
     return { ok: false, response: NextResponse.json({ error: "Not allowed." }, { status: 403 }) };
   }

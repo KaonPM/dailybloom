@@ -4,7 +4,17 @@ import { supabaseAdmin } from "./supabase-admin";
 import { Permission, ROLE_PERMISSIONS } from "./permissions";
 import { effectivePermissions, hasPermission, resolveSchoolAuthorization } from "./authorization-policy";
 
-type AuthorizedStaff = { userId: string; profile: any; schoolId: number | null; role: string; permissions: string[]; isPlatformUser: boolean };
+type StaffProfile = {
+  id: string;
+  school_id?: number | null;
+  role?: string | null;
+  full_name?: string | null;
+  email?: string | null;
+  is_active?: boolean | null;
+  classroom_name?: string | null;
+};
+
+type AuthorizedStaff = { userId: string; profile: StaffProfile; schoolId: number | null; role: string; permissions: string[]; isPlatformUser: boolean };
 type AuthorizationResult = { ok: true; staff: AuthorizedStaff } | { ok: false; response: NextResponse };
 
 function denied(message: string, status: number): AuthorizationResult {

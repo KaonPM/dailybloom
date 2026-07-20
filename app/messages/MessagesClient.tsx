@@ -11,7 +11,42 @@ type Mode = "staff" | "parent";
 type UserRole = "parent" | "teacher" | "principal" | "master";
 type ContactRole = "parent" | "teacher" | "principal";
 
-type Child = any;
+type SchoolRelation =
+  | { id?: number | null; school_name?: string | null }
+  | { id?: number | null; school_name?: string | null }[]
+  | null;
+
+type ClassroomRelation =
+  | { classroom_name?: string | null; teacher_name?: string | null }
+  | { classroom_name?: string | null; teacher_name?: string | null }[]
+  | null;
+
+type Child = {
+  id: string;
+  name?: string | null;
+  school_id?: number | null;
+  schools?: SchoolRelation;
+  classrooms?: ClassroomRelation;
+};
+
+type StaffDirectoryRow = {
+  id: string;
+  full_name?: string | null;
+  role?: string | null;
+  school_id?: number | null;
+  classroom_name?: string | null;
+};
+
+type InitialParent = {
+  phone?: string | null;
+  name?: string | null;
+  children: Child[];
+  schoolStaff?: StaffDirectoryRow[];
+} | null;
+
+type StaffProfile = StaffDirectoryRow & {
+  school_id: number;
+};
 
 type LearnerOption = {
   id: string;
@@ -73,7 +108,7 @@ export default function MessagesClient({
   initialParent,
   mode = "staff",
 }: {
-  initialParent: any;
+  initialParent: InitialParent;
   mode?: Mode;
 }) {
   const searchParams = useSearchParams();
@@ -288,7 +323,7 @@ export default function MessagesClient({
     setLoading(false);
   }
 
-  async function buildParentContacts(child: any) {
+  async function buildParentContacts(child: Child) {
     const school = Array.isArray(child.schools) ? child.schools[0] : child.schools;
     const classroom = Array.isArray(child.classrooms)
       ? child.classrooms[0]
@@ -297,11 +332,11 @@ export default function MessagesClient({
     const currentSchoolId = Number(child.school_id || school?.id);
     const contacts: Contact[] = [];
     const serverStaff = (initialParent?.schoolStaff || []).filter(
-      (staff: any) => Number(staff.school_id) === currentSchoolId
+      (staff) => Number(staff.school_id) === currentSchoolId
     );
 
     if (classroom?.teacher_name) {
-      const serverTeacher = serverStaff.find((staff: any) =>
+      const serverTeacher = serverStaff.find((staff) =>
         String(staff.role) === "teacher" &&
         (String(staff.classroom_name || "") === String(classroom.classroom_name || "") ||
           String(staff.full_name || "") === String(classroom.teacher_name || ""))
@@ -329,7 +364,7 @@ export default function MessagesClient({
     }
 
     const serverPrincipals = serverStaff.filter(
-      (staff: any) => ["principal", "master", "owner", "admin"].includes(String(staff.role))
+      (staff) => ["principal", "master", "owner", "admin"].includes(String(staff.role))
     );
 
     const { data: fetchedPrincipals } = serverPrincipals.length
@@ -417,7 +452,7 @@ export default function MessagesClient({
     };
   }
 
-  async function loadTeacherView(profile: any) {
+  async function loadTeacherView(profile: StaffProfile) {
     const currentSchoolId = Number(profile.school_id);
     const classroomName = String(profile.classroom_name || "");
 
@@ -467,7 +502,7 @@ export default function MessagesClient({
     }
   }
 
-  async function loadPrincipalView(profile: any) {
+  async function loadPrincipalView(profile: StaffProfile) {
     const currentSchoolId = Number(profile.school_id);
 
     const { teachers } = await fetchStaffDirectory(currentSchoolId);
@@ -640,8 +675,8 @@ export default function MessagesClient({
         console.error("Conversation refresh failed:", error);
       });
       fetchUnreadConversationCounts();
-    } catch (error: any) {
-      alert(error?.message || "Could not send message.");
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Could not send message.");
     } finally {
       setSending(false);
     }

@@ -2,12 +2,20 @@ import { getCurrentParent } from "@/app/lib/getCurrentParent";
 import MessagesClient from "@/app/messages/MessagesClient";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
+type ParentChildSchool = {
+  school_id?: number | null;
+  schools?:
+    | { id?: number | null }
+    | { id?: number | null }[]
+    | null;
+};
+
 export default async function ParentMessagesPage() {
   const parent = await getCurrentParent();
   const schoolIds = [
     ...new Set(
-      (parent?.children || [])
-        .map((child: any) => {
+      ((parent?.children || []) as ParentChildSchool[])
+        .map((child) => {
           const school = Array.isArray(child.schools)
             ? child.schools[0]
             : child.schools;

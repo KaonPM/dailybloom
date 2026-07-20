@@ -683,7 +683,7 @@ export default function MasterReportsPage() {
   async function runGroupedCountReport(tableName: string, type: string, detail: string) {
     const schoolIds = getFilteredSchoolIds();
 
-    let query = supabase
+    const query = supabase
       .from(tableName)
       .select("id, school_id")
       .in("school_id", schoolIds);
@@ -781,7 +781,7 @@ export default function MasterReportsPage() {
   async function countTable(tableName: string, schoolIds: number[]) {
     if (schoolIds.length === 0) return 0;
 
-    let query = supabase
+    const query = supabase
       .from(tableName)
       .select("id", { count: "exact", head: true })
       .in("school_id", schoolIds);

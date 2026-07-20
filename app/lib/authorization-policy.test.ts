@@ -35,3 +35,35 @@ test("additional membership permissions do not change the global role defaults",
   assert.equal(hasPermission(permissions, PERMISSIONS.INCIDENT_REVIEW), true);
   assert.equal(hasPermission(permissions, PERMISSIONS.PLATFORM_ADMIN_MANAGE), false);
 });
+
+test("a membership cannot borrow the legacy role from another school", () => {
+  const result = resolveSchoolAuthorization({
+    requestedSchoolId: 22,
+    profileSchoolId: 11,
+    legacyRole: "principal",
+    memberships: [{ school_id: 22, role: "teacher", permissions: [] }],
+  });
+  assert.equal(result?.role, "teacher");
+  assert.equal(hasPermission(result?.permissions || [], PERMISSIONS.STAFF_MANAGE), false);
+});
+
+test("an unknown school is denied even when another membership is privileged", () => {
+  const result = resolveSchoolAuthorization({
+    requestedSchoolId: 33,
+    profileSchoolId: 11,
+    legacyRole: "owner",
+    memberships: [{ school_id: 22, role: "principal", permissions: [] }],
+  });
+  assert.equal(result, null);
+});
+
+test("a school-specific permission applies only to its matching membership", () => {
+  const memberships = [
+    { school_id: 11, role: "admin", permissions: [PERMISSIONS.INCIDENT_REVIEW] },
+    { school_id: 22, role: "admin", permissions: [] },
+  ];
+  const school11 = resolveSchoolAuthorization({ requestedSchoolId: 11, memberships });
+  const school22 = resolveSchoolAuthorization({ requestedSchoolId: 22, memberships });
+  assert.equal(hasPermission(school11?.permissions || [], PERMISSIONS.INCIDENT_REVIEW), true);
+  assert.equal(hasPermission(school22?.permissions || [], PERMISSIONS.INCIDENT_REVIEW), false);
+});

@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { getCurrentParent } from "@/app/lib/getCurrentParent";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { parentCanAccessLearnerAtSchool } from "@/app/lib/parent-authorization-policy";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const PAGE_SIZE = 5;
 const TIMEZONE_OFFSET_HOURS = 2;
-type ParentContext = NonNullable<Awaited<ReturnType<typeof getCurrentParent>>>;
-type ParentChild = ParentContext["children"][number];
 
 function toDateOnly(date: Date) {
   return date.toISOString().split("T")[0];
@@ -74,19 +73,6 @@ function getDateRange(range: string) {
   };
 }
 
-function parentHasLearner(parent: ParentContext, learnerId: string) {
-  return (parent?.children || []).some(
-    (child: ParentChild) => String(child.id) === String(learnerId)
-  );
-}
-
-function parentHasSchool(parent: ParentContext, schoolId: number) {
-  return (parent?.children || []).some((child: ParentChild) => {
-    const school = Array.isArray(child.schools) ? child.schools[0] : child.schools;
-    return Number(child.school_id || school?.id) === schoolId;
-  });
-}
-
 export async function GET(request: Request) {
   try {
     const parent = await getCurrentParent();
@@ -118,7 +104,7 @@ export async function GET(request: Request) {
       );
     }
 
-    if (!parentHasLearner(parent, learnerId) || !parentHasSchool(parent, schoolId)) {
+    if (!parentCanAccessLearnerAtSchool(parent.children || [], schoolId, learnerId)) {
       return NextResponse.json({ error: "Not allowed." }, { status: 403 });
     }
 

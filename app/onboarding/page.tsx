@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { useRouter } from "next/navigation";
@@ -16,10 +16,75 @@ const statuses = [
   "Activated",
 ];
 
+type OnboardingRow = {
+  school_id: number;
+  school_name?: string | null;
+  principal_name: string;
+  principal_email: string;
+  package_name: string;
+  subscription_amount: string | number;
+  setup_fee_amount: string | number;
+  school_status: string;
+  onboarding_id: number | null;
+  onboarding_status: string;
+  setup_fee_paid: boolean;
+  subscription_paid: boolean;
+  setup_date: string;
+  onboarding_notes: string;
+  logo_received: boolean;
+  brand_colours_received: boolean;
+  learner_list_received: boolean;
+  teacher_list_received: boolean;
+  classroom_list_received: boolean;
+  year_planner_received: boolean;
+};
+
+type SchoolSourceRow = {
+  id: number;
+  school_name?: string | null;
+  principal_name?: string | null;
+  principal_email?: string | null;
+  package_name?: string | null;
+  package?: string | null;
+  subscription_amount?: string | number | null;
+  subscription?: string | number | null;
+  setup_fee_amount?: string | number | null;
+  setup_fee?: string | number | null;
+  status?: string | null;
+};
+
+type OnboardingSourceRow = Partial<Omit<OnboardingRow, "school_name" | "principal_name" | "principal_email" | "package_name" | "subscription_amount" | "setup_fee_amount" | "school_status">> & {
+  id?: number | null;
+  school_id: number;
+};
+
+type PrincipalSourceRow = {
+  school_id?: number | null;
+  full_name?: string | null;
+  email?: string | null;
+};
+
+type OnboardingBooleanField =
+  | "logo_received"
+  | "brand_colours_received"
+  | "learner_list_received"
+  | "teacher_list_received"
+  | "classroom_list_received"
+  | "year_planner_received";
+
+const onboardingDocumentFields: Array<[OnboardingBooleanField, string]> = [
+  ["logo_received", "Logo received"],
+  ["brand_colours_received", "Brand colours received"],
+  ["learner_list_received", "Learner list received"],
+  ["teacher_list_received", "Teacher list received"],
+  ["classroom_list_received", "Classroom list received"],
+  ["year_planner_received", "Year planner received"],
+];
+
 export default function OnboardingPage() {
   const router = useRouter();
 
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows] = useState<OnboardingRow[]>([]);
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [activatingId, setActivatingId] = useState<string | null>(null);
@@ -82,13 +147,13 @@ export default function OnboardingPage() {
       return;
     }
 
-    const merged = (schools || []).map((school: any) => {
-      const record = onboarding?.find(
-        (item: any) => item.school_id === school.id
+    const merged = ((schools || []) as SchoolSourceRow[]).map((school) => {
+      const record = (onboarding as OnboardingSourceRow[] | null)?.find(
+        (item) => item.school_id === school.id
       );
 
-      const principal = principals?.find(
-        (item: any) => item.school_id === school.id
+      const principal = (principals as PrincipalSourceRow[] | null)?.find(
+        (item) => item.school_id === school.id
       );
 
       return {
@@ -121,7 +186,7 @@ export default function OnboardingPage() {
     setRows(merged);
   }
 
-  function updateLocalRow(schoolId: number, field: string, value: any) {
+  function updateLocalRow<K extends keyof OnboardingRow>(schoolId: number, field: K, value: OnboardingRow[K]) {
     setRows((current) =>
       current.map((row) =>
         row.school_id === schoolId ? { ...row, [field]: value } : row
@@ -129,7 +194,7 @@ export default function OnboardingPage() {
     );
   }
 
-  async function saveRow(row: any) {
+  async function saveRow(row: OnboardingRow) {
     setSavingId(String(row.school_id));
 
     const payload = {
@@ -164,7 +229,7 @@ export default function OnboardingPage() {
     alert("Onboarding updated.");
   }
 
-  async function activateSchool(row: any) {
+  async function activateSchool(row: OnboardingRow) {
     const confirmed = window.confirm(
       `Activate ${row.school_name}?\n\nThis will mark the school as active and send the welcome email.`
     );
@@ -306,6 +371,21 @@ export default function OnboardingPage() {
   );
 }
 
+type OnboardingSectionProps = {
+  title: string;
+  rows: OnboardingRow[];
+  total: number;
+  expandedId: number | null;
+  editingId: number | null;
+  savingId: string | null;
+  activatingId: string | null;
+  setExpandedId: Dispatch<SetStateAction<number | null>>;
+  setEditingId: Dispatch<SetStateAction<number | null>>;
+  updateLocalRow: <K extends keyof OnboardingRow>(schoolId: number, field: K, value: OnboardingRow[K]) => void;
+  saveRow: (row: OnboardingRow) => Promise<void>;
+  activateSchool: (row: OnboardingRow) => Promise<void>;
+};
+
 function OnboardingSection({
   title,
   rows,
@@ -319,7 +399,7 @@ function OnboardingSection({
   updateLocalRow,
   saveRow,
   activateSchool,
-}: any) {
+}: OnboardingSectionProps) {
   return (
     <div
       className="db-card db-card-blue"
@@ -333,7 +413,7 @@ function OnboardingSection({
         <p className="db-helper">No schools in this section.</p>
       ) : (
         <div style={{ display: "grid", gap: "12px" }}>
-          {rows.map((row: any) => {
+          {rows.map((row) => {
             const isExpanded = expandedId === row.school_id;
             const isEditing = editingId === row.school_id;
 
@@ -476,14 +556,7 @@ function OnboardingSection({
                     />
 
                     <div style={documentGrid}>
-                      {[
-                        ["logo_received", "Logo received"],
-                        ["brand_colours_received", "Brand colours received"],
-                        ["learner_list_received", "Learner list received"],
-                        ["teacher_list_received", "Teacher list received"],
-                        ["classroom_list_received", "Classroom list received"],
-                        ["year_planner_received", "Year planner received"],
-                      ].map(([field, label]) => (
+                      {onboardingDocumentFields.map(([field, label]) => (
                         <label key={field} style={checkLabel}>
                           <input
                             type="checkbox"

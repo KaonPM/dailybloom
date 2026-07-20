@@ -35,6 +35,13 @@ This work is developed away from `main`. Production remains on the last approved
 4. Validate login, school isolation, messaging, reports, incidents, and parent access.
 5. Record the incident and corrective action.
 
+Detailed operating guides:
+
+- [Deployment and rollback runbook](deployment-runbook.md)
+- [Backup and recovery runbook](backup-and-recovery.md)
+- [Production incident response](incident-response.md)
+- [Monitoring](monitoring.md)
+
 ## Backup restoration exercise
 
-Before Phase 2 production release, restore the latest Supabase backup into an isolated recovery project. Verify school, learner, membership, report, message, and incident counts without exposing the recovered environment publicly.
+Before Phase 2 production release, create a fresh logical Supabase backup and verify its manifest. Because both free project slots are occupied, a recovery rehearsal may use an isolated local Supabase stack rather than another hosted project. Never overwrite either live project for a rehearsal. Verify school, learner, membership, report, message, incident and Storage counts without exposing the recovered environment publicly.

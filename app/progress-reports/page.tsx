@@ -57,7 +57,7 @@ type ReportCategory = {
 
 type RatingLevel = string | {
   code?: string;
-  value?: string;
+  value?: string | number;
   level?: string;
   label?: string;
 };
@@ -116,6 +116,8 @@ type LearnerRow = {
   classroom_name?: string | null;
   assigned_classroom?: string | null;
   assigned_classroom_name?: string | null;
+  age?: string | number | null;
+  date_of_birth?: string | null;
 };
 
 type PeriodRow = {
@@ -193,6 +195,8 @@ type AwardRow = {
   name?: string | null;
   teacher_name?: string | null;
   award_reason?: string | null;
+  award_year?: string | number | null;
+  principal_name?: string | null;
   reason?: string | null;
   created_at?: string | null;
   deleted_at?: string | null;
@@ -218,7 +222,9 @@ function getCategoryIndicators(category?: ReportCategory | null): Indicator[] {
   );
 }
 
-function getAssessmentTimestamp(assessment?: AssessmentRow | null) {
+function getAssessmentTimestamp(
+  assessment?: { updated_at?: string | null; created_at?: string | null } | null
+) {
   const value = assessment?.updated_at || assessment?.created_at || "";
   const timestamp = value ? new Date(value).getTime() : 0;
 
@@ -702,7 +708,7 @@ export default function ProgressReportsPage() {
     alert("Certificate deleted.");
   }
 
-  function formatPeriodType(type: string) {
+  function formatPeriodType(type?: string | null) {
     if (type === "quarterly") return "Term Report";
     if (type === "biannual") return "Semester Report";
     if (type === "annual") return "Annual Report";
@@ -1023,7 +1029,12 @@ export default function ProgressReportsPage() {
             level,
           };
         })
-        .filter(Boolean);
+        .filter((row): row is {
+          category: ReportCategory;
+          indicator: Indicator;
+          indicatorKey: string;
+          level: string;
+        } => row !== null);
     });
 
     if (selectedRows.length === 0) {
@@ -2861,7 +2872,7 @@ export default function ProgressReportsPage() {
                         {teacherReportCanSubmit ? (
                           <button
                             className="db-button-primary"
-                            onClick={() => submitTeacherSavedSummary(selectedTeacherReportSummary)}
+                            onClick={() => selectedTeacherReportSummary && submitTeacherSavedSummary(selectedTeacherReportSummary)}
                             disabled={saving}
                           >
                             Submit to Principal
@@ -3341,7 +3352,7 @@ export default function ProgressReportsPage() {
                             <button
                               className="db-button-primary"
                               style={{ background: "#d9534f" }}
-                              onClick={() => deleteGeneratedReport(item.id)}
+                              onClick={() => item.id && deleteGeneratedReport(item.id)}
                             >
                               Delete Report
                             </button>
@@ -4324,12 +4335,12 @@ function TeacherChecklistCapture({
   ) => void;
   disabled?: boolean;
 }) {
-  function getLevelCode(level: RatingLevel) {
+  function getLevelCode(level: RatingLevel): string {
     if (typeof level === "string") {
       return level.includes(" - ") ? level.split(" - ")[0] : level;
     }
 
-    return (
+    return String(
       level?.code ||
       level?.value ||
       level?.level ||
@@ -4456,12 +4467,12 @@ function ReportSkillTable({
     categoryMatchValues.includes(normalizeMatchValue(item.category))
   );
 
-  function getLevelCode(level: RatingLevel) {
+  function getLevelCode(level: RatingLevel): string {
     if (typeof level === "string") {
       return level.includes(" - ") ? level.split(" - ")[0] : level;
     }
 
-    return (
+    return String(
       level?.code ||
       level?.value ||
       level?.level ||

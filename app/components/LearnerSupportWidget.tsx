@@ -16,8 +16,14 @@ type OutcomeRow = {
   created_at?: string | null;
 };
 
+type ProfileRow = {
+  role?: string | null;
+  school_id?: number | null;
+  classroom_id?: number | null;
+};
+
 export default function LearnerSupportWidget() {
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [outcomes, setOutcomes] = useState<OutcomeRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -118,7 +124,7 @@ function MiniStat({ label, value }: { label: string; value: number }) {
   );
 }
 
-function supportStatusValue(item: any) {
+function supportStatusValue(item: OutcomeRow) {
   if (item?.support_status) return item.support_status;
   if (item?.outcome_status === "improving") return "improving";
   if (item?.outcome_status === "meeting_expectations") return "resolved";

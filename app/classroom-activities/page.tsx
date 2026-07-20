@@ -1470,7 +1470,7 @@ export default function ClassroomActivitiesPage() {
 
       {activeSection === "today" ? (
       <details className="db-card db-card-green" style={cardStyle} open={isTodayOpen} onToggle={(e) => setIsTodayOpen((e.target as HTMLDetailsElement).open)}>
-        <summary style={summaryStyle}>Today's Planned Activities</summary>
+        <summary style={summaryStyle}>Today&apos;s Planned Activities</summary>
         <p style={smallHint}>This pulls from the weekly planner. Public holidays and school closure days are excluded.</p>
 
         {todaysPlans.length === 0 ? (

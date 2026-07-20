@@ -5,9 +5,18 @@ import { usePathname } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 
+type OneSignalClient = {
+  init: (options: {
+    appId: string;
+    serviceWorkerParam: { scope: string };
+    serviceWorkerPath: string;
+  }) => Promise<void>;
+  login?: (externalId: string) => Promise<void>;
+};
+
 declare global {
   interface Window {
-    OneSignalDeferred?: Array<(oneSignal: any) => Promise<void> | void>;
+    OneSignalDeferred?: Array<(oneSignal: OneSignalClient) => Promise<void> | void>;
     DailyBloomOneSignalInitialized?: boolean;
   }
 }

@@ -13,6 +13,14 @@ type Learner = {
   parent_name?: string | null;
   parent_phone?: string | null;
   classroom_id?: number | null;
+  classrooms?: { classroom_name?: string | null } | { classroom_name?: string | null }[] | null;
+};
+
+type ProfileRow = {
+  id: string;
+  role?: string | null;
+  full_name?: string | null;
+  classroom_id?: number | null;
 };
 
 type IncidentReport = {
@@ -116,7 +124,7 @@ export default function IncidentReportsPage() {
   const nowTime = new Date().toTimeString().slice(0, 5);
 
   const [schoolId, setSchoolId] = useState<number | null>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [learners, setLearners] = useState<Learner[]>([]);
   const [reports, setReports] = useState<IncidentReport[]>([]);
   const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null);
@@ -333,9 +341,9 @@ export default function IncidentReportsPage() {
       const photoUrls = await uploadPhotos(schoolId);
       uploadedPhotoPaths = photoUrls;
       const principalCreatedReport = canAcknowledge;
-      const classroom = Array.isArray((selectedLearner as any).classrooms)
-        ? (selectedLearner as any).classrooms[0]
-        : (selectedLearner as any).classrooms;
+      const classroom = Array.isArray(selectedLearner.classrooms)
+        ? selectedLearner.classrooms[0]
+        : selectedLearner.classrooms;
 
       const { error } = await supabase.from("incident_reports").insert([
         {
@@ -383,11 +391,11 @@ export default function IncidentReportsPage() {
       setSelectedReport(null);
       await fetchReports(schoolId);
       alert(principalCreatedReport ? "Incident report saved for review." : "Incident report submitted to principal.");
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (uploadedPhotoPaths.length > 0) {
         await supabase.storage.from("incident-report-photos").remove(uploadedPhotoPaths);
       }
-      alert(error?.message || "Could not submit incident report.");
+      alert(error instanceof Error ? error.message : "Could not submit incident report.");
     } finally {
       setSaving(false);
     }

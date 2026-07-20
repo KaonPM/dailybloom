@@ -403,14 +403,19 @@ export default function AttendancePage() {
       return;
     }
 
-    const headers = ["learner_name", "status", "absence_reason", "attendance_date"];
+    const headers: (keyof AttendanceRow)[] = [
+      "learner_name",
+      "status",
+      "absence_reason",
+      "attendance_date",
+    ];
 
     const csvRows = [
       headers.join(","),
       ...rows.map((row) =>
         headers
           .map((header) => {
-            const value = String((row as any)[header] || "");
+            const value = String(row[header] || "");
             return `"${value.replace(/"/g, '""')}"`;
           })
           .join(",")

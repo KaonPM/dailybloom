@@ -42,3 +42,14 @@ test("parent APIs reject requests without a parent session", async ({ request })
     error: "Parent session required.",
   });
 });
+
+test("health endpoint is available without exposing configuration", async ({ request }) => {
+  const response = await request.get("/api/health");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["cache-control"]).toContain("no-store");
+
+  const body = await response.json();
+  expect(body).toMatchObject({ status: "ok", service: "dailybloom" });
+  expect(body).not.toHaveProperty("environment");
+  expect(body).not.toHaveProperty("supabase_url");
+});

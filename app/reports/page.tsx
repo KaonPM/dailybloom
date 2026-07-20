@@ -22,6 +22,55 @@ type ReportRow = {
   extra: string;
 };
 
+type ReportSourceRow = {
+  id?: string | number | null;
+  learner_name?: string | null;
+  teacher_name?: string | null;
+  classroom_id?: string | number | null;
+  classroom_name?: string | null;
+  attendance_date?: string | null;
+  status?: string | null;
+  notes?: string | null;
+  name?: string | null;
+  legal_name?: string | null;
+  class?: string | null;
+  class_name?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  guardian_name?: string | null;
+  parent_phone?: string | null;
+  parent_email?: string | null;
+  receiving_school?: string | null;
+  created_at?: string | null;
+  mood?: string | null;
+  meals?: string | null;
+  rest?: string | null;
+  teacher_notes?: string | null;
+  payment_date?: string | null;
+  payment_year?: string | number | null;
+  payment_month?: string | number | null;
+  amount?: string | number | null;
+  incident_date?: string | null;
+  incident_type?: string | null;
+  incident_location?: string | null;
+  principal_acknowledged_by?: string | null;
+  activity_date?: string | null;
+  day_type?: string | null;
+  completed?: boolean | null;
+  developmental_area?: string | null;
+  theme?: string | null;
+  activity_name?: string | null;
+  description?: string | null;
+  event_date?: string | null;
+  classroom?: string | null;
+  title?: string | null;
+  event_name?: string | null;
+  whatsapp_sent?: boolean | null;
+  recipient_count?: number | null;
+  received?: boolean | null;
+  file_url?: string | null;
+};
+
 const reportTypes = [
   "School Analytics",
   "Learner Attendance",
@@ -250,9 +299,9 @@ export default function ReportsPage() {
       return;
     }
 
-    const rows: ReportRow[] = (data || [])
-      .filter((item: any) => isInScopeByLearner(item.learner_name))
-      .map((item: any) => ({
+    const rows: ReportRow[] = ((data || []) as ReportSourceRow[])
+      .filter((item) => isInScopeByLearner(item.learner_name || ""))
+      .map((item) => ({
         date: item.attendance_date || "",
         learner: item.learner_name || "",
         classroom: getLearnerClass(item.learner_name),
@@ -278,7 +327,7 @@ export default function ReportsPage() {
       return;
     }
 
-    const rows: ReportRow[] = (data || []).map((item: any) => ({
+    const rows: ReportRow[] = ((data || []) as ReportSourceRow[]).map((item) => ({
       date: item.attendance_date || "",
       learner: item.teacher_name || "Unnamed teacher",
       classroom: "Staff",
@@ -324,15 +373,15 @@ export default function ReportsPage() {
       return;
     }
 
-    const rows: ReportRow[] = (data || [])
-      .filter((item: any) => {
+    const rows: ReportRow[] = ((data || []) as ReportSourceRow[])
+      .filter((item) => {
         if (scope === "Learner" && selectedLearner) {
           return item.name === selectedLearner;
         }
 
         return true;
       })
-      .map((item: any) => ({
+      .map((item) => ({
         date: "",
         learner: item.name || item.legal_name || "Unnamed learner",
         classroom: item.class || "Unassigned",
@@ -364,9 +413,9 @@ export default function ReportsPage() {
       return;
     }
 
-    const rows: ReportRow[] = (data || [])
-      .filter((item: any) => isInScopeByLearner(item.learner_name))
-      .map((item: any) => ({
+    const rows: ReportRow[] = ((data || []) as ReportSourceRow[])
+      .filter((item) => isInScopeByLearner(item.learner_name || ""))
+      .map((item) => ({
         date: item.created_at ? item.created_at.split("T")[0] : "",
         learner: item.learner_name || "",
         classroom: getLearnerClass(item.learner_name),
@@ -391,8 +440,8 @@ export default function ReportsPage() {
       return;
     }
 
-    const rows: ReportRow[] = (data || [])
-      .filter((item: any) => {
+    const rows: ReportRow[] = ((data || []) as ReportSourceRow[])
+      .filter((item) => {
         const dateValue =
           item.payment_date ||
           item.created_at ||
@@ -405,7 +454,7 @@ export default function ReportsPage() {
           isInScopeByLearner(item.learner_name)
         );
       })
-      .map((item: any) => ({
+      .map((item) => ({
         date:
           item.payment_date ||
           item.created_at?.split("T")[0] ||
@@ -434,8 +483,8 @@ export default function ReportsPage() {
       return;
     }
 
-    const rows: ReportRow[] = (data || [])
-      .filter((item: any) => {
+    const rows: ReportRow[] = ((data || []) as ReportSourceRow[])
+      .filter((item) => {
         const status = String(item.status || "").trim().toLowerCase();
 
         const dateValue =
@@ -451,7 +500,7 @@ export default function ReportsPage() {
           isInScopeByLearner(item.learner_name)
         );
       })
-      .map((item: any) => ({
+      .map((item) => ({
         date:
           item.payment_date ||
           item.created_at?.split("T")[0] ||
@@ -483,9 +532,9 @@ export default function ReportsPage() {
       return;
     }
 
-    const rows: ReportRow[] = (data || [])
-      .filter((item: any) => isInScopeByLearner(item.learner_name))
-      .map((item: any) => ({
+    const rows: ReportRow[] = ((data || []) as ReportSourceRow[])
+      .filter((item) => isInScopeByLearner(item.learner_name || ""))
+      .map((item) => ({
         date: item.incident_date || (item.created_at ? item.created_at.split("T")[0] : ""),
         learner: item.learner_name || "",
         classroom: item.classroom_name || getLearnerClass(item.learner_name),
@@ -514,12 +563,12 @@ export default function ReportsPage() {
   }
 
   const scopedClassroomIds = scopedLearners
-    .map((learner: any) => learner.classroom_id)
+    .map((learner) => learner.classroom_id)
     .filter(Boolean)
-    .map((id: any) => Number(id));
+    .map((id) => Number(id));
 
-  const rows: ReportRow[] = (data || [])
-    .filter((item: any) => {
+  const rows: ReportRow[] = ((data || []) as ReportSourceRow[])
+    .filter((item) => {
       if (scope === "Entire School") return true;
 
       if (scope === "Classroom") {
@@ -532,7 +581,7 @@ export default function ReportsPage() {
 
       return true;
     })
-    .map((item: any) => ({
+    .map((item) => ({
       date: item.activity_date || "",
       learner: scope === "Learner" ? selectedLearner : "Class activity",
       classroom: String(item.classroom_id || "Classroom"),
@@ -566,7 +615,7 @@ export default function ReportsPage() {
       return;
     }
 
-    const rows: ReportRow[] = (data || []).map((item: any) => ({
+    const rows: ReportRow[] = ((data || []) as ReportSourceRow[]).map((item) => ({
       date: item.event_date || "",
       learner: "School Event",
       classroom: item.classroom || item.class_name || "Entire School",
@@ -679,21 +728,21 @@ export default function ReportsPage() {
       return;
     }
 
-    const attendance = attendanceResult.data || [];
-    const teacherAttendance = teacherAttendanceResult.data || [];
-    const payments = paymentsResult.data || [];
-    const summaries = summariesResult.data || [];
-    const broadcasts = broadcastsResult.data || [];
-    const incidentReports = incidentReportsResult.data || [];
-    const requirements = requirementsResult.data || [];
-    const documents = documentsResult.data || [];
+    const attendance = (attendanceResult.data || []) as ReportSourceRow[];
+    const teacherAttendance = (teacherAttendanceResult.data || []) as ReportSourceRow[];
+    const payments = (paymentsResult.data || []) as ReportSourceRow[];
+    const summaries = (summariesResult.data || []) as ReportSourceRow[];
+    const broadcasts = (broadcastsResult.data || []) as ReportSourceRow[];
+    const incidentReports = (incidentReportsResult.data || []) as ReportSourceRow[];
+    const requirements = (requirementsResult.data || []) as ReportSourceRow[];
+    const documents = (documentsResult.data || []) as ReportSourceRow[];
 
     const learnerPresent = attendance.filter(
-      (item: any) => String(item.status || "").toLowerCase() === "present"
+      (item) => String(item.status || "").toLowerCase() === "present"
     ).length;
 
     const learnerAbsent = attendance.filter(
-      (item: any) => String(item.status || "").toLowerCase() === "absent"
+      (item) => String(item.status || "").toLowerCase() === "absent"
     ).length;
 
     const learnerAttendanceTotal = learnerPresent + learnerAbsent;
@@ -704,11 +753,11 @@ export default function ReportsPage() {
         : 0;
 
     const teacherPresent = teacherAttendance.filter(
-      (item: any) => String(item.status || "").toLowerCase() === "present"
+      (item) => String(item.status || "").toLowerCase() === "present"
     ).length;
 
     const teacherAbsent = teacherAttendance.filter(
-      (item: any) => String(item.status || "").toLowerCase() === "absent"
+      (item) => String(item.status || "").toLowerCase() === "absent"
     ).length;
 
     const teacherAttendanceTotal = teacherPresent + teacherAbsent;
@@ -719,22 +768,22 @@ export default function ReportsPage() {
         : 0;
 
     const paidPayments = payments.filter(
-      (item: any) => String(item.status || "").toLowerCase() === "paid"
+      (item) => String(item.status || "").toLowerCase() === "paid"
     );
 
-    const unpaidPayments = payments.filter((item: any) =>
+    const unpaidPayments = payments.filter((item) =>
       ["pending", "partial", "overdue"].includes(
         String(item.status || "").toLowerCase()
       )
     );
 
     const totalCollected = paidPayments.reduce(
-      (sum: number, item: any) => sum + Number(item.amount || 0),
+      (sum, item) => sum + Number(item.amount || 0),
       0
     );
 
     const totalOutstanding = unpaidPayments.reduce(
-      (sum: number, item: any) => sum + Number(item.amount || 0),
+      (sum, item) => sum + Number(item.amount || 0),
       0
     );
 
@@ -743,7 +792,7 @@ export default function ReportsPage() {
         ? Math.round((paidPayments.length / payments.length) * 100)
         : 0;
 
-    const summariesSent = summaries.filter((item: any) => item.whatsapp_sent)
+    const summariesSent = summaries.filter((item) => item.whatsapp_sent)
       .length;
 
     const summarySendRate =
@@ -752,16 +801,16 @@ export default function ReportsPage() {
         : 0;
 
     const sentBroadcasts = broadcasts.filter(
-      (item: any) => String(item.status || "").toLowerCase() === "sent"
+      (item) => String(item.status || "").toLowerCase() === "sent"
     );
 
     const broadcastRecipientTotal = sentBroadcasts.reduce(
-      (sum: number, item: any) => sum + Number(item.recipient_count || 0),
+      (sum, item) => sum + Number(item.recipient_count || 0),
       0
     );
 
     const acknowledgedIncidentReports = incidentReports.filter(
-      (item: any) => String(item.status || "").toLowerCase() === "acknowledged"
+      (item) => String(item.status || "").toLowerCase() === "acknowledged"
     ).length;
 
     const incidentAcknowledgementRate =
@@ -770,10 +819,10 @@ export default function ReportsPage() {
         : 100;
 
     const outstandingStationery = requirements.filter(
-      (item: any) => item.received === false
+      (item) => item.received === false
     ).length;
 
-    const uploadedDocuments = documents.filter((item: any) => item.file_url)
+    const uploadedDocuments = documents.filter((item) => item.file_url)
       .length;
 
     const schoolHealthScore = Math.round(
@@ -869,14 +918,14 @@ export default function ReportsPage() {
       return;
     }
 
-    const headers = ["date", "learner", "classroom", "type", "detail", "extra"];
+    const headers: (keyof ReportRow)[] = ["date", "learner", "classroom", "type", "detail", "extra"];
 
     const csvRows = [
       headers.join(","),
       ...reportRows.map((row) =>
         headers
           .map((header) => {
-            const value = String((row as any)[header] || "");
+            const value = String(row[header] || "");
             return `"${value.replace(/"/g, '""')}"`;
           })
           .join(",")

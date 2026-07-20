@@ -3963,15 +3963,15 @@ export default function ProgressReportsPage() {
                 )}
 
                 <div style={signatureGrid}>
-                  <p style={bookletLine}>Teacher's Name: {teacherName}</p>
+                  <p style={bookletLine}>Teacher&apos;s Name: {teacherName}</p>
                   <p style={bookletLine}>
                     Opening Date: {openingDate || "__________________"}
                   </p>
                   <p style={bookletLine}>
                     Closing Date: {closingDate || "__________________"}
                   </p>
-                  <p style={bookletLine}>Teacher's Signature: ___________</p>
-                  <p style={bookletLine}>Principal's Signature: __________</p>
+                  <p style={bookletLine}>Teacher&apos;s Signature: ___________</p>
+                  <p style={bookletLine}>Principal&apos;s Signature: __________</p>
                 </div>
               </div>
 

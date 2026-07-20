@@ -5,13 +5,17 @@ import { usePathname } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 
-type OneSignalClient = {
+export type OneSignalClient = {
   init: (options: {
     appId: string;
     serviceWorkerParam: { scope: string };
     serviceWorkerPath: string;
   }) => Promise<void>;
   login?: (externalId: string) => Promise<void>;
+  Notifications: {
+    requestPermission: () => Promise<void>;
+    permission: boolean;
+  };
 };
 
 declare global {

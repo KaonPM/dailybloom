@@ -3,9 +3,16 @@ export default function ParentHeader({
   school,
   classroom,
 }: {
-  child: any;
-  school: any;
-  classroom: any;
+  child: { name?: string | null };
+  school?: {
+    school_name?: string | null;
+    primary_color?: string | null;
+    logo_url?: string | null;
+  } | null;
+  classroom?: {
+    classroom_name?: string | null;
+    teacher_name?: string | null;
+  } | null;
 }) {
   return (
     <div

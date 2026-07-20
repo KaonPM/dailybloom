@@ -21,6 +21,7 @@ type ProfileRow = {
   role?: string | null;
   full_name?: string | null;
   classroom_id?: number | null;
+  classroom_name?: string | null;
 };
 
 type IncidentReport = {
@@ -448,6 +449,7 @@ export default function IncidentReportsPage() {
   }
 
   async function recordParentCall(report: IncidentReport) {
+    if (!profile?.id) return;
     const contactName = prompt("Parent/guardian contacted:", report.parent_contact_name || "");
     if (contactName === null) return;
     const outcome = prompt("Call outcome (Reached, No answer, Message left):", report.parent_contact_outcome || "Reached");
@@ -462,6 +464,7 @@ export default function IncidentReportsPage() {
   }
 
   async function publishToParent(report: IncidentReport) {
+    if (!profile?.id) return;
     if (!report.parent_notified_at) {
       const proceed = confirm("No parent call has been recorded. Publish anyway and record that the parent could not be reached?");
       if (!proceed) return;

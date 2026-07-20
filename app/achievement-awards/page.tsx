@@ -17,7 +17,7 @@ import { AwardCertificate } from "./AwardCertificate";
 type AwardTab = "create" | "nominations" | "issued" | "reprints";
 type Identifier = string | number | null | undefined;
 type ProfileRow = { id: string; school_id?: number | null; role?: string | null; full_name?: string | null; name?: string | null; email?: string | null; classroom_id?: number | null };
-type SchoolRow = { id?: number; school_name?: string | null; primary_color?: string | null; secondary_color?: string | null };
+type SchoolRow = { id?: number; school_name?: string | null; logo_url?: string | null; primary_color?: string | null; secondary_color?: string | null };
 type ClassroomRow = { id: number; classroom_name?: string | null; teacher_id?: string | null };
 type LearnerRow = { id: string; name?: string | null; legal_name?: string | null; classroom_id?: number | null; class?: string | null; classroom?: string | null; classroom_name?: string | null; class_name?: string | null; assigned_classroom?: string | null; assigned_classroom_name?: string | null };
 type PeriodRow = { id: number; title?: string | null; academic_year?: number | null; created_at?: string | null };
@@ -134,7 +134,7 @@ export default function AchievementAwardsPage() {
       .order("created_at", { ascending: false });
 
     if (desiredStatus) query = query.eq("workflow_status", desiredStatus);
-    if (isTeacher) query = query.eq("nominated_by", profile.id);
+    if (isTeacher && profile?.id) query = query.eq("nominated_by", profile.id);
     if (filterLearner) query = query.eq("learner_id", filterLearner);
     if (filterClassroom) query = query.eq("classroom_id", filterClassroom);
     if (filterPeriod) query = query.eq("report_period_id", filterPeriod);
@@ -236,7 +236,7 @@ export default function AchievementAwardsPage() {
   }
 
   async function approveNomination(item: AwardRow) {
-    if (!canIssue) return;
+    if (!canIssue || !profile?.school_id) return;
     const { error } = await supabase.from("achievement_awards").update({ workflow_status: "issued", approved_by: profile.id, principal_name: profile.full_name || profile.name || "Principal", issued_at: new Date().toISOString(), certificate_generated: true }).eq("id", item.id);
     if (error) return alert(error.message);
     await fetchAwards(Number(profile.school_id));
@@ -244,7 +244,7 @@ export default function AchievementAwardsPage() {
   }
 
   async function declineNomination(item: AwardRow) {
-    if (!canIssue) return;
+    if (!canIssue || !profile?.school_id) return;
     const reasonText = prompt("Reason for declining this nomination:");
     if (!reasonText?.trim()) return;
     const { error } = await supabase
@@ -257,6 +257,7 @@ export default function AchievementAwardsPage() {
   }
 
   async function revokeAward(item: AwardRow) {
+    if (!profile?.id || !profile.school_id) return;
     const reasonText = prompt("Reason for revoking this certificate:");
     if (!reasonText?.trim()) return;
     const { error } = await supabase.from("achievement_awards").update({ workflow_status: "revoked", deleted_at: new Date().toISOString(), revoked_at: new Date().toISOString(), revoked_by: profile.id, revoke_reason: reasonText.trim() }).eq("id", item.id);
@@ -279,6 +280,7 @@ export default function AchievementAwardsPage() {
   }
 
   async function downloadCertificate(item: AwardRow) {
+    if (!profile?.id) return;
     setSelectedCertificate(item);
     requestAnimationFrame(async () => {
       const element = document.querySelector(".award-certificate-document") as HTMLElement | null;

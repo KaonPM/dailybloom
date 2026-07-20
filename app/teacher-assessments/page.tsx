@@ -371,7 +371,7 @@ export default function TeacherAssessmentsPage() {
 
     (activeCategories as Category[]).forEach((category) => {
       getCategoryIndicators(category).forEach((indicator) => {
-        const row = {
+        const row: AssessmentUpsertRow = {
           school_id: Number(schoolId),
           classroom_id: Number(selectedClassroomId),
           learner_id: selectedLearnerId,
@@ -420,7 +420,7 @@ export default function TeacherAssessmentsPage() {
     );
   }
 
-  function formatPeriodType(type: string) {
+  function formatPeriodType(type?: string | null) {
     if (type === "quarterly") return "Quarterly Report";
     if (type === "biannual") return "Biannual Report";
     if (type === "annual") return "Annual Report";
@@ -584,10 +584,10 @@ export default function TeacherAssessmentsPage() {
                         <option value="">Select Level</option>
                         {(activeLevels as LevelOption[]).map((level) => (
                           <option
-                            key={level.value || level}
-                            value={level.value || level}
+                            key={String(level.value)}
+                            value={String(level.value)}
                           >
-                            {level.label || level}
+                            {level.label}
                           </option>
                         ))}
                       </select>

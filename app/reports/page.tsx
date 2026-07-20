@@ -304,7 +304,7 @@ export default function ReportsPage() {
       .map((item) => ({
         date: item.attendance_date || "",
         learner: item.learner_name || "",
-        classroom: getLearnerClass(item.learner_name),
+        classroom: getLearnerClass(item.learner_name || ""),
         type: "Learner Attendance",
         detail: item.status || "",
         extra: "",
@@ -418,7 +418,7 @@ export default function ReportsPage() {
       .map((item) => ({
         date: item.created_at ? item.created_at.split("T")[0] : "",
         learner: item.learner_name || "",
-        classroom: getLearnerClass(item.learner_name),
+        classroom: getLearnerClass(item.learner_name || ""),
         type: "Daily Summary",
         detail: `Mood: ${item.mood || "N/A"} | Meals: ${
           item.meals || "N/A"
@@ -451,7 +451,7 @@ export default function ReportsPage() {
 
         return (
           isWithinRange(String(dateValue)) &&
-          isInScopeByLearner(item.learner_name)
+          isInScopeByLearner(item.learner_name || "")
         );
       })
       .map((item) => ({
@@ -463,7 +463,7 @@ export default function ReportsPage() {
             "0"
           )}`,
         learner: item.learner_name || "",
-        classroom: getLearnerClass(item.learner_name),
+        classroom: getLearnerClass(item.learner_name || ""),
         type: "Payment",
         detail: item.status || "No status",
         extra: item.amount ? `Amount: ${item.amount}` : "",
@@ -497,7 +497,7 @@ export default function ReportsPage() {
         return (
           status !== "paid" &&
           isWithinRange(String(dateValue)) &&
-          isInScopeByLearner(item.learner_name)
+          isInScopeByLearner(item.learner_name || "")
         );
       })
       .map((item) => ({
@@ -509,7 +509,7 @@ export default function ReportsPage() {
             "0"
           )}`,
         learner: item.learner_name || "",
-        classroom: getLearnerClass(item.learner_name),
+        classroom: getLearnerClass(item.learner_name || ""),
         type: "Outstanding Fee",
         detail: item.status || "Unpaid",
         extra: item.amount ? `Amount: ${item.amount}` : "",
@@ -537,7 +537,7 @@ export default function ReportsPage() {
       .map((item) => ({
         date: item.incident_date || (item.created_at ? item.created_at.split("T")[0] : ""),
         learner: item.learner_name || "",
-        classroom: item.classroom_name || getLearnerClass(item.learner_name),
+        classroom: item.classroom_name || getLearnerClass(item.learner_name || ""),
         type: "Incident Report",
         detail: `${item.incident_type || "Incident"} | ${item.status || "Submitted"}`,
         extra: `Location: ${item.incident_location || "Not added"} | Teacher: ${item.teacher_name || "Not added"} | Principal: ${item.principal_acknowledged_by || "Not acknowledged"}`,

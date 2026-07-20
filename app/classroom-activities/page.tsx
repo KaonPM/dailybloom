@@ -1781,7 +1781,7 @@ export default function ClassroomActivitiesPage() {
                 type="button"
                 className="db-button-primary"
                 style={{ width: "100%", marginBottom: "8px" }}
-                onClick={() => schoolId && seedDefaultLibrary(schoolId, profile)}
+                onClick={() => schoolId && profile && seedDefaultLibrary(schoolId, profile)}
                 disabled={saving}
               >
                 Import DailyBloom Activity Library

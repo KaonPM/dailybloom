@@ -39,6 +39,7 @@ export default async function ParentMessagesPage() {
     <MessagesClient
       initialParent={{
         ...parent,
+        children: parent?.children || [],
         schoolStaff: schoolStaff || [],
       }}
       mode="parent"

@@ -18,15 +18,72 @@ const levelOptions = [
   { value: "VG", label: "VG - Very Good" },
 ];
 
+type ReportType = "developmental" | "grade-rr";
+type Indicator = { key: string; label: string };
+type Category = {
+  key: string;
+  label: string;
+  description?: string;
+  indicators?: Indicator[];
+  sections?: { indicators?: Indicator[] }[];
+};
+type LevelOption = { value: string | number; label: string };
+type ProfileRow = {
+  id: string;
+  role?: string | null;
+  school_id?: number | null;
+  full_name?: string | null;
+  name?: string | null;
+  email?: string | null;
+};
+type ClassroomRow = { id: number; classroom_name?: string | null };
+type LearnerRow = {
+  id: string | number;
+  name?: string | null;
+  full_name?: string | null;
+  classroom_id?: number | null;
+  class?: string | null;
+  classroom_name?: string | null;
+};
+type PeriodRow = {
+  id: number;
+  title?: string | null;
+  report_type?: string | null;
+  report_template?: ReportType | null;
+};
+type AssessmentRow = {
+  category?: string | null;
+  indicator_key?: string | null;
+  level?: string | null;
+  teacher_comment?: string | null;
+  status?: string | null;
+};
+type AssessmentValues = Record<string, Record<string, { level: string }>>;
+type AssessmentUpsertRow = {
+  school_id: number;
+  classroom_id: number;
+  learner_id: string;
+  report_period_id: number;
+  report_type: ReportType;
+  category: string;
+  indicator_key: string;
+  indicator_label: string;
+  level: string;
+  teacher_comment: string | null;
+  teacher_id: string;
+  status: "draft" | "submitted";
+  updated_at: string;
+};
+
 export default function TeacherAssessmentsPage() {
   const router = useRouter();
 
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
 
-  const [classrooms, setClassrooms] = useState<any[]>([]);
-  const [learners, setLearners] = useState<any[]>([]);
-  const [periods, setPeriods] = useState<any[]>([]);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
+  const [learners, setLearners] = useState<LearnerRow[]>([]);
+  const [periods, setPeriods] = useState<PeriodRow[]>([]);
 
   const [reportType, setReportType] = useState<"developmental" | "grade-rr">(
     "developmental"
@@ -36,9 +93,9 @@ export default function TeacherAssessmentsPage() {
   const [selectedLearnerId, setSelectedLearnerId] = useState("");
   const [selectedPeriodId, setSelectedPeriodId] = useState("");
 
-  const [assessmentValues, setAssessmentValues] = useState<any>({});
+  const [assessmentValues, setAssessmentValues] = useState<AssessmentValues>({});
   const [overallComment, setOverallComment] = useState("");
-  const [existingAssessments, setExistingAssessments] = useState<any[]>([]);
+  const [existingAssessments, setExistingAssessments] = useState<AssessmentRow[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -53,10 +110,10 @@ export default function TeacherAssessmentsPage() {
     loadPage();
   }, []);
 
-  function getCategoryIndicators(category: any) {
+  function getCategoryIndicators(category: Category): Indicator[] {
     return (
       category?.indicators ||
-      category?.sections?.flatMap((section: any) => section.indicators || []) ||
+      category?.sections?.flatMap((section) => section.indicators || []) ||
       []
     );
   }
@@ -226,12 +283,12 @@ export default function TeacherAssessmentsPage() {
     const categories =
       template === "grade-rr" ? gradeRRCategories : reportCategories;
 
-    const nextValues: any = {};
+    const nextValues: AssessmentValues = {};
 
-    categories.forEach((category: any) => {
+    (categories as Category[]).forEach((category) => {
       nextValues[category.key] = {};
 
-      getCategoryIndicators(category).forEach((indicator: any) => {
+      getCategoryIndicators(category).forEach((indicator) => {
         const existing = data?.find(
           (item) =>
             item.category === category.key &&
@@ -253,7 +310,7 @@ export default function TeacherAssessmentsPage() {
     indicatorKey: string,
     value: string
   ) {
-    setAssessmentValues((current: any) => ({
+    setAssessmentValues((current) => ({
       ...current,
       [categoryKey]: {
         ...current[categoryKey],
@@ -293,8 +350,8 @@ export default function TeacherAssessmentsPage() {
 
     const template = getTemplateFromPeriod(selectedPeriodId);
 
-    const missingLevel = activeCategories.some((category: any) =>
-      getCategoryIndicators(category).some((indicator: any) => {
+    const missingLevel = (activeCategories as Category[]).some((category) =>
+      getCategoryIndicators(category).some((indicator) => {
         const level = normalizeLevel(
           assessmentValues?.[category.key]?.[indicator.key]?.level || ""
         );
@@ -310,10 +367,10 @@ export default function TeacherAssessmentsPage() {
 
     setSaving(true);
 
-    const rowsMap = new Map<string, any>();
+    const rowsMap = new Map<string, AssessmentUpsertRow>();
 
-    activeCategories.forEach((category: any) => {
-      getCategoryIndicators(category).forEach((indicator: any) => {
+    (activeCategories as Category[]).forEach((category) => {
+      getCategoryIndicators(category).forEach((indicator) => {
         const row = {
           school_id: Number(schoolId),
           classroom_id: Number(selectedClassroomId),
@@ -500,13 +557,13 @@ export default function TeacherAssessmentsPage() {
           </h3>
 
           <div style={{ display: "grid", gap: 16 }}>
-            {activeCategories.map((category: any) => (
+            {(activeCategories as Category[]).map((category) => (
               <div key={category.key} className="db-list-card">
                 <strong>{category.label}</strong>
                 <p style={textStyle}>{category.description}</p>
 
                 <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
-                  {getCategoryIndicators(category).map((indicator: any) => (
+                  {getCategoryIndicators(category).map((indicator) => (
                     <div key={indicator.key}>
                       <label style={labelText}>{indicator.label}</label>
 
@@ -525,7 +582,7 @@ export default function TeacherAssessmentsPage() {
                         }
                       >
                         <option value="">Select Level</option>
-                        {activeLevels.map((level: any) => (
+                        {(activeLevels as LevelOption[]).map((level) => (
                           <option
                             key={level.value || level}
                             value={level.value || level}

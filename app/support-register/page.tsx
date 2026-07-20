@@ -47,15 +47,24 @@ type OutcomeRow = {
   created_at?: string | null;
 };
 
+type ProfileRow = {
+  role?: string | null;
+  classroom_id?: number | null;
+  classroom_name?: string | null;
+};
+
+type ClassroomRow = { id: number; classroom_name?: string | null };
+type LearnerRow = { id: number; name?: string | null; classroom_id?: number | null };
+
 export default function SupportRegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const schoolParam = searchParams.get("school");
 
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
-  const [classrooms, setClassrooms] = useState<any[]>([]);
-  const [learners, setLearners] = useState<any[]>([]);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
+  const [learners, setLearners] = useState<LearnerRow[]>([]);
   const [outcomes, setOutcomes] = useState<OutcomeRow[]>([]);
 
   const [classroomFilter, setClassroomFilter] = useState("");
@@ -450,7 +459,7 @@ export default function SupportRegisterPage() {
   );
 }
 
-function StatCard({ title, value, note }: any) {
+function StatCard({ title, value, note }: { title: string; value: number; note: string }) {
   return (
     <div className="db-card" style={{ padding: "12px" }}>
       <p style={{ margin: 0, color: "var(--db-text-soft)", fontSize: "12px" }}>{title}</p>
@@ -460,7 +469,7 @@ function StatCard({ title, value, note }: any) {
   );
 }
 
-function supportStatusValue(item: any) {
+function supportStatusValue(item: OutcomeRow) {
   if (item?.support_status) return item.support_status;
   if (item?.outcome_status === "improving") return "improving";
   if (item?.outcome_status === "meeting_expectations") return "resolved";

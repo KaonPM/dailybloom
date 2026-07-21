@@ -55,3 +55,7 @@ Before Phase 2 production release, create a fresh logical Supabase backup and ve
 - Restored all six Storage buckets: 84 objects totalling 759,634,124 bytes. Bucket counts and byte totals matched the backup manifest exactly.
 - Downloaded a restored Storage object and confirmed its SHA-256 hash matched the source backup file.
 - The local stack was stopped after verification. Neither hosted Supabase project nor production was modified.
+
+Authenticated browser tests are available through `npm run test:e2e:authenticated`. They are opt-in and require `E2E_SUPABASE_URL`, `E2E_SUPABASE_ANON_KEY`, and `E2E_SUPABASE_SERVICE_ROLE_KEY` from an isolated local stack. The suite creates temporary Principal, Teacher, and Parent credentials, exercises the real login pages and role destinations, and removes its test records afterwards. Never point this suite at production.
+
+The authenticated suite passed against the restored local stack on 21 July 2026: Principal login reached the Principal Dashboard, Teacher login reached the assigned Teacher Dashboard, and Parent PIN login reached the linked learner dashboard. Post-test checks confirmed that no temporary authentication users or profiles remained.

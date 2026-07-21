@@ -13,7 +13,8 @@
     "test:achievement-awards": "tsx --test app/lib/award-types.test.ts",
     "test:authorization": "tsx --test app/lib/permissions.test.ts app/lib/authorization-policy.test.ts app/lib/parent-authorization-policy.test.ts",
     "test:monitoring": "tsx --test app/lib/error-monitoring.test.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:authenticated": "playwright test tests/e2e/authenticated-workflows.spec.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.0",

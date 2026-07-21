@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   const authorization = await requireStaffPermission(request, PERMISSIONS.PARENT_ACCESS_MANAGE, schoolId);
   if (!authorization.ok) return authorization.response;
   try { return NextResponse.json({ groups: await loadGroups(schoolId) }); }
-  catch (error: any) { return NextResponse.json({ error: error?.message || "Could not load parent access." }, { status: 500 }); }
+  catch (error: unknown) { return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load parent access." }, { status: 500 }); }
 }
 
 export async function POST(request: Request) {
@@ -55,9 +55,10 @@ export async function POST(request: Request) {
       const sms = await sendSms(group.phone, `${school?.school_name || "Your preschool"} invited you to DailyBloom. Temporary Parent Portal PIN: ${temporaryPin}. Sign in at dailybloom.co.za/parent-login. Expires in 24 hours. Do not share this code.`);
       await supabaseAdmin.from("parent_access").update({ invite_sent_at: new Date().toISOString(), invite_delivery_status: "sent", invite_provider_message_id: sms.providerMessageId, invite_error: null }).eq("phone", group.phone);
       results.push({ phone: group.phone, sent: true });
-    } catch (error: any) {
-      await supabaseAdmin.from("parent_access").update({ invite_delivery_status: "failed", invite_error: error?.message || "SMS failed" }).eq("phone", group.phone);
-      results.push({ phone: group.phone, sent: false, error: error?.message || "SMS failed" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "SMS failed";
+      await supabaseAdmin.from("parent_access").update({ invite_delivery_status: "failed", invite_error: message }).eq("phone", group.phone);
+      results.push({ phone: group.phone, sent: false, error: message });
     }
   }
   await writeSecurityAudit(authorization.staff, "parent.bulk_invited", { school_id: schoolId, requested: groups.length, sent: results.filter((item) => item.sent).length });

@@ -159,10 +159,10 @@ export async function POST(request: Request) {
       ...result,
       recipients: externalIds.length,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Parent push notification failed:", error);
     return NextResponse.json(
-      { error: error?.message || "Could not send parent push notification." },
+      { error: error instanceof Error ? error.message : "Could not send parent push notification." },
       { status: 500 }
     );
   }

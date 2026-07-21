@@ -38,9 +38,9 @@ export async function POST(request: Request) {
       total: (data || []).length,
       counts,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message || "Could not load unread messages." },
+      { error: error instanceof Error ? error.message : "Could not load unread messages." },
       { status: 500 }
     );
   }

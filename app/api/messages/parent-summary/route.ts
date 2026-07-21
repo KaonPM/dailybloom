@@ -34,9 +34,9 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ messages: data || [] });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message || "Could not load parent message summary." },
+      { error: error instanceof Error ? error.message : "Could not load parent message summary." },
       { status: 500 }
     );
   }

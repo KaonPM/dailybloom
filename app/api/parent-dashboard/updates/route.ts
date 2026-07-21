@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentParent } from "@/app/lib/getCurrentParent";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { parentCanAccessLearnerAtSchool } from "@/app/lib/parent-authorization-policy";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -72,19 +73,6 @@ function getDateRange(range: string) {
   };
 }
 
-function parentHasLearner(parent: any, learnerId: string) {
-  return (parent?.children || []).some(
-    (child: any) => String(child.id) === String(learnerId)
-  );
-}
-
-function parentHasSchool(parent: any, schoolId: number) {
-  return (parent?.children || []).some((child: any) => {
-    const school = Array.isArray(child.schools) ? child.schools[0] : child.schools;
-    return Number(child.school_id || school?.id) === schoolId;
-  });
-}
-
 export async function GET(request: Request) {
   try {
     const parent = await getCurrentParent();
@@ -116,7 +104,7 @@ export async function GET(request: Request) {
       );
     }
 
-    if (!parentHasLearner(parent, learnerId) || !parentHasSchool(parent, schoolId)) {
+    if (!parentCanAccessLearnerAtSchool(parent.children || [], schoolId, learnerId)) {
       return NextResponse.json({ error: "Not allowed." }, { status: 403 });
     }
 
@@ -215,10 +203,10 @@ export async function GET(request: Request) {
         },
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Parent dashboard updates failed:", error);
     return NextResponse.json(
-      { error: error?.message || "Could not load parent dashboard updates." },
+      { error: error instanceof Error ? error.message : "Could not load parent dashboard updates." },
       { status: 500 }
     );
   }

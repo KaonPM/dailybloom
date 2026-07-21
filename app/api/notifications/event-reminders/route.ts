@@ -77,7 +77,7 @@ export async function GET(request: Request) {
     const cronSecret = process.env.CRON_SECRET;
     const authHeader = request.headers.get("authorization");
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
@@ -133,10 +133,10 @@ export async function GET(request: Request) {
       events: events?.length || 0,
       recipients: sent,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Event reminder notifications failed:", error);
     return NextResponse.json(
-      { error: error?.message || "Could not send event reminders." },
+      { error: error instanceof Error ? error.message : "Could not send event reminders." },
       { status: 500 }
     );
   }

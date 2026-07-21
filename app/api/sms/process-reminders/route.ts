@@ -10,6 +10,8 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+type MessageLog = { id: number; parent_phone?: string | null; message?: string | null; retry_count?: number | null };
+
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   const authorization = request.headers.get("authorization");
@@ -131,7 +133,7 @@ function sanitizePhone(phone?: string | null) {
   return cleaned;
 }
 
-async function sendSMS(msg: any): Promise<boolean> {
+async function sendSMS(msg: MessageLog): Promise<boolean> {
   try {
     const token = await getSmsPortalToken();
     const phone = sanitizePhone(msg.parent_phone);
@@ -173,13 +175,13 @@ async function sendSMS(msg: any): Promise<boolean> {
       .eq("id", msg.id);
 
     return true;
-  } catch (err: any) {
+  } catch (err: unknown) {
     await supabase
       .from("message_logs")
       .update({
         status: "retry",
         retry_count: (msg.retry_count || 0) + 1,
-        error_message: err?.message || "Unknown SMS error",
+        error_message: err instanceof Error ? err.message : "Unknown SMS error",
       })
       .eq("id", msg.id);
 

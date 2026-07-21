@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("EMAIL ERROR:", error);
 
     return NextResponse.json(

@@ -36,7 +36,173 @@ const principalAssessmentStatusFilters = [
   "generated",
 ];
 
-function getAssessmentValue(assessment: any) {
+type ReportType = "developmental" | "grade-rr";
+type IdValue = string | number | null | undefined;
+
+type Indicator = {
+  key: string;
+  label: string;
+  name?: string;
+  text?: string;
+};
+
+type ReportCategory = {
+  key: string;
+  label: string;
+  name?: string;
+  description?: string;
+  indicators?: Indicator[];
+  sections?: { indicators?: Indicator[] }[];
+};
+
+type RatingLevel = string | {
+  code?: string;
+  value?: string | number;
+  level?: string;
+  label?: string;
+};
+
+type ProfileRow = {
+  id: string;
+  school_id?: number | null;
+  role?: string | null;
+  full_name?: string | null;
+  display_name?: string | null;
+  name?: string | null;
+  email?: string | null;
+  teacher_name?: string | null;
+  classroom_id?: number | null;
+  assigned_classroom_id?: number | null;
+  classroom?: string | null;
+  classroom_name?: string | null;
+  assigned_classroom?: string | null;
+  assigned_classroom_name?: string | null;
+  class?: string | null;
+};
+
+type SchoolRow = {
+  id?: number | null;
+  school_name?: string | null;
+  logo_url?: string | null;
+  primary_color?: string | null;
+  secondary_color?: string | null;
+  address?: string | null;
+  contact_number?: string | null;
+  phone_number?: string | null;
+  telephone?: string | null;
+  emis_number?: string | null;
+  npo_number?: string | null;
+  physical_address?: string | null;
+  school_address?: string | null;
+};
+
+type ClassroomRow = {
+  id: number;
+  classroom_name?: string | null;
+  teacher_id?: string | null;
+  teacher_name?: string | null;
+  teacher_email?: string | null;
+  practitioner_id?: string | null;
+};
+
+type LearnerRow = {
+  id: string | number;
+  name?: string | null;
+  classroom_id?: number | null;
+  legal_name?: string | null;
+  class?: string | null;
+  class_name?: string | null;
+  classroom?: string | null;
+  classroom_name?: string | null;
+  assigned_classroom?: string | null;
+  assigned_classroom_name?: string | null;
+  age?: string | number | null;
+  date_of_birth?: string | null;
+};
+
+type PeriodRow = {
+  id: number;
+  title?: string | null;
+  period_title?: string | null;
+  term?: string | null;
+  period_type?: string | null;
+  report_template?: ReportType | null;
+  report_type?: ReportType | null;
+  opening_date?: string | null;
+  closing_date?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  status?: string | null;
+};
+
+type AssessmentRow = {
+  id?: number | null;
+  school_id?: number | null;
+  classroom_id?: number | null;
+  teacher_id?: string | null;
+  learner_id?: string | number | null;
+  report_period_id?: number | null;
+  report_type?: ReportType | null;
+  status?: string | null;
+  category?: string | null;
+  indicator_key?: string | null;
+  indicator_label?: string | null;
+  indicator?: string | null;
+  label?: string | null;
+  level?: string | null;
+  rating?: string | null;
+  assessment_level?: string | null;
+  selected_level?: string | null;
+  selected_rating?: string | null;
+  value?: string | null;
+  teacher_comment?: string | null;
+  principal_comment?: string | null;
+  updated_at?: string | null;
+  created_at?: string | null;
+};
+
+type TeacherReportSummary = {
+  learner_id?: IdValue;
+  classroom_id?: IdValue;
+  report_period_id?: IdValue;
+  report_type?: ReportType | null;
+  status?: string | null;
+  updated_at?: string | null;
+  count: number;
+};
+
+type GeneratedReportRow = {
+  id?: number | null;
+  classroom_id?: IdValue;
+  learner_id?: IdValue;
+  report_period_id?: IdValue;
+  report_type?: ReportType | null;
+  principal_comment?: string | null;
+  opening_date?: string | null;
+  closing_date?: string | null;
+  report_status?: string | null;
+  generated_at?: string | null;
+};
+
+type AwardRow = {
+  id?: number | null;
+  learner_id?: IdValue;
+  classroom_id?: IdValue;
+  teacher_id?: IdValue;
+  report_period_id?: IdValue;
+  award_type?: string | null;
+  award_name?: string | null;
+  name?: string | null;
+  teacher_name?: string | null;
+  award_reason?: string | null;
+  award_year?: string | number | null;
+  principal_name?: string | null;
+  reason?: string | null;
+  created_at?: string | null;
+  deleted_at?: string | null;
+};
+
+function getAssessmentValue(assessment?: AssessmentRow | null) {
   return (
     assessment?.level ||
     assessment?.rating ||
@@ -48,23 +214,25 @@ function getAssessmentValue(assessment: any) {
   );
 }
 
-function getCategoryIndicators(category: any) {
+function getCategoryIndicators(category?: ReportCategory | null): Indicator[] {
   return (
     category?.indicators ||
-    category?.sections?.flatMap((section: any) => section.indicators || []) ||
+    category?.sections?.flatMap((section) => section.indicators || []) ||
     []
   );
 }
 
-function getAssessmentTimestamp(assessment: any) {
+function getAssessmentTimestamp(
+  assessment?: { updated_at?: string | null; created_at?: string | null } | null
+) {
   const value = assessment?.updated_at || assessment?.created_at || "";
   const timestamp = value ? new Date(value).getTime() : 0;
 
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
-function normalizeLatestAssessments(assessments: any[]) {
-  const latestByIndicator = new Map<string, any>();
+function normalizeLatestAssessments(assessments: AssessmentRow[]) {
+  const latestByIndicator = new Map<string, AssessmentRow>();
 
   assessments.forEach((assessment) => {
     const key = [
@@ -93,7 +261,7 @@ function makeAssessmentKey(categoryKey: string, indicatorKey: string) {
   return `${categoryKey}::${indicatorKey}`;
 }
 
-function normalizeMatchValue(value: any) {
+function normalizeMatchValue(value: unknown) {
   return String(value || "")
     .trim()
     .toLowerCase();
@@ -102,16 +270,16 @@ function normalizeMatchValue(value: any) {
 export default function ProgressReportsPage() {
   const router = useRouter();
 
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
-  const [school, setSchool] = useState<any>(null);
+  const [school, setSchool] = useState<SchoolRow | null>(null);
 
-  const [classrooms, setClassrooms] = useState<any[]>([]);
-  const [teachers, setTeachers] = useState<any[]>([]);
-  const [learners, setLearners] = useState<any[]>([]);
-  const [periods, setPeriods] = useState<any[]>([]);
-  const [allAssessments, setAllAssessments] = useState<any[]>([]);
-  const [generatedReports, setGeneratedReports] = useState<any[]>([]);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
+  const [teachers, setTeachers] = useState<ProfileRow[]>([]);
+  const [learners, setLearners] = useState<LearnerRow[]>([]);
+  const [periods, setPeriods] = useState<PeriodRow[]>([]);
+  const [allAssessments, setAllAssessments] = useState<AssessmentRow[]>([]);
+  const [generatedReports, setGeneratedReports] = useState<GeneratedReportRow[]>([]);
 
   const [reportType, setReportType] = useState<"developmental" | "grade-rr">(
     "developmental"
@@ -122,12 +290,12 @@ export default function ProgressReportsPage() {
   const [selectedLearnerId, setSelectedLearnerId] = useState("");
   const [selectedPeriodId, setSelectedPeriodId] = useState("");
 
-  const [reviewAssessments, setReviewAssessments] = useState<any[]>([]);
+  const [reviewAssessments, setReviewAssessments] = useState<AssessmentRow[]>([]);
   const [principalComment, setPrincipalComment] = useState("");
   const [teacherComment, setTeacherComment] = useState("");
   const [openingDate, setOpeningDate] = useState("");
   const [closingDate, setClosingDate] = useState("");
-  const [generatedReport, setGeneratedReport] = useState<any>(null);
+  const [generatedReport, setGeneratedReport] = useState<GeneratedReportRow | null>(null);
 
   const [newPeriodTitle, setNewPeriodTitle] = useState("");
   const [newPeriodType, setNewPeriodType] = useState("quarterly");
@@ -166,7 +334,7 @@ export default function ProgressReportsPage() {
   const [teacherRatings, setTeacherRatings] = useState<Record<string, string>>(
     {}
   );
-  const [teacherReportSummaries, setTeacherReportSummaries] = useState<any[]>(
+  const [teacherReportSummaries, setTeacherReportSummaries] = useState<TeacherReportSummary[]>(
     []
   );
   const [teacherSaveAction, setTeacherSaveAction] = useState<
@@ -175,7 +343,7 @@ export default function ProgressReportsPage() {
   const [pendingDownload, setPendingDownload] = useState(false);
 
   const [showAwards, setShowAwards] = useState(false);
-  const [awards, setAwards] = useState<any[]>([]);
+  const [awards, setAwards] = useState<AwardRow[]>([]);
 
   const [selectedAwardLearnerId, setSelectedAwardLearnerId] = useState("");
   const [selectedAwardClassroomId, setSelectedAwardClassroomId] = useState("");
@@ -183,7 +351,7 @@ export default function ProgressReportsPage() {
   const [selectedAwardPeriodId, setSelectedAwardPeriodId] = useState("");
   const [selectedAwardType, setSelectedAwardType] = useState("");
   const [awardReason, setAwardReason] = useState("");
-  const [selectedAward, setSelectedAward] = useState<any>(null);
+  const [selectedAward, setSelectedAward] = useState<AwardRow | null>(null);
   const [pendingAwardDownload, setPendingAwardDownload] = useState(false);
 
   const [loading, setLoading] = useState(true);
@@ -387,7 +555,7 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    const teacherRows = (data || []).filter((item: any) => {
+    const teacherRows = ((data || []) as ProfileRow[]).filter((item) => {
       const role = String(item.role || "").toLowerCase();
 
       return (
@@ -494,10 +662,10 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    setAwards((data || []).filter((award: any) => !award.deleted_at));
+    setAwards(((data || []) as AwardRow[]).filter((award) => !award.deleted_at));
   }
 
-  async function deleteCertificate(award: any) {
+  async function deleteCertificate(award: AwardRow) {
     if (!schoolId || !award?.id) return;
 
     const reason = prompt("Please provide a reason for deleting this certificate.");
@@ -540,7 +708,7 @@ export default function ProgressReportsPage() {
     alert("Certificate deleted.");
   }
 
-  function formatPeriodType(type: string) {
+  function formatPeriodType(type?: string | null) {
     if (type === "quarterly") return "Term Report";
     if (type === "biannual") return "Semester Report";
     if (type === "annual") return "Annual Report";
@@ -646,7 +814,7 @@ export default function ProgressReportsPage() {
     applyTeacherSavedAssessments(data || []);
   }
 
-  function applyTeacherSavedAssessments(assessments: any[]) {
+  function applyTeacherSavedAssessments(assessments: AssessmentRow[]) {
     const latestAssessments = normalizeLatestAssessments(assessments || []);
     const nextRatings: Record<string, string> = {};
 
@@ -663,7 +831,7 @@ export default function ProgressReportsPage() {
     });
 
     const observation =
-      latestAssessments.find((assessment: any) => assessment.teacher_comment)
+      latestAssessments.find((assessment) => assessment.teacher_comment)
         ?.teacher_comment || "";
 
     setTeacherRatings(nextRatings);
@@ -673,7 +841,7 @@ export default function ProgressReportsPage() {
 
   async function fetchTeacherReportSummaries(
     currentSchoolId: number,
-    teacherId: any
+    teacherId: IdValue
   ) {
     if (!currentSchoolId || !teacherId) {
       setTeacherReportSummaries([]);
@@ -693,9 +861,9 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    const map = new Map<string, any>();
+    const map = new Map<string, TeacherReportSummary>();
 
-    (data || []).forEach((item: any) => {
+    ((data || []) as AssessmentRow[]).forEach((item) => {
       const key = `${item.learner_id || ""}-${item.report_period_id || ""}-${
         item.report_type || "developmental"
       }`;
@@ -716,14 +884,16 @@ export default function ProgressReportsPage() {
       }
 
       const next = map.get(key);
-      next.count = Number(next.count || 0) + 1;
+      if (next) {
+        next.count = Number(next.count || 0) + 1;
+      }
     });
 
     setTeacherReportSummaries(Array.from(map.values()));
     setTeacherReportPage(1);
   }
 
-  async function openTeacherReportSummary(item: any, editMode = false) {
+  async function openTeacherReportSummary(item: TeacherReportSummary, editMode = false) {
     setSelectedClassroomId(String(item.classroom_id || ""));
     setSelectedLearnerId(String(item.learner_id || ""));
     setSelectedPeriodId(String(item.report_period_id || ""));
@@ -772,7 +942,7 @@ export default function ProgressReportsPage() {
     }));
   }
 
-  async function submitTeacherSavedSummary(item: any) {
+  async function submitTeacherSavedSummary(item: TeacherReportSummary) {
     if (!schoolId || !profile?.id || !item?.learner_id || !item?.report_period_id) {
       alert("Saved checklist could not be submitted.");
       return;
@@ -841,9 +1011,9 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    const selectedRows = activeCategories.flatMap((category: any) => {
+    const selectedRows = (activeCategories as ReportCategory[]).flatMap((category) => {
       return getCategoryIndicators(category)
-        .map((indicator: any) => {
+        .map((indicator) => {
           const indicatorKey = indicator.key || indicator.label;
           const level =
             teacherRatings[makeAssessmentKey(category.key, indicatorKey)];
@@ -859,7 +1029,12 @@ export default function ProgressReportsPage() {
             level,
           };
         })
-        .filter(Boolean);
+        .filter((row): row is {
+          category: ReportCategory;
+          indicator: Indicator;
+          indicatorKey: string;
+          level: string;
+        } => row !== null);
     });
 
     if (selectedRows.length === 0) {
@@ -870,7 +1045,7 @@ export default function ProgressReportsPage() {
     setSaving(true);
     setTeacherSaveAction(status);
 
-    for (const row of selectedRows as any[]) {
+    for (const row of selectedRows) {
       const { data: existingFull, error: existingFullError } = await supabase
         .from("learner_assessments")
         .select("id, status")
@@ -1100,20 +1275,20 @@ export default function ProgressReportsPage() {
     alert("Certificate created.");
   }
 
-  function getClassroomName(classroomId: any) {
+  function getClassroomName(classroomId: IdValue) {
     return (
       classrooms.find((c) => String(c.id) === String(classroomId))
         ?.classroom_name || "Class not recorded"
     );
   }
 
-  function getLearnerName(learnerId: any) {
+  function getLearnerName(learnerId: IdValue) {
     const learner = learners.find((l) => String(l.id) === String(learnerId));
 
     return learner?.legal_name || learner?.name || "Learner not recorded";
   }
 
-  function getAwardTeacherName(learnerId: any, award?: any) {
+  function getAwardTeacherName(learnerId: IdValue, award?: AwardRow) {
     if (
       award?.teacher_name &&
       award.teacher_name !== "Practitioner not recorded"
@@ -1160,7 +1335,7 @@ export default function ProgressReportsPage() {
     return "Practitioner not recorded";
   }
 
-  function getTeacherName(teacherId: any) {
+  function getTeacherName(teacherId: IdValue) {
     const teacher = teachers.find((t) => String(t.id) === String(teacherId));
 
     return (
@@ -1171,7 +1346,7 @@ export default function ProgressReportsPage() {
     );
   }
 
-  function getLearnerClassroomId(learner: any) {
+  function getLearnerClassroomId(learner: LearnerRow | null | undefined) {
     if (!learner) return "";
 
     if (learner.classroom_id) {
@@ -1187,7 +1362,7 @@ export default function ProgressReportsPage() {
       learner.assigned_classroom_name,
     ]
       .filter(Boolean)
-      .map((item: any) => String(item).trim().toLowerCase());
+      .map((item) => String(item).trim().toLowerCase());
 
     const classroom = classrooms.find(
       (item) =>
@@ -1200,7 +1375,7 @@ export default function ProgressReportsPage() {
     return classroom ? String(classroom.id) : "";
   }
 
-  function getClassroomTeacherId(classroomId: any) {
+  function getClassroomTeacherId(classroomId: IdValue) {
     if (!classroomId) return "";
 
     const classroom = classrooms.find(
@@ -1239,7 +1414,7 @@ export default function ProgressReportsPage() {
       profile.display_name,
     ]
       .filter(Boolean)
-      .map((item: any) => String(item).trim().toLowerCase());
+      .map((item) => String(item).trim().toLowerCase());
 
     if (profile.classroom_id) {
       classroomIds.add(String(profile.classroom_id));
@@ -1257,7 +1432,7 @@ export default function ProgressReportsPage() {
       profile.class,
     ]
       .filter(Boolean)
-      .map((item: any) => String(item).trim().toLowerCase());
+      .map((item) => String(item).trim().toLowerCase());
 
     classrooms.forEach((classroom) => {
       const classroomId = String(classroom.id || "");
@@ -1311,7 +1486,7 @@ export default function ProgressReportsPage() {
     setSelectedAwardTeacherId(teacherId);
   }
 
-  function getPeriodTitle(periodId: any) {
+  function getPeriodTitle(periodId: IdValue) {
     const period = periods.find((p) => String(p.id) === String(periodId));
 
     return period
@@ -1323,7 +1498,7 @@ export default function ProgressReportsPage() {
       : "Period not recorded";
   }
 
-  function getCoverTermLabel(period: any) {
+  function getCoverTermLabel(period: PeriodRow | null | undefined) {
     const title = String(period?.title || "").trim();
     const termMatch = title.match(/term\s*\d+/i);
 
@@ -1466,7 +1641,7 @@ export default function ProgressReportsPage() {
     (item) => !["locked", "generated"].includes(String(item.status || ""))
   );
 
-  function getAssessmentReviewKey(item: any) {
+  function getAssessmentReviewKey(item: AssessmentRow) {
     return `${item.classroom_id}-${item.teacher_id}-${item.learner_id}-${
       item.report_period_id
     }-${item.report_type || "developmental"}`;
@@ -1485,10 +1660,10 @@ export default function ProgressReportsPage() {
     reportPage * pageSize
   );
 
-  const uniqueAwards = useMemo<any[]>(() => {
-    const map = new Map<string, any>();
+  const uniqueAwards = useMemo<AwardRow[]>(() => {
+    const map = new Map<string, AwardRow>();
 
-    awards.forEach((award: any) => {
+    awards.forEach((award) => {
       const key = `${award.learner_id || ""}-${
         award.report_period_id || ""
       }-${award.award_name || ""}`;
@@ -1593,7 +1768,7 @@ export default function ProgressReportsPage() {
     teacherReportPage * pageSize
   );
 
-  async function openAssessmentReview(item: any) {
+  async function openAssessmentReview(item: AssessmentRow) {
     setSelectedClassroomId(String(item.classroom_id || ""));
     setSelectedTeacherId(String(item.teacher_id || ""));
     setSelectedLearnerId(String(item.learner_id || ""));
@@ -1646,7 +1821,7 @@ export default function ProgressReportsPage() {
     }
 
     const resolvedReportType =
-      assessmentRows.find((assessment: any) => assessment.report_type)
+      assessmentRows.find((assessment: AssessmentRow) => assessment.report_type)
         ?.report_type || assessmentReportType;
 
     setReportType(resolvedReportType as "developmental" | "grade-rr");
@@ -1656,7 +1831,7 @@ export default function ProgressReportsPage() {
     setReviewAssessments(latestAssessments);
 
     const observation =
-      latestAssessments.find((assessment: any) => assessment.teacher_comment)
+      latestAssessments.find((assessment) => assessment.teacher_comment)
         ?.teacher_comment || "";
 
     setTeacherObservation(observation);
@@ -1701,7 +1876,7 @@ export default function ProgressReportsPage() {
     await openAssessmentReview(nextItem);
   }
 
-  async function openGeneratedReport(item: any) {
+  async function openGeneratedReport(item: GeneratedReportRow) {
     const savedReportType = item.report_type || "developmental";
 
     setReportType(savedReportType);
@@ -1752,7 +1927,7 @@ export default function ProgressReportsPage() {
     setReviewAssessments(latestAssessments);
 
     const observation =
-      latestAssessments.find((assessment: any) => assessment.teacher_comment)
+      latestAssessments.find((assessment) => assessment.teacher_comment)
         ?.teacher_comment || "";
 
     setTeacherObservation(observation);
@@ -1949,7 +2124,7 @@ export default function ProgressReportsPage() {
       .eq("report_type", reportTemplate)
       .maybeSingle();
 
-    let reportError: any = null;
+    let reportError: { message?: string } | null = null;
 
     if (existing?.id) {
       const { error } = await supabase
@@ -2697,7 +2872,7 @@ export default function ProgressReportsPage() {
                         {teacherReportCanSubmit ? (
                           <button
                             className="db-button-primary"
-                            onClick={() => submitTeacherSavedSummary(selectedTeacherReportSummary)}
+                            onClick={() => selectedTeacherReportSummary && submitTeacherSavedSummary(selectedTeacherReportSummary)}
                             disabled={saving}
                           >
                             Submit to Principal
@@ -3177,7 +3352,7 @@ export default function ProgressReportsPage() {
                             <button
                               className="db-button-primary"
                               style={{ background: "#d9534f" }}
-                              onClick={() => deleteGeneratedReport(item.id)}
+                              onClick={() => item.id && deleteGeneratedReport(item.id)}
                             >
                               Delete Report
                             </button>
@@ -3799,15 +3974,15 @@ export default function ProgressReportsPage() {
                 )}
 
                 <div style={signatureGrid}>
-                  <p style={bookletLine}>Teacher's Name: {teacherName}</p>
+                  <p style={bookletLine}>Teacher&apos;s Name: {teacherName}</p>
                   <p style={bookletLine}>
                     Opening Date: {openingDate || "__________________"}
                   </p>
                   <p style={bookletLine}>
                     Closing Date: {closingDate || "__________________"}
                   </p>
-                  <p style={bookletLine}>Teacher's Signature: ___________</p>
-                  <p style={bookletLine}>Principal's Signature: __________</p>
+                  <p style={bookletLine}>Teacher&apos;s Signature: ___________</p>
+                  <p style={bookletLine}>Principal&apos;s Signature: __________</p>
                 </div>
               </div>
 
@@ -3902,7 +4077,7 @@ export default function ProgressReportsPage() {
                   ) : null}
                 </div>
 
-                {firstPageCategories.map((category: any) => (
+                {(firstPageCategories as ReportCategory[]).map((category) => (
                   <React.Fragment key={category.key}>
                     <h3 style={bookletSectionTitle}>{category.label}</h3>
 
@@ -3921,7 +4096,7 @@ export default function ProgressReportsPage() {
               </div>
 
               <div style={bookletPanel}>
-                {secondPageCategories.map((category: any) => (
+                {(secondPageCategories as ReportCategory[]).map((category) => (
                   <React.Fragment key={category.key}>
                     <h3 style={bookletSectionTitle}>{category.label}</h3>
 
@@ -4150,8 +4325,8 @@ function TeacherChecklistCapture({
   onRatingChange,
   disabled = false,
 }: {
-  categories: any[];
-  ratingScale: any[];
+  categories: ReportCategory[];
+  ratingScale: RatingLevel[];
   teacherRatings: Record<string, string>;
   onRatingChange: (
     categoryKey: string,
@@ -4160,12 +4335,12 @@ function TeacherChecklistCapture({
   ) => void;
   disabled?: boolean;
 }) {
-  function getLevelCode(level: any) {
+  function getLevelCode(level: RatingLevel): string {
     if (typeof level === "string") {
       return level.includes(" - ") ? level.split(" - ")[0] : level;
     }
 
-    return (
+    return String(
       level?.code ||
       level?.value ||
       level?.level ||
@@ -4178,7 +4353,7 @@ function TeacherChecklistCapture({
 
   return (
     <div style={{ display: "grid", gap: "14px", marginTop: "16px" }}>
-      {categories.map((category: any) => {
+      {categories.map((category) => {
         const indicators = getCategoryIndicators(category);
 
         return (
@@ -4193,7 +4368,7 @@ function TeacherChecklistCapture({
               <p className="db-helper">No indicators configured.</p>
             ) : (
               <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
-                {indicators.map((indicator: any) => {
+                {indicators.map((indicator) => {
                   const indicatorKey = indicator.key || indicator.label;
                   const selectedLevel =
                     teacherRatings[
@@ -4268,15 +4443,15 @@ function ReportSkillTable({
   reviewAssessments,
 }: {
   categoryKey: string;
-  categories: any[];
-  ratingScale: any[];
-  reviewAssessments: any[];
+  categories: ReportCategory[];
+  ratingScale: RatingLevel[];
+  reviewAssessments: AssessmentRow[];
 }) {
   const category = categories.find((item) => item.key === categoryKey);
 
   const indicators =
     category?.indicators ||
-    category?.sections?.flatMap((section: any) => section.indicators || []) ||
+    category?.sections?.flatMap((section) => section.indicators || []) ||
     [];
 
   const categoryMatchValues = [
@@ -4292,12 +4467,12 @@ function ReportSkillTable({
     categoryMatchValues.includes(normalizeMatchValue(item.category))
   );
 
-  function getLevelCode(level: any) {
+  function getLevelCode(level: RatingLevel): string {
     if (typeof level === "string") {
       return level.includes(" - ") ? level.split(" - ")[0] : level;
     }
 
-    return (
+    return String(
       level?.code ||
       level?.value ||
       level?.level ||
@@ -4345,7 +4520,7 @@ function ReportSkillTable({
     return "";
   }
 
-  function getIndicatorLevel(indicator: any) {
+  function getIndicatorLevel(indicator: Indicator) {
     const indicatorMatchValues = [
       indicator.key,
       indicator.label,
@@ -4404,7 +4579,7 @@ function ReportSkillTable({
       </thead>
 
       <tbody>
-        {indicators.map((indicator: any) => {
+        {indicators.map((indicator) => {
           const selectedLevel = getIndicatorLevel(indicator);
 
           return (

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { OneSignalClient } from "@/app/components/RegisterServiceWorker";
 
 const menuItems = [
   { label: "Dashboard", href: "/parent/dashboard" },
@@ -11,8 +12,8 @@ const menuItems = [
 export default function ParentTopBar({
   parent,
 }: {
-  parent: any;
-  child: any;
+  parent: { name?: string | null };
+  child?: { id?: string | number | null } | null;
 }) {
   const [open, setOpen] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -24,8 +25,8 @@ export default function ParentTopBar({
   }, []);
 
   function enableNotifications() {
-    const deferred = ((window as any).OneSignalDeferred ||= []);
-    deferred.push(async (OneSignal: any) => {
+    const deferred = (window.OneSignalDeferred ||= []);
+    deferred.push(async (OneSignal: OneSignalClient) => {
       try {
         await OneSignal.Notifications.requestPermission();
         setNotificationsEnabled(Boolean(OneSignal.Notifications.permission));

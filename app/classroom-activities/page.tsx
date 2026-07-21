@@ -105,16 +105,21 @@ type OutcomeRow = {
   updated_at?: string | null;
 };
 
+type ProfileRow = { id: string; role?: string | null; school_id?: number | null; classroom_id?: number | null; classroom_name?: string | null };
+type ClassroomRow = { id: number; classroom_name?: string | null };
+type LearnerRow = { id: string; name?: string | null };
+type ActivityLibraryKey = { developmental_area: string; theme?: string | null; activity_name: string };
+
 export default function ClassroomActivitiesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const schoolParam = searchParams.get("school");
 
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
-  const [classrooms, setClassrooms] = useState<any[]>([]);
-  const [learners, setLearners] = useState<any[]>([]);
-  const [allLearners, setAllLearners] = useState<any[]>([]);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
+  const [learners, setLearners] = useState<LearnerRow[]>([]);
+  const [allLearners, setAllLearners] = useState<LearnerRow[]>([]);
   const [activityLibrary, setActivityLibrary] = useState<ActivityLibraryItem[]>([]);
   const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlan[]>([]);
   const [outcomes, setOutcomes] = useState<OutcomeRow[]>([]);
@@ -479,7 +484,7 @@ export default function ClassroomActivitiesPage() {
     return data || [];
   }
 
-  function getTeacherClassroom(classroomRows: any[], currentProfile: any) {
+  function getTeacherClassroom(classroomRows: ClassroomRow[], currentProfile: ProfileRow) {
     const currentRole = String(currentProfile?.role || "").toLowerCase();
 
     if (currentRole !== "teacher") return null;
@@ -500,7 +505,7 @@ export default function ClassroomActivitiesPage() {
     });
   }
 
-  async function seedDefaultLibrary(currentSchoolId: number, currentProfile: any) {
+  async function seedDefaultLibrary(currentSchoolId: number, currentProfile: ProfileRow) {
     const { data, error } = await supabase
       .from("activity_library")
       .select("developmental_area, theme, activity_name")
@@ -514,7 +519,7 @@ export default function ClassroomActivitiesPage() {
 
     const existing = new Set(
       (data || []).map(
-        (item: any) =>
+        (item: ActivityLibraryKey) =>
           `${item.developmental_area}|||${item.theme || ""}|||${item.activity_name}`
       )
     );
@@ -1465,7 +1470,7 @@ export default function ClassroomActivitiesPage() {
 
       {activeSection === "today" ? (
       <details className="db-card db-card-green" style={cardStyle} open={isTodayOpen} onToggle={(e) => setIsTodayOpen((e.target as HTMLDetailsElement).open)}>
-        <summary style={summaryStyle}>Today's Planned Activities</summary>
+        <summary style={summaryStyle}>Today&apos;s Planned Activities</summary>
         <p style={smallHint}>This pulls from the weekly planner. Public holidays and school closure days are excluded.</p>
 
         {todaysPlans.length === 0 ? (
@@ -1776,7 +1781,7 @@ export default function ClassroomActivitiesPage() {
                 type="button"
                 className="db-button-primary"
                 style={{ width: "100%", marginBottom: "8px" }}
-                onClick={() => schoolId && seedDefaultLibrary(schoolId, profile)}
+                onClick={() => schoolId && profile && seedDefaultLibrary(schoolId, profile)}
                 disabled={saving}
               >
                 Import DailyBloom Activity Library
@@ -1825,7 +1830,7 @@ export default function ClassroomActivitiesPage() {
   );
 }
 
-function StatCard({ title, value, note }: any) {
+function StatCard({ title, value, note }: { title: string; value: string | number; note: string }) {
   return (
     <div className="db-card" style={{ padding: "12px" }}>
       <p style={{ margin: 0, color: "var(--db-text-soft)", fontSize: "12px" }}>{title}</p>
@@ -1904,7 +1909,7 @@ function inferDevelopmentalArea(theme: string, activityName: string, description
   return "Life Skills";
 }
 
-function supportStatusValue(item: any) {
+function supportStatusValue(item: OutcomeRow) {
   if (item?.support_status) return item.support_status;
   if (item?.outcome_status === "improving") return "improving";
   if (item?.outcome_status === "meeting_expectations") return "resolved";

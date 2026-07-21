@@ -2,8 +2,19 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "./supabase-admin";
 import { Permission, ROLE_PERMISSIONS } from "./permissions";
+import { effectivePermissions, hasPermission, resolveSchoolAuthorization } from "./authorization-policy";
 
-type AuthorizedStaff = { userId: string; profile: any; schoolId: number | null; role: string; permissions: string[]; isPlatformUser: boolean };
+type StaffProfile = {
+  id: string;
+  school_id?: number | null;
+  role?: string | null;
+  full_name?: string | null;
+  email?: string | null;
+  is_active?: boolean | null;
+  classroom_name?: string | null;
+};
+
+type AuthorizedStaff = { userId: string; profile: StaffProfile; schoolId: number | null; role: string; permissions: string[]; isPlatformUser: boolean };
 type AuthorizationResult = { ok: true; staff: AuthorizedStaff } | { ok: false; response: NextResponse };
 
 function denied(message: string, status: number): AuthorizationResult {
@@ -27,8 +38,8 @@ export async function requireStaffPermission(request: Request, permission: Permi
 
   const platformRoleName = String(platformRole?.role || "").toLowerCase();
   if (platformRoleName) {
-    const permissions = [...new Set([...(ROLE_PERMISSIONS[platformRoleName] || []), ...(platformRole?.permissions || [])])];
-    if (!permissions.includes(permission)) return denied("You do not have permission for this action.", 403);
+    const permissions = effectivePermissions(platformRoleName, platformRole?.permissions || []);
+    if (!hasPermission(permissions, permission)) return denied("You do not have permission for this action.", 403);
     return { ok: true, staff: { userId, profile, schoolId: requestedSchoolId || null, role: platformRoleName, permissions, isPlatformUser: true } };
   }
 
@@ -37,12 +48,10 @@ export async function requireStaffPermission(request: Request, permission: Permi
 
   const schoolId = Number(requestedSchoolId || profile.school_id || 0);
   if (!schoolId) return denied("School context required.", 400);
-  const membership = (memberships || []).find((item: any) => Number(item.school_id) === schoolId);
-  const role = String(membership?.role || (Number(profile.school_id) === schoolId ? legacyRole : "")).toLowerCase();
-  if (!role) return denied("You do not belong to this school.", 403);
-  const permissions = [...new Set([...(ROLE_PERMISSIONS[role] || []), ...(membership?.permissions || [])])];
-  if (!permissions.includes(permission)) return denied("You do not have permission for this action.", 403);
-  return { ok: true, staff: { userId, profile, schoolId, role, permissions, isPlatformUser: false } };
+  const schoolAuthorization = resolveSchoolAuthorization({ requestedSchoolId: schoolId, profileSchoolId: Number(profile.school_id || 0), legacyRole, memberships: memberships || [] });
+  if (!schoolAuthorization) return denied("You do not belong to this school.", 403);
+  if (!hasPermission(schoolAuthorization.permissions, permission)) return denied("You do not have permission for this action.", 403);
+  return { ok: true, staff: { userId, profile, schoolId: schoolAuthorization.schoolId, role: schoolAuthorization.role, permissions: schoolAuthorization.permissions, isPlatformUser: false } };
 }
 
 export async function writeSecurityAudit(staff: AuthorizedStaff, action: string, details: Record<string, unknown> = {}) {

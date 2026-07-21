@@ -60,8 +60,8 @@ export async function POST(request: Request) {
     await supabaseAdmin.from("parent_access").update({ invite_sent_at: new Date().toISOString(), invite_delivery_status: "sent", invite_provider_message_id: sms.providerMessageId, invite_error: null }).eq("phone", phone);
     await writeSecurityAudit(authorization.staff, "parent.access_invited", { learner_id: learnerId, school_id: schoolId, sms_sent: true });
     return NextResponse.json({ success: true, sms_sent: true, temporary_pin: null });
-  } catch (smsError: any) {
-    await supabaseAdmin.from("parent_access").update({ invite_delivery_status: "failed", invite_error: smsError?.message || "SMS failed" }).eq("phone", phone);
+  } catch (smsError: unknown) {
+    await supabaseAdmin.from("parent_access").update({ invite_delivery_status: "failed", invite_error: smsError instanceof Error ? smsError.message : "SMS failed" }).eq("phone", phone);
     await writeSecurityAudit(authorization.staff, "parent.access_invited", { learner_id: learnerId, school_id: schoolId, sms_sent: false });
     return NextResponse.json({ success: true, sms_sent: false, temporary_pin: temporaryPin, warning: "SMS could not be delivered. Verify the parent before sharing the temporary PIN." });
   }

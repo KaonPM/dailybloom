@@ -69,9 +69,9 @@ export async function POST(request: Request) {
     await writeSecurityAudit(authorization.staff, "principal.invited", { principal_id: invitedUserId, school_id: Number(school_id) });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message || "Unexpected error" },
+      { error: error instanceof Error ? error.message : "Unexpected error" },
       { status: 500 }
     );
   }

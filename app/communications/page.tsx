@@ -173,7 +173,7 @@ export default function CommunicationsPage() {
       return;
     }
 
-    const headers = [
+    const headers: (keyof CommunicationRow)[] = [
       "sent_date",
       "learner_name",
       "parent_phone",
@@ -187,7 +187,7 @@ export default function CommunicationsPage() {
       ...records.map((row) =>
         headers
           .map((header) => {
-            const value = String((row as any)[header] || "");
+            const value = String(row[header] || "");
             return `"${value.replace(/"/g, '""')}"`;
           })
           .join(",")

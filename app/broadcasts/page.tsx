@@ -354,7 +354,7 @@ export default function BroadcastsPage() {
 
           <p style={smallText}>
             Sent broadcasts are added to your communication tracking log.
-            Drafts stay saved here until you're ready to send them.
+            Drafts stay saved here until you are ready to send them.
           </p>
         </div>
       ) : null}

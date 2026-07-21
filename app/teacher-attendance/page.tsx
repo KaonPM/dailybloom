@@ -285,14 +285,19 @@ export default function TeacherAttendancePage() {
       return;
     }
 
-    const headers = ["teacher_name", "status", "notes", "attendance_date"];
+    const headers: (keyof AttendanceRow)[] = [
+      "teacher_name",
+      "status",
+      "notes",
+      "attendance_date",
+    ];
 
     const csvRows = [
       headers.join(","),
       ...rows.map((row) =>
         headers
           .map((header) => {
-            const value = String((row as any)[header] || "");
+            const value = String(row[header] || "");
             return `"${value.replace(/"/g, '""')}"`;
           })
           .join(",")

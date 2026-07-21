@@ -2,12 +2,12 @@ export default function DailySummaryCard({
   child,
   school,
 }: {
-  child: any;
-  school: any;
+  child: { name?: string | null };
+  school?: { school_name?: string | null } | null;
 }) {
   return (
     <section className="db-soft-card" style={cardStyle}>
-      <h2>📝 Today's Summary</h2>
+      <h2>📝 Today&apos;s Summary</h2>
 
       <p style={{ color: "#666", marginBottom: "18px" }}>Today</p>
 

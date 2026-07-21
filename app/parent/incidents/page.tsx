@@ -37,7 +37,7 @@ export default function ParentIncidentsPage() {
   return <div style={{ display: "grid", gap: 16 }}>
     <div className="db-soft-card" style={{ padding: 18 }}>
       <h1 className="db-page-title">Incident Reports</h1>
-      <p className="db-page-subtitle">Reports shared securely by your child's principal.</p>
+      <p className="db-page-subtitle">Reports shared securely by your child&apos;s principal.</p>
     </div>
     {loading ? <p>Loading incident reports...</p> : reports.length === 0 ?
       <div className="db-soft-card" style={{ padding: 18 }}><strong>No incident reports have been shared.</strong></div> :

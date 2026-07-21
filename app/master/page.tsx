@@ -62,6 +62,14 @@ type SignupRequestItem = {
   sponsor_programmes?: SponsorProgramme | null;
 };
 
+type SchoolQueryRow = Omit<SchoolItem, "sponsor_programmes"> & {
+  sponsor_programmes?: MaybeSponsorProgrammeRelation;
+};
+
+type SignupRequestQueryRow = Omit<SignupRequestItem, "sponsor_programmes"> & {
+  sponsor_programmes?: MaybeSponsorProgrammeRelation;
+};
+
 type MasterStats = {
   totalSchools: number;
   pendingSignupRequests: number;
@@ -254,7 +262,7 @@ export default function MasterPage() {
       return;
     }
 
-    const rows = (data || []).map((school: any) => ({
+    const rows = ((data || []) as SchoolQueryRow[]).map((school) => ({
       ...school,
       sponsor_programmes: normalizeSponsorProgramme(
         school.sponsor_programmes
@@ -305,7 +313,7 @@ export default function MasterPage() {
       return;
     }
 
-    const rows = (data || []).map((request: any) => ({
+    const rows = ((data || []) as SignupRequestQueryRow[]).map((request) => ({
       ...request,
       sponsor_programmes: normalizeSponsorProgramme(
         request.sponsor_programmes

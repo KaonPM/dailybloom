@@ -7,6 +7,7 @@ import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { resolveSchoolContext } from "../lib/school-context";
 
 type ParentGroup = { phone: string; parent_name: string; learners: { id: string; name: string }[]; status: string; invite_sent_at?: string | null; invite_error?: string | null };
+type InviteResult = { sent?: boolean };
 
 export default function ParentAccessPage() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export default function ParentAccessPage() {
     const result = await response.json();
     if (!response.ok) alert(result.error || "Invitations could not be sent.");
     else {
-      const failed = (result.results || []).filter((item: any) => !item.sent).length;
+      const failed = ((result.results || []) as InviteResult[]).filter((item) => !item.sent).length;
       alert(failed ? `Invitations processed, but ${failed} SMS message(s) failed. Check the status below.` : "Parent Portal invitations sent successfully.");
       setSelected([]); await loadGroups(schoolId);
     }

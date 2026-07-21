@@ -311,7 +311,11 @@ export default function LearnerRequirementsPage() {
 
   const [loading, setLoading] = useState(true);
   const [savingItem, setSavingItem] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<{
+    id: string;
+    role?: string | null;
+    full_name?: string | null;
+  } | null>(null);
   const [learnerSearch, setLearnerSearch] = useState("");
   const [progressFilter, setProgressFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");

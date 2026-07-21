@@ -58,9 +58,9 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ messages });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message || "Could not load conversation." },
+      { error: error instanceof Error ? error.message : "Could not load conversation." },
       { status: 500 }
     );
   }

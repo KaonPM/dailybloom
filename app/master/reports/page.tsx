@@ -19,6 +19,30 @@ type SchoolOption = {
   sponsor_programme_id?: number | null;
 };
 
+type ReportSourceRow = {
+  id?: number | string | null;
+  school_id?: number | null;
+  school_name?: string | null;
+  is_active?: boolean | null;
+  billing_status?: string | null;
+  status?: string | null;
+  package_name?: string | null;
+  registration_status?: string | null;
+  province?: string | null;
+  district?: string | null;
+  created_at?: string | null;
+  plan_name?: string | null;
+  monthly_price?: number | string | null;
+  next_billing_date?: string | null;
+  title?: string | null;
+  audience?: string | null;
+  recipient_count?: number | null;
+  scheduled_date?: string | null;
+  sponsor_programme_id?: number | null;
+  is_sponsored?: boolean | null;
+  wageflow_enabled?: boolean | null;
+};
+
 const reportTypes = [
   "Executive Dashboard Report",
 
@@ -273,7 +297,7 @@ export default function MasterReportsPage() {
     }
 
     setRows(
-      (data || []).map((school: any) => ({
+      ((data || []) as ReportSourceRow[]).map((school) => ({
         school: school.school_name || "Unnamed school",
         type: "School",
         detail: `Package: ${school.package_name || "Not set"} | ${school.province || "Province not set"}`,
@@ -304,7 +328,7 @@ export default function MasterReportsPage() {
     }
 
     setRows(
-      (data || []).map((school: any) => ({
+      ((data || []) as ReportSourceRow[]).map((school) => ({
         school: school.school_name || "Unnamed school",
         type: "School Growth",
         detail: "School onboarded",
@@ -337,7 +361,7 @@ export default function MasterReportsPage() {
 
     const schoolMap = new Map<string, number>();
 
-    (data || []).forEach((item: any) => {
+    ((data || []) as ReportSourceRow[]).forEach((item) => {
       const schoolName = getSchoolName(item.school_id);
       schoolMap.set(schoolName, (schoolMap.get(schoolName) || 0) + 1);
     });
@@ -385,7 +409,7 @@ export default function MasterReportsPage() {
     }
 
     setRows(
-      (data || []).map((item: any) => ({
+      ((data || []) as ReportSourceRow[]).map((item) => ({
         school: getSchoolName(item.school_id),
         type: "Subscription",
         detail: item.plan_name || "No plan",
@@ -409,7 +433,7 @@ export default function MasterReportsPage() {
     }
 
     setRows(
-      (data || []).map((item: any) => ({
+      ((data || []) as ReportSourceRow[]).map((item) => ({
         school: getSchoolName(item.school_id),
         type: "Revenue",
         detail: item.plan_name || "No plan",
@@ -434,7 +458,7 @@ export default function MasterReportsPage() {
 
     const packageMap = new Map<string, number>();
 
-    (data || []).forEach((item: any) => {
+    ((data || []) as ReportSourceRow[]).forEach((item) => {
       const plan = item.package_name || "No package";
       packageMap.set(plan, (packageMap.get(plan) || 0) + 1);
     });
@@ -466,7 +490,7 @@ export default function MasterReportsPage() {
     }
 
     setRows(
-      (data || []).map((school: any) => ({
+      ((data || []) as ReportSourceRow[]).map((school) => ({
         school: school.school_name || "Unnamed school",
         type: "Overdue School",
         detail: school.package_name || "No package",
@@ -497,7 +521,7 @@ export default function MasterReportsPage() {
     }
 
     setRows(
-      (data || []).map((item: any) => ({
+      ((data || []) as ReportSourceRow[]).map((item) => ({
         school: getSchoolName(item.school_id),
         type: "Broadcast",
         detail: item.title || "Untitled broadcast",
@@ -528,7 +552,7 @@ export default function MasterReportsPage() {
     }
 
     setRows(
-      (data || []).map((item: any) => ({
+      ((data || []) as ReportSourceRow[]).map((item) => ({
         school: getSchoolName(item.school_id),
         type: "Payment Reminder",
         detail: `Scheduled: ${item.scheduled_date || "Not set"}`,
@@ -554,7 +578,7 @@ export default function MasterReportsPage() {
     }
 
     setRows(
-      (data || []).map((school: any) => ({
+      ((data || []) as ReportSourceRow[]).map((school) => ({
         school: school.school_name || "Unnamed school",
         type: "Sponsored School",
         detail: `Sponsor Programme ID: ${school.sponsor_programme_id || "Not linked"}`,
@@ -600,7 +624,7 @@ export default function MasterReportsPage() {
     }
 
     setRows(
-      (data || []).map((school: any) => ({
+      ((data || []) as ReportSourceRow[]).map((school) => ({
         school: school.school_name || "Unnamed school",
         type: "Active School",
         detail: `Billing: ${school.billing_status || "Not set"}`,
@@ -646,7 +670,7 @@ export default function MasterReportsPage() {
     }
 
     setRows(
-      (data || []).map((school: any) => ({
+      ((data || []) as ReportSourceRow[]).map((school) => ({
         school: school.school_name || "Unnamed school",
         type: "WageFlow",
         detail: "WageFlow enabled",
@@ -659,7 +683,7 @@ export default function MasterReportsPage() {
   async function runGroupedCountReport(tableName: string, type: string, detail: string) {
     const schoolIds = getFilteredSchoolIds();
 
-    let query = supabase
+    const query = supabase
       .from(tableName)
       .select("id, school_id")
       .in("school_id", schoolIds);
@@ -681,7 +705,7 @@ export default function MasterReportsPage() {
 
     const schoolMap = new Map<string, number>();
 
-    (data || []).forEach((item: any) => {
+    ((data || []) as ReportSourceRow[]).forEach((item) => {
       const schoolName = getSchoolName(item.school_id);
       schoolMap.set(schoolName, (schoolMap.get(schoolName) || 0) + 1);
     });
@@ -726,7 +750,7 @@ export default function MasterReportsPage() {
 
     const schoolMap = new Map<string, number>();
 
-    (data || []).forEach((item: any) => {
+    ((data || []) as ReportSourceRow[]).forEach((item) => {
       const schoolName = getSchoolName(item.school_id);
       schoolMap.set(schoolName, (schoolMap.get(schoolName) || 0) + 1);
     });
@@ -757,7 +781,7 @@ export default function MasterReportsPage() {
   async function countTable(tableName: string, schoolIds: number[]) {
     if (schoolIds.length === 0) return 0;
 
-    let query = supabase
+    const query = supabase
       .from(tableName)
       .select("id", { count: "exact", head: true })
       .in("school_id", schoolIds);
@@ -795,13 +819,13 @@ export default function MasterReportsPage() {
       return;
     }
 
-    const headers = ["school", "type", "detail", "value", "status"];
+    const headers: (keyof ReportRow)[] = ["school", "type", "detail", "value", "status"];
     const csvRows = [
       headers.join(","),
       ...rows.map((row) =>
         headers
           .map((header) => {
-            const value = String((row as any)[header] || "");
+            const value = String(row[header] || "");
             return `"${value.replace(/"/g, '""')}"`;
           })
           .join(",")

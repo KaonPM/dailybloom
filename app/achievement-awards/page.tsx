@@ -15,19 +15,27 @@ import {
 import { AwardCertificate } from "./AwardCertificate";
 
 type AwardTab = "create" | "nominations" | "issued" | "reprints";
+type Identifier = string | number | null | undefined;
+type ProfileRow = { id: string; school_id?: number | null; role?: string | null; full_name?: string | null; name?: string | null; email?: string | null; classroom_id?: number | null };
+type SchoolRow = { id?: number; school_name?: string | null; logo_url?: string | null; primary_color?: string | null; secondary_color?: string | null };
+type ClassroomRow = { id: number; classroom_name?: string | null; teacher_id?: string | null };
+type LearnerRow = { id: string; name?: string | null; legal_name?: string | null; classroom_id?: number | null; class?: string | null; classroom?: string | null; classroom_name?: string | null; class_name?: string | null; assigned_classroom?: string | null; assigned_classroom_name?: string | null };
+type PeriodRow = { id: number; title?: string | null; academic_year?: number | null; created_at?: string | null };
+type AwardRow = { id: number; school_id: number; learner_id: string; classroom_id?: number | null; teacher_id?: string | null; report_period_id?: number | null; award_name?: string | null; award_category?: string | null; award_reason?: string | null; award_year?: number | null; academic_year?: number | null; teacher_name?: string | null; principal_name?: string | null; workflow_status?: string | null };
+type ReprintRow = { certificate_id: number };
 
 const PAGE_SIZE = 12;
 
 export default function AchievementAwardsPage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<any>(null);
-  const [school, setSchool] = useState<any>(null);
-  const [classrooms, setClassrooms] = useState<any[]>([]);
-  const [learners, setLearners] = useState<any[]>([]);
-  const [teachers, setTeachers] = useState<any[]>([]);
-  const [approvers, setApprovers] = useState<any[]>([]);
-  const [periods, setPeriods] = useState<any[]>([]);
-  const [awards, setAwards] = useState<any[]>([]);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [school, setSchool] = useState<SchoolRow | null>(null);
+  const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
+  const [learners, setLearners] = useState<LearnerRow[]>([]);
+  const [teachers, setTeachers] = useState<ProfileRow[]>([]);
+  const [approvers, setApprovers] = useState<ProfileRow[]>([]);
+  const [periods, setPeriods] = useState<PeriodRow[]>([]);
+  const [awards, setAwards] = useState<AwardRow[]>([]);
   const [reprintCounts, setReprintCounts] = useState<Record<string, number>>({});
   const [tab, setTab] = useState<AwardTab>("create");
   const [loading, setLoading] = useState(true);
@@ -52,7 +60,7 @@ export default function AchievementAwardsPage() {
   const [filterAwardName, setFilterAwardName] = useState("");
   const [filterYear, setFilterYear] = useState("");
   const [filterIssuedBy, setFilterIssuedBy] = useState("");
-  const [selectedCertificate, setSelectedCertificate] = useState<any>(null);
+  const [selectedCertificate, setSelectedCertificate] = useState<AwardRow | null>(null);
 
   const role = String(profile?.role || "").toLowerCase();
   const isTeacher = role === "teacher";
@@ -80,7 +88,7 @@ export default function AchievementAwardsPage() {
       return;
     }
 
-    setProfile(currentProfile);
+    setProfile(currentProfile as ProfileRow);
     if (String(currentProfile.role).toLowerCase() === "teacher") setTab("create");
     const schoolId = Number(currentProfile.school_id);
     if (!schoolId) {
@@ -98,12 +106,13 @@ export default function AchievementAwardsPage() {
 
     const firstError = [schoolResult.error, classroomResult.error, learnerResult.error, teacherResult.error, periodResult.error].find(Boolean);
     if (firstError) alert(firstError.message);
-    setSchool(schoolResult.data || null);
-    setClassrooms(classroomResult.data || []);
-    setLearners(learnerResult.data || []);
-    setTeachers((teacherResult.data || []).filter((item: any) => ["teacher", "practitioner", "educator"].includes(String(item.role).toLowerCase())));
-    setApprovers((teacherResult.data || []).filter((item: any) => ["principal", "admin", "master"].includes(String(item.role).toLowerCase())));
-    setPeriods(periodResult.data || []);
+    setSchool((schoolResult.data as SchoolRow | null) || null);
+    setClassrooms((classroomResult.data || []) as ClassroomRow[]);
+    setLearners((learnerResult.data || []) as LearnerRow[]);
+    const staff = (teacherResult.data || []) as ProfileRow[];
+    setTeachers(staff.filter((item) => ["teacher", "practitioner", "educator"].includes(String(item.role).toLowerCase())));
+    setApprovers(staff.filter((item) => ["principal", "admin", "master"].includes(String(item.role).toLowerCase())));
+    setPeriods((periodResult.data || []) as PeriodRow[]);
 
     if (currentProfile.role === "teacher") {
       setTeacherId(String(currentProfile.id));
@@ -125,7 +134,7 @@ export default function AchievementAwardsPage() {
       .order("created_at", { ascending: false });
 
     if (desiredStatus) query = query.eq("workflow_status", desiredStatus);
-    if (isTeacher) query = query.eq("nominated_by", profile.id);
+    if (isTeacher && profile?.id) query = query.eq("nominated_by", profile.id);
     if (filterLearner) query = query.eq("learner_id", filterLearner);
     if (filterClassroom) query = query.eq("classroom_id", filterClassroom);
     if (filterPeriod) query = query.eq("report_period_id", filterPeriod);
@@ -139,14 +148,14 @@ export default function AchievementAwardsPage() {
       alert(error.message);
       return;
     }
-    setAwards(data || []);
+    setAwards((data || []) as AwardRow[]);
     setTotalAwards(count || 0);
 
     if (tab === "reprints" && (data || []).length > 0) {
-      const ids = (data || []).map((item: any) => item.id);
+      const ids = ((data || []) as AwardRow[]).map((item) => item.id);
       const { data: prints } = await supabase.from("certificate_reprints").select("certificate_id").in("certificate_id", ids);
       const counts: Record<string, number> = {};
-      (prints || []).forEach((item: any) => { counts[String(item.certificate_id)] = (counts[String(item.certificate_id)] || 0) + 1; });
+      ((prints || []) as ReprintRow[]).forEach((item) => { counts[String(item.certificate_id)] = (counts[String(item.certificate_id)] || 0) + 1; });
       setReprintCounts(counts);
     }
   }
@@ -226,16 +235,16 @@ export default function AchievementAwardsPage() {
     setTab(canIssue ? "issued" : "nominations");
   }
 
-  async function approveNomination(item: any) {
-    if (!canIssue) return;
+  async function approveNomination(item: AwardRow) {
+    if (!canIssue || !profile?.school_id) return;
     const { error } = await supabase.from("achievement_awards").update({ workflow_status: "issued", approved_by: profile.id, principal_name: profile.full_name || profile.name || "Principal", issued_at: new Date().toISOString(), certificate_generated: true }).eq("id", item.id);
     if (error) return alert(error.message);
     await fetchAwards(Number(profile.school_id));
     alert("Nomination approved and certificate issued.");
   }
 
-  async function declineNomination(item: any) {
-    if (!canIssue) return;
+  async function declineNomination(item: AwardRow) {
+    if (!canIssue || !profile?.school_id) return;
     const reasonText = prompt("Reason for declining this nomination:");
     if (!reasonText?.trim()) return;
     const { error } = await supabase
@@ -247,7 +256,8 @@ export default function AchievementAwardsPage() {
     alert("Nomination declined.");
   }
 
-  async function revokeAward(item: any) {
+  async function revokeAward(item: AwardRow) {
+    if (!profile?.id || !profile.school_id) return;
     const reasonText = prompt("Reason for revoking this certificate:");
     if (!reasonText?.trim()) return;
     const { error } = await supabase.from("achievement_awards").update({ workflow_status: "revoked", deleted_at: new Date().toISOString(), revoked_at: new Date().toISOString(), revoked_by: profile.id, revoke_reason: reasonText.trim() }).eq("id", item.id);
@@ -256,7 +266,7 @@ export default function AchievementAwardsPage() {
     alert("Certificate revoked.");
   }
 
-  function correctAndReissue(item: any) {
+  function correctAndReissue(item: AwardRow) {
     setReplacementOf(item.id);
     setLearnerId(String(item.learner_id));
     setClassroomId(String(item.classroom_id || ""));
@@ -269,7 +279,8 @@ export default function AchievementAwardsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function downloadCertificate(item: any) {
+  async function downloadCertificate(item: AwardRow) {
+    if (!profile?.id) return;
     setSelectedCertificate(item);
     requestAnimationFrame(async () => {
       const element = document.querySelector(".award-certificate-document") as HTMLElement | null;
@@ -287,10 +298,10 @@ export default function AchievementAwardsPage() {
     });
   }
 
-  function learnerName(id: any) { const item = learners.find((learner) => String(learner.id) === String(id)); return item?.legal_name || item?.name || "Learner"; }
-  function classroomName(id: any) { return classrooms.find((item) => String(item.id) === String(id))?.classroom_name || "Class not recorded"; }
-  function teacherName(id: any, snapshot?: string) { const item = teachers.find((teacher) => String(teacher.id) === String(id)); return snapshot || item?.full_name || item?.name || "Practitioner"; }
-  function periodName(id: any) { return periods.find((item) => String(item.id) === String(id))?.title || "Period not recorded"; }
+  function learnerName(id: Identifier) { const item = learners.find((learner) => String(learner.id) === String(id)); return item?.legal_name || item?.name || "Learner"; }
+  function classroomName(id: Identifier) { return classrooms.find((item) => String(item.id) === String(id))?.classroom_name || "Class not recorded"; }
+  function teacherName(id: Identifier, snapshot?: string | null) { const item = teachers.find((teacher) => String(teacher.id) === String(id)); return snapshot || item?.full_name || item?.name || "Practitioner"; }
+  function periodName(id: Identifier) { return periods.find((item) => String(item.id) === String(id))?.title || "Period not recorded"; }
 
   if (loading) return <p>Loading achievement awards...</p>;
 
@@ -374,7 +385,7 @@ export default function AchievementAwardsPage() {
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) { return <label style={{ display: "grid", gap: 6, color: "var(--db-text)", fontSize: 13, fontWeight: 800 }}>{label}{children}</label>; }
-function yearFromPeriod(period: any) { const match = String(period?.title || "").match(/20\d{2}/); return match ? Number(match[0]) : period?.created_at ? new Date(period.created_at).getFullYear() : null; }
+function yearFromPeriod(period?: PeriodRow | null) { const match = String(period?.title || "").match(/20\d{2}/); return match ? Number(match[0]) : period?.created_at ? new Date(period.created_at).getFullYear() : null; }
 
 const cardStyle = { padding: 20, marginBottom: 18 };
 const formGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 };

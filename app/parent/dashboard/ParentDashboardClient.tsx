@@ -3,7 +3,40 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/app/lib/supabase";
 
-type Child = any;
+type PersonRelation = {
+  full_name?: string | null;
+  name?: string | null;
+};
+
+type ClassroomRelation = {
+  id?: number | null;
+  classroom_name?: string | null;
+  teacher_name?: string | null;
+  age_group?: string | null;
+  teacher?: PersonRelation | null;
+  teachers?: PersonRelation | null;
+  profiles?: PersonRelation | null;
+};
+
+type SchoolRelation = {
+  id?: number | null;
+  school_name?: string | null;
+  logo_url?: string | null;
+  primary_color?: string | null;
+  secondary_color?: string | null;
+};
+
+type Child = {
+  id: string | number;
+  name?: string | null;
+  school_id?: number | null;
+  classroom_id?: number | null;
+  parent_name?: string | null;
+  parent_phone?: string | null;
+  date_of_birth?: string | null;
+  classrooms?: ClassroomRelation | ClassroomRelation[] | null;
+  schools?: SchoolRelation | SchoolRelation[] | null;
+};
 
 type SummaryRow = {
   id: number;
@@ -122,7 +155,7 @@ export default function ParentDashboardClient({
 
   const child =
     children.find((item) => String(item.id) === selectedChildId) ||
-    children[0];
+    children[0]!;
 
   const school = Array.isArray(child.schools)
     ? child.schools[0]
@@ -175,7 +208,7 @@ export default function ParentDashboardClient({
     broadcastPage,
   ]);
 
-  const getTeacherName = (classroom: any) => {
+  const getTeacherName = (classroom: ClassroomRelation | null | undefined) => {
     if (!classroom) return "Not assigned";
 
     if (classroom.teacher_name) return classroom.teacher_name;

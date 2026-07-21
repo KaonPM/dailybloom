@@ -79,6 +79,18 @@ type SuccessStory = {
   } | null;
 };
 
+type SchoolQueryRow = Omit<SchoolRow, "sponsor_programmes"> & {
+  sponsor_programmes?: MaybeSponsorProgrammeRelation;
+};
+
+type TrainingRecordQueryRow = Omit<TrainingRecord, "schools"> & {
+  schools?: SchoolRelation;
+};
+
+type SuccessStoryQueryRow = Omit<SuccessStory, "schools"> & {
+  schools?: SchoolRelation;
+};
+
 type GeneratedReport = {
   sponsorProgramme: string;
   schoolScope: string;
@@ -285,7 +297,7 @@ export default function ImpactSponsorshipDashboard() {
       .order("created_at", { ascending: false });
 
     if (!error) {
-      const rows = (data || []).map((school: any) => ({
+      const rows = ((data || []) as SchoolQueryRow[]).map((school) => ({
         ...school,
         sponsor_programmes: normalizeSponsorProgramme(
           school.sponsor_programmes
@@ -327,7 +339,7 @@ export default function ImpactSponsorshipDashboard() {
       .order("training_date", { ascending: false });
 
     if (!error) {
-      const rows = (data || []).map((record: any) => ({
+      const rows = ((data || []) as TrainingRecordQueryRow[]).map((record) => ({
         ...record,
         schools: normalizeSchoolRelation(record.schools),
       })) as TrainingRecord[];
@@ -343,7 +355,7 @@ export default function ImpactSponsorshipDashboard() {
       .order("story_date", { ascending: false });
 
     if (!error) {
-      const rows = (data || []).map((story: any) => ({
+      const rows = ((data || []) as SuccessStoryQueryRow[]).map((story) => ({
         ...story,
         schools: normalizeSchoolRelation(story.schools),
       })) as SuccessStory[];

@@ -230,8 +230,8 @@ export default function TeachersPage() {
       }
 
       alert(result.message || "Teacher login email resent.");
-    } catch (error: any) {
-      alert(error?.message || "Could not resend teacher login email.");
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Could not resend teacher login email.");
     } finally {
       setResendingId(null);
     }

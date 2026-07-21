@@ -45,3 +45,13 @@ Detailed operating guides:
 ## Backup restoration exercise
 
 Before Phase 2 production release, create a fresh logical Supabase backup and verify its manifest. Because both free project slots are occupied, a recovery rehearsal may use an isolated local Supabase stack rather than another hosted project. Never overwrite either live project for a rehearsal. Verify school, learner, membership, report, message, incident and Storage counts without exposing the recovered environment publicly.
+
+### Completed rehearsal: 21 July 2026
+
+- Restored `roles.sql`, `schema.sql`, and `data.sql` into a temporary local Supabase stack with stop-on-error and transactional schema/data imports.
+- Restore completed without SQL errors: 55 public tables, all 55 with row-level security enabled, 149 public policies, and no unvalidated foreign keys.
+- Representative restored counts included 2 schools, 6 school memberships, 4 classrooms, 29 learners, 625 attendance records, 11 messages, 1 incident report, 67 learner document records, 390 stationery checklist records, 3 report periods, and 10 achievement awards.
+- Tested row-level isolation as authenticated teachers from both schools. Each account saw only its own school's learners (27 and 2 respectively) and zero learners from the other school.
+- Restored all six Storage buckets: 84 objects totalling 759,634,124 bytes. Bucket counts and byte totals matched the backup manifest exactly.
+- Downloaded a restored Storage object and confirmed its SHA-256 hash matched the source backup file.
+- The local stack was stopped after verification. Neither hosted Supabase project nor production was modified.

@@ -43,6 +43,14 @@ test("parent APIs reject requests without a parent session", async ({ request })
   });
 });
 
+test("scheduled notification APIs fail closed without cron authorization", async ({ request }) => {
+  const eventReminders = await request.get("/api/notifications/event-reminders");
+  expect(eventReminders.status()).toBe(401);
+
+  const smsReminders = await request.get("/api/sms/process-reminders");
+  expect(smsReminders.status()).toBe(401);
+});
+
 test("health endpoint is available without exposing configuration", async ({ request }) => {
   const response = await request.get("/api/health");
   expect(response.status()).toBe(200);

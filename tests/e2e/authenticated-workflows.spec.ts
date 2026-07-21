@@ -18,8 +18,12 @@ let admin: SupabaseClient;
 let principalId = "";
 let teacherId = "";
 let schoolId = 0;
+let otherSchoolId = 0;
+let otherLearnerId = "";
 let classroomName = "";
 let learnerId = "";
+let principalToken = "";
+let teacherToken = "";
 
 test.describe("authenticated role workflows", () => {
   test.skip(
@@ -45,6 +49,28 @@ test.describe("authenticated role workflows", () => {
 
     schoolId = Number(classroom.school_id);
     classroomName = String(classroom.classroom_name || "");
+
+    const { data: otherSchool, error: otherSchoolError } = await admin
+      .from("schools")
+      .select("id")
+      .neq("id", schoolId)
+      .limit(1)
+      .single();
+    if (otherSchoolError || !otherSchool?.id) {
+      throw otherSchoolError || new Error("A second restored school is required.");
+    }
+    otherSchoolId = Number(otherSchool.id);
+
+    const { data: otherLearner, error: otherLearnerError } = await admin
+      .from("learners")
+      .select("id")
+      .eq("school_id", otherSchoolId)
+      .limit(1)
+      .single();
+    if (otherLearnerError || !otherLearner?.id) {
+      throw otherLearnerError || new Error("A learner from the second school is required.");
+    }
+    otherLearnerId = String(otherLearner.id);
 
     const { data: learner, error: learnerError } = await admin
       .from("learners")
@@ -117,6 +143,23 @@ test.describe("authenticated role workflows", () => {
       locked_until: null,
     });
     if (parentError) throw parentError;
+
+    const authClient = createClient(supabaseUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const principalSession = await authClient.auth.signInWithPassword({
+      email: principalEmail,
+      password,
+    });
+    if (principalSession.error || !principalSession.data.session) throw principalSession.error;
+    principalToken = principalSession.data.session.access_token;
+
+    const teacherSession = await authClient.auth.signInWithPassword({
+      email: teacherEmail,
+      password,
+    });
+    if (teacherSession.error || !teacherSession.data.session) throw teacherSession.error;
+    teacherToken = teacherSession.data.session.access_token;
   });
 
   test.afterAll(async () => {
@@ -160,5 +203,114 @@ test.describe("authenticated role workflows", () => {
     await expect(page).toHaveURL(/\/parent\/dashboard$/);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.getByText(/^Viewing updates for /)).toBeVisible();
+
+    const unrelatedLearnerStatus = await page.evaluate(
+      async ({ learnerId: requestedLearnerId, requestedSchoolId }) => {
+        const response = await fetch(
+          `/api/parent-dashboard/updates?learner_id=${encodeURIComponent(requestedLearnerId)}&school_id=${requestedSchoolId}`,
+          { credentials: "same-origin" }
+        );
+        return response.status;
+      },
+      { learnerId: otherLearnerId, requestedSchoolId: otherSchoolId }
+    );
+    expect(unrelatedLearnerStatus).toBe(403);
+  });
+
+  test("sensitive staff APIs enforce authentication, permissions, and school isolation", async ({ request }) => {
+    const principalHeaders = {
+      authorization: `Bearer ${principalToken}`,
+      "content-type": "application/json",
+    };
+    const teacherHeaders = {
+      authorization: `Bearer ${teacherToken}`,
+      "content-type": "application/json",
+    };
+
+    const unauthenticated = await request.post("/api/create-teacher", {
+      data: { school_id: schoolId },
+    });
+    expect(unauthenticated.status()).toBe(401);
+
+    const forgedToken = await request.post("/api/create-teacher", {
+      headers: {
+        authorization: "Bearer invalid-phase-2-token",
+        "content-type": "application/json",
+      },
+      data: { school_id: schoolId },
+    });
+    expect(forgedToken.status()).toBe(401);
+
+    const ownSchoolDirectory = await request.post("/api/list-teachers", {
+      headers: principalHeaders,
+      data: { school_id: schoolId },
+    });
+    expect(ownSchoolDirectory.status()).toBe(200);
+
+    const crossSchoolDirectory = await request.post("/api/list-teachers", {
+      headers: principalHeaders,
+      data: { school_id: otherSchoolId },
+    });
+    expect(crossSchoolDirectory.status()).toBe(403);
+
+    const teacherCreatesStaff = await request.post("/api/create-teacher", {
+      headers: teacherHeaders,
+      data: { school_id: schoolId },
+    });
+    expect(teacherCreatesStaff.status()).toBe(403);
+
+    const principalCreatesCrossSchoolStaff = await request.post("/api/create-teacher", {
+      headers: principalHeaders,
+      data: { school_id: otherSchoolId },
+    });
+    expect(principalCreatesCrossSchoolStaff.status()).toBe(403);
+
+    const principalCreatesPlatformPrincipal = await request.post("/api/create-principal", {
+      headers: principalHeaders,
+      data: { schoolId },
+    });
+    expect(principalCreatesPlatformPrincipal.status()).toBe(403);
+
+    const principalApprovesSchool = await request.post("/api/approve-signup", {
+      headers: principalHeaders,
+      data: {},
+    });
+    expect(principalApprovesSchool.status()).toBe(403);
+
+    const teacherManagesBilling = await request.post("/api/payment-received", {
+      headers: teacherHeaders,
+      data: { school_id: schoolId },
+    });
+    expect(teacherManagesBilling.status()).toBe(403);
+
+    const teacherUploadsLearnerDocument = await request.post(
+      "/api/learner-requirements/documents",
+      {
+        headers: { authorization: `Bearer ${teacherToken}` },
+        multipart: {
+          school_id: String(schoolId),
+          classroom_id: classroomName,
+          learner_id: learnerId,
+          document_type: "Phase 2 authorization probe",
+        },
+      }
+    );
+    expect(teacherUploadsLearnerDocument.status()).toBe(403);
+
+    const teacherImpersonatesPrincipal = await request.post("/api/messages/send", {
+      headers: teacherHeaders,
+      data: {
+        school_id: schoolId,
+        learner_id: learnerId,
+        sender_role: "principal",
+        sender_id: principalId,
+        sender_name: "Phase 2 Principal",
+        recipient_role: "teacher",
+        recipient_id: teacherId,
+        recipient_name: "Phase 2 Teacher",
+        message: "Authorization probe",
+      },
+    });
+    expect(teacherImpersonatesPrincipal.status()).toBe(403);
   });
 });

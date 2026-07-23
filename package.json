@@ -11,7 +11,7 @@
     "test": "npm run test:authorization && npm run test:monitoring && npm run test:classroom-activities && npm run test:achievement-awards",
     "test:classroom-activities": "tsx --test app/lib/classroom-activity-dates.test.ts",
     "test:achievement-awards": "tsx --test app/lib/award-types.test.ts",
-    "test:authorization": "tsx --test app/lib/permissions.test.ts app/lib/authorization-policy.test.ts app/lib/parent-authorization-policy.test.ts",
+    "test:authorization": "tsx --test app/lib/permissions.test.ts app/lib/authorization-policy.test.ts app/lib/parent-authorization-policy.test.ts app/lib/role-management.test.ts app/lib/platform-operation-policy.test.ts",
     "test:monitoring": "tsx --test app/lib/error-monitoring.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:authenticated": "playwright test tests/e2e/authenticated-workflows.spec.ts"

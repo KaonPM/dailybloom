@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import { PERMISSIONS } from "../lib/permissions";
 
 type School = {
   id: number;
@@ -100,15 +101,20 @@ export default function BillingPage() {
 
     if (
       currentProfile.role !== "master" &&
-      currentProfile.role !== "principal"
+      currentProfile.role !== "principal" &&
+      !(
+        currentProfile.role === "master_admin" &&
+        Array.isArray(currentProfile.permissions) &&
+        currentProfile.permissions.includes(PERMISSIONS.BILLING_MANAGE)
+      )
     ) {
-      router.push("/dashboard");
+      router.push(currentProfile.role === "master_admin" ? "/master-admin" : "/dashboard");
       return;
     }
 
     setProfile(currentProfile as Profile);
 
-    if (currentProfile.role === "master") {
+    if (currentProfile.role === "master" || currentProfile.role === "master_admin") {
       await Promise.all([
         fetchSchools(),
         fetchAllSubscriptions(),
@@ -254,17 +260,6 @@ export default function BillingPage() {
     setSelectedPlan(planName);
   }
 
-  function generateReceiptNumber(subscriptionId: number) {
-    const now = new Date();
-
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    const time = String(now.getTime()).slice(-6);
-
-    return `DB-${year}${month}${day}-${subscriptionId}-${time}`;
-  }
-
   function openPaymentPopup(subscription: Subscription) {
     setActivePaymentSubscription(subscription);
     setPaymentAmount(String(subscription.monthly_price));
@@ -279,6 +274,17 @@ export default function BillingPage() {
     setPaymentAmount("");
     setPaymentMethod("EFT");
     setPaymentNotes("");
+  }
+
+  async function runPlatformOperation(payload: Record<string, unknown>) {
+    const response = await authenticatedFetch("/api/platform-operations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not update billing.");
+    return result;
   }
 
   async function saveSubscription() {
@@ -296,30 +302,13 @@ export default function BillingPage() {
 
     setSavingSubscription(true);
 
-    const { error } = await supabase.from("school_subscriptions").upsert(
-      {
-        school_id: Number(selectedSchoolId),
-        plan_name: plan.name,
-        monthly_price: plan.price,
-        status: selectedStatus,
-        next_billing_date: nextBillingDate || null,
-        updated_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "school_id",
-      }
-    );
-
-    if (error) {
-      alert(error.message);
+    try {
+      await runPlatformOperation({ action: "save_subscription", school_id: Number(selectedSchoolId), plan_name: plan.name, monthly_price: plan.price, status: selectedStatus, next_billing_date: nextBillingDate || null });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not save the subscription.");
       setSavingSubscription(false);
       return;
     }
-
-    await supabase
-      .from("schools")
-      .update({ billing_status: selectedStatus })
-      .eq("id", Number(selectedSchoolId));
 
     setSelectedSchoolId("");
     setSelectedPlan("Bloom");
@@ -344,55 +333,17 @@ export default function BillingPage() {
 
     setSavingPaymentId(subscription.id);
 
-    const today = new Date();
-    const nextDate = new Date(today);
-
-    nextDate.setMonth(nextDate.getMonth() + 1);
-
-    const paymentDate = today.toISOString().slice(0, 10);
-    const nextBilling = nextDate.toISOString().slice(0, 10);
-    const receiptNumber = generateReceiptNumber(subscription.id);
-
-    const { error: paymentError } = await supabase
-      .from("subscription_payments")
-      .insert([
-        {
-          school_id: subscription.school_id,
-          subscription_id: subscription.id,
-          amount,
-          payment_date: paymentDate,
-          payment_method: paymentMethod || "EFT",
-          notes: paymentNotes || null,
-          receipt_number: receiptNumber,
-        },
-      ]);
-
-    if (paymentError) {
-      alert(paymentError.message);
+    let operationResult: { payment_date: string; next_billing_date: string; receipt_number: string };
+    try {
+      operationResult = await runPlatformOperation({ action: "record_payment", school_id: subscription.school_id, subscription_id: subscription.id, amount, payment_method: paymentMethod || "EFT", notes: paymentNotes || null });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not record the payment.");
       setSavingPaymentId(null);
       return;
     }
-
-    const { error: subscriptionError } = await supabase
-      .from("school_subscriptions")
-      .update({
-        status: "active",
-        last_payment_date: paymentDate,
-        next_billing_date: nextBilling,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", subscription.id);
-
-    if (subscriptionError) {
-      alert(subscriptionError.message);
-      setSavingPaymentId(null);
-      return;
-    }
-
-    await supabase
-      .from("schools")
-      .update({ billing_status: "active" })
-      .eq("id", subscription.school_id);
+    const paymentDate = operationResult.payment_date;
+    const nextBilling = operationResult.next_billing_date;
+    const receiptNumber = operationResult.receipt_number;
 
     const principalContact = await fetchPrincipalContact(subscription.school_id);
 
@@ -444,24 +395,13 @@ export default function BillingPage() {
   async function markOverdue(subscription: Subscription) {
     setMarkingOverdueId(subscription.id);
 
-    const { error } = await supabase
-      .from("school_subscriptions")
-      .update({
-        status: "overdue",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", subscription.id);
-
-    if (error) {
-      alert(error.message);
+    try {
+      await runPlatformOperation({ action: "mark_overdue", school_id: subscription.school_id, subscription_id: subscription.id });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not mark the subscription overdue.");
       setMarkingOverdueId(null);
       return;
     }
-
-    await supabase
-      .from("schools")
-      .update({ billing_status: "overdue" })
-      .eq("id", subscription.school_id);
 
     await fetchAllSubscriptions();
     setMarkingOverdueId(null);
@@ -469,7 +409,7 @@ export default function BillingPage() {
     alert("Subscription marked overdue.");
   }
 
-  const isMaster = profile?.role === "master";
+  const isMaster = profile?.role === "master" || profile?.role === "master_admin";
 
   const filteredSubscriptions = useMemo(() => {
     return subscriptions.filter((subscription) => {

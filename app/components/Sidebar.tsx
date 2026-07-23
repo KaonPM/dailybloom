@@ -12,6 +12,7 @@ type Profile = {
   full_name?: string | null;
   role?: string | null;
   school_id?: number | null;
+  permissions?: string[] | null;
 };
 
 type School = {
@@ -70,6 +71,11 @@ export default function Sidebar() {
         label: "Principal Management",
         href: "/principals",
         match: ["/principals"],
+      },
+      {
+        label: "Master Admin Access",
+        href: "/platform-access",
+        match: ["/platform-access"],
       },
       {
         label: "Onboarding Pipeline",
@@ -426,8 +432,11 @@ export default function Sidebar() {
   }
 
   const isMaster = profile?.role === "master";
+  const isMasterAdmin = profile?.role === "master_admin";
   const isTeacher = profile?.role === "teacher";
-  const showSchoolActions = Boolean(school) || !isMaster;
+  const canManagePreschoolAdmins =
+    profile?.role === "owner" || profile?.role === "principal" || (isMaster && Boolean(school?.id));
+  const showSchoolActions = !isMasterAdmin && (Boolean(school) || !isMaster);
 
   useEffect(() => {
     if (isTeacher) {
@@ -555,6 +564,23 @@ export default function Sidebar() {
   const visibleQuickActionsNav = isTeacher
     ? filteredTeacherQuickActionsNav
     : filteredQuickActionsNav;
+
+  const masterAdminNav = [
+    { label: "Master Admin Home", href: "/master-admin", match: ["/master-admin"] },
+    ...(profile?.permissions?.includes("platform.schools.onboard")
+      ? [{ label: "Onboarding Pipeline", href: "/onboarding", match: ["/onboarding"] }]
+      : []),
+    ...(profile?.permissions?.includes("platform.principals.manage")
+      ? [{ label: "Principal Management", href: "/principals", match: ["/principals"] }]
+      : []),
+    ...(profile?.permissions?.includes("platform.schools.status") &&
+    !profile?.permissions?.includes("platform.principals.manage")
+      ? [{ label: "School Status", href: "/principals", match: ["/principals"] }]
+      : []),
+    ...(profile?.permissions?.includes("billing.manage")
+      ? [{ label: "Billing", href: "/billing", match: ["/billing"] }]
+      : []),
+  ];
 
   return (
     <aside className="db-sidebar-shell">
@@ -798,6 +824,15 @@ export default function Sidebar() {
           />
         ) : null}
 
+        {isMasterAdmin ? (
+          <NavSection
+            title="Assigned Platform Tools"
+            items={masterAdminNav}
+            pathname={pathname}
+            currentView={searchParams.get("view")}
+          />
+        ) : null}
+
         {showSchoolActions ? (
           <div
             style={{
@@ -893,6 +928,19 @@ export default function Sidebar() {
                   <span>👥 Staff Management</span>
                   <span>›</span>
                 </a>
+              ) : null}
+
+              {canManagePreschoolAdmins ? (
+                <Link
+                  href={withSchoolContext("/staff-access")}
+                  style={navStyle({
+                    label: "Preschool Admin Access",
+                    href: "/staff-access",
+                    match: ["/staff-access"],
+                  })}
+                >
+                  Preschool Admin Access
+                </Link>
               ) : null}
 
               {!isTeacher ? (

@@ -65,7 +65,7 @@ export default function LoginPage() {
       : profileData.schools;
 
     const schoolIsActive = schoolRow?.is_active !== false;
-    const isSchoolUser = role === "principal" || role === "teacher";
+    const isSchoolUser = ["owner", "principal", "admin", "teacher"].includes(role);
 
     if (!userIsActive) {
       alert(
@@ -93,6 +93,12 @@ export default function LoginPage() {
 
     if (role === "master") {
       router.push("/master?view=dashboard");
+      setLoading(false);
+      return;
+    }
+
+    if (role === "master_admin") {
+      router.push("/master-admin");
       setLoading(false);
       return;
     }

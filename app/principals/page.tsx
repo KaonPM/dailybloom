@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import { PERMISSIONS } from "../lib/permissions";
 
 type School = {
   id: number;
@@ -49,6 +50,8 @@ export default function PrincipalsPage() {
     null
   );
   const [visiblePrincipalCount, setVisiblePrincipalCount] = useState(5);
+  const [canManageSchoolStatus, setCanManageSchoolStatus] = useState(false);
+  const [canManagePrincipals, setCanManagePrincipals] = useState(false);
 
   useEffect(() => {
     loadPage();
@@ -62,11 +65,27 @@ export default function PrincipalsPage() {
       return;
     }
 
-    if (profile.role !== "master") {
-      router.push("/dashboard");
+    const delegatedPermissions = Array.isArray(profile.permissions) ? profile.permissions : [];
+    if (
+      profile.role !== "master" &&
+      !(
+        profile.role === "master_admin" &&
+        (
+          delegatedPermissions.includes(PERMISSIONS.PRINCIPAL_MANAGE) ||
+          delegatedPermissions.includes(PERMISSIONS.SCHOOL_STATUS)
+        )
+      )
+    ) {
+      router.push(profile.role === "master_admin" ? "/master-admin" : "/dashboard");
       return;
     }
 
+    setCanManageSchoolStatus(
+      profile.role === "master" || delegatedPermissions.includes(PERMISSIONS.SCHOOL_STATUS)
+    );
+    setCanManagePrincipals(
+      profile.role === "master" || delegatedPermissions.includes(PERMISSIONS.PRINCIPAL_MANAGE)
+    );
     setCheckingAccess(false);
     await Promise.all([fetchSchools(), fetchPrincipals()]);
     setLoading(false);
@@ -105,7 +124,7 @@ export default function PrincipalsPage() {
           wageflow_enabled
         )
       `)
-      .eq("role", "principal")
+      .in("role", ["owner", "principal"])
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -146,6 +165,16 @@ export default function PrincipalsPage() {
   const visiblePrincipals = filteredPrincipals.slice(0, visiblePrincipalCount);
   const hasMorePrincipals = visiblePrincipalCount < filteredPrincipals.length;
 
+  async function runPlatformOperation(payload: Record<string, unknown>) {
+    const response = await authenticatedFetch("/api/platform-operations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not update platform access.");
+  }
+
   async function deactivateSchoolAccess(principal: PrincipalProfile) {
     if (!principal.school_id) {
       alert("This principal is not linked to a school.");
@@ -160,25 +189,10 @@ export default function PrincipalsPage() {
 
     setActionLoadingId(principal.id);
 
-    const { error: schoolError } = await supabase
-      .from("schools")
-      .update({ is_active: false })
-      .eq("id", principal.school_id);
-
-    if (schoolError) {
-      alert(schoolError.message);
-      setActionLoadingId(null);
-      return;
-    }
-
-    const { error: profilesError } = await supabase
-      .from("profiles")
-      .update({ is_active: false })
-      .eq("school_id", principal.school_id)
-      .in("role", ["principal", "teacher"]);
-
-    if (profilesError) {
-      alert(profilesError.message);
+    try {
+      await runPlatformOperation({ action: "set_school_active", school_id: principal.school_id, is_active: false });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not deactivate school access.");
       setActionLoadingId(null);
       return;
     }
@@ -202,25 +216,10 @@ export default function PrincipalsPage() {
 
     setActionLoadingId(principal.id);
 
-    const { error: schoolError } = await supabase
-      .from("schools")
-      .update({ is_active: true })
-      .eq("id", principal.school_id);
-
-    if (schoolError) {
-      alert(schoolError.message);
-      setActionLoadingId(null);
-      return;
-    }
-
-    const { error: profilesError } = await supabase
-      .from("profiles")
-      .update({ is_active: true })
-      .eq("school_id", principal.school_id)
-      .in("role", ["principal", "teacher"]);
-
-    if (profilesError) {
-      alert(profilesError.message);
+    try {
+      await runPlatformOperation({ action: "set_school_active", school_id: principal.school_id, is_active: true });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not reactivate school access.");
       setActionLoadingId(null);
       return;
     }
@@ -230,25 +229,19 @@ export default function PrincipalsPage() {
     alert("School access has been reactivated for the principal and all teachers.");
   }
 
-  async function removePrincipalFromSchool(principalId: string) {
+  async function removePrincipalFromSchool(principal: PrincipalProfile) {
     const confirmed = window.confirm(
       "Remove this principal from the school? Their account will remain, but it will no longer be linked to that school."
     );
 
     if (!confirmed) return;
 
-    setActionLoadingId(principalId);
+    setActionLoadingId(principal.id);
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        school_id: null,
-        is_active: false,
-      })
-      .eq("id", principalId);
-
-    if (error) {
-      alert(error.message);
+    try {
+      await runPlatformOperation({ action: "remove_principal", user_id: principal.id, school_id: principal.school_id });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not remove the principal.");
       setActionLoadingId(null);
       return;
     }
@@ -491,7 +484,7 @@ export default function PrincipalsPage() {
                           {isExpanded ? "Hide" : "View"}
                         </button>
 
-                        {effectiveActive ? (
+                        {canManageSchoolStatus && effectiveActive ? (
                           <button
                             type="button"
                             className="db-button-primary"
@@ -501,7 +494,7 @@ export default function PrincipalsPage() {
                           >
                             {isBusy ? "Working..." : "Deactivate School Access"}
                           </button>
-                        ) : (
+                        ) : canManageSchoolStatus ? (
                           <button
                             type="button"
                             className="db-button-primary"
@@ -511,37 +504,41 @@ export default function PrincipalsPage() {
                           >
                             {isBusy ? "Working..." : "Reactivate School Access"}
                           </button>
-                        )}
+                        ) : null}
 
-                        <button
-                          type="button"
-                          className="db-button-primary"
-                          style={smallButton}
-                          onClick={() => removePrincipalFromSchool(principal.id)}
-                          disabled={isBusy}
-                        >
-                          {isBusy ? "Working..." : "Remove From School"}
-                        </button>
+                        {canManagePrincipals ? (
+                          <>
+                            <button
+                              type="button"
+                              className="db-button-primary"
+                              style={smallButton}
+                              onClick={() => removePrincipalFromSchool(principal)}
+                              disabled={isBusy}
+                            >
+                              {isBusy ? "Working..." : "Remove From School"}
+                            </button>
 
-                        <button
-                          type="button"
-                          className="db-button-primary"
-                          style={smallButton}
-                          onClick={() => resendPrincipalAccess(principal)}
-                          disabled={isBusy}
-                        >
-                          {isBusy ? "Working..." : "Resend Invite"}
-                        </button>
+                            <button
+                              type="button"
+                              className="db-button-primary"
+                              style={smallButton}
+                              onClick={() => resendPrincipalAccess(principal)}
+                              disabled={isBusy}
+                            >
+                              {isBusy ? "Working..." : "Resend Invite"}
+                            </button>
 
-                        <button
-                          type="button"
-                          className="db-button-primary"
-                          style={smallButton}
-                          onClick={() => sendPasswordReset(principal)}
-                          disabled={isBusy}
-                        >
-                          {isBusy ? "Working..." : "Reset Password"}
-                        </button>
+                            <button
+                              type="button"
+                              className="db-button-primary"
+                              style={smallButton}
+                              onClick={() => sendPasswordReset(principal)}
+                              disabled={isBusy}
+                            >
+                              {isBusy ? "Working..." : "Reset Password"}
+                            </button>
+                          </>
+                        ) : null}
                       </div>
                     </div>
                   </div>

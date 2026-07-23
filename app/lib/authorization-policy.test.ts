@@ -21,18 +21,23 @@ test("a multi-school user receives the role belonging to the requested school", 
     legacyRole: "principal",
     memberships: [
       { school_id: 11, role: "principal", permissions: [] },
-      { school_id: 22, role: "admin", permissions: [PERMISSIONS.INCIDENT_REVIEW] },
+      { school_id: 22, role: "admin", permissions: [PERMISSIONS.MESSAGE_VIEW] },
     ],
   });
   assert.equal(result?.role, "admin");
-  assert.equal(result?.permissions.includes(PERMISSIONS.INCIDENT_REVIEW), true);
+  assert.equal(result?.permissions.includes(PERMISSIONS.MESSAGE_VIEW), true);
+  assert.equal(result?.permissions.includes(PERMISSIONS.REQUIREMENTS_MANAGE), false);
   assert.equal(result?.permissions.includes(PERMISSIONS.BILLING_MANAGE), false);
 });
 
-test("additional membership permissions do not change the global role defaults", () => {
-  const permissions = effectivePermissions("admin", [PERMISSIONS.INCIDENT_REVIEW]);
-  assert.equal(hasPermission(permissions, PERMISSIONS.REQUIREMENTS_MANAGE), true);
-  assert.equal(hasPermission(permissions, PERMISSIONS.INCIDENT_REVIEW), true);
+test("a delegated membership uses only its safe selected permissions", () => {
+  const permissions = effectivePermissions("admin", [
+    PERMISSIONS.MESSAGE_VIEW,
+    PERMISSIONS.INCIDENT_REVIEW,
+  ]);
+  assert.equal(hasPermission(permissions, PERMISSIONS.MESSAGE_VIEW), true);
+  assert.equal(hasPermission(permissions, PERMISSIONS.REQUIREMENTS_MANAGE), false);
+  assert.equal(hasPermission(permissions, PERMISSIONS.INCIDENT_REVIEW), false);
   assert.equal(hasPermission(permissions, PERMISSIONS.PLATFORM_ADMIN_MANAGE), false);
 });
 
@@ -59,11 +64,11 @@ test("an unknown school is denied even when another membership is privileged", (
 
 test("a school-specific permission applies only to its matching membership", () => {
   const memberships = [
-    { school_id: 11, role: "admin", permissions: [PERMISSIONS.INCIDENT_REVIEW] },
-    { school_id: 22, role: "admin", permissions: [] },
+    { school_id: 11, role: "admin", permissions: [PERMISSIONS.PARENT_NOTIFY] },
+    { school_id: 22, role: "admin", permissions: [PERMISSIONS.MESSAGE_VIEW] },
   ];
   const school11 = resolveSchoolAuthorization({ requestedSchoolId: 11, memberships });
   const school22 = resolveSchoolAuthorization({ requestedSchoolId: 22, memberships });
-  assert.equal(hasPermission(school11?.permissions || [], PERMISSIONS.INCIDENT_REVIEW), true);
-  assert.equal(hasPermission(school22?.permissions || [], PERMISSIONS.INCIDENT_REVIEW), false);
+  assert.equal(hasPermission(school11?.permissions || [], PERMISSIONS.PARENT_NOTIFY), true);
+  assert.equal(hasPermission(school22?.permissions || [], PERMISSIONS.PARENT_NOTIFY), false);
 });

@@ -28,8 +28,34 @@ export async function getCurrentProfile() {
     };
   }
 
+  const [{ data: platformRole }, { data: membership }] = await Promise.all([
+    supabase
+      .from("platform_user_roles")
+      .select("role, status, permissions")
+      .eq("user_id", session.user.id)
+      .eq("status", "active")
+      .maybeSingle(),
+    profile.school_id
+      ? supabase
+          .from("school_memberships")
+          .select("school_id, role, status, permissions")
+          .eq("user_id", session.user.id)
+          .eq("school_id", profile.school_id)
+          .eq("status", "active")
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const effectiveRole = platformRole?.role || membership?.role || profile.role;
+  const effectivePermissions = platformRole?.permissions || membership?.permissions || [];
+
   return {
-    profile,
+    profile: {
+      ...profile,
+      role: effectiveRole,
+      permissions: effectivePermissions,
+      platform_role: platformRole?.role || null,
+    },
     user: session.user,
     error: null,
   };

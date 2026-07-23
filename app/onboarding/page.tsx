@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { useRouter } from "next/navigation";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import { PERMISSIONS } from "../lib/permissions";
 
 const statuses = [
   "Not started",
@@ -94,6 +95,8 @@ export default function OnboardingPage() {
 
   const [pendingVisibleCount, setPendingVisibleCount] = useState(5);
   const [completedVisibleCount, setCompletedVisibleCount] = useState(5);
+  const [canActivateSchools, setCanActivateSchools] = useState(false);
+  const [canOpenMasterOverview, setCanOpenMasterOverview] = useState(false);
 
   useEffect(() => {
     loadPage();
@@ -107,11 +110,19 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (profile.role !== "master") {
-      router.push("/dashboard");
+    const delegatedPermissions = Array.isArray(profile.permissions) ? profile.permissions : [];
+    if (
+      profile.role !== "master" &&
+      !(profile.role === "master_admin" && delegatedPermissions.includes(PERMISSIONS.SCHOOL_ONBOARD))
+    ) {
+      router.push(profile.role === "master_admin" ? "/master-admin" : "/dashboard");
       return;
     }
 
+    setCanActivateSchools(
+      profile.role === "master" || delegatedPermissions.includes(PERMISSIONS.SCHOOL_STATUS)
+    );
+    setCanOpenMasterOverview(profile.role === "master");
     setCheckingAccess(false);
     await fetchOnboarding();
   }
@@ -140,7 +151,7 @@ export default function OnboardingPage() {
     const { data: principals, error: principalsError } = await supabase
       .from("profiles")
       .select("id, full_name, email, school_id")
-      .eq("role", "principal");
+      .in("role", ["owner", "principal"]);
 
     if (principalsError) {
       alert(principalsError.message);
@@ -194,6 +205,17 @@ export default function OnboardingPage() {
     );
   }
 
+  async function runPlatformOperation(payload: Record<string, unknown>) {
+    const response = await authenticatedFetch("/api/platform-operations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not update onboarding.");
+    return result;
+  }
+
   async function saveRow(row: OnboardingRow) {
     setSavingId(String(row.school_id));
 
@@ -213,12 +235,10 @@ export default function OnboardingPage() {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase
-      .from("school_onboarding")
-      .upsert(payload, { onConflict: "school_id" });
-
-    if (error) {
-      alert(error.message);
+    try {
+      await runPlatformOperation({ action: "save_onboarding", ...payload });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not update onboarding.");
       setSavingId(null);
       return;
     }
@@ -238,33 +258,10 @@ export default function OnboardingPage() {
 
     setActivatingId(String(row.school_id));
 
-    const { error: schoolError } = await supabase
-      .from("schools")
-      .update({
-        status: "active",
-        activated_at: new Date().toISOString(),
-      })
-      .eq("id", row.school_id);
-
-    if (schoolError) {
-      alert(schoolError.message);
-      setActivatingId(null);
-      return;
-    }
-
-    const { error: onboardingError } = await supabase
-      .from("school_onboarding")
-      .upsert(
-        {
-          school_id: row.school_id,
-          onboarding_status: "Activated",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "school_id" }
-      );
-
-    if (onboardingError) {
-      alert(onboardingError.message);
+    try {
+      await runPlatformOperation({ action: "activate_school", school_id: row.school_id });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not activate the school.");
       setActivatingId(null);
       return;
     }
@@ -337,6 +334,8 @@ export default function OnboardingPage() {
         updateLocalRow={updateLocalRow}
         saveRow={saveRow}
         activateSchool={activateSchool}
+        canActivateSchools={canActivateSchools}
+        canOpenMasterOverview={canOpenMasterOverview}
       />
 
       {pendingRows.length > pendingVisibleCount ? (
@@ -359,6 +358,8 @@ export default function OnboardingPage() {
         updateLocalRow={updateLocalRow}
         saveRow={saveRow}
         activateSchool={activateSchool}
+        canActivateSchools={canActivateSchools}
+        canOpenMasterOverview={canOpenMasterOverview}
       />
 
       {completedRows.length > completedVisibleCount ? (
@@ -384,6 +385,8 @@ type OnboardingSectionProps = {
   updateLocalRow: <K extends keyof OnboardingRow>(schoolId: number, field: K, value: OnboardingRow[K]) => void;
   saveRow: (row: OnboardingRow) => Promise<void>;
   activateSchool: (row: OnboardingRow) => Promise<void>;
+  canActivateSchools: boolean;
+  canOpenMasterOverview: boolean;
 };
 
 function OnboardingSection({
@@ -399,6 +402,8 @@ function OnboardingSection({
   updateLocalRow,
   saveRow,
   activateSchool,
+  canActivateSchools,
+  canOpenMasterOverview,
 }: OnboardingSectionProps) {
   return (
     <div
@@ -455,12 +460,14 @@ function OnboardingSection({
                       {isEditing ? "Close Edit" : "Edit"}
                     </button>
 
-                    <Link
-                      href={`/master/school/${row.school_id}`}
-                      style={primaryButton}
-                    >
-                      Open School Overview
-                    </Link>
+                    {canOpenMasterOverview ? (
+                      <Link
+                        href={`/master/school/${row.school_id}`}
+                        style={primaryButton}
+                      >
+                        Open School Overview
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
 
@@ -600,7 +607,8 @@ function OnboardingSection({
                           : "Save Onboarding"}
                       </button>
 
-                      {row.onboarding_status === "Ready for activation" &&
+                      {canActivateSchools &&
+                      row.onboarding_status === "Ready for activation" &&
                       row.school_status !== "active" ? (
                         <button
                           type="button"

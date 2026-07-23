@@ -1,4 +1,9 @@
-import { Permission, ROLE_PERMISSIONS } from "./permissions";
+import {
+  isDelegatedRole,
+  Permission,
+  ROLE_PERMISSIONS,
+  sanitizeDelegatedPermissions,
+} from "./permissions";
 
 export type SchoolMembership = {
   school_id: number | string;
@@ -14,6 +19,9 @@ export type SchoolAuthorization = {
 
 export function effectivePermissions(role: string, additionalPermissions: readonly string[] = []) {
   const normalizedRole = String(role || "").toLowerCase();
+  if (isDelegatedRole(normalizedRole) && additionalPermissions.length > 0) {
+    return sanitizeDelegatedPermissions(normalizedRole, additionalPermissions);
+  }
   return [...new Set([...(ROLE_PERMISSIONS[normalizedRole] || []), ...additionalPermissions])];
 }
 

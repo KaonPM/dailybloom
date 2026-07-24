@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "../../lib/supabase";
 import { getCurrentProfile } from "../../lib/auth";
 import { resolveSchoolContext } from "../../lib/school-context";
+import { authenticatedFetch } from "../../lib/authenticated-fetch";
 
 type ComplianceDocument = {
   id: string;
@@ -66,18 +66,17 @@ export default function DbeComplianceDocumentsPage() {
   }
 
   async function fetchDocuments(currentSchoolId: number) {
-    const { data, error } = await supabase
-      .from("dbe_compliance_documents")
-      .select("*")
-      .eq("school_id", currentSchoolId)
-      .order("uploaded_at", { ascending: false });
+    const response = await authenticatedFetch(
+      `/api/dbe-compliance-documents?school_id=${currentSchoolId}`
+    );
+    const result = await response.json();
 
-    if (error) {
-      alert(error.message);
+    if (!response.ok) {
+      alert(result.error || "Compliance documents could not be loaded.");
       return;
     }
 
-    setDocuments((data || []) as ComplianceDocument[]);
+    setDocuments((result.documents || []) as ComplianceDocument[]);
   }
 
   async function uploadDocument() {
@@ -95,35 +94,18 @@ export default function DbeComplianceDocumentsPage() {
 
     setUploading(true);
 
-    const safeFileName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-    const filePath = `${schoolId}/${Date.now()}-${safeFileName}`;
+    const form = new FormData();
+    form.set("school_id", String(schoolId));
+    form.set("document_name", documentName.trim());
+    form.set("file", selectedFile);
+    const response = await authenticatedFetch(
+      "/api/dbe-compliance-documents",
+      { method: "POST", body: form }
+    );
+    const result = await response.json();
 
-    const { error: uploadError } = await supabase.storage
-      .from("dbe-compliance-documents")
-      .upload(filePath, selectedFile, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-
-    if (uploadError) {
-      alert(uploadError.message);
-      setUploading(false);
-      return;
-    }
-
-    const { error: insertError } = await supabase
-      .from("dbe_compliance_documents")
-      .insert([
-        {
-          school_id: schoolId,
-          document_name: documentName.trim(),
-          file_path: filePath,
-          file_name: selectedFile.name,
-        },
-      ]);
-
-    if (insertError) {
-      alert(insertError.message);
+    if (!response.ok) {
+      alert(result.error || "The compliance document could not be uploaded.");
       setUploading(false);
       return;
     }
@@ -145,17 +127,19 @@ export default function DbeComplianceDocumentsPage() {
     alert("Compliance document uploaded.");
   }
 
-  function downloadDocument(document: ComplianceDocument) {
-    const { data } = supabase.storage
-      .from("dbe-compliance-documents")
-      .getPublicUrl(document.file_path);
+  async function downloadDocument(document: ComplianceDocument) {
+    if (!schoolId) return;
+    const response = await authenticatedFetch(
+      `/api/dbe-compliance-documents?school_id=${schoolId}&document_id=${document.id}`
+    );
+    const result = await response.json();
 
-    if (!data.publicUrl) {
-      alert("Could not generate download link.");
+    if (!response.ok || !result.url) {
+      alert(result.error || "Could not generate download link.");
       return;
     }
 
-    window.open(data.publicUrl, "_blank");
+    window.open(result.url, "_blank", "noopener,noreferrer");
   }
 
   function startRename(document: ComplianceDocument) {
@@ -171,16 +155,22 @@ export default function DbeComplianceDocumentsPage() {
       return;
     }
 
-    const { error } = await supabase
-      .from("dbe_compliance_documents")
-      .update({
-        document_name: renameValue.trim(),
-      })
-      .eq("id", documentId)
-      .eq("school_id", schoolId);
+    const response = await authenticatedFetch(
+      "/api/dbe-compliance-documents",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          school_id: schoolId,
+          document_id: documentId,
+          document_name: renameValue.trim(),
+        }),
+      }
+    );
+    const result = await response.json();
 
-    if (error) {
-      alert(error.message);
+    if (!response.ok) {
+      alert(result.error || "The document could not be renamed.");
       return;
     }
 
@@ -200,18 +190,21 @@ export default function DbeComplianceDocumentsPage() {
 
     if (!confirmed) return;
 
-    await supabase.storage
-      .from("dbe-compliance-documents")
-      .remove([document.file_path]);
+    const response = await authenticatedFetch(
+      "/api/dbe-compliance-documents",
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          school_id: schoolId,
+          document_id: document.id,
+        }),
+      }
+    );
+    const result = await response.json();
 
-    const { error } = await supabase
-      .from("dbe_compliance_documents")
-      .delete()
-      .eq("id", document.id)
-      .eq("school_id", schoolId);
-
-    if (error) {
-      alert(error.message);
+    if (!response.ok) {
+      alert(result.error || "The document could not be deleted.");
       return;
     }
 

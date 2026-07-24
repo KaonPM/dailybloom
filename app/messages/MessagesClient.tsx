@@ -520,6 +520,7 @@ export default function MessagesClient({
 
   async function loadPrincipalView(profile: StaffProfile) {
     const currentSchoolId = Number(profile.school_id);
+    const viewerIsAdmin = String(profile.role || "").toLowerCase() === "admin";
 
     const { teachers, principals } = await fetchStaffDirectory(currentSchoolId);
 
@@ -537,6 +538,11 @@ export default function MessagesClient({
     );
     const leadershipContacts: Contact[] = (principals || [])
       .filter((contact) => String(contact.id) !== String(profile.id))
+      .filter((contact) =>
+        viewerIsAdmin
+          ? String(contact.role || "").toLowerCase() !== "admin"
+          : String(contact.role || "").toLowerCase() === "admin"
+      )
       .map((contact) => {
         const isAdmin = String(contact.role || "").toLowerCase() === "admin";
         return {
@@ -879,7 +885,7 @@ export default function MessagesClient({
 
         {principalContacts.length > 0 ? (
           <div style={groupBox}>
-            <p style={groupTitle}>Principal and Admin</p>
+            <p style={groupTitle}>{role === "admin" ? "Principal" : "Admin"}</p>
             <div style={{ display: "grid", gap: 8 }}>
               {principalContacts.map((contact) => renderContactButton(contact))}
             </div>

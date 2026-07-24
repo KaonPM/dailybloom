@@ -2,21 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../lib/supabase";
-import { restorePasswordSession } from "../lib/password-session";
-import { authenticatedFetch } from "../lib/authenticated-fetch";
+import AccessResetShell from "../components/AccessResetShell";
 import PasswordInput from "../components/PasswordInput";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
+import { restorePasswordSession } from "../lib/password-session";
+import { supabase } from "../lib/supabase";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
-  const [sessionMessage, setSessionMessage] = useState(
-    "Confirming your secure password-reset link..."
-  );
+  const [status, setStatus] = useState<{
+    message: string;
+    tone: "info" | "success" | "error";
+  }>({
+    message: "Confirming your secure password-reset link...",
+    tone: "info",
+  });
 
   useEffect(() => {
     let active = true;
@@ -25,10 +29,17 @@ export default function ResetPasswordPage() {
       const result = await restorePasswordSession("recovery");
       if (!active) return;
       setSessionReady(result.ready);
-      setSessionMessage(
+      setStatus(
         result.ready
-          ? ""
-          : "This password-reset link is invalid or has expired. Please request a new link."
+          ? {
+              message: "Secure link confirmed. You can now create a new password.",
+              tone: "success",
+            }
+          : {
+              message:
+                "This password-reset link is invalid or has expired. Please request a new link.",
+              tone: "error",
+            }
       );
     }
 
@@ -42,9 +53,11 @@ export default function ResetPasswordPage() {
     const sessionResult = await restorePasswordSession("recovery");
     if (!sessionResult.ready) {
       setSessionReady(false);
-      setSessionMessage(
-        "This password-reset link is invalid or has expired. Please request a new link."
-      );
+      setStatus({
+        message:
+          "This password-reset link is invalid or has expired. Please request a new link.",
+        tone: "error",
+      });
       return;
     }
 
@@ -52,19 +65,20 @@ export default function ResetPasswordPage() {
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
     if (!strongPasswordRegex.test(newPassword)) {
-      alert(
-        "Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character."
-      );
+      setStatus({
+        message:
+          "Use at least 8 characters with uppercase, lowercase, a number and a special character.",
+        tone: "error",
+      });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      alert("Passwords do not match.");
+      setStatus({ message: "The passwords do not match.", tone: "error" });
       return;
     }
 
     setSaving(true);
-
     const response = await authenticatedFetch("/api/update-own-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -73,64 +87,84 @@ export default function ResetPasswordPage() {
     const result = await response.json();
 
     if (!response.ok) {
-      alert(result.error || "DailyBloom could not update your password.");
+      setStatus({
+        message: result.error || "DailyBloom could not update your password.",
+        tone: "error",
+      });
       setSaving(false);
       return;
     }
 
     window.sessionStorage.removeItem("dailybloom-password-recovery-user");
     await supabase.auth.signOut({ scope: "local" });
-
     setSaving(false);
-
-    alert("Password reset successfully. Please log in with your new password.");
-
-    router.push("/login");
+    router.push("/login?passwordReset=success");
   }
 
   return (
-    <div className="db-auth-page">
-      <div className="db-auth-card">
-        <h1 className="db-auth-title">Create a new password</h1>
-
-        <p className="db-auth-subtitle">
-          Your new password must include uppercase, lowercase, a number, and a special character.
-        </p>
-
-        {sessionMessage ? (
-          <p className="db-auth-subtitle">{sessionMessage}</p>
-        ) : null}
-
+    <AccessResetShell
+      title="Create a new password"
+      subtitle="Choose a strong password that you do not use for another account."
+      status={status}
+      backHref={sessionReady ? "/login" : "/forgot-password"}
+      backLabel={sessionReady ? "Back to login" : "Request a new reset link"}
+    >
+      <label style={labelStyle}>
+        New password
         <PasswordInput
           className="db-input"
-          placeholder="New Password"
+          placeholder="Enter your new password"
           value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
+          onChange={(event) => setNewPassword(event.target.value)}
           autoComplete="new-password"
         />
+      </label>
 
+      <label style={labelStyle}>
+        Confirm new password
         <PasswordInput
           className="db-input"
-          placeholder="Confirm New Password"
+          placeholder="Enter it again"
           value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
+          onChange={(event) => setConfirmPassword(event.target.value)}
           autoComplete="new-password"
         />
+      </label>
 
-        <button
-          type="button"
-          className="db-button-primary"
-          style={{ width: "100%", marginBottom: "14px" }}
-          onClick={resetPassword}
-          disabled={saving || !sessionReady}
-        >
-          {saving ? "Saving..." : "Update Password"}
-        </button>
+      <p style={helperStyle}>
+        At least 8 characters · uppercase · lowercase · number · special character
+      </p>
 
-        <p className="db-auth-subtitle">
-          Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.
-        </p>
-      </div>
-    </div>
+      <button
+        type="button"
+        className="db-button-primary"
+        style={primaryButtonStyle}
+        onClick={resetPassword}
+        disabled={saving || !sessionReady}
+      >
+        {saving ? "Updating password..." : "Update password"}
+      </button>
+    </AccessResetShell>
   );
 }
+
+const labelStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  color: "#3D3550",
+  fontWeight: 700,
+};
+
+const helperStyle: React.CSSProperties = {
+  margin: "-2px 0 2px",
+  color: "#746D80",
+  fontSize: 13,
+  lineHeight: 1.5,
+  textAlign: "center",
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 52,
+  borderRadius: 14,
+};

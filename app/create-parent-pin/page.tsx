@@ -2,256 +2,160 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import AccessResetShell from "../components/AccessResetShell";
 import PasswordInput from "../components/PasswordInput";
 
 export default function CreatePinPage() {
   const router = useRouter();
-
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
 
-  const [showPin, setShowPin] =
-    useState(false);
+  async function handleSavePin() {
+    if (!/^\d{4}$/.test(pin)) {
+      setError("Your PIN must contain exactly 4 digits.");
+      return;
+    }
 
-  const [
-    showConfirmPin,
-    setShowConfirmPin,
-  ] = useState(false);
+    if (pin !== confirmPin) {
+      setError("The PINs do not match.");
+      return;
+    }
 
-  const [loading, setLoading] =
-    useState(false);
+    setLoading(true);
+    setError("");
 
-  const [success, setSuccess] =
-    useState(false);
+    try {
+      const response = await fetch("/api/create-parent-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await response.json();
 
-  const handleSavePin =
-    async () => {
-
-      if (pin.length !== 4) {
-        alert(
-          "PIN must be exactly 4 digits"
-        );
+      if (!response.ok) {
+        setError(data.error || "DailyBloom could not create your PIN.");
         return;
       }
 
-      if (pin !== confirmPin) {
-        alert(
-          "PINs do not match"
-        );
-        return;
-      }
+      setSuccess(true);
+      setPin("");
+      setConfirmPin("");
 
-      setLoading(true);
-
-      try {
-
-        const res =
-          await fetch(
-            "/api/create-parent-pin",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-              body: JSON.stringify({
-                pin,
-              }),
-            }
-          );
-
-        const data =
-          await res.json();
-
-        if (!res.ok) {
-          alert(
-            data.error ||
-            "Could not create PIN"
-          );
-
-          return;
-        }
-
-        setSuccess(true);
-
-        setPin("");
-        setConfirmPin("");
-
-        setTimeout(() => {
-          router.push(
-            "/parent-login"
-          );
-        }, 3000);
-
-      } catch (error) {
-
-        console.log(error);
-
-        alert(
-          "Something went wrong"
-        );
-
-      } finally {
-        setLoading(false);
-      }
-    };
+      window.setTimeout(() => {
+        router.push("/parent-login");
+      }, 3000);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div className="parent-login-wrapper">
-      <div className="parent-login-card">
+    <AccessResetShell
+      title={success ? "Your PIN is ready" : "Create your parent PIN"}
+      subtitle={
+        success
+          ? "Your secure parent access has been set up."
+          : "Choose a private 4-digit PIN for future parent portal logins."
+      }
+      status={
+        success
+          ? {
+              message: "PIN created successfully. Redirecting you to parent login...",
+              tone: "success",
+            }
+          : error
+            ? { message: error, tone: "error" }
+            : undefined
+      }
+      backHref={success ? undefined : "/parent-login"}
+      backLabel="Back to parent login"
+    >
+      {!success ? (
+        <>
+          <label style={labelStyle}>
+            New PIN
+            <PasswordInput
+              className="db-input"
+              maxLength={4}
+              value={pin}
+              placeholder="Enter a 4-digit PIN"
+              inputMode="numeric"
+              autoComplete="new-password"
+              visibleLabel="Hide PIN"
+              hiddenLabel="Show PIN"
+              onChange={(event) =>
+                setPin(event.target.value.replace(/\D/g, ""))
+              }
+            />
+          </label>
 
-        <div className="parent-logo">
-          <h1>
-            Daily
-            <span>Bloom</span>
-          </h1>
+          <label style={labelStyle}>
+            Confirm PIN
+            <PasswordInput
+              className="db-input"
+              maxLength={4}
+              value={confirmPin}
+              placeholder="Enter the PIN again"
+              inputMode="numeric"
+              autoComplete="new-password"
+              visibleLabel="Hide PIN"
+              hiddenLabel="Show PIN"
+              onChange={(event) =>
+                setConfirmPin(event.target.value.replace(/\D/g, ""))
+              }
+            />
+          </label>
 
-          <div className="parent-tagline">
-            WHERE PRESCHOOLS
-            BLOOM EVERY DAY
-          </div>
-        </div>
+          <p style={helperStyle}>
+            Keep this PIN private. DailyBloom staff will never ask you to share it.
+          </p>
 
-        <h2 className="parent-title">
-          Create Your PIN
-        </h2>
-
-        <p className="parent-subtitle">
-          Create a secure
-          4 digit PIN for
-          future logins.
-        </p>
-
-        {success && (
-          <div
-            style={{
-              marginBottom: "20px",
-              padding: "16px",
-              borderRadius: "12px",
-              background:
-                "#E8FFF1",
-              color:
-                "#0F7B42",
-              textAlign:
-                "center",
-              fontWeight: 600,
-              lineHeight: 1.6,
-            }}
+          <button
+            type="button"
+            className="db-button-primary"
+            style={primaryButtonStyle}
+            onClick={handleSavePin}
+            disabled={loading}
           >
-            ✓ PIN created successfully
-
-            <div
-              style={{
-                marginTop:
-                  "8px",
-                fontWeight: 400,
-                fontSize:
-                  "14px",
-              }}
-            >
-              Redirecting you
-              to login page...
-            </div>
-          </div>
-        )}
-
-        {!success && (
-          <>
-            <div className="parent-input-wrap">
-
-              <PasswordInput
-                maxLength={4}
-                value={pin}
-                className="parent-input"
-                placeholder="Enter 4 digit PIN"
-                inputMode="numeric"
-                autoComplete="new-password"
-                visibleLabel="Hide PIN"
-                hiddenLabel="Show PIN"
-                onChange={(e) =>
-                  setPin(
-                    e.target.value.replace(
-                      /\D/g,
-                      ""
-                    )
-                  )
-                }
-              />
-
-              <button
-                type="button"
-                className="parent-eye"
-                style={{ display: "none" }}
-                onClick={() =>
-                  setShowPin(
-                    !showPin
-                  )
-                }
-              >
-                {showPin
-                  ? "🙈"
-                  : "👁️"}
-              </button>
-
-            </div>
-
-            <div className="parent-input-wrap">
-
-              <PasswordInput
-                maxLength={4}
-                value={
-                  confirmPin
-                }
-                className="parent-input"
-                placeholder="Confirm PIN"
-                inputMode="numeric"
-                autoComplete="new-password"
-                visibleLabel="Hide PIN"
-                hiddenLabel="Show PIN"
-                onChange={(e) =>
-                  setConfirmPin(
-                    e.target.value.replace(
-                      /\D/g,
-                      ""
-                    )
-                  )
-                }
-              />
-
-              <button
-                type="button"
-                className="parent-eye"
-                style={{ display: "none" }}
-                onClick={() =>
-                  setShowConfirmPin(
-                    !showConfirmPin
-                  )
-                }
-              >
-                {showConfirmPin
-                  ? "🙈"
-                  : "👁️"}
-              </button>
-
-            </div>
-
-            <button
-              onClick={
-                handleSavePin
-              }
-              className="parent-button"
-              disabled={
-                loading
-              }
-            >
-              {loading
-                ? "Saving..."
-                : "Continue"}
-            </button>
-          </>
-        )}
-
-      </div>
-    </div>
+            {loading ? "Creating PIN..." : "Create PIN"}
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          className="db-button-primary"
+          style={primaryButtonStyle}
+          onClick={() => router.push("/parent-login")}
+        >
+          Continue to parent login
+        </button>
+      )}
+    </AccessResetShell>
   );
 }
+
+const labelStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  color: "#3D3550",
+  fontWeight: 700,
+};
+
+const helperStyle: React.CSSProperties = {
+  margin: "-2px 0 2px",
+  color: "#746D80",
+  fontSize: 13,
+  lineHeight: 1.5,
+  textAlign: "center",
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 52,
+  borderRadius: 14,
+};

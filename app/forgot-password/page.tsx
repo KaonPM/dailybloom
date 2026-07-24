@@ -1,66 +1,84 @@
 "use client";
 
 import { useState } from "react";
+import AccessResetShell from "../components/AccessResetShell";
 import { supabase } from "../lib/supabase";
-import Link from "next/link";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
+  const [status, setStatus] = useState<{
+    message: string;
+    tone: "success" | "error";
+  } | null>(null);
 
   async function sendResetLink() {
-    if (!email) {
-      alert("Please enter your email address.");
+    if (!email.trim()) {
+      setStatus({ message: "Please enter your email address.", tone: "error" });
       return;
     }
 
     setSending(true);
+    setStatus(null);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/reset-password`,
     });
 
     setSending(false);
 
     if (error) {
-      alert(error.message);
+      setStatus({ message: error.message, tone: "error" });
       return;
     }
 
-    alert("Password reset link sent. Please check your email.");
+    setStatus({
+      message: "Reset link sent. Please check your email and follow the secure link.",
+      tone: "success",
+    });
   }
 
   return (
-    <div className="db-auth-page">
-      <div className="db-auth-card">
-        <h1 className="db-auth-title">Reset Your Password</h1>
-
-        <p className="db-auth-subtitle">
-          Enter your email address and we will send you a secure password reset link.
-        </p>
-
+    <AccessResetShell
+      title="Reset your password"
+      subtitle="Enter the email address linked to your DailyBloom account."
+      status={status ?? undefined}
+      backHref="/login"
+    >
+      <label style={labelStyle}>
+        Email address
         <input
           className="db-input"
           type="email"
-          placeholder="Email Address"
+          placeholder="name@example.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          onChange={(event) => setEmail(event.target.value)}
         />
+      </label>
 
-        <button
-          type="button"
-          className="db-button-primary"
-          style={{ width: "100%" }}
-          onClick={sendResetLink}
-          disabled={sending}
-        >
-          {sending ? "Sending..." : "Send Reset Link"}
-        </button>
-
-        <p style={{ marginTop: "18px", textAlign: "center" }}>
-          <Link href="/login">Back to login</Link>
-        </p>
-      </div>
-    </div>
+      <button
+        type="button"
+        className="db-button-primary"
+        style={primaryButtonStyle}
+        onClick={sendResetLink}
+        disabled={sending}
+      >
+        {sending ? "Sending secure link..." : "Send reset link"}
+      </button>
+    </AccessResetShell>
   );
 }
+
+const labelStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  color: "#3D3550",
+  fontWeight: 700,
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 52,
+  borderRadius: 14,
+};

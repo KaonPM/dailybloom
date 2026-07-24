@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { restorePasswordSession } from "../lib/password-session";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import AccessResetShell from "../components/AccessResetShell";
 import PasswordInput from "../components/PasswordInput";
 
 export default function ChangePasswordPage() {
@@ -15,9 +16,10 @@ export default function ChangePasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
-  const [sessionMessage, setSessionMessage] = useState(
-    "Confirming your secure session..."
-  );
+  const [status, setStatus] = useState<{
+    message: string;
+    tone: "info" | "success" | "error";
+  }>({ message: "Confirming your secure session...", tone: "info" });
 
   useEffect(() => {
     let active = true;
@@ -26,10 +28,17 @@ export default function ChangePasswordPage() {
       const result = await restorePasswordSession();
       if (!active) return;
       setSessionReady(result.ready);
-      setSessionMessage(
+      setStatus(
         result.ready
-          ? ""
-          : "Your password session has expired. Please log in again or request a new password reset link."
+          ? {
+              message: "Secure session confirmed. Please replace your temporary password.",
+              tone: "success",
+            }
+          : {
+              message:
+                "Your password session has expired. Please log in again or request a new password reset link.",
+              tone: "error",
+            }
       );
     }
 
@@ -48,14 +57,19 @@ export default function ChangePasswordPage() {
     const sessionResult = await restorePasswordSession();
     if (!sessionResult.ready) {
       setSessionReady(false);
-      setSessionMessage(
-        "Your password session has expired. Please log in again or request a new password reset link."
-      );
+      setStatus({
+        message:
+          "Your password session has expired. Please log in again or request a new password reset link.",
+        tone: "error",
+      });
       return;
     }
 
     if (!newPassword || !confirmPassword) {
-      alert("Please enter and confirm your new password.");
+      setStatus({
+        message: "Please enter and confirm your new password.",
+        tone: "error",
+      });
       return;
     }
 
@@ -63,14 +77,16 @@ export default function ChangePasswordPage() {
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
     if (!strongPasswordRegex.test(newPassword)) {
-      alert(
-        "Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character."
-      );
+      setStatus({
+        message:
+          "Use at least 8 characters with uppercase, lowercase, a number and a special character.",
+        tone: "error",
+      });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      alert("Passwords do not match.");
+      setStatus({ message: "The passwords do not match.", tone: "error" });
       return;
     }
 
@@ -79,7 +95,10 @@ export default function ChangePasswordPage() {
     const { profile, error: profileError } = await getCurrentProfile();
 
     if (profileError || !profile) {
-      alert("Could not confirm your profile. Please log in again.");
+      setStatus({
+        message: "Could not confirm your profile. Please log in again.",
+        tone: "error",
+      });
       setSaving(false);
       router.push("/login");
       return;
@@ -93,13 +112,15 @@ export default function ChangePasswordPage() {
     const result = await response.json();
 
     if (!response.ok) {
-      alert(result.error || "DailyBloom could not update your password.");
+      setStatus({
+        message: result.error || "DailyBloom could not update your password.",
+        tone: "error",
+      });
       setSaving(false);
       return;
     }
 
     setSaving(false);
-    alert("Password updated successfully.");
 
     if (profile.role === "master" || result.role === "master") {
       router.push("/master");
@@ -120,124 +141,99 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <main style={pageStyle}>
-      <header style={topBarStyle}>
-        <strong>DailyBloom</strong>
+    <AccessResetShell
+      title="Create your new password"
+      subtitle="For security, replace your temporary password before continuing."
+      status={status}
+    >
+      <label style={labelStyle}>
+        New password
+        <PasswordInput
+          className="db-input"
+          placeholder="Enter your new password"
+          value={newPassword}
+          onChange={(event) => setNewPassword(event.target.value)}
+          autoComplete="new-password"
+        />
+      </label>
 
-        <div style={{ display: "flex", gap: 10 }}>
-          <button type="button" style={smallButton} onClick={() => router.push("/")}>
-            Homepage
-          </button>
-
-          <button type="button" style={smallButton} onClick={logout}>
-            Logout
-          </button>
-        </div>
-      </header>
-
-      <section style={formWrapStyle}>
-        <h1 style={titleStyle}>Create Your New Password</h1>
-
-        <p style={subtitleStyle}>
-          For security, please replace your temporary password before continuing.
-        </p>
-
-        {sessionMessage ? <p style={subtitleStyle}>{sessionMessage}</p> : null}
-
-        <div style={passwordWrapStyle}>
+      <label style={labelStyle}>
+        Confirm new password
           <PasswordInput
-            style={inputStyle}
-            placeholder="New Password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            autoComplete="new-password"
-          />
-        </div>
-
-        <div style={passwordWrapStyle}>
-          <PasswordInput
-            style={inputStyle}
-            placeholder="Confirm New Password"
+            className="db-input"
+            placeholder="Enter it again"
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={(event) => setConfirmPassword(event.target.value)}
             autoComplete="new-password"
           />
-        </div>
+      </label>
+
+      <p style={helperStyle}>
+        At least 8 characters · uppercase · lowercase · number · special character
+      </p>
+
+      <button
+        type="button"
+        className="db-button-primary"
+        style={primaryButtonStyle}
+        onClick={updatePassword}
+        disabled={saving || !sessionReady}
+      >
+        {saving ? "Updating password..." : "Update password"}
+      </button>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: 10,
+        }}
+      >
+        <button
+          type="button"
+          className="db-button-secondary"
+          style={secondaryButtonStyle}
+          onClick={() => router.push("/")}
+        >
+          Homepage
+        </button>
 
         <button
           type="button"
-          style={updateButtonStyle}
-          onClick={updatePassword}
-          disabled={saving || !sessionReady}
+          className="db-button-secondary"
+          style={secondaryButtonStyle}
+          onClick={logout}
         >
-          {saving ? "Updating..." : "Update Password"}
+          Logout
         </button>
-      </section>
-    </main>
+      </div>
+    </AccessResetShell>
   );
 }
 
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#FBF8F4",
-  color: "#2F2440",
-};
-
-const topBarStyle: React.CSSProperties = {
-  height: 64,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: "0 32px",
-  borderBottom: "1px solid #E8DED4",
-  background: "#FBF8F4",
-};
-
-const formWrapStyle: React.CSSProperties = {
-  maxWidth: 960,
-  margin: "48px auto",
-  padding: "0 24px",
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: 28,
-  marginBottom: 12,
-};
-
-const subtitleStyle: React.CSSProperties = {
-  marginBottom: 18,
-  color: "#5B5675",
-};
-
-const passwordWrapStyle: React.CSSProperties = {
-  position: "relative",
-  marginBottom: 14,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "14px 70px 14px 16px",
-  borderRadius: 12,
-  border: "1px solid #D8D0C8",
-  fontSize: 14,
-};
-
-const updateButtonStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "14px 16px",
-  borderRadius: 12,
-  border: "none",
-  background: "#26AEE4",
-  color: "white",
+const labelStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  color: "#3D3550",
   fontWeight: 700,
-  cursor: "pointer",
 };
 
-const smallButton: React.CSSProperties = {
-  border: "1px solid #E0C7B8",
-  borderRadius: 12,
-  padding: "8px 14px",
-  background: "#F7E5D6",
-  color: "#5A3B2E",
-  cursor: "pointer",
+const helperStyle: React.CSSProperties = {
+  margin: "-2px 0 2px",
+  color: "#746D80",
+  fontSize: 13,
+  lineHeight: 1.5,
+  textAlign: "center",
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 52,
+  borderRadius: 14,
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 46,
+  borderRadius: 14,
 };

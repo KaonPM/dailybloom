@@ -12,6 +12,11 @@ const destinations: Partial<Record<Permission, string>> = {
   [PERMISSIONS.SCHOOL_STATUS]: "/principals",
   [PERMISSIONS.PRINCIPAL_MANAGE]: "/principals",
   [PERMISSIONS.BILLING_MANAGE]: "/billing",
+  [PERMISSIONS.PLATFORM_DASHBOARD_VIEW]: "/master?view=dashboard",
+  [PERMISSIONS.PLATFORM_ADMIN_MANAGE]: "/platform-access",
+  [PERMISSIONS.PLATFORM_REPORTS_VIEW]: "/master/reports",
+  [PERMISSIONS.PLATFORM_ANALYTICS_VIEW]: "/master/analytics",
+  [PERMISSIONS.PLATFORM_IMPACT_VIEW]: "/master/impact",
 };
 
 export default function MasterAdminPage() {

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import { PERMISSIONS } from "../lib/permissions";
 
 type SchoolItem = {
   id: number;
@@ -234,7 +235,18 @@ export default function MasterPage() {
       return;
     }
 
-    if (profile.role !== "master") {
+    const delegatedPermissions = Array.isArray(profile.permissions)
+      ? profile.permissions
+      : [];
+    const hasMasterDashboardAccess =
+      profile.role === "master" ||
+      (profile.role === "master_admin" &&
+        [
+          PERMISSIONS.PLATFORM_DASHBOARD_VIEW,
+          PERMISSIONS.SCHOOL_ONBOARD,
+          PERMISSIONS.SCHOOL_STATUS,
+        ].some((permission) => delegatedPermissions.includes(permission)));
+    if (!hasMasterDashboardAccess) {
       router.push("/dashboard");
       return;
     }

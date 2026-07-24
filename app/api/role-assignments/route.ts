@@ -77,13 +77,14 @@ export async function POST(request: Request) {
     const fullName = String(body.full_name || "").trim();
     const email = cleanEmail(body.email);
     const password = String(body.password || "").trim();
+    const usesTemporaryPassword = role === "admin" || role === "master_admin";
     if (!isManagedRole(role)) {
       return NextResponse.json({ error: "A supported role is required." }, { status: 400 });
     }
     if (!fullName || !email || (role !== "master_admin" && !schoolId)) {
       return NextResponse.json({ error: "Name, email and the required role context must be provided." }, { status: 400 });
     }
-    if (role === "admin" && !STRONG_PASSWORD.test(password)) {
+    if (usesTemporaryPassword && !STRONG_PASSWORD.test(password)) {
       return NextResponse.json(
         { error: "Temporary password must be at least 8 characters and include letters, numbers and a special character." },
         { status: 400 }
@@ -112,22 +113,26 @@ export async function POST(request: Request) {
     let userId = existingProfile?.id as string | undefined;
     let invited = false;
     if (!userId) {
-      const { data, error } = role === "admin"
+      const { data, error } = usesTemporaryPassword
         ? await supabaseAdmin.auth.admin.createUser({
             email,
             password,
             email_confirm: true,
-            user_metadata: { full_name: fullName, role, school_id: schoolId },
+            user_metadata: {
+              full_name: fullName,
+              role,
+              school_id: role === "master_admin" ? null : schoolId,
+            },
           })
         : await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
             redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.dailybloom.co.za"}/login`,
-            data: { full_name: fullName, role, school_id: role === "master_admin" ? null : schoolId },
+            data: { full_name: fullName, role, school_id: schoolId },
           });
       if (error || !data.user?.id) {
         return NextResponse.json({ error: error?.message || "Could not create the invitation." }, { status: 400 });
       }
       userId = data.user.id;
-      invited = role !== "admin";
+      invited = !usesTemporaryPassword;
       const { error: profileError } = await supabaseAdmin.from("profiles").upsert({
         id: userId,
         full_name: fullName,
@@ -136,18 +141,18 @@ export async function POST(request: Request) {
         school_id: role === "master_admin" ? null : schoolId,
         is_active: true,
         approval_status: "approved",
-        must_change_password: role === "admin",
+        must_change_password: usesTemporaryPassword,
       }, { onConflict: "id" });
       if (profileError) {
         await supabaseAdmin.auth.admin.deleteUser(userId);
         return NextResponse.json({ error: profileError.message }, { status: 400 });
       }
-      if (role === "admin") {
+      if (usesTemporaryPassword) {
         await sendLoginEmail({
           toEmail: email,
           fullName,
           temporaryPassword: password,
-          roleLabel: "preschool administrator",
+          roleLabel: role === "master_admin" ? "Master Admin" : "preschool administrator",
         });
       }
     }

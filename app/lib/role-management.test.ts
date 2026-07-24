@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { PERMISSIONS } from "./permissions";
 import { canManageRole, validateManagedPermissions } from "./role-management";
 
-test("only master can manage owners and master admins", () => {
+test("master and a permitted master admin can manage owners and master admins", () => {
   assert.equal(canManageRole("master", "owner"), true);
   assert.equal(canManageRole("principal", "owner"), false);
   assert.equal(canManageRole("master", "master_admin"), true);
-  assert.equal(canManageRole("master_admin", "master_admin"), false);
+  assert.equal(canManageRole("master_admin", "master_admin"), true);
 });
 
 test("principal and owner can manage preschool admins", () => {
@@ -28,7 +28,7 @@ test("forbidden delegated permissions are removed", () => {
 
 test("delegated roles require a non-empty safe checklist", () => {
   assert.throws(
-    () => validateManagedPermissions("master_admin", [PERMISSIONS.PLATFORM_ADMIN_MANAGE]),
+    () => validateManagedPermissions("master_admin", []),
     /Select at least one permission/
   );
 });

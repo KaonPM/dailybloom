@@ -32,6 +32,8 @@ export function validateManagedPermissions(role: ManagedRole, requested: unknown
 
 export function canManageRole(actorRole: string, role: ManagedRole) {
   const actor = String(actorRole || "").toLowerCase();
-  if (role === "master_admin" || role === "owner") return actor === "master";
+  if (role === "master_admin" || role === "owner") {
+    return actor === "master" || actor === "master_admin";
+  }
   return actor === "owner" || actor === "principal" || actor === "master";
 }

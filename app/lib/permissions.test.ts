@@ -12,8 +12,11 @@ test("master retains every permission", () => {
   assert.deepEqual(new Set(ROLE_PERMISSIONS.master), new Set(Object.values(PERMISSIONS)));
 });
 
-test("master admin cannot manage platform administrators", () => {
-  assert.equal(ROLE_PERMISSIONS.master_admin.includes(PERMISSIONS.PLATFORM_ADMIN_MANAGE), false);
+test("master can delegate any of their permissions to a master admin", () => {
+  assert.deepEqual(
+    new Set(ROLE_PERMISSIONS.master_admin),
+    new Set(ROLE_PERMISSIONS.master)
+  );
 });
 
 test("preschool admin can be delegated every school-level module", () => {
@@ -45,12 +48,15 @@ test("preschool admin checklist includes principal school modules but excludes p
   assert.equal(options.includes(PERMISSIONS.SCHOOL_ONBOARD), false);
 });
 
-test("master admin checklist cannot grant platform admin management", () => {
+test("master admin checklist can grant platform admin management", () => {
   const selected = sanitizeDelegatedPermissions("master_admin", [
     PERMISSIONS.SCHOOL_ONBOARD,
     PERMISSIONS.PLATFORM_ADMIN_MANAGE,
   ]);
-  assert.deepEqual(selected, [PERMISSIONS.SCHOOL_ONBOARD]);
+  assert.deepEqual(selected, [
+    PERMISSIONS.SCHOOL_ONBOARD,
+    PERMISSIONS.PLATFORM_ADMIN_MANAGE,
+  ]);
 });
 
 test("a delegated checklist restricts permissions to the explicit selection", () => {

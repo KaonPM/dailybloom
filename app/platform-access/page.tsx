@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import PermissionChecklist from "../components/PermissionChecklist";
 import { getCurrentProfile } from "../lib/auth";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
-import { Permission, selectablePermissionsForRole } from "../lib/permissions";
+import { Permission, PERMISSIONS, selectablePermissionsForRole } from "../lib/permissions";
 
 type Assignment = {
   user_id: string;
@@ -23,18 +23,25 @@ export default function PlatformAccessPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [permissions, setPermissions] = useState<Permission[]>([...recommendedPermissions]);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingPermissions, setEditingPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resendingUserId, setResendingUserId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => { void initialize(); }, []);
 
   async function initialize() {
     const { profile } = await getCurrentProfile();
-    if (!profile || profile.role !== "master") {
+    const mayManageMasterAdmins =
+      profile?.role === "master" ||
+      (profile?.role === "master_admin" &&
+        Array.isArray(profile.permissions) &&
+        profile.permissions.includes(PERMISSIONS.PLATFORM_ADMIN_MANAGE));
+    if (!profile || !mayManageMasterAdmins) {
       router.replace(profile?.role === "master_admin" ? "/master-admin" : "/dashboard");
       return;
     }
@@ -78,8 +85,8 @@ export default function PlatformAccessPage() {
   }
 
   async function invite() {
-    if (!fullName.trim() || !email.trim()) {
-      setMessage({ type: "error", text: "Enter the administrator's full name and email address." });
+    if (!fullName.trim() || !email.trim() || !password.trim()) {
+      setMessage({ type: "error", text: "Enter the administrator's full name, email address and temporary password." });
       return;
     }
     if (permissions.length === 0) {
@@ -87,13 +94,37 @@ export default function PlatformAccessPage() {
       return;
     }
     const saved = await saveRequest(
-      { full_name: fullName.trim(), email: email.trim(), permissions },
+      { full_name: fullName.trim(), email: email.trim(), password: password.trim(), permissions },
       "Master Admin invitation sent successfully."
     );
     if (saved) {
       setFullName("");
       setEmail("");
+      setPassword("");
       setPermissions([...recommendedPermissions]);
+    }
+  }
+
+  async function resendLogin(assignment: Assignment) {
+    if (!assignment.profile?.email) {
+      setMessage({ type: "error", text: "This Master Admin does not have an email address." });
+      return;
+    }
+    setResendingUserId(assignment.user_id);
+    setMessage(null);
+    try {
+      const response = await authenticatedFetch("/api/resend-master-admin-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: assignment.profile.email }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not resend the Master Admin login email.");
+      setMessage({ type: "success", text: result.message || "Master Admin login email resent." });
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Could not resend the Master Admin login email." });
+    } finally {
+      setResendingUserId(null);
     }
   }
 
@@ -105,7 +136,7 @@ export default function PlatformAccessPage() {
         <div>
           <p style={{ margin: 0, color: "#7B7592", fontWeight: 700 }}>Platform Access</p>
           <h1 className="db-page-title">Master Admin Permissions</h1>
-          <p className="db-helper">Choose the platform responsibilities this assistant may perform. Master Admins cannot create or manage other Master Admins.</p>
+          <p className="db-helper">Choose from all DailyBloom responsibilities available to the Master account.</p>
         </div>
 
         {message ? <div role="status" style={{ padding: "12px 14px", borderRadius: 14, background: message.type === "success" ? "#ECFDF3" : "#FFF1F2", color: message.type === "success" ? "#166534" : "#BE123C" }}>{message.text}</div> : null}
@@ -113,6 +144,11 @@ export default function PlatformAccessPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
           <label style={{ display: "grid", gap: 7, fontWeight: 700 }}>Full name<input className="db-input" value={fullName} onChange={(event) => setFullName(event.target.value)} /></label>
           <label style={{ display: "grid", gap: 7, fontWeight: 700 }}>Email address<input className="db-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+          <label style={{ display: "grid", gap: 7, fontWeight: 700 }}>Temporary password<input className="db-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" /></label>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="db-button-secondary" type="button" disabled={saving} onClick={() => setPermissions([...recommendedPermissions])}>Select All Master Access</button>
+          <button className="db-button-secondary" type="button" disabled={saving} onClick={() => setPermissions([])}>Clear All</button>
         </div>
         <PermissionChecklist options={options} selected={permissions} onChange={setPermissions} disabled={saving} />
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -136,6 +172,7 @@ export default function PlatformAccessPage() {
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button className="db-button-secondary" type="button" onClick={() => { setEditingUserId(assignment.user_id); setEditingPermissions([...assignment.permissions]); }} disabled={saving}>Edit Permissions</button>
+                    <button className="db-button-secondary" type="button" onClick={() => resendLogin(assignment)} disabled={saving || resendingUserId === assignment.user_id}>{resendingUserId === assignment.user_id ? "Sending..." : "Resend Login Email"}</button>
                     <button className="db-button-secondary" type="button" onClick={() => saveRequest({ user_id: assignment.user_id, status: assignment.status === "active" ? "suspended" : "active", permissions: assignment.permissions }, assignment.status === "active" ? "Master Admin access suspended." : "Master Admin access restored.")} disabled={saving}>{assignment.status === "active" ? "Suspend Access" : "Restore Access"}</button>
                   </div>
                 </div>

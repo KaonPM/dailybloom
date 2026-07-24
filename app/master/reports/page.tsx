@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { getCurrentProfile } from "../../lib/auth";
+import { PERMISSIONS } from "../../lib/permissions";
 
 type ReportRow = {
   school: string;
@@ -118,7 +119,14 @@ export default function MasterReportsPage() {
       return;
     }
 
-    if (profile.role !== "master") {
+    if (
+      profile.role !== "master" &&
+      !(
+        profile.role === "master_admin" &&
+        Array.isArray(profile.permissions) &&
+        profile.permissions.includes(PERMISSIONS.PLATFORM_REPORTS_VIEW)
+      )
+    ) {
       router.push("/dashboard");
       return;
     }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { getCurrentProfile } from "../../lib/auth";
+import { PERMISSIONS } from "../../lib/permissions";
 
 type SchoolRow = {
   id: number;
@@ -49,7 +50,14 @@ export default function MasterAnalyticsPage() {
       return;
     }
 
-    if (profile.role !== "master") {
+    if (
+      profile.role !== "master" &&
+      !(
+        profile.role === "master_admin" &&
+        Array.isArray(profile.permissions) &&
+        profile.permissions.includes(PERMISSIONS.PLATFORM_ANALYTICS_VIEW)
+      )
+    ) {
       router.push("/dashboard");
       return;
     }

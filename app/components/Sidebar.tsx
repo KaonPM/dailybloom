@@ -616,6 +616,9 @@ export default function Sidebar() {
 
   const masterAdminNav = [
     { label: "Master Admin Home", href: "/master-admin", match: ["/master-admin"] },
+    ...(profile?.permissions?.includes(PERMISSIONS.PLATFORM_DASHBOARD_VIEW)
+      ? [{ label: "Master Dashboard", href: "/master?view=dashboard", match: ["/master"] }]
+      : []),
     ...(profile?.permissions?.includes("platform.schools.onboard")
       ? [{ label: "Onboarding Pipeline", href: "/onboarding", match: ["/onboarding"] }]
       : []),
@@ -628,6 +631,18 @@ export default function Sidebar() {
       : []),
     ...(profile?.permissions?.includes("billing.manage")
       ? [{ label: "Billing", href: "/billing", match: ["/billing"] }]
+      : []),
+    ...(profile?.permissions?.includes(PERMISSIONS.PLATFORM_ADMIN_MANAGE)
+      ? [{ label: "Master Admin Access", href: "/platform-access", match: ["/platform-access"] }]
+      : []),
+    ...(profile?.permissions?.includes(PERMISSIONS.PLATFORM_REPORTS_VIEW)
+      ? [{ label: "Platform Reports", href: "/master/reports", match: ["/master/reports"] }]
+      : []),
+    ...(profile?.permissions?.includes(PERMISSIONS.PLATFORM_ANALYTICS_VIEW)
+      ? [{ label: "Platform Analytics", href: "/master/analytics", match: ["/master/analytics"] }]
+      : []),
+    ...(profile?.permissions?.includes(PERMISSIONS.PLATFORM_IMPACT_VIEW)
+      ? [{ label: "Impact & Sponsorship", href: "/master/impact", match: ["/master/impact"] }]
       : []),
   ];
 

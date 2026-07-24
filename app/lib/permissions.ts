@@ -31,6 +31,10 @@ export const PERMISSIONS = {
   SAFEGUARDING_VIEW: "incidents.safeguarding_view",
   BILLING_MANAGE: "billing.manage",
   PLATFORM_ADMIN_MANAGE: "platform.admins.manage",
+  PLATFORM_DASHBOARD_VIEW: "platform.dashboard.view",
+  PLATFORM_REPORTS_VIEW: "platform.reports.view",
+  PLATFORM_ANALYTICS_VIEW: "platform.analytics.view",
+  PLATFORM_IMPACT_VIEW: "platform.impact.view",
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -75,11 +79,15 @@ export const PERMISSION_OPTIONS: readonly PermissionOption[] = [
   { permission: PERMISSIONS.SCHOOL_STATUS, label: "Manage school status", description: "Activate, suspend or restore preschool access.", group: "Platform" },
   { permission: PERMISSIONS.PRINCIPAL_MANAGE, label: "Manage principals", description: "Invite and manage preschool principals and owners.", group: "Platform" },
   { permission: PERMISSIONS.PLATFORM_ADMIN_MANAGE, label: "Manage platform administrators", description: "Invite and manage delegated Master Admin accounts.", group: "Platform" },
+  { permission: PERMISSIONS.PLATFORM_DASHBOARD_VIEW, label: "Platform dashboard", description: "View the Master dashboard and preschool overview.", group: "Platform" },
+  { permission: PERMISSIONS.PLATFORM_REPORTS_VIEW, label: "Platform reports", description: "Generate and review cross-school platform reports.", group: "Platform" },
+  { permission: PERMISSIONS.PLATFORM_ANALYTICS_VIEW, label: "Platform analytics", description: "View cross-school operational analytics.", group: "Platform" },
+  { permission: PERMISSIONS.PLATFORM_IMPACT_VIEW, label: "Impact and sponsorship", description: "View platform impact and sponsorship information.", group: "Platform" },
 ];
 
 export const ROLE_PERMISSIONS: Record<string, readonly Permission[]> = {
   master: Object.values(PERMISSIONS),
-  master_admin: [PERMISSIONS.SCHOOL_ONBOARD, PERMISSIONS.SCHOOL_STATUS, PERMISSIONS.PRINCIPAL_MANAGE, PERMISSIONS.BILLING_MANAGE],
+  master_admin: Object.values(PERMISSIONS),
   owner: Object.values(PERMISSIONS).filter((permission) => !permission.startsWith("platform.")),
   principal: Object.values(PERMISSIONS).filter((permission) => !permission.startsWith("platform.")),
   admin: Object.values(PERMISSIONS).filter((permission) => !permission.startsWith("platform.")),

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 import { authorizeMessageUser } from "@/app/lib/message-authorization";
+import { PERMISSIONS } from "@/app/lib/permissions";
 
 export async function POST(request: Request) {
   try {
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
         .from("profiles")
         .select("id, school_id, full_name, email, role, classroom_name, is_active")
         .eq("school_id", schoolId)
-        .in("role", ["principal", "master", "owner"])
+        .in("role", ["principal", "master", "owner", "admin"])
         .order("full_name", { ascending: true }),
     ]);
 
@@ -42,10 +43,40 @@ export async function POST(request: Request) {
       );
     }
 
+    const principalRows = (principals || []).filter(
+      (principal) => principal.is_active !== false
+    );
+    const adminIds = principalRows
+      .filter((principal) => principal.role === "admin")
+      .map((principal) => principal.id);
+    const { data: messagingAdmins, error: messagingAdminsError } =
+      adminIds.length > 0
+        ? await supabaseAdmin
+            .from("school_memberships")
+            .select("user_id")
+            .eq("school_id", schoolId)
+            .eq("role", "admin")
+            .eq("status", "active")
+            .in("user_id", adminIds)
+            .contains("permissions", [PERMISSIONS.MESSAGE_VIEW])
+        : { data: [], error: null };
+
+    if (messagingAdminsError) {
+      return NextResponse.json(
+        { error: messagingAdminsError.message },
+        { status: 400 }
+      );
+    }
+
+    const messagingAdminIds = new Set(
+      (messagingAdmins || []).map((membership) => membership.user_id)
+    );
+
     return NextResponse.json({
       teachers: (teachers || []).filter((teacher) => teacher.is_active !== false),
-      principals: (principals || []).filter(
-        (principal) => principal.is_active !== false
+      principals: principalRows.filter(
+        (principal) =>
+          principal.role !== "admin" || messagingAdminIds.has(principal.id)
       ),
     });
   } catch (error: unknown) {

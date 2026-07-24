@@ -8,7 +8,7 @@ import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 import { getCurrentProfile } from "@/app/lib/auth";
 
 type Mode = "staff" | "parent";
-type UserRole = "parent" | "teacher" | "principal" | "master";
+type UserRole = "parent" | "teacher" | "principal" | "owner" | "admin" | "master";
 type ContactRole = "parent" | "teacher" | "principal";
 
 type SchoolRelation =
@@ -204,7 +204,10 @@ export default function MessagesClient({
   }, [selectedTeacherLearnerId]);
 
   useEffect(() => {
-    if ((role === "principal" || role === "master") && selectedPrincipalLearner) {
+    if (
+      ["principal", "owner", "admin", "master"].includes(role) &&
+      selectedPrincipalLearner
+    ) {
       setActiveContact(buildParentContactFromLearner(selectedPrincipalLearner));
     }
   }, [selectedPrincipalLearnerId]);
@@ -377,14 +380,18 @@ export default function MessagesClient({
       .limit(5);
 
     ((fetchedPrincipals || []) as PrincipalOption[]).forEach((principal) => {
+      const isAdmin = String(principal.role || "").toLowerCase() === "admin";
+      const schoolAdminName = `${school?.school_name || "Preschool"} Admin`;
       contacts.push({
         id: String(principal.id),
-        name: String(principal.full_name || "School Principal"),
+        name: isAdmin
+          ? schoolAdminName
+          : String(principal.full_name || "School Principal"),
         role: "principal",
         learner_id: child.id,
         learner_name: child.name,
         classroom_name: classroom?.classroom_name || null,
-        subtitle: "School principal",
+        subtitle: isAdmin ? "School administrator" : "School principal",
       });
     });
 
@@ -460,13 +467,18 @@ export default function MessagesClient({
 
     const principalList: Contact[] = (principals || [])
       .filter((principal) => String(principal.id) !== String(profile.id))
-      .map((principal) => ({
-      id: String(principal.id),
-      name: String(principal.full_name || "School Principal"),
-      role: "principal",
-      learner_id: null,
-      subtitle: "School principal",
-    }));
+      .map((principal) => {
+        const isAdmin = String(principal.role || "").toLowerCase() === "admin";
+        return {
+          id: String(principal.id),
+          name: isAdmin
+            ? "Preschool Admin"
+            : String(principal.full_name || "School Principal"),
+          role: "principal",
+          learner_id: null,
+          subtitle: isAdmin ? "School administrator" : "School principal",
+        };
+      });
 
     const { data: learners } = await supabase
       .from("learners")

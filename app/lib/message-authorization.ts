@@ -20,7 +20,14 @@ type AuthorizedParent = {
 };
 
 type MessageAuthorization =
-  | { ok: true; kind: "staff"; userId: string; role: string; parent: null }
+  | {
+      ok: true;
+      kind: "staff";
+      userId: string;
+      role: string;
+      staffName: string;
+      parent: null;
+    }
   | { ok: true; kind: "parent"; userId: string; role: "parent"; parent: AuthorizedParent }
   | { ok: false; response: NextResponse };
 
@@ -31,7 +38,18 @@ export async function authorizeMessageUser(request: Request, schoolId: number, c
     if (claimedUserId && claimedUserId !== authorization.staff.userId) {
       return { ok: false, response: NextResponse.json({ error: "Sender identity does not match your session." }, { status: 403 }) };
     }
-    return { ok: true, kind: "staff", userId: authorization.staff.userId, role: authorization.staff.role, parent: null };
+    return {
+      ok: true,
+      kind: "staff",
+      userId: authorization.staff.userId,
+      role: authorization.staff.role,
+      staffName: String(
+        authorization.staff.profile.full_name ||
+          authorization.staff.profile.email ||
+          "DailyBloom staff"
+      ),
+      parent: null,
+    };
   }
 
   const parent = await getCurrentParent();

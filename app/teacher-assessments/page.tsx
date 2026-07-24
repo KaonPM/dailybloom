@@ -9,6 +9,7 @@ import {
   gradeRRCategories,
   gradeRRRatingScale,
 } from "../lib/grade-rr-categories";
+import { PERMISSIONS } from "../lib/permissions";
 
 const levelOptions = [
   { value: "NP", label: "NP - Needs Practice" },
@@ -35,6 +36,7 @@ type ProfileRow = {
   full_name?: string | null;
   name?: string | null;
   email?: string | null;
+  permissions?: string[] | null;
 };
 type ClassroomRow = { id: number; classroom_name?: string | null };
 type LearnerRow = {
@@ -175,7 +177,15 @@ export default function TeacherAssessmentsPage() {
 
     const currentProfile = result.profile;
 
-    if (currentProfile.role !== "teacher" && currentProfile.role !== "principal") {
+    const role = String(currentProfile.role || "").toLowerCase();
+    const mayManageReports =
+      ["principal", "owner", "master"].includes(role) ||
+      (role === "admin" &&
+        (currentProfile.permissions || []).includes(
+          PERMISSIONS.PROGRESS_REPORTS_MANAGE
+        ));
+
+    if (role !== "teacher" && !mayManageReports) {
       router.push("/dashboard");
       return;
     }

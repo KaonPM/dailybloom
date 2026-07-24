@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import { PERMISSIONS } from "../lib/permissions";
 
 type Learner = {
   id: string;
@@ -22,6 +23,7 @@ type ProfileRow = {
   full_name?: string | null;
   classroom_id?: number | null;
   classroom_name?: string | null;
+  permissions?: string[] | null;
 };
 
 type IncidentReport = {
@@ -169,8 +171,12 @@ export default function IncidentReportsPage() {
     [learners, learnerId]
   );
 
-  const canCreate = profile?.role === "teacher" || profile?.role === "principal" || profile?.role === "master";
-  const canAcknowledge = profile?.role === "principal" || profile?.role === "master";
+  const canReviewIncidents =
+    ["principal", "owner", "master"].includes(String(profile?.role || "")) ||
+    (profile?.role === "admin" &&
+      (profile.permissions || []).includes(PERMISSIONS.INCIDENT_REVIEW));
+  const canCreate = profile?.role === "teacher" || canReviewIncidents;
+  const canAcknowledge = canReviewIncidents;
   const filteredReports = reports.filter((report) => {
     const matchesStatus = statusFilter === "all"
       || (statusFilter === "urgent" && report.urgency === "urgent" && report.status !== "resolved")

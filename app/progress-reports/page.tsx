@@ -13,6 +13,7 @@ import Link from "next/link";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { awardDefinitions } from "../lib/award-types";
+import { PERMISSIONS } from "../lib/permissions";
 
 const reportLevels = ["NP", "PA", "A", "G", "VG"];
 
@@ -78,6 +79,7 @@ type ProfileRow = {
   assigned_classroom?: string | null;
   assigned_classroom_name?: string | null;
   class?: string | null;
+  permissions?: string[] | null;
 };
 
 type SchoolRow = {
@@ -448,11 +450,15 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    if (
-      profile.role !== "principal" &&
-      profile.role !== "master" &&
-      profile.role !== "teacher"
-    ) {
+    const role = String(profile.role || "").toLowerCase();
+    const mayManageReports =
+      ["principal", "owner", "master"].includes(role) ||
+      (role === "admin" &&
+        (profile.permissions || []).includes(
+          PERMISSIONS.PROGRESS_REPORTS_MANAGE
+        ));
+
+    if (role !== "teacher" && !mayManageReports) {
       router.push("/dashboard");
       return;
     }
@@ -1707,7 +1713,12 @@ export default function ProgressReportsPage() {
   );
 
   const isTeacher = profile?.role === "teacher";
-  const isPrincipal = profile?.role === "principal";
+  const isPrincipal =
+    ["principal", "owner", "master"].includes(String(profile?.role || "")) ||
+    (profile?.role === "admin" &&
+      (profile?.permissions || []).includes(
+        PERMISSIONS.PROGRESS_REPORTS_MANAGE
+      ));
   const isPrincipalView = !isTeacher;
 
   const visiblePeriods = isTeacher

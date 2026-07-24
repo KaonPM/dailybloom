@@ -82,7 +82,6 @@ export async function POST(request: Request) {
     const message = String(body.message || "").trim();
     const senderRole = String(body.sender_role || "").trim();
     const senderId = String(body.sender_id || "").trim();
-    const senderName = String(body.sender_name || "").trim();
     const recipientRole = String(body.recipient_role || "").trim();
     const recipientId = String(body.recipient_id || "").trim();
     const recipientName = String(body.recipient_name || "").trim();
@@ -109,10 +108,35 @@ export async function POST(request: Request) {
         .eq("school_id", schoolId).eq("id", learnerId || "").eq("parent_phone", recipientId).maybeSingle();
       if (!linkedParent) return NextResponse.json({ error: "The selected parent is not linked to this learner and school." }, { status: 403 });
     } else {
-      const { data: linkedStaff } = await supabaseAdmin.from("profiles").select("id")
+      const { data: linkedStaff } = await supabaseAdmin.from("profiles").select("id, role")
         .eq("id", recipientId).eq("school_id", schoolId).in("role", ["teacher", "principal", "admin", "owner"]).maybeSingle();
       if (!linkedStaff) return NextResponse.json({ error: "The selected staff recipient does not belong to this school." }, { status: 403 });
+      if (linkedStaff.role === "admin") {
+        const { data: messagingMembership } = await supabaseAdmin
+          .from("school_memberships")
+          .select("user_id")
+          .eq("user_id", recipientId)
+          .eq("school_id", schoolId)
+          .eq("role", "admin")
+          .eq("status", "active")
+          .contains("permissions", [PERMISSIONS.MESSAGE_VIEW])
+          .maybeSingle();
+        if (!messagingMembership) {
+          return NextResponse.json(
+            { error: "This administrator does not have message access." },
+            { status: 403 }
+          );
+        }
+      }
     }
+
+    const schoolName = await getSchoolName(schoolId);
+    const senderDisplayName =
+      authorization.kind === "staff"
+        ? authorization.role === "admin"
+          ? `${schoolName} Admin`
+          : authorization.staffName
+        : authorization.parent?.name || "Parent/guardian";
 
     const { data, error } = await supabaseAdmin
       .from("messages")
@@ -122,7 +146,7 @@ export async function POST(request: Request) {
           learner_id: learnerId,
           sender_role: authorization.role,
           sender_id: authorization.userId,
-          sender_name: authorization.kind === "staff" ? (senderName || "DailyBloom staff") : (authorization.parent?.name || "Parent/guardian"),
+          sender_name: senderDisplayName,
           recipient_role: recipientRole,
           recipient_id: recipientId,
           recipient_name: recipientName || "Recipient",
@@ -141,7 +165,7 @@ export async function POST(request: Request) {
       schoolId,
       recipientId,
       recipientRole,
-      senderName: authorization.kind === "staff" ? (senderName || "DailyBloom staff") : (authorization.parent?.name || "Parent/guardian"),
+      senderName: senderDisplayName,
       message,
     });
 

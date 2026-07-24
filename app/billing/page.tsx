@@ -41,6 +41,7 @@ type Profile = {
   id: string;
   role: string;
   school_id: number | null;
+  permissions?: string[] | null;
 };
 
 type PrincipalContact = {
@@ -102,8 +103,10 @@ export default function BillingPage() {
     if (
       currentProfile.role !== "master" &&
       currentProfile.role !== "principal" &&
+      currentProfile.role !== "owner" &&
       !(
-        currentProfile.role === "master_admin" &&
+        (currentProfile.role === "master_admin" ||
+          currentProfile.role === "admin") &&
         Array.isArray(currentProfile.permissions) &&
         currentProfile.permissions.includes(PERMISSIONS.BILLING_MANAGE)
       )

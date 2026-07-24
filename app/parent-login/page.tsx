@@ -12,7 +12,6 @@ type InstallPromptEvent = Event & {
 export default function ParentLoginPage() {
   const router = useRouter();
 
-  const [showPin, setShowPin] = useState(false);
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
@@ -163,15 +162,6 @@ export default function ParentLoginPage() {
             visibleLabel="Hide PIN"
             hiddenLabel="Show PIN"
           />
-
-          <button
-            type="button"
-            className="parent-eye"
-            onClick={() => setShowPin(!showPin)}
-            style={{ display: "none" }}
-          >
-            {showPin ? "🙈" : "👁️"}
-          </button>
         </div>
 
         <button

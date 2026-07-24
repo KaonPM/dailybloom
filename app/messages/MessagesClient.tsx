@@ -83,6 +83,7 @@ type Contact = {
   id: string;
   name: string;
   role: ContactRole;
+  role_label?: "admin" | "principal" | "teacher" | "parent";
   learner_id?: string | null;
   learner_name?: string | null;
   classroom_name?: string | null;
@@ -388,6 +389,7 @@ export default function MessagesClient({
           ? schoolAdminName
           : String(principal.full_name || "School Principal"),
         role: "principal",
+        role_label: isAdmin ? "admin" : "principal",
         learner_id: child.id,
         learner_name: child.name,
         classroom_name: classroom?.classroom_name || null,
@@ -471,10 +473,12 @@ export default function MessagesClient({
         const isAdmin = String(principal.role || "").toLowerCase() === "admin";
         return {
           id: String(principal.id),
-          name: isAdmin
-            ? "Preschool Admin"
-            : String(principal.full_name || "School Principal"),
+          name: String(
+            principal.full_name ||
+              (isAdmin ? "Preschool Admin" : "School Principal")
+          ),
           role: "principal",
+          role_label: isAdmin ? "admin" : "principal",
           learner_id: null,
           subtitle: isAdmin ? "School administrator" : "School principal",
         };
@@ -517,7 +521,7 @@ export default function MessagesClient({
   async function loadPrincipalView(profile: StaffProfile) {
     const currentSchoolId = Number(profile.school_id);
 
-    const { teachers } = await fetchStaffDirectory(currentSchoolId);
+    const { teachers, principals } = await fetchStaffDirectory(currentSchoolId);
 
     const teacherList: Contact[] = ((teachers || []) as TeacherOption[]).map(
       (teacher) => ({
@@ -531,6 +535,22 @@ export default function MessagesClient({
           : "Teacher",
       })
     );
+    const leadershipContacts: Contact[] = (principals || [])
+      .filter((contact) => String(contact.id) !== String(profile.id))
+      .map((contact) => {
+        const isAdmin = String(contact.role || "").toLowerCase() === "admin";
+        return {
+          id: String(contact.id),
+          name: String(
+            contact.full_name ||
+              (isAdmin ? "Preschool Admin" : "School Principal")
+          ),
+          role: "principal",
+          role_label: isAdmin ? "admin" : "principal",
+          learner_id: null,
+          subtitle: isAdmin ? "School administrator" : "School principal",
+        };
+      });
 
     const { data: learners } = await supabase
       .from("learners")
@@ -560,6 +580,7 @@ export default function MessagesClient({
     ].sort((a, b) => a.localeCompare(b));
 
     setTeacherContacts(teacherList);
+    setPrincipalContacts(leadershipContacts);
     setPrincipalLearners(learnerRows);
     setSelectedClassroomName(classes[0] || "");
 
@@ -744,6 +765,7 @@ export default function MessagesClient({
     if (value === "principal") return "Principal";
     if (value === "master") return "Principal";
     if (value === "owner") return "Principal";
+    if (value === "admin") return "Admin";
 
     return value || "";
   }
@@ -851,6 +873,15 @@ export default function MessagesClient({
             <p style={groupTitle}>Teachers</p>
             <div style={{ display: "grid", gap: 8 }}>
               {teacherContacts.map((contact) => renderContactButton(contact))}
+            </div>
+          </div>
+        ) : null}
+
+        {principalContacts.length > 0 ? (
+          <div style={groupBox}>
+            <p style={groupTitle}>Principal and Admin</p>
+            <div style={{ display: "grid", gap: 8 }}>
+              {principalContacts.map((contact) => renderContactButton(contact))}
             </div>
           </div>
         ) : null}
@@ -993,7 +1024,9 @@ export default function MessagesClient({
 
                 </div>
 
-                <span style={rolePill}>{getRoleLabel(activeContact.role)}</span>
+                <span style={rolePill}>
+                  {getRoleLabel(activeContact.role_label || activeContact.role)}
+                </span>
               </div>
 
               <div style={{ ...messageList, ...(isMobile ? mobileMessageList : {}) }}>

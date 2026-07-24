@@ -62,35 +62,65 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const form = await request.formData();
-  const schoolId = Number(form.get("school_id"));
-  const documentName = String(form.get("document_name") || "").trim().slice(0, 160);
-  const file = form.get("file");
+  const body = await request.json();
+  const action = String(body.action || "");
+  const schoolId = Number(body.school_id);
+  const documentName = String(body.document_name || "").trim().slice(0, 160);
+  const fileName = String(body.file_name || "").trim().slice(0, 240);
+  const fileType = String(body.file_type || "");
+  const fileSize = Number(body.file_size || 0);
   const authorization = await requireStaffPermission(
     request,
     PERMISSIONS.DBE_MANAGE,
     schoolId
   );
   if (!authorization.ok) return authorization.response;
-  if (!(file instanceof File) || !documentName) {
-    return NextResponse.json({ error: "A document name and file are required." }, { status: 400 });
+
+  if (action === "create_upload") {
+    if (!documentName || !fileName) {
+      return NextResponse.json(
+        { error: "A document name and file are required." },
+        { status: 400 }
+      );
+    }
+    if (!ALLOWED_TYPES.has(fileType) || fileSize <= 0 || fileSize > MAX_BYTES) {
+      return NextResponse.json(
+        { error: "Upload a PDF, Word, JPG or PNG file no larger than 15 MB." },
+        { status: 400 }
+      );
+    }
+
+    const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const filePath = `${schoolId}/${crypto.randomUUID()}-${safeFileName}`;
+    const { data, error } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .createSignedUploadUrl(filePath);
+    if (error || !data?.token) {
+      return NextResponse.json(
+        { error: error?.message || "A secure upload could not be prepared." },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ path: filePath, token: data.token });
   }
-  if (!ALLOWED_TYPES.has(file.type) || file.size > MAX_BYTES) {
+
+  if (action !== "complete_upload") {
+    return NextResponse.json({ error: "Unsupported upload action." }, { status: 400 });
+  }
+
+  const filePath = String(body.file_path || "");
+  if (
+    !documentName ||
+    !fileName ||
+    !filePath.startsWith(`${schoolId}/`) ||
+    filePath.includes("..")
+  ) {
     return NextResponse.json(
-      { error: "Upload a PDF, Word, JPG or PNG file no larger than 15 MB." },
+      { error: "The completed upload details are invalid." },
       { status: 400 }
     );
   }
-
-  const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-  const filePath = `${schoolId}/${crypto.randomUUID()}-${safeFileName}`;
-  const { error: uploadError } = await supabaseAdmin.storage
-    .from(BUCKET)
-    .upload(filePath, Buffer.from(await file.arrayBuffer()), {
-      contentType: file.type,
-      upsert: false,
-    });
-  if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 });
 
   const { data, error } = await supabaseAdmin
     .from("dbe_compliance_documents")
@@ -98,7 +128,7 @@ export async function POST(request: Request) {
       school_id: schoolId,
       document_name: documentName,
       file_path: filePath,
-      file_name: file.name,
+      file_name: fileName,
     })
     .select("id, school_id, document_name, file_path, file_name, uploaded_at")
     .single();

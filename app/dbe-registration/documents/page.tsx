@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getCurrentProfile } from "../../lib/auth";
 import { resolveSchoolContext } from "../../lib/school-context";
 import { authenticatedFetch } from "../../lib/authenticated-fetch";
+import { supabase } from "../../lib/supabase";
 
 type ComplianceDocument = {
   id: string;
@@ -94,37 +95,77 @@ export default function DbeComplianceDocumentsPage() {
 
     setUploading(true);
 
-    const form = new FormData();
-    form.set("school_id", String(schoolId));
-    form.set("document_name", documentName.trim());
-    form.set("file", selectedFile);
-    const response = await authenticatedFetch(
-      "/api/dbe-compliance-documents",
-      { method: "POST", body: form }
-    );
-    const result = await response.json();
+    try {
+      const prepareResponse = await authenticatedFetch(
+        "/api/dbe-compliance-documents",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "create_upload",
+            school_id: schoolId,
+            document_name: documentName.trim(),
+            file_name: selectedFile.name,
+            file_type: selectedFile.type,
+            file_size: selectedFile.size,
+          }),
+        }
+      );
+      const prepared = await prepareResponse.json();
+      if (!prepareResponse.ok || !prepared.path || !prepared.token) {
+        throw new Error(
+          prepared.error || "A secure upload could not be prepared."
+        );
+      }
 
-    if (!response.ok) {
-      alert(result.error || "The compliance document could not be uploaded.");
+      const { error: uploadError } = await supabase.storage
+        .from("dbe-compliance-documents")
+        .uploadToSignedUrl(prepared.path, prepared.token, selectedFile, {
+          contentType: selectedFile.type,
+        });
+      if (uploadError) throw uploadError;
+
+      const completeResponse = await authenticatedFetch(
+        "/api/dbe-compliance-documents",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "complete_upload",
+            school_id: schoolId,
+            document_name: documentName.trim(),
+            file_name: selectedFile.name,
+            file_path: prepared.path,
+          }),
+        }
+      );
+      const completed = await completeResponse.json();
+      if (!completeResponse.ok) {
+        throw new Error(
+          completed.error || "The compliance document could not be saved."
+        );
+      }
+
+      setDocumentName("");
+      setSelectedFile(null);
+
+      const fileInput = document.getElementById(
+        "dbe-compliance-document-file"
+      ) as HTMLInputElement | null;
+      if (fileInput) fileInput.value = "";
+
+      await fetchDocuments(schoolId);
+      setShowUploadForm(false);
+      alert("Compliance document uploaded.");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "The compliance document could not be uploaded."
+      );
+    } finally {
       setUploading(false);
-      return;
     }
-
-    setDocumentName("");
-    setSelectedFile(null);
-
-    const fileInput = document.getElementById(
-      "dbe-compliance-document-file"
-    ) as HTMLInputElement | null;
-
-    if (fileInput) {
-      fileInput.value = "";
-    }
-
-    await fetchDocuments(schoolId);
-    setShowUploadForm(false);
-    setUploading(false);
-    alert("Compliance document uploaded.");
   }
 
   async function downloadDocument(document: ComplianceDocument) {

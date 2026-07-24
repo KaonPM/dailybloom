@@ -99,10 +99,17 @@ export async function POST(request: Request) {
     if (action === "record_payment") {
       const subscriptionId = numberId(body.subscription_id);
       const amount = Number(body.amount);
+      const chargeType = String(body.charge_type || "subscription");
+      if (!["setup_fee", "subscription"].includes(chargeType)) {
+        return NextResponse.json(
+          { error: "A valid payment type is required." },
+          { status: 400 }
+        );
+      }
       if (!schoolId || !subscriptionId || !Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "A valid subscription and payment amount are required." }, { status: 400 });
       const { data: subscription } = await supabaseAdmin
         .from("school_subscriptions")
-        .select("id, school_id, next_billing_date")
+        .select("id, school_id, plan_name, next_billing_date")
         .eq("id", subscriptionId)
         .eq("school_id", schoolId)
         .maybeSingle();
@@ -125,6 +132,8 @@ export async function POST(request: Request) {
           amount,
           unapplied_amount: amount,
           payment_date: paymentDate,
+          charge_type: chargeType,
+          plan_name: String(body.plan_name || subscription.plan_name || "Bloom"),
           payment_method: String(body.payment_method || "EFT"),
           notes: body.notes || null,
           receipt_number: receiptNumber,
@@ -135,7 +144,7 @@ export async function POST(request: Request) {
 
       const { data: openInvoices, error: invoiceError } = await supabaseAdmin
         .from("billing_invoices")
-        .select("id, amount_paid, balance_due, total_amount")
+        .select("id, amount_paid, balance_due, total_amount, download_token")
         .eq("school_id", schoolId)
         .in("status", ["issued", "partially_paid"])
         .gt("balance_due", 0)
@@ -201,6 +210,13 @@ export async function POST(request: Request) {
         (sum, invoice) => sum + Number(invoice.balance_due || 0),
         0
       );
+      const firstAllocatedInvoiceId =
+        allocationPlan.allocations[0]?.invoiceId || null;
+      const firstAllocatedInvoice = firstAllocatedInvoiceId
+        ? (openInvoices || []).find(
+            (invoice) => String(invoice.id) === firstAllocatedInvoiceId
+          )
+        : null;
       return NextResponse.json({
         success: true,
         payment_date: paymentDate,
@@ -208,6 +224,10 @@ export async function POST(request: Request) {
         receipt_number: receiptNumber,
         credit_balance: allocationPlan.creditBalance,
         outstanding_balance: outstandingBalance,
+        invoice_id: firstAllocatedInvoiceId,
+        invoice_document_url: firstAllocatedInvoice?.download_token
+          ? `/api/billing/invoices/document?token=${firstAllocatedInvoice.download_token}`
+          : null,
       });
     }
 

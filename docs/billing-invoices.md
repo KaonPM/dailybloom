@@ -9,6 +9,10 @@
 - Payments are allocated to the oldest outstanding invoice first.
 - A short payment leaves an amount due and marks an invoice partially paid.
 - An overpayment remains as credit on the payment and is automatically applied to future invoices.
+- Each payment preserves its selected setup/subscription type, DailyBloom
+  package snapshot and payment method.
+- Confirming a payment opens the affected invoice as a payment receipt while
+  the normal allocation and monthly billing process continues.
 - Billing balances continue across calendar years. Invoice numbers include their year, but account balances are never reset.
 - DailyBloom is not VAT registered. Every document states that no VAT was charged and `vat_amount` is constrained to zero.
 
@@ -19,6 +23,8 @@
 - The school can print it, save the secure document as PDF or download a generated PDF.
 - Activation and monthly invoice generation email the principal/owner a secure document link.
 - A manual **Email** action is available from the invoice list.
+
+Invoices and receipts now appear directly inside **Billing**.
 
 ## Scheduling
 
@@ -50,6 +56,7 @@ Run:
 
 ```text
 supabase/migrations/20260724_billing_invoice_ledger.sql
+supabase/migrations/20260724_payment_details.sql
 ```
 
 The migration adds:
@@ -57,6 +64,8 @@ The migration adds:
 - `billing_invoices`
 - `billing_payment_allocations`
 - `subscription_payments.unapplied_amount`
+- `subscription_payments.charge_type`
+- `subscription_payments.plan_name`
 
 Do not delete finalised invoices or payments. Corrections should be implemented
 as reversals or credit adjustments so the audit history remains intact.

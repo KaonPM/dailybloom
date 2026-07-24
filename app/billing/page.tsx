@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import BillingInvoicesPanel from "./invoices/BillingInvoicesPanel";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
@@ -22,19 +22,6 @@ type Subscription = {
   start_date: string | null;
   next_billing_date: string | null;
   last_payment_date: string | null;
-  schools?: School | null;
-};
-
-type Payment = {
-  id: number;
-  school_id: number;
-  subscription_id: number | null;
-  amount: number;
-  payment_date: string;
-  payment_method: string | null;
-  notes: string | null;
-  receipt_number: string | null;
-  created_at: string;
   schools?: School | null;
 };
 
@@ -64,7 +51,6 @@ export default function BillingPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [schools, setSchools] = useState<School[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
 
   const [selectedSchoolId, setSelectedSchoolId] = useState("");
   const [selectedPlan, setSelectedPlan] = useState("Bloom");
@@ -72,17 +58,19 @@ export default function BillingPage() {
   const [nextBillingDate, setNextBillingDate] = useState("");
 
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentChargeType, setPaymentChargeType] = useState<
+    "setup_fee" | "subscription"
+  >("subscription");
   const [paymentMethod, setPaymentMethod] = useState("EFT");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [activePaymentSubscription, setActivePaymentSubscription] =
     useState<Subscription | null>(null);
 
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(true);
-  const [paymentsOpen, setPaymentsOpen] = useState(false);
+  const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
 
   const [filterSchoolId, setFilterSchoolId] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const [filterMonth, setFilterMonth] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [savingSubscription, setSavingSubscription] = useState(false);
@@ -122,12 +110,10 @@ export default function BillingPage() {
       await Promise.all([
         fetchSchools(),
         fetchAllSubscriptions(),
-        fetchAllPayments(),
       ]);
     } else {
       await Promise.all([
         fetchPrincipalSubscription(Number(currentProfile.school_id)),
-        fetchPrincipalPayments(Number(currentProfile.school_id)),
       ]);
     }
 
@@ -170,28 +156,6 @@ export default function BillingPage() {
     setSubscriptions((data || []) as Subscription[]);
   }
 
-  async function fetchAllPayments() {
-    const { data, error } = await supabase
-      .from("subscription_payments")
-      .select(
-        `
-        *,
-        schools (
-          id,
-          school_name
-        )
-      `
-      )
-      .order("payment_date", { ascending: false });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setPayments((data || []) as Payment[]);
-  }
-
   async function fetchPrincipalSubscription(schoolId: number) {
     const { data, error } = await supabase
       .from("school_subscriptions")
@@ -213,29 +177,6 @@ export default function BillingPage() {
     }
 
     setSubscriptions(data ? ([data] as Subscription[]) : []);
-  }
-
-  async function fetchPrincipalPayments(schoolId: number) {
-    const { data, error } = await supabase
-      .from("subscription_payments")
-      .select(
-        `
-        *,
-        schools (
-          id,
-          school_name
-        )
-      `
-      )
-      .eq("school_id", schoolId)
-      .order("payment_date", { ascending: false });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setPayments((data || []) as Payment[]);
   }
 
   async function fetchPrincipalContact(
@@ -267,6 +208,7 @@ export default function BillingPage() {
   function openPaymentPopup(subscription: Subscription) {
     setActivePaymentSubscription(subscription);
     setPaymentAmount(String(subscription.monthly_price));
+    setPaymentChargeType("subscription");
     setPaymentMethod("EFT");
     setPaymentNotes("");
   }
@@ -276,6 +218,7 @@ export default function BillingPage() {
 
     setActivePaymentSubscription(null);
     setPaymentAmount("");
+    setPaymentChargeType("subscription");
     setPaymentMethod("EFT");
     setPaymentNotes("");
   }
@@ -336,11 +279,27 @@ export default function BillingPage() {
     }
 
     setSavingPaymentId(subscription.id);
+    const invoiceWindow = window.open("", "_blank");
 
-    let operationResult: { payment_date: string; next_billing_date: string; receipt_number: string };
+    let operationResult: {
+      payment_date: string;
+      next_billing_date: string;
+      receipt_number: string;
+      invoice_document_url: string | null;
+    };
     try {
-      operationResult = await runPlatformOperation({ action: "record_payment", school_id: subscription.school_id, subscription_id: subscription.id, amount, payment_method: paymentMethod || "EFT", notes: paymentNotes || null });
+      operationResult = await runPlatformOperation({
+        action: "record_payment",
+        school_id: subscription.school_id,
+        subscription_id: subscription.id,
+        amount,
+        charge_type: paymentChargeType,
+        plan_name: subscription.plan_name,
+        payment_method: paymentMethod || "EFT",
+        notes: paymentNotes || null,
+      });
     } catch (error) {
+      invoiceWindow?.close();
       alert(error instanceof Error ? error.message : "Could not record the payment.");
       setSavingPaymentId(null);
       return;
@@ -367,6 +326,10 @@ export default function BillingPage() {
           amount,
           paymentDate,
           nextBillingDate: nextBilling,
+          paymentType:
+            paymentChargeType === "setup_fee"
+              ? "Setup Fee"
+              : "Subscription Fee",
           paymentMethod: paymentMethod || "EFT",
           paymentNotes: paymentNotes || "",
           planName: subscription.plan_name,
@@ -377,15 +340,25 @@ export default function BillingPage() {
       emailSent = emailResponse.ok;
     }
 
-    await Promise.all([fetchAllSubscriptions(), fetchAllPayments()]);
+    await fetchAllSubscriptions();
+    setInvoiceRefreshKey((current) => current + 1);
 
     setSavingPaymentId(null);
     setActivePaymentSubscription(null);
     setPaymentAmount("");
+    setPaymentChargeType("subscription");
     setPaymentMethod("EFT");
     setPaymentNotes("");
     setSubscriptionsOpen(true);
-    setPaymentsOpen(true);
+
+    if (operationResult.invoice_document_url && invoiceWindow) {
+      invoiceWindow.location.href = operationResult.invoice_document_url;
+    } else if (operationResult.invoice_document_url) {
+      window.location.assign(operationResult.invoice_document_url);
+    } else {
+      invoiceWindow?.close();
+      document.getElementById("invoices")?.scrollIntoView({ behavior: "smooth" });
+    }
 
     if (emailSent) {
       alert(`Payment recorded and receipt sent. Receipt number: ${receiptNumber}`);
@@ -427,18 +400,6 @@ export default function BillingPage() {
       return schoolMatches && statusMatches;
     });
   }, [subscriptions, filterSchoolId, filterStatus]);
-
-  const filteredPayments = useMemo(() => {
-    return payments.filter((payment) => {
-      const schoolMatches =
-        !filterSchoolId || Number(filterSchoolId) === Number(payment.school_id);
-
-      const monthMatches =
-        !filterMonth || payment.payment_date?.slice(0, 7) === filterMonth;
-
-      return schoolMatches && monthMatches;
-    });
-  }, [payments, filterSchoolId, filterMonth]);
 
   const expectedMonthlyRevenue = useMemo(() => {
     return subscriptions
@@ -492,9 +453,17 @@ export default function BillingPage() {
             </p>
           </div>
 
-          <Link className="db-button-primary" href="/billing/invoices">
-            Open Invoices & Receipts
-          </Link>
+          <button
+            type="button"
+            className="db-button-primary"
+            onClick={() =>
+              document
+                .getElementById("invoices")
+                ?.scrollIntoView({ behavior: "smooth" })
+            }
+          >
+            View Invoices & Receipts
+          </button>
         </div>
       </div>
 
@@ -723,6 +692,7 @@ export default function BillingPage() {
         ) : null}
       </div>
 
+      {/*
       <div
         className="db-card db-card-yellow"
         style={{
@@ -800,6 +770,11 @@ export default function BillingPage() {
           </div>
         ) : null}
       </div>
+      */}
+
+      <section id="invoices" style={{ scrollMarginTop: 24, marginTop: 18 }}>
+        <BillingInvoicesPanel embedded refreshKey={invoiceRefreshKey} />
+      </section>
 
       {activePaymentSubscription ? (
         <div style={modalOverlay}>
@@ -824,6 +799,27 @@ export default function BillingPage() {
             </div>
 
             <div style={{ marginTop: "14px" }}>
+              <label style={labelStyle}>Payment Type</label>
+              <select
+                className="db-input"
+                value={paymentChargeType}
+                onChange={(e) =>
+                  setPaymentChargeType(
+                    e.target.value as "setup_fee" | "subscription"
+                  )
+                }
+              >
+                <option value="setup_fee">Setup Fee</option>
+                <option value="subscription">Subscription Fee</option>
+              </select>
+
+              <label style={labelStyle}>Subscription Package</label>
+              <input
+                className="db-input"
+                value={`${activePaymentSubscription.plan_name} Subscription Package`}
+                readOnly
+              />
+
               <label style={labelStyle}>Payment Amount</label>
               <input
                 className="db-input"

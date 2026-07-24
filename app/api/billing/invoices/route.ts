@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   let paymentQuery = supabaseAdmin
     .from("subscription_payments")
     .select(
-      "id, school_id, subscription_id, amount, unapplied_amount, payment_date, payment_method, notes, receipt_number, created_at"
+      "id, school_id, subscription_id, amount, unapplied_amount, payment_date, charge_type, plan_name, payment_method, notes, receipt_number, created_at"
     )
     .order("payment_date", { ascending: false });
 

@@ -93,11 +93,6 @@ export default function Sidebar() {
         match: [],
       },
       {
-        label: "Invoices",
-        href: "/billing/invoices",
-        match: ["/billing/invoices"],
-      },
-      {
         label: "Platform Reports",
         href: "/master/reports",
         match: ["/master/reports"],
@@ -282,7 +277,6 @@ export default function Sidebar() {
         permission: PERMISSIONS.SCHOOL_DOCUMENTS_MANAGE,
       },
       { label: "Billing Overview", href: "/billing", match: [], permission: PERMISSIONS.BILLING_MANAGE },
-      { label: "Invoices", href: "/billing/invoices", match: ["/billing/invoices"], permission: PERMISSIONS.BILLING_MANAGE },
     ],
     []
   );
@@ -638,7 +632,6 @@ export default function Sidebar() {
     ...(profile?.permissions?.includes("billing.manage")
       ? [
           { label: "Billing Overview", href: "/billing", match: [] },
-          { label: "Invoices", href: "/billing/invoices", match: ["/billing/invoices"] },
         ]
       : []),
     ...(profile?.permissions?.includes(PERMISSIONS.PLATFORM_ADMIN_MANAGE)

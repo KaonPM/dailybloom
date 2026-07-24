@@ -19,6 +19,7 @@ export async function POST(request: Request) {
       amount,
       paymentDate,
       nextBillingDate,
+      paymentType,
       paymentMethod,
       paymentNotes,
       planName,
@@ -50,7 +51,8 @@ export async function POST(request: Request) {
           <div style="background: #f8fafc; padding: 16px; border-radius: 10px; margin: 20px 0;">
             <p><strong>Receipt Number:</strong> ${receiptNumber || "Not generated"}</p>
             <p><strong>School:</strong> ${schoolName}</p>
-            <p><strong>Plan:</strong> ${planName || "DailyBloom Subscription"}</p>
+            <p><strong>Payment Type:</strong> ${paymentType || "Subscription Fee"}</p>
+            <p><strong>Package:</strong> ${planName || "DailyBloom"} Subscription Package</p>
             <p><strong>Amount Received:</strong> R${Number(amount).toFixed(2)}</p>
             <p><strong>Payment Date:</strong> ${paymentDate || "Not specified"}</p>
             <p><strong>Payment Method:</strong> ${paymentMethod || "Not specified"}</p>

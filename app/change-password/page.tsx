@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { restorePasswordSession } from "../lib/password-session";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -60,11 +61,11 @@ export default function ChangePasswordPage() {
     }
 
     const strongPasswordRegex =
-      /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
     if (!strongPasswordRegex.test(newPassword)) {
       alert(
-        "Password must be at least 8 characters and include letters, numbers, and a special character."
+        "Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character."
       );
       return;
     }
@@ -85,23 +86,15 @@ export default function ChangePasswordPage() {
       return;
     }
 
-    const { error: passwordError } = await supabase.auth.updateUser({
-      password: newPassword,
+    const response = await authenticatedFetch("/api/update-own-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: newPassword }),
     });
+    const result = await response.json();
 
-    if (passwordError) {
-      alert(passwordError.message);
-      setSaving(false);
-      return;
-    }
-
-    const { error: updateProfileError } = await supabase
-      .from("profiles")
-      .update({ must_change_password: false })
-      .eq("id", profile.id);
-
-    if (updateProfileError) {
-      alert(updateProfileError.message);
+    if (!response.ok) {
+      alert(result.error || "DailyBloom could not update your password.");
       setSaving(false);
       return;
     }
@@ -109,8 +102,18 @@ export default function ChangePasswordPage() {
     setSaving(false);
     alert("Password updated successfully.");
 
-    if (profile.role === "master") {
+    if (profile.role === "master" || result.role === "master") {
       router.push("/master");
+      return;
+    }
+
+    if (profile.role === "master_admin" || result.role === "master_admin") {
+      router.push("/master-admin");
+      return;
+    }
+
+    if (profile.role === "teacher" || result.role === "teacher") {
+      router.push("/teacher");
       return;
     }
 

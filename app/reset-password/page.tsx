@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { restorePasswordSession } from "../lib/password-session";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function ResetPasswordPage() {
     let active = true;
 
     async function confirmSession() {
-      const result = await restorePasswordSession();
+      const result = await restorePasswordSession("recovery");
       if (!active) return;
       setSessionReady(result.ready);
       setSessionMessage(
@@ -39,7 +40,7 @@ export default function ResetPasswordPage() {
   }, []);
 
   async function resetPassword() {
-    const sessionResult = await restorePasswordSession();
+    const sessionResult = await restorePasswordSession("recovery");
     if (!sessionResult.ready) {
       setSessionReady(false);
       setSessionMessage(
@@ -65,28 +66,21 @@ export default function ResetPasswordPage() {
 
     setSaving(true);
 
-    const { error: passwordError } = await supabase.auth.updateUser({
-      password: newPassword,
+    const response = await authenticatedFetch("/api/update-own-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: newPassword }),
     });
+    const result = await response.json();
 
-    if (passwordError) {
-      alert(passwordError.message);
+    if (!response.ok) {
+      alert(result.error || "DailyBloom could not update your password.");
       setSaving(false);
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      await supabase
-        .from("profiles")
-        .update({ must_change_password: false })
-        .eq("id", user.id);
-    }
-
-    await supabase.auth.signOut();
+    window.sessionStorage.removeItem("dailybloom-password-recovery-user");
+    await supabase.auth.signOut({ scope: "local" });
 
     setSaving(false);
 

@@ -260,7 +260,7 @@ export default function PrincipalsPage() {
     setActionLoadingId(principal.id);
 
     const { error } = await supabase.auth.resetPasswordForEmail(principal.email, {
-      redirectTo: `${window.location.origin}/change-password`,
+      redirectTo: `${window.location.origin}/reset-password`,
     });
 
     if (error) {

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
+import { restorePasswordSession } from "../lib/password-session";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -12,8 +13,41 @@ export default function ResetPasswordPage() {
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionMessage, setSessionMessage] = useState(
+    "Confirming your secure password-reset link..."
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function confirmSession() {
+      const result = await restorePasswordSession();
+      if (!active) return;
+      setSessionReady(result.ready);
+      setSessionMessage(
+        result.ready
+          ? ""
+          : "This password-reset link is invalid or has expired. Please request a new link."
+      );
+    }
+
+    void confirmSession();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function resetPassword() {
+    const sessionResult = await restorePasswordSession();
+    if (!sessionResult.ready) {
+      setSessionReady(false);
+      setSessionMessage(
+        "This password-reset link is invalid or has expired. Please request a new link."
+      );
+      return;
+    }
+
     const strongPasswordRegex =
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
@@ -70,6 +104,10 @@ export default function ResetPasswordPage() {
           Your new password must include uppercase, lowercase, a number, and a special character.
         </p>
 
+        {sessionMessage ? (
+          <p className="db-auth-subtitle">{sessionMessage}</p>
+        ) : null}
+
         <input
           className="db-input"
           type={showPassword ? "text" : "password"}
@@ -111,7 +149,7 @@ export default function ResetPasswordPage() {
           className="db-button-primary"
           style={{ width: "100%", marginBottom: "14px" }}
           onClick={resetPassword}
-          disabled={saving}
+          disabled={saving || !sessionReady}
         >
           {saving ? "Saving..." : "Update Password"}
         </button>

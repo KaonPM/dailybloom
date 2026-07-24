@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import { restorePasswordSession } from "../lib/password-session";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -13,6 +14,30 @@ export default function ChangePasswordPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionMessage, setSessionMessage] = useState(
+    "Confirming your secure session..."
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function confirmSession() {
+      const result = await restorePasswordSession();
+      if (!active) return;
+      setSessionReady(result.ready);
+      setSessionMessage(
+        result.ready
+          ? ""
+          : "Your password session has expired. Please log in again or request a new password reset link."
+      );
+    }
+
+    void confirmSession();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function logout() {
     await supabase.auth.signOut();
@@ -20,6 +45,15 @@ export default function ChangePasswordPage() {
   }
 
   async function updatePassword() {
+    const sessionResult = await restorePasswordSession();
+    if (!sessionResult.ready) {
+      setSessionReady(false);
+      setSessionMessage(
+        "Your password session has expired. Please log in again or request a new password reset link."
+      );
+      return;
+    }
+
     if (!newPassword || !confirmPassword) {
       alert("Please enter and confirm your new password.");
       return;
@@ -106,6 +140,8 @@ export default function ChangePasswordPage() {
           For security, please replace your temporary password before continuing.
         </p>
 
+        {sessionMessage ? <p style={subtitleStyle}>{sessionMessage}</p> : null}
+
         <div style={passwordWrapStyle}>
           <input
             style={inputStyle}
@@ -146,7 +182,7 @@ export default function ChangePasswordPage() {
           type="button"
           style={updateButtonStyle}
           onClick={updatePassword}
-          disabled={saving}
+          disabled={saving || !sessionReady}
         >
           {saving ? "Updating..." : "Update Password"}
         </button>

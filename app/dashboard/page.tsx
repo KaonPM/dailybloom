@@ -83,6 +83,15 @@ type ConsolidatedOverview = {
   unpaidThisMonth: number;
 };
 
+type BillingUpdate = {
+  id: string;
+  invoice_number: string;
+  description: string;
+  issue_date: string;
+  balance_due: number;
+  status: string;
+};
+
 export default function PrincipalDashboardPage() {
   const router = useRouter();
 
@@ -105,6 +114,8 @@ export default function PrincipalDashboardPage() {
     UpcomingBirthdayItem[]
   >([]);
   const [todayActivities, setTodayActivities] = useState<ActivityItem[]>([]);
+  const [latestBillingUpdate, setLatestBillingUpdate] =
+    useState<BillingUpdate | null>(null);
 
   const [consolidated, setConsolidated] = useState<ConsolidatedOverview>({
     presentToday: 0,
@@ -167,9 +178,25 @@ export default function PrincipalDashboardPage() {
       fetchStats(currentSchoolId),
       fetchTopRowContent(currentSchoolId),
       fetchConsolidatedOverview(currentSchoolId),
+      fetchLatestBillingUpdate(currentSchoolId),
     ]);
 
     setLoading(false);
+  }
+
+  async function fetchLatestBillingUpdate(currentSchoolId: number) {
+    const { data } = await supabase
+      .from("billing_invoices")
+      .select(
+        "id, invoice_number, description, issue_date, balance_due, status"
+      )
+      .eq("school_id", currentSchoolId)
+      .order("issue_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    setLatestBillingUpdate((data || null) as BillingUpdate | null);
   }
 
   async function fetchStats(currentSchoolId: number) {
@@ -528,6 +555,42 @@ export default function PrincipalDashboardPage() {
           </div>
         </div>
       </div>
+
+      {latestBillingUpdate ? (
+        <Link
+          href="/billing/invoices"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "auto minmax(0, 1fr) auto",
+            alignItems: "center",
+            gap: 14,
+            marginBottom: 16,
+            padding: "15px 17px",
+            border: "1px solid #CBEAF7",
+            borderLeft: "5px solid #75C7EA",
+            borderRadius: 17,
+            background: "#F4FBFE",
+            color: "#2D2A3E",
+            textDecoration: "none",
+          }}
+        >
+          <span aria-hidden="true" style={{ fontSize: 24 }}>
+            🧾
+          </span>
+          <span style={{ minWidth: 0 }}>
+            <strong style={{ display: "block" }}>New billing update</strong>
+            <span style={{ color: "#625B73", fontSize: 13 }}>
+              {latestBillingUpdate.description} ·{" "}
+              {latestBillingUpdate.status === "paid"
+                ? "Paid"
+                : `R${Number(latestBillingUpdate.balance_due || 0).toFixed(
+                    2
+                  )} due`}
+            </span>
+          </span>
+          <strong style={{ color: "#346A82", fontSize: 13 }}>View invoice →</strong>
+        </Link>
+      ) : null}
 
       <div
         id="today-activities"

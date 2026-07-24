@@ -851,3 +851,13 @@ color:#6D6680;
 font-size:13px;
 line-height:1.45;
 }
+
+@media (max-width: 760px) {
+  .db-billing-invoice-card {
+    grid-template-columns: 1fr !important;
+  }
+
+  .db-billing-invoice-card > div:last-child {
+    justify-content: flex-start !important;
+  }
+}

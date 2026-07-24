@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
@@ -466,19 +467,35 @@ export default function BillingPage() {
           marginBottom: "18px",
         }}
       >
-        <h1
-          className="db-page-title"
+        <div
           style={{
-            fontSize: "28px",
-            marginBottom: "6px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 14,
+            flexWrap: "wrap",
           }}
         >
-          Billing and Payments
-        </h1>
+          <div>
+            <h1
+              className="db-page-title"
+              style={{
+                fontSize: "28px",
+                marginBottom: "6px",
+              }}
+            >
+              Billing and Payments
+            </h1>
 
-        <p className="db-page-subtitle" style={{ marginBottom: 0 }}>
-          DailyBloom subscription billing for schools.
-        </p>
+            <p className="db-page-subtitle" style={{ marginBottom: 0 }}>
+              DailyBloom subscription billing for schools.
+            </p>
+          </div>
+
+          <Link className="db-button-primary" href="/billing/invoices">
+            Open Invoices & Receipts
+          </Link>
+        </div>
       </div>
 
       {isMaster ? (

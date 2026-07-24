@@ -88,9 +88,14 @@ export default function Sidebar() {
         match: ["/onboarding"],
       },
       {
-        label: "Billing",
+        label: "Billing Overview",
         href: "/billing",
-        match: ["/billing"],
+        match: [],
+      },
+      {
+        label: "Invoices",
+        href: "/billing/invoices",
+        match: ["/billing/invoices"],
       },
       {
         label: "Platform Reports",
@@ -276,7 +281,8 @@ export default function Sidebar() {
         match: ["/school-documents"],
         permission: PERMISSIONS.SCHOOL_DOCUMENTS_MANAGE,
       },
-      { label: "Billing", href: "/billing", match: ["/billing"], permission: PERMISSIONS.BILLING_MANAGE },
+      { label: "Billing Overview", href: "/billing", match: [], permission: PERMISSIONS.BILLING_MANAGE },
+      { label: "Invoices", href: "/billing/invoices", match: ["/billing/invoices"], permission: PERMISSIONS.BILLING_MANAGE },
     ],
     []
   );
@@ -630,7 +636,10 @@ export default function Sidebar() {
       ? [{ label: "School Status", href: "/principals", match: ["/principals"] }]
       : []),
     ...(profile?.permissions?.includes("billing.manage")
-      ? [{ label: "Billing", href: "/billing", match: ["/billing"] }]
+      ? [
+          { label: "Billing Overview", href: "/billing", match: [] },
+          { label: "Invoices", href: "/billing/invoices", match: ["/billing/invoices"] },
+        ]
       : []),
     ...(profile?.permissions?.includes(PERMISSIONS.PLATFORM_ADMIN_MANAGE)
       ? [{ label: "Master Admin Access", href: "/platform-access", match: ["/platform-access"] }]

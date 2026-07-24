@@ -9,7 +9,7 @@ export default function TermsPage() {
         </Link>
 
         <h1 style={titleStyle}>DailyBloom Service Agreement and Terms of Use</h1>
-        <p style={dateStyle}>Last updated: 28 April 2026</p>
+        <p style={dateStyle}>Last updated: 24 July 2026</p>
 
         <Section title="1. Parties">
           This Agreement is entered into between Lesedi Smart Solutions (Pty) Ltd,
@@ -38,15 +38,14 @@ export default function TermsPage() {
           Bloom Elite: R499 per month
         </Section>
 
-        <Section title="5. Setup Fee and First Payment">
-          Before onboarding, account setup, or service activation can begin,
-          payment must first be received. The first payment includes the once-off
-          setup fee of R599 and the first month subscription fee for the selected
-          package.
+        <Section title="5. Setup Fee and First Subscription">
+          A once-off setup fee of R599 is charged when the preschool account is
+          activated. The first monthly subscription charge for the selected
+          package is generated on the first day of the following month.
           <br />
           <br />
-          No onboarding or activation work will commence until cleared payment
-          reflects.
+          DailyBloom may require cleared setup payment before onboarding services
+          are completed or full platform access is provided.
         </Section>
 
         <Section title="6. What the Setup Fee Covers">
@@ -58,7 +57,10 @@ export default function TermsPage() {
 
         <Section title="7. Billing Model">
           All subscriptions are billed in advance. Monthly subscription fees are
-          payable on the agreed billing date each month.
+          generated on the first day of each month. Payments are applied to the
+          oldest outstanding charge first. Overpayments remain as account credit
+          and are applied to future charges, while short payments leave an amount
+          due on the account.
         </Section>
 
         <Section title="8. Payment Details">

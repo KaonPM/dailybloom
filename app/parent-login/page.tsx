@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import PasswordInput from "../components/PasswordInput";
 
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -150,8 +151,7 @@ export default function ParentLoginPage() {
         </div>
 
         <div className="parent-input-wrap">
-          <input
-            type={showPin ? "text" : "password"}
+          <PasswordInput
             placeholder="PIN"
             className="parent-input"
             value={pin}
@@ -159,12 +159,16 @@ export default function ParentLoginPage() {
             inputMode="numeric"
             pattern="[0-9]*"
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+            autoComplete="current-password"
+            visibleLabel="Hide PIN"
+            hiddenLabel="Show PIN"
           />
 
           <button
             type="button"
             className="parent-eye"
             onClick={() => setShowPin(!showPin)}
+            style={{ display: "none" }}
           >
             {showPin ? "🙈" : "👁️"}
           </button>

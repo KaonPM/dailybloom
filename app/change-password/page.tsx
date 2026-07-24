@@ -6,14 +6,13 @@ import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { restorePasswordSession } from "../lib/password-session";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import PasswordInput from "../components/PasswordInput";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionMessage, setSessionMessage] = useState(
@@ -146,39 +145,23 @@ export default function ChangePasswordPage() {
         {sessionMessage ? <p style={subtitleStyle}>{sessionMessage}</p> : null}
 
         <div style={passwordWrapStyle}>
-          <input
+          <PasswordInput
             style={inputStyle}
-            type={showNewPassword ? "text" : "password"}
             placeholder="New Password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
+            autoComplete="new-password"
           />
-
-          <button
-            type="button"
-            style={viewButtonStyle}
-            onClick={() => setShowNewPassword((prev) => !prev)}
-          >
-            {showNewPassword ? "Hide" : "View"}
-          </button>
         </div>
 
         <div style={passwordWrapStyle}>
-          <input
+          <PasswordInput
             style={inputStyle}
-            type={showConfirmPassword ? "text" : "password"}
             placeholder="Confirm New Password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
           />
-
-          <button
-            type="button"
-            style={viewButtonStyle}
-            onClick={() => setShowConfirmPassword((prev) => !prev)}
-          >
-            {showConfirmPassword ? "Hide" : "View"}
-          </button>
         </div>
 
         <button
@@ -237,18 +220,6 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 12,
   border: "1px solid #D8D0C8",
   fontSize: 14,
-};
-
-const viewButtonStyle: React.CSSProperties = {
-  position: "absolute",
-  right: 10,
-  top: "50%",
-  transform: "translateY(-50%)",
-  border: "none",
-  background: "transparent",
-  color: "#2F80A8",
-  fontWeight: 700,
-  cursor: "pointer",
 };
 
 const updateButtonStyle: React.CSSProperties = {

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import PasswordInput from "../components/PasswordInput";
 
 type TeacherRow = {
   id: string;
@@ -371,12 +372,12 @@ export default function TeachersPage() {
           {!editingId ? (
             <div style={{ marginTop: 10 }}>
               <p style={labelText}>Temporary Password</p>
-              <input
+              <PasswordInput
                 className="db-input"
-                type="password"
                 placeholder="Temporary password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
               />
             </div>
           ) : null}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
+import PasswordInput from "../components/PasswordInput";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,7 +12,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit() {
     if (!email || !password) {
@@ -246,34 +246,13 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
         />
 
-        <div style={{ position: "relative" }}>
-         <input
+        <PasswordInput
           className="db-input"
-          type={showPassword ? "text" : "password"}
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          style={{ paddingRight: "46px" }}
-         />
-
-         <button
-          type="button"
-          onClick={() => setShowPassword(!showPassword)}
-          style={{
-          position: "absolute",
-          right: "12px",
-          top: "50%",
-          transform: "translateY(-50%)",
-          border: "none",
-          background: "transparent",
-          cursor: "pointer",
-          fontSize: "18px",
-         }}
-          aria-label={showPassword ? "Hide password" : "Show password"}
-         >
-         {showPassword ? "🙈" : "👁️"}
-         </button>
-       </div>
+          autoComplete="current-password"
+        />
 
         <button
           type="button"

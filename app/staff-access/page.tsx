@@ -8,6 +8,7 @@ import { getCurrentProfile } from "../lib/auth";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { Permission, selectablePermissionsForRole } from "../lib/permissions";
 import { resolveSchoolContext } from "../lib/school-context";
+import PasswordInput from "../components/PasswordInput";
 
 type Assignment = {
   user_id: string;
@@ -198,7 +199,7 @@ export default function StaffAccessPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
           <label style={{ display: "grid", gap: "7px", fontWeight: 700 }}>Full name<input className="db-input" value={fullName} onChange={(event) => setFullName(event.target.value)} /></label>
           <label style={{ display: "grid", gap: "7px", fontWeight: 700 }}>Email address<input className="db-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-          <label style={{ display: "grid", gap: "7px", fontWeight: 700 }}>Temporary password<input className="db-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" /></label>
+          <label style={{ display: "grid", gap: "7px", fontWeight: 700 }}>Temporary password<PasswordInput className="db-input" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" autoComplete="new-password" /></label>
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>

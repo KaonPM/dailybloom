@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { restorePasswordSession } from "../lib/password-session";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import PasswordInput from "../components/PasswordInput";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -12,8 +13,6 @@ export default function ResetPasswordPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionMessage, setSessionMessage] = useState(
     "Confirming your secure password-reset link..."
@@ -102,41 +101,21 @@ export default function ResetPasswordPage() {
           <p className="db-auth-subtitle">{sessionMessage}</p>
         ) : null}
 
-        <input
+        <PasswordInput
           className="db-input"
-          type={showPassword ? "text" : "password"}
           placeholder="New Password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
+          autoComplete="new-password"
         />
 
-        <button
-          type="button"
-          className="db-button-secondary"
-          style={{ width: "100%", marginBottom: "12px" }}
-          onClick={() => setShowPassword(!showPassword)}
-          disabled={saving}
-        >
-          {showPassword ? "Hide" : "Show"}
-        </button>
-
-        <input
+        <PasswordInput
           className="db-input"
-          type={showConfirmPassword ? "text" : "password"}
           placeholder="Confirm New Password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
+          autoComplete="new-password"
         />
-
-        <button
-          type="button"
-          className="db-button-secondary"
-          style={{ width: "100%", marginBottom: "12px" }}
-          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-          disabled={saving}
-        >
-          {showConfirmPassword ? "Hide" : "Show"}
-        </button>
 
         <button
           type="button"

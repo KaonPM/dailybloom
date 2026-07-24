@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import PasswordInput from "../components/PasswordInput";
 
 export default function CreatePinPage() {
   const router = useRouter();
@@ -158,16 +159,15 @@ export default function CreatePinPage() {
           <>
             <div className="parent-input-wrap">
 
-              <input
-                type={
-                  showPin
-                    ? "text"
-                    : "password"
-                }
+              <PasswordInput
                 maxLength={4}
                 value={pin}
                 className="parent-input"
                 placeholder="Enter 4 digit PIN"
+                inputMode="numeric"
+                autoComplete="new-password"
+                visibleLabel="Hide PIN"
+                hiddenLabel="Show PIN"
                 onChange={(e) =>
                   setPin(
                     e.target.value.replace(
@@ -181,6 +181,7 @@ export default function CreatePinPage() {
               <button
                 type="button"
                 className="parent-eye"
+                style={{ display: "none" }}
                 onClick={() =>
                   setShowPin(
                     !showPin
@@ -196,18 +197,17 @@ export default function CreatePinPage() {
 
             <div className="parent-input-wrap">
 
-              <input
-                type={
-                  showConfirmPin
-                    ? "text"
-                    : "password"
-                }
+              <PasswordInput
                 maxLength={4}
                 value={
                   confirmPin
                 }
                 className="parent-input"
                 placeholder="Confirm PIN"
+                inputMode="numeric"
+                autoComplete="new-password"
+                visibleLabel="Hide PIN"
+                hiddenLabel="Show PIN"
                 onChange={(e) =>
                   setConfirmPin(
                     e.target.value.replace(
@@ -221,6 +221,7 @@ export default function CreatePinPage() {
               <button
                 type="button"
                 className="parent-eye"
+                style={{ display: "none" }}
                 onClick={() =>
                   setShowConfirmPin(
                     !showConfirmPin

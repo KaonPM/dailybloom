@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import PasswordInput from "../components/PasswordInput";
 
 const fieldStyle = { width: "100%", padding: 16, borderRadius: 14, border: "1px solid #ddd", marginBottom: 14, fontSize: 16 };
 const buttonStyle = { width: "100%", padding: 16, background: "#6EC1E4", color: "#fff", border: "none", borderRadius: 14, fontWeight: 700, cursor: "pointer" };
@@ -53,8 +54,8 @@ export default function ForgotParentPinPage() {
       {step === "code" && <>
         <p style={{ color: "#666", lineHeight: 1.6 }}>{message} The code expires in 10 minutes.</p>
         <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="6-digit verification code" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} style={fieldStyle} />
-        <input inputMode="numeric" autoComplete="new-password" maxLength={4} type="password" placeholder="New 4-digit PIN" value={newPin} onChange={(event) => setNewPin(event.target.value.replace(/\D/g, ""))} style={fieldStyle} />
-        <input inputMode="numeric" autoComplete="new-password" maxLength={4} type="password" placeholder="Confirm new PIN" value={confirmPin} onChange={(event) => setConfirmPin(event.target.value.replace(/\D/g, ""))} style={fieldStyle} />
+        <PasswordInput inputMode="numeric" autoComplete="new-password" maxLength={4} placeholder="New 4-digit PIN" value={newPin} onChange={(event) => setNewPin(event.target.value.replace(/\D/g, ""))} style={fieldStyle} visibleLabel="Hide PIN" hiddenLabel="Show PIN" />
+        <PasswordInput inputMode="numeric" autoComplete="new-password" maxLength={4} placeholder="Confirm new PIN" value={confirmPin} onChange={(event) => setConfirmPin(event.target.value.replace(/\D/g, ""))} style={fieldStyle} visibleLabel="Hide PIN" hiddenLabel="Show PIN" />
         <button type="button" onClick={resetPin} disabled={loading} style={buttonStyle}>{loading ? "Updating..." : "Update PIN"}</button>
         <button type="button" onClick={requestCode} disabled={loading} style={{ ...buttonStyle, background: "transparent", color: "#5A4C72", marginTop: 10 }}>Send a New Code</button>
       </>}

@@ -26,11 +26,13 @@ export default function StaffAccessPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [permissions, setPermissions] = useState<Permission[]>([...recommendedAdminPermissions]);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingPermissions, setEditingPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resendingUserId, setResendingUserId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => { void initialize(); }, []);
@@ -62,8 +64,8 @@ export default function StaffAccessPage() {
   }
 
   async function inviteAdmin() {
-    if (!schoolId || !fullName.trim() || !email.trim()) {
-      setMessage({ type: "error", text: "Enter the administrator's full name and email address." });
+    if (!schoolId || !fullName.trim() || !email.trim() || !password.trim()) {
+      setMessage({ type: "error", text: "Enter the administrator's full name, email address and temporary password." });
       return;
     }
     if (permissions.length === 0) {
@@ -76,12 +78,13 @@ export default function StaffAccessPage() {
       const response = await authenticatedFetch("/api/role-assignments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "admin", school_id: schoolId, full_name: fullName.trim(), email: email.trim(), permissions }),
+        body: JSON.stringify({ role: "admin", school_id: schoolId, full_name: fullName.trim(), email: email.trim(), password: password.trim(), permissions }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not invite the Preschool Admin.");
       setFullName("");
       setEmail("");
+      setPassword("");
       setPermissions([...recommendedAdminPermissions]);
       setMessage({ type: "success", text: "Preschool Admin invitation sent successfully." });
       await loadAssignments(schoolId);
@@ -89,6 +92,29 @@ export default function StaffAccessPage() {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Could not invite the Preschool Admin." });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function resendAdminLogin(assignment: Assignment) {
+    if (!schoolId || !assignment.profile?.email) {
+      setMessage({ type: "error", text: "This Admin does not have an email address." });
+      return;
+    }
+    setResendingUserId(assignment.user_id);
+    setMessage(null);
+    try {
+      const response = await authenticatedFetch("/api/resend-admin-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: assignment.profile.email, school_id: schoolId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not resend the Admin login email.");
+      setMessage({ type: "success", text: result.message || "Admin login email resent." });
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Could not resend the Admin login email." });
+    } finally {
+      setResendingUserId(null);
     }
   }
 
@@ -157,10 +183,9 @@ export default function StaffAccessPage() {
     <main className="db-page-shell">
       <section className="db-card" style={{ display: "grid", gap: "18px", padding: "22px" }}>
         <div>
-          <p className="db-eyebrow">Staff Access</p>
           <h1 className="db-page-title">Admin Access</h1>
           <p className="db-helper">
-            Select the DailyBloom areas this administrator may use. The checklist covers the full school platform available to a Principal; Master platform controls are never included.
+            Select the DailyBloom areas this administrator may use. The checklist covers the full school platform available to a Principal.
           </p>
         </div>
 
@@ -173,6 +198,7 @@ export default function StaffAccessPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
           <label style={{ display: "grid", gap: "7px", fontWeight: 700 }}>Full name<input className="db-input" value={fullName} onChange={(event) => setFullName(event.target.value)} /></label>
           <label style={{ display: "grid", gap: "7px", fontWeight: 700 }}>Email address<input className="db-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+          <label style={{ display: "grid", gap: "7px", fontWeight: 700 }}>Temporary password<input className="db-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" /></label>
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -206,6 +232,9 @@ export default function StaffAccessPage() {
                   </div>
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                     <button className="db-button-secondary" type="button" disabled={saving} onClick={() => beginEditing(assignment)}>Edit Permissions</button>
+                    <button className="db-button-secondary" type="button" disabled={saving || resendingUserId === assignment.user_id} onClick={() => resendAdminLogin(assignment)}>
+                      {resendingUserId === assignment.user_id ? "Sending..." : "Resend Login Email"}
+                    </button>
                     <button className="db-button-secondary" type="button" disabled={saving} onClick={() => updateAssignment(assignment, assignment.status === "active" ? "suspended" : "active")}>
                       {assignment.status === "active" ? "Suspend Access" : "Restore Access"}
                     </button>

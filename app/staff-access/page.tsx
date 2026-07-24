@@ -157,9 +157,11 @@ export default function StaffAccessPage() {
     <main className="db-page-shell">
       <section className="db-card" style={{ display: "grid", gap: "18px", padding: "22px" }}>
         <div>
-          <p className="db-eyebrow">Staff Management</p>
-          <h1 className="db-page-title">Preschool Admin Access</h1>
-          <p className="db-helper">Choose exactly what an administrator may do before sending their invitation.</p>
+          <p className="db-eyebrow">Staff Access</p>
+          <h1 className="db-page-title">Admin Access</h1>
+          <p className="db-helper">
+            Select the DailyBloom areas this administrator may use. The checklist covers the full school platform available to a Principal; Master platform controls are never included.
+          </p>
         </div>
 
         {message ? (
@@ -173,6 +175,14 @@ export default function StaffAccessPage() {
           <label style={{ display: "grid", gap: "7px", fontWeight: 700 }}>Email address<input className="db-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         </div>
 
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button className="db-button-secondary" type="button" disabled={saving} onClick={() => setPermissions([...recommendedAdminPermissions])}>
+            Select All School Access
+          </button>
+          <button className="db-button-secondary" type="button" disabled={saving} onClick={() => setPermissions([])}>
+            Clear All
+          </button>
+        </div>
         <PermissionChecklist options={adminOptions} selected={permissions} onChange={setPermissions} disabled={saving} />
 
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -182,7 +192,7 @@ export default function StaffAccessPage() {
       </section>
 
       <section className="db-card" style={{ marginTop: "18px", padding: "22px" }}>
-        <h2 className="db-section-title">Current Preschool Admins</h2>
+        <h2 className="db-section-title">Current Admins</h2>
         {assignments.length === 0 ? <p className="db-helper">No Preschool Admin accounts have been added yet.</p> : (
           <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
             {assignments.map((assignment) => (

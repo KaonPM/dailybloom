@@ -16,9 +16,13 @@ test("master admin cannot manage platform administrators", () => {
   assert.equal(ROLE_PERMISSIONS.master_admin.includes(PERMISSIONS.PLATFORM_ADMIN_MANAGE), false);
 });
 
-test("preschool admin cannot review incidents or manage billing", () => {
-  assert.equal(ROLE_PERMISSIONS.admin.includes(PERMISSIONS.INCIDENT_REVIEW), false);
-  assert.equal(ROLE_PERMISSIONS.admin.includes(PERMISSIONS.BILLING_MANAGE), false);
+test("preschool admin can be delegated every school-level module", () => {
+  assert.equal(ROLE_PERMISSIONS.admin.includes(PERMISSIONS.INCIDENT_REVIEW), true);
+  assert.equal(ROLE_PERMISSIONS.admin.includes(PERMISSIONS.BILLING_MANAGE), true);
+  assert.equal(ROLE_PERMISSIONS.admin.includes(PERMISSIONS.LEARNERS_MANAGE), true);
+  assert.equal(ROLE_PERMISSIONS.admin.includes(PERMISSIONS.DBE_MANAGE), true);
+  assert.equal(ROLE_PERMISSIONS.admin.includes(PERMISSIONS.SCHOOL_ONBOARD), false);
+  assert.equal(ROLE_PERMISSIONS.admin.includes(PERMISSIONS.PLATFORM_ADMIN_MANAGE), false);
 });
 
 test("teacher cannot manage staff or classrooms", () => {
@@ -33,11 +37,12 @@ test("owner is school-scoped and cannot onboard platform schools", () => {
   assert.equal(ROLE_PERMISSIONS.owner.includes(PERMISSIONS.SCHOOL_ONBOARD), false);
 });
 
-test("preschool admin checklist excludes billing and incident review", () => {
+test("preschool admin checklist includes principal school modules but excludes platform tools", () => {
   const options = selectablePermissionsForRole("admin").map((option) => option.permission);
-  assert.equal(options.includes(PERMISSIONS.BILLING_MANAGE), false);
-  assert.equal(options.includes(PERMISSIONS.INCIDENT_REVIEW), false);
+  assert.equal(options.includes(PERMISSIONS.BILLING_MANAGE), true);
+  assert.equal(options.includes(PERMISSIONS.INCIDENT_REVIEW), true);
   assert.equal(options.includes(PERMISSIONS.MESSAGE_SEND), true);
+  assert.equal(options.includes(PERMISSIONS.SCHOOL_ONBOARD), false);
 });
 
 test("master admin checklist cannot grant platform admin management", () => {

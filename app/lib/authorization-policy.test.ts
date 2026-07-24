@@ -37,7 +37,7 @@ test("a delegated membership uses only its safe selected permissions", () => {
   ]);
   assert.equal(hasPermission(permissions, PERMISSIONS.MESSAGE_VIEW), true);
   assert.equal(hasPermission(permissions, PERMISSIONS.REQUIREMENTS_MANAGE), false);
-  assert.equal(hasPermission(permissions, PERMISSIONS.INCIDENT_REVIEW), false);
+  assert.equal(hasPermission(permissions, PERMISSIONS.INCIDENT_REVIEW), true);
   assert.equal(hasPermission(permissions, PERMISSIONS.PLATFORM_ADMIN_MANAGE), false);
 });
 

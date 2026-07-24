@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { getAllowedNavigationItems } from "../lib/navigation-access";
+import { Permission, PERMISSIONS } from "../lib/permissions";
+import { permissionForSchoolPath } from "../lib/navigation-permissions";
 
 type Profile = {
   id?: string;
@@ -31,10 +33,12 @@ type NavItem = {
   match?: string[];
   view?: string;
   featureKey?: string;
+  permission?: Permission;
 };
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -52,6 +56,7 @@ export default function Sidebar() {
   const [dbeOpen, setDbeOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(true);
   const [schoolManagementOpen, setSchoolManagementOpen] = useState(false);
+  const [staffAccessOpen, setStaffAccessOpen] = useState(false);
 
   const masterNav = useMemo<NavItem[]>(
     () => [
@@ -108,19 +113,21 @@ export default function Sidebar() {
 
   const quickActionsNav = useMemo<NavItem[]>(
     () => [
-      { label: "➕ Add Learner", href: "/children", match: ["/children"] },
-      { label: "👩‍🏫 Add Teacher", href: "/teachers", match: ["/teachers"] },
-      { label: "📅 Add Event", href: "/events", match: ["/events"] },
+      { label: "➕ Add Learner", href: "/children", match: ["/children"], permission: PERMISSIONS.LEARNERS_MANAGE },
+      { label: "👩‍🏫 Add Teacher", href: "/teachers", match: ["/teachers"], permission: PERMISSIONS.STAFF_MANAGE },
+      { label: "📅 Add Event", href: "/events", match: ["/events"], permission: PERMISSIONS.EVENTS_MANAGE },
       {
         label: "💬 Create Broadcast",
         href: "/broadcasts",
         match: ["/broadcasts"],
+        permission: PERMISSIONS.BROADCASTS_MANAGE,
       },
       {
         label: "💳 Record Payment",
         href: "/payments",
         match: ["/payments"],
         featureKey: "payment_tracking",
+        permission: PERMISSIONS.BILLING_MANAGE,
       },
     ],
     []
@@ -169,11 +176,13 @@ export default function Sidebar() {
         label: "Registration Details",
         href: "/dbe-registration",
         match: ["/dbe-registration"],
+        permission: PERMISSIONS.DBE_MANAGE,
       },
       {
         label: "Compliance Documents",
         href: "/dbe-registration/documents",
         match: ["/dbe-registration/documents"],
+        permission: PERMISSIONS.DBE_MANAGE,
       },
     ],
     []
@@ -181,81 +190,93 @@ export default function Sidebar() {
 
   const schoolManagementNav = useMemo<NavItem[]>(
     () => [
-      { label: "Learners", href: "/children", match: ["/children"] },
-      { label: "Teachers", href: "/teachers", match: ["/teachers"] },
-      { label: "Classrooms", href: "/classrooms", match: ["/classrooms"] },
+      { label: "Learners", href: "/children", match: ["/children"], permission: PERMISSIONS.LEARNERS_MANAGE },
+      { label: "Classrooms", href: "/classrooms", match: ["/classrooms"], permission: PERMISSIONS.CLASSROOM_ASSIGN },
       {
         label: "Learner Attendance",
         href: "/attendance",
         match: ["/attendance"],
+        permission: PERMISSIONS.ATTENDANCE_MANAGE,
       },
       {
         label: "Teacher Attendance",
         href: "/teacher-attendance",
         match: ["/teacher-attendance"],
+        permission: PERMISSIONS.TEACHER_ATTENDANCE_MANAGE,
       },
       {
         label: "Classroom Activities",
         href: "/classroom-activities",
         match: ["/classroom-activities"],
+        permission: PERMISSIONS.ACTIVITIES_MANAGE,
       },
-      { label: "Events", href: "/events", match: ["/events"] },
+      { label: "Events", href: "/events", match: ["/events"], permission: PERMISSIONS.EVENTS_MANAGE },
       {
         label: "Summaries",
         href: "/summaries",
         match: ["/summaries"],
         featureKey: "daily_summaries",
+        permission: PERMISSIONS.SUMMARIES_MANAGE,
       },
-      { label: "Broadcasts", href: "/broadcasts", match: ["/broadcasts"] },
+      { label: "Broadcasts", href: "/broadcasts", match: ["/broadcasts"], permission: PERMISSIONS.BROADCASTS_MANAGE },
       {
         label: "Incident Reports",
         href: "/incident-reports",
         match: ["/incident-reports"],
+        permission: PERMISSIONS.INCIDENT_REVIEW,
       },
       {
         label: "Payments",
         href: "/payments",
         match: ["/payments"],
         featureKey: "payment_tracking",
+        permission: PERMISSIONS.BILLING_MANAGE,
       },
       {
         label: "Learner Requirements",
         href: "/learner-requirements",
         match: ["/learner-requirements"],
         featureKey: "learner_requirements",
+        permission: PERMISSIONS.REQUIREMENTS_VIEW,
       },
       {
         label: "Progress Reports",
         href: "/progress-reports",
         match: ["/progress-reports"],
+        permission: PERMISSIONS.PROGRESS_REPORTS_MANAGE,
       },
       {
         label: "Achievement Awards",
         href: "/achievement-awards",
         match: ["/achievement-awards"],
+        permission: PERMISSIONS.AWARDS_MANAGE,
       },
       {
         label: "Communications",
         href: "/communications",
         match: ["/communications"],
+        permission: PERMISSIONS.COMMUNICATIONS_MANAGE,
       },
       {
         label: "Reports",
         href: "/reports",
         match: ["/reports"],
+        permission: PERMISSIONS.REPORTS_VIEW,
       },
       {
         label: "School Analytics",
         href: "/analytics",
         match: ["/analytics"],
         featureKey: "advanced_school_analytics",
+        permission: PERMISSIONS.ANALYTICS_VIEW,
       },
       {
         label: "School Printable Documents",
         href: "/school-documents",
         match: ["/school-documents"],
+        permission: PERMISSIONS.SCHOOL_DOCUMENTS_MANAGE,
       },
-      { label: "Billing", href: "/billing", match: ["/billing"] },
+      { label: "Billing", href: "/billing", match: ["/billing"], permission: PERMISSIONS.BILLING_MANAGE },
     ],
     []
   );
@@ -370,15 +391,35 @@ export default function Sidebar() {
       getAllowedNavigationItems(schoolId, teacherSchoolManagementNav),
     ]);
 
-    setFilteredQuickActionsNav(allowedQuickActions);
-    setFilteredSchoolManagementNav(allowedSchoolManagement);
+    const delegatedPermissions = new Set(
+      Array.isArray(currentProfile.permissions) ? currentProfile.permissions : []
+    );
+    const requiredPathPermission = permissionForSchoolPath(pathname);
+    if (
+      currentProfile.role === "admin" &&
+      requiredPathPermission &&
+      !delegatedPermissions.has(requiredPathPermission)
+    ) {
+      setLoading(false);
+      router.replace("/dashboard");
+      return;
+    }
+    const filterForDelegatedAdmin = (items: NavItem[]) =>
+      currentProfile.role === "admin"
+        ? items.filter(
+            (item) => !item.permission || delegatedPermissions.has(item.permission)
+          )
+        : items;
+
+    setFilteredQuickActionsNav(filterForDelegatedAdmin(allowedQuickActions));
+    setFilteredSchoolManagementNav(filterForDelegatedAdmin(allowedSchoolManagement));
 
     if (currentProfile.role === "teacher") {
       setFilteredTeacherQuickActionsNav(teacherQuickActionsNav);
       setFilteredTeacherSchoolManagementNav(teacherSchoolManagementNav);
     } else {
-      setFilteredTeacherQuickActionsNav(allowedTeacherQuickActions);
-      setFilteredTeacherSchoolManagementNav(allowedTeacherManagement);
+      setFilteredTeacherQuickActionsNav(filterForDelegatedAdmin(allowedTeacherQuickActions));
+      setFilteredTeacherSchoolManagementNav(filterForDelegatedAdmin(allowedTeacherManagement));
     }
 
     if (!schoolId || Number.isNaN(schoolId)) {
@@ -434,8 +475,16 @@ export default function Sidebar() {
   const isMaster = profile?.role === "master";
   const isMasterAdmin = profile?.role === "master_admin";
   const isTeacher = profile?.role === "teacher";
+  const isAdmin = profile?.role === "admin";
+  const delegatedPermissions = new Set(profile?.permissions || []);
   const canManagePreschoolAdmins =
     profile?.role === "owner" || profile?.role === "principal" || (isMaster && Boolean(school?.id));
+  const canViewTeachers =
+    !isTeacher && (!isAdmin || delegatedPermissions.has(PERMISSIONS.STAFF_VIEW));
+  const canViewDbe =
+    !isTeacher && (!isAdmin || delegatedPermissions.has(PERMISSIONS.DBE_MANAGE));
+  const canViewMessages =
+    !isAdmin || delegatedPermissions.has(PERMISSIONS.MESSAGE_VIEW);
   const showSchoolActions = !isMasterAdmin && (Boolean(school) || !isMaster);
 
   useEffect(() => {
@@ -854,7 +903,7 @@ export default function Sidebar() {
                 Dashboard
               </Link>
 
-              {!isMaster ? (
+              {!isMaster && canViewMessages ? (
                 <Link
                   href="/messages"
                   style={navStyle({
@@ -891,6 +940,45 @@ export default function Sidebar() {
                     {item.label}
                   </Link>
                 ))}
+
+              {!isTeacher ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setStaffAccessOpen((prev) => !prev)}
+                    style={collapsibleButtonStyle("#7C3AED")}
+                  >
+                    <span>👥 Staff Access</span>
+                    <span>{staffAccessOpen ? "⌄" : "›"}</span>
+                  </button>
+
+                  {staffAccessOpen && canManagePreschoolAdmins ? (
+                    <Link
+                      href={withSchoolContext("/staff-access")}
+                      style={navStyle({
+                        label: "Admin",
+                        href: "/staff-access",
+                        match: ["/staff-access"],
+                      })}
+                    >
+                      Admin
+                    </Link>
+                  ) : null}
+
+                  {staffAccessOpen && canViewTeachers ? (
+                    <Link
+                      href={withSchoolContext("/teachers")}
+                      style={navStyle({
+                        label: "Teachers",
+                        href: "/teachers",
+                        match: ["/teachers"],
+                      })}
+                    >
+                      Teachers
+                    </Link>
+                  ) : null}
+                </>
+              ) : null}
 
               <button
                 type="button"
@@ -930,20 +1018,7 @@ export default function Sidebar() {
                 </a>
               ) : null}
 
-              {canManagePreschoolAdmins ? (
-                <Link
-                  href={withSchoolContext("/staff-access")}
-                  style={navStyle({
-                    label: "Preschool Admin Access",
-                    href: "/staff-access",
-                    match: ["/staff-access"],
-                  })}
-                >
-                  Preschool Admin Access
-                </Link>
-              ) : null}
-
-              {!isTeacher ? (
+              {canViewDbe ? (
                 <>
                   <button
                     type="button"

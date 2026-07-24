@@ -20,7 +20,7 @@ test("forbidden delegated permissions are removed", () => {
   assert.deepEqual(
     validateManagedPermissions("admin", [
       PERMISSIONS.MESSAGE_VIEW,
-      PERMISSIONS.BILLING_MANAGE,
+      PERMISSIONS.SCHOOL_ONBOARD,
     ]),
     [PERMISSIONS.MESSAGE_VIEW]
   );

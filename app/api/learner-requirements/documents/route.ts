@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
 import { PERMISSIONS } from "@/app/lib/permissions";
+import {
+  canonicalLearnerDocumentName,
+  learnerDocumentNamesMatch,
+} from "@/app/lib/learner-documents";
 
 export const runtime = "nodejs";
 
@@ -36,7 +40,9 @@ export async function POST(request: Request) {
   const schoolId = Number(form.get("school_id"));
   const classroomId = Number(form.get("classroom_id"));
   const learnerId = String(form.get("learner_id") || "");
-  const documentType = String(form.get("document_type") || "").trim().slice(0, 160);
+  const documentType = canonicalLearnerDocumentName(
+    String(form.get("document_type") || "")
+  ).slice(0, 160);
   const file = form.get("file");
   const authorization = await requireStaffPermission(request, PERMISSIONS.REQUIREMENTS_MANAGE, schoolId);
   if (!authorization.ok) return authorization.response;
@@ -51,7 +57,15 @@ export async function POST(request: Request) {
   const filePath = `${schoolId}/${learnerId}/${safeType}-${Date.now()}-${safeName}`;
   const { error: uploadError } = await supabaseAdmin.storage.from(BUCKET).upload(filePath, Buffer.from(await file.arrayBuffer()), { contentType: file.type, upsert: false });
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 });
-  const { data: existing } = await supabaseAdmin.from("learner_documents").select("id, file_path").eq("school_id", schoolId).eq("learner_id", learnerId).ilike("document_type", documentType).order("id", { ascending: false }).limit(1).maybeSingle();
+  const { data: learnerDocuments } = await supabaseAdmin
+    .from("learner_documents")
+    .select("id, file_path, document_type")
+    .eq("school_id", schoolId)
+    .eq("learner_id", learnerId)
+    .order("id", { ascending: false });
+  const existing = learnerDocuments?.find((document) =>
+    learnerDocumentNamesMatch(document.document_type, documentType)
+  );
   const now = new Date().toISOString();
   const values = { school_id: schoolId, learner_id: learnerId, document_type: documentType, document_name: documentType, file_name: file.name, file_path: filePath, file_url: null, uploaded_at: now, updated_at: now, uploaded_by: authorization.staff.userId, uploaded_by_name: authorization.staff.profile.full_name || authorization.staff.profile.email };
   const result = existing ? await supabaseAdmin.from("learner_documents").update(values).eq("id", existing.id) : await supabaseAdmin.from("learner_documents").insert(values);

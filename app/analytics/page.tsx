@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  learnerDocumentNamesMatch,
+  STANDARD_LEARNER_DOCUMENTS,
+} from "../lib/learner-documents";
+import {
   Bar,
   BarChart,
   CartesianGrid,
@@ -93,12 +97,9 @@ type ChartRow = {
   value: number;
 };
 
-const requiredDocuments = [
-  "Birth Certificate",
-  "Immunisation Card",
-  "Parent / Guardian ID",
-  "Contract",
-];
+const requiredDocuments = STANDARD_LEARNER_DOCUMENTS.map(
+  (document) => document.name
+);
 
 export default function AnalyticsPage() {
   const router = useRouter();
@@ -365,7 +366,10 @@ export default function AnalyticsPage() {
       const missing = requiredDocuments.filter((requiredDocument) => {
         return !learnerDocuments.some(
           (document) =>
-            document.document_type === requiredDocument && document.file_url
+            learnerDocumentNamesMatch(
+              document.document_type,
+              requiredDocument
+            ) && document.file_url
         );
       });
 

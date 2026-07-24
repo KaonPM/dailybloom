@@ -6,6 +6,11 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { resolveSchoolContext } from "../../lib/school-context";
 import { authenticatedFetch } from "../../lib/authenticated-fetch";
+import {
+  canonicalLearnerDocumentName,
+  learnerDocumentNamesMatch,
+  STANDARD_LEARNER_DOCUMENTS,
+} from "../../lib/learner-documents";
 
 type TemplateKey = "0_2" | "2_6";
 
@@ -82,26 +87,16 @@ type LearnerDocument = {
 };
 
 const GLOBAL_REQUIREMENT_ITEMS: GlobalRequirementItem[] = [
-  {
-    id: -1001,
+  ...STANDARD_LEARNER_DOCUMENTS.map((document, index) => ({
+    id: -1001 - index,
     school_id: 0,
     classroom_id: 0,
-    templateKey: "all",
-    item_name: "Birth Certificate",
+    templateKey: "all" as const,
+    item_name: document.name,
     quantity: "1 copy",
     category: "Document",
     is_active: true,
-  },
-  {
-    id: -1002,
-    school_id: 0,
-    classroom_id: 0,
-    templateKey: "all",
-    item_name: "Immunisation Card (Clinic Card)",
-    quantity: "1 copy",
-    category: "Document",
-    is_active: true,
-  },
+  })),
 
   {
     id: -2001,
@@ -353,16 +348,24 @@ function mergeRequirements(
   const mergedMap = new Map<string, RequirementTemplateItem>();
 
   globalItemsForClass.forEach((item) => {
+    const itemName =
+      item.category === "Document"
+        ? canonicalLearnerDocumentName(item.item_name)
+        : item.item_name;
     mergedMap.set(
-      `${normalizeName(item.category)}-${normalizeName(item.item_name)}`,
-      item
+      `${normalizeName(item.category)}-${normalizeName(itemName)}`,
+      { ...item, item_name: itemName }
     );
   });
 
   schoolSpecificItems.forEach((item) => {
+    const itemName =
+      item.category === "Document"
+        ? canonicalLearnerDocumentName(item.item_name)
+        : item.item_name;
     mergedMap.set(
-      `${normalizeName(item.category)}-${normalizeName(item.item_name)}`,
-      item
+      `${normalizeName(item.category)}-${normalizeName(itemName)}`,
+      { ...item, item_name: itemName }
     );
   });
 
@@ -526,7 +529,7 @@ export default function LearnerProfilePage() {
 
     const documentTemplates = mergedTemplates
       .filter((item) => item.category === "Document")
-      .map((item) => item.item_name);
+      .map((item) => canonicalLearnerDocumentName(item.item_name));
 
     setDocumentRequirements(
       documentTemplates.length > 0 ? documentTemplates : fallbackRequiredDocuments
@@ -780,7 +783,7 @@ export default function LearnerProfilePage() {
     return documents.find(
       (document) =>
         document.learner_id === learner.id &&
-        normalizeName(document.document_type) === normalizeName(documentType)
+        learnerDocumentNamesMatch(document.document_type, documentType)
     );
   }
 

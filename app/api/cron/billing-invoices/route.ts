@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import {
   generateMonthlyInvoices,
-  reconcileSetupFeeInvoices,
   sendInvoiceEmail,
 } from "@/app/lib/billing-ledger";
 
@@ -16,9 +15,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const setupInvoices = await reconcileSetupFeeInvoices();
     const monthlyInvoices = await generateMonthlyInvoices(new Date());
-    const invoices = [...setupInvoices, ...monthlyInvoices];
+    const invoices = monthlyInvoices;
     const delivery = [];
 
     for (const invoice of invoices) {
@@ -34,7 +32,6 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       created: invoices.length,
-      setup_created: setupInvoices.length,
       monthly_created: monthlyInvoices.length,
       delivery,
     });

@@ -5,10 +5,8 @@ import { supabaseAdmin } from "../../lib/supabase-admin";
 import {
   activateSubscriptionBilling,
   createSetupFeeInvoice,
-  reconcileSetupFeeInvoices,
   sendInvoiceEmail,
 } from "../../lib/billing-ledger";
-import { allocatePaymentOldestFirst } from "../../lib/billing-calculations";
 
 const ONBOARDING_FIELDS = [
   "onboarding_status", "setup_fee_paid", "subscription_paid", "setup_date",
@@ -20,6 +18,35 @@ const ONBOARDING_FIELDS = [
 function numberId(value: unknown) {
   const id = Number(value || 0);
   return Number.isInteger(id) && id > 0 ? id : 0;
+}
+
+async function repairBillingAccount(
+  schoolId: number,
+  requireSubscription = false
+) {
+  const { data: subscription, error: subscriptionError } = await supabaseAdmin
+    .from("school_subscriptions")
+    .select("id")
+    .eq("school_id", schoolId)
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (subscriptionError) throw subscriptionError;
+  if (!subscription) {
+    if (requireSubscription) {
+      throw new Error("Save a subscription package before repairing billing.");
+    }
+    return { skipped: true, reason: "No subscription package." };
+  }
+  const { data, error } = await supabaseAdmin.rpc(
+    "reconcile_school_billing_account",
+    {
+      target_school_id: schoolId,
+      setup_fee_value: 599,
+    }
+  );
+  if (error) throw error;
+  return data;
 }
 
 export async function POST(request: Request) {
@@ -40,8 +67,7 @@ export async function POST(request: Request) {
       const { error: profileError } = await supabaseAdmin.from("profiles").update({ is_active: body.is_active }).eq("school_id", schoolId).in("role", ["owner", "principal", "admin", "teacher"]);
       if (profileError) throw profileError;
       if (body.is_active) {
-        const setupInvoices = await reconcileSetupFeeInvoices();
-        for (const invoice of setupInvoices) await sendInvoiceEmail(invoice);
+        await repairBillingAccount(schoolId);
       }
       await writeSecurityAudit(authorization.staff, "platform.school_access_updated", { school_id: schoolId, is_active: body.is_active });
       return NextResponse.json({ success: true });
@@ -68,8 +94,7 @@ export async function POST(request: Request) {
       const { error } = await supabaseAdmin.from("school_onboarding").upsert(row, { onConflict: "school_id" });
       if (error) throw error;
       if (Object.prototype.hasOwnProperty.call(body, "setup_date")) {
-        const setupInvoices = await reconcileSetupFeeInvoices();
-        for (const invoice of setupInvoices) await sendInvoiceEmail(invoice);
+        await repairBillingAccount(schoolId);
       }
       await writeSecurityAudit(authorization.staff, "platform.onboarding_updated", { school_id: schoolId });
       return NextResponse.json({ success: true });
@@ -82,15 +107,12 @@ export async function POST(request: Request) {
       if (schoolError) throw schoolError;
       const { error: onboardingError } = await supabaseAdmin.from("school_onboarding").upsert({ school_id: schoolId, onboarding_status: "Activated", updated_at: now }, { onConflict: "school_id" });
       if (onboardingError) throw onboardingError;
-      const reconciledInvoices = await reconcileSetupFeeInvoices();
-      const setupInvoice =
-        reconciledInvoices.find(
-          (invoice) => Number(invoice.school_id) === schoolId
-        ) || (await createSetupFeeInvoice(schoolId));
       const subscription = await activateSubscriptionBilling(
         schoolId,
         new Date(now)
       );
+      await repairBillingAccount(schoolId);
+      const setupInvoice = await createSetupFeeInvoice(schoolId);
       const invoiceEmail = await sendInvoiceEmail(setupInvoice);
       await writeSecurityAudit(authorization.staff, "platform.school_activated", { school_id: schoolId });
       return NextResponse.json({
@@ -111,31 +133,47 @@ export async function POST(request: Request) {
       const { error } = await supabaseAdmin.from("school_subscriptions").upsert({ school_id: schoolId, plan_name: planName, monthly_price: monthlyPrice, status, next_billing_date: body.next_billing_date || null, updated_at: new Date().toISOString() }, { onConflict: "school_id" });
       if (error) throw error;
       await supabaseAdmin.from("schools").update({ billing_status: status }).eq("id", schoolId);
+      const billingRepair = await repairBillingAccount(schoolId, true);
       await writeSecurityAudit(authorization.staff, "platform.subscription_saved", { school_id: schoolId, plan_name: planName, status });
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, billing_repair: billingRepair });
     }
 
     if (action === "ensure_setup_invoices") {
-      const invoices = await reconcileSetupFeeInvoices();
-      const delivery = [];
-      for (const invoice of invoices) {
-        const result = await sendInvoiceEmail(invoice);
-        delivery.push({
-          invoice_id: invoice.id,
-          sent: result.sent,
-          reason: result.sent ? null : result.reason,
-        });
+      const { data: subscriptions, error: subscriptionsError } =
+        await supabaseAdmin.from("school_subscriptions").select("school_id");
+      if (subscriptionsError) throw subscriptionsError;
+      const repaired = [];
+      for (const id of [
+        ...new Set((subscriptions || []).map((row) => Number(row.school_id))),
+      ]) {
+        repaired.push(await repairBillingAccount(id, true));
       }
       await writeSecurityAudit(
         authorization.staff,
-        "billing.setup_invoices_reconciled",
-        { created: invoices.length }
+        "billing.accounts_repaired",
+        { repaired: repaired.length }
       );
       return NextResponse.json({
         success: true,
-        created: invoices.length,
-        delivery,
+        repaired,
       });
+    }
+
+    if (action === "repair_billing_account") {
+      if (!schoolId) {
+        return NextResponse.json(
+          { error: "Select a school to repair." },
+          { status: 400 }
+        );
+      }
+      const result = await repairBillingAccount(schoolId, true);
+
+      await writeSecurityAudit(
+        authorization.staff,
+        "billing.account_repaired",
+        { school_id: schoolId, result }
+      );
+      return NextResponse.json({ success: true, result });
     }
 
     if (action === "exempt_setup_fee") {
@@ -147,7 +185,7 @@ export async function POST(request: Request) {
         );
       }
 
-      await createSetupFeeInvoice(schoolId);
+      await repairBillingAccount(schoolId, true);
       const { data: invoiceId, error: exemptionError } = await supabaseAdmin.rpc(
         "apply_setup_fee_exemption",
         {
@@ -218,109 +256,38 @@ export async function POST(request: Request) {
           .toISOString()
           .slice(0, 10);
       const receiptNumber = `DB-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}-${subscriptionId}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
-      const { data: payment, error: paymentError } = await supabaseAdmin
-        .from("subscription_payments")
-        .insert({
-          school_id: schoolId,
-          subscription_id: subscriptionId,
-          amount,
-          unapplied_amount: amount,
-          payment_date: paymentDate,
-          charge_type: chargeType,
-          plan_name: String(body.plan_name || subscription.plan_name || "Bloom"),
-          payment_method: String(body.payment_method || "EFT"),
-          notes: body.notes || null,
-          receipt_number: receiptNumber,
-        })
-        .select("id")
-        .single();
+      const { data: paymentResult, error: paymentError } =
+        await supabaseAdmin.rpc("record_school_billing_payment", {
+          target_school_id: schoolId,
+          target_subscription_id: subscriptionId,
+          payment_amount: amount,
+          received_on: paymentDate,
+          payment_charge_type: chargeType,
+          payment_plan_name: String(
+            body.plan_name || subscription.plan_name || "Bloom"
+          ),
+          payment_method_value: String(body.payment_method || "EFT"),
+          payment_notes: body.notes || null,
+          payment_receipt_number: receiptNumber,
+        });
       if (paymentError) throw paymentError;
-
-      const { data: openInvoices, error: invoiceError } = await supabaseAdmin
-        .from("billing_invoices")
-        .select("id, amount_paid, balance_due, total_amount, download_token")
-        .eq("school_id", schoolId)
-        .in("status", ["issued", "partially_paid"])
-        .gt("balance_due", 0)
-        .order("issue_date", { ascending: true })
-        .order("created_at", { ascending: true });
-      if (invoiceError) throw invoiceError;
-
-      const allocationPlan = allocatePaymentOldestFirst(
-        (openInvoices || []).map((invoice) => ({
-          id: String(invoice.id),
-          amountPaid: Number(invoice.amount_paid || 0),
-          balanceDue: Number(invoice.balance_due || 0),
-          totalAmount: Number(invoice.total_amount || 0),
-        })),
-        amount
-      );
-
-      for (const allocation of allocationPlan.allocations) {
-        const { error: allocationError } = await supabaseAdmin
-          .from("billing_payment_allocations")
-          .insert({
-            payment_id: payment.id,
-            invoice_id: allocation.invoiceId,
-            amount: allocation.amount,
-          });
-        if (allocationError) throw allocationError;
-
-        const { error: invoiceUpdateError } = await supabaseAdmin
-          .from("billing_invoices")
-          .update({
-            amount_paid: allocation.nextAmountPaid,
-            balance_due: allocation.nextBalanceDue,
-            status: allocation.nextStatus,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", allocation.invoiceId);
-        if (invoiceUpdateError) throw invoiceUpdateError;
-      }
-
-      const { error: creditError } = await supabaseAdmin
-        .from("subscription_payments")
-        .update({ unapplied_amount: allocationPlan.creditBalance })
-        .eq("id", payment.id);
-      if (creditError) throw creditError;
-
-      const { error: subscriptionError } = await supabaseAdmin
-        .from("school_subscriptions")
-        .update({
-          status: "active",
-          last_payment_date: paymentDate,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", subscriptionId);
-      if (subscriptionError) throw subscriptionError;
-      await supabaseAdmin.from("schools").update({ billing_status: "active" }).eq("id", schoolId);
       await writeSecurityAudit(authorization.staff, "platform.payment_recorded", { school_id: schoolId, subscription_id: subscriptionId, amount, receipt_number: receiptNumber });
-      const { data: balances } = await supabaseAdmin
-        .from("billing_invoices")
-        .select("balance_due")
-        .eq("school_id", schoolId)
-        .in("status", ["issued", "partially_paid"]);
-      const outstandingBalance = (balances || []).reduce(
-        (sum, invoice) => sum + Number(invoice.balance_due || 0),
-        0
-      );
-      const firstAllocatedInvoiceId =
-        allocationPlan.allocations[0]?.invoiceId || null;
-      const firstAllocatedInvoice = firstAllocatedInvoiceId
-        ? (openInvoices || []).find(
-            (invoice) => String(invoice.id) === firstAllocatedInvoiceId
-          )
-        : null;
+      const result = paymentResult as {
+        credit_balance?: number;
+        outstanding_balance?: number;
+        invoice_id?: string | null;
+        invoice_download_token?: string | null;
+      };
       return NextResponse.json({
         success: true,
         payment_date: paymentDate,
         next_billing_date: nextBillingDate,
         receipt_number: receiptNumber,
-        credit_balance: allocationPlan.creditBalance,
-        outstanding_balance: outstandingBalance,
-        invoice_id: firstAllocatedInvoiceId,
-        invoice_document_url: firstAllocatedInvoice?.download_token
-          ? `/api/billing/invoices/document?token=${firstAllocatedInvoice.download_token}`
+        credit_balance: Number(result.credit_balance || 0),
+        outstanding_balance: Number(result.outstanding_balance || 0),
+        invoice_id: result.invoice_id || null,
+        invoice_document_url: result.invoice_download_token
+          ? `/api/billing/invoices/document?token=${result.invoice_download_token}`
           : null,
       });
     }

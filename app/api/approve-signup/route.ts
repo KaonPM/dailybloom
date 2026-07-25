@@ -3,6 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { requireStaffPermission, writeSecurityAudit } from "../../lib/server-authorization";
 import { PERMISSIONS } from "../../lib/permissions";
+import {
+  createSetupFeeInvoice,
+  sendInvoiceEmail,
+} from "../../lib/billing-ledger";
 
 const DAILYBLOOM_URL = "https://www.dailybloom.co.za";
 
@@ -157,12 +161,16 @@ export async function POST(request: Request) {
       tempPassword,
     });
     await admin.from("school_memberships").upsert({ user_id: authUser.user.id, school_id: school.id, role: "principal", status: "active", accepted_at: new Date().toISOString() }, { onConflict: "user_id,school_id" });
+    const setupInvoice = await createSetupFeeInvoice(school.id);
+    const setupInvoiceEmail = await sendInvoiceEmail(setupInvoice);
     await writeSecurityAudit(authorization.staff, "school.signup_approved", { school_id: school.id, request_id: requestId });
 
     return NextResponse.json({
       success: true,
       schoolId: school.id,
       tempPassword,
+      setupInvoiceNumber: setupInvoice.invoice_number,
+      setupInvoiceEmailSent: setupInvoiceEmail.sent,
     });
   } catch (error: unknown) {
     return NextResponse.json(

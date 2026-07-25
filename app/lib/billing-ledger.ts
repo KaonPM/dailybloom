@@ -216,8 +216,7 @@ export async function reconcileSetupFeeInvoices() {
     await Promise.all([
       supabaseAdmin
         .from("schools")
-        .select("id, status, is_active, activated_at, created_at")
-        .or("status.eq.active,is_active.eq.true"),
+        .select("id, status, is_active, activated_at, created_at"),
       supabaseAdmin
         .from("billing_invoices")
         .select("school_id")
@@ -251,9 +250,10 @@ export async function reconcileSetupFeeInvoices() {
   for (const school of missingSchools) {
     const schoolId = Number(school.id);
     const setupDate =
+      (school.created_at ? String(school.created_at).slice(0, 10) : null) ||
       setupDates.get(schoolId) ||
       (school.activated_at ? String(school.activated_at).slice(0, 10) : null) ||
-      (school.created_at ? String(school.created_at).slice(0, 10) : null);
+      null;
     created.push(await createSetupFeeInvoice(schoolId, setupDate));
   }
   return created;

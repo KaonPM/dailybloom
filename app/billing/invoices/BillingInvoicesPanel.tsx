@@ -328,7 +328,7 @@ export default function BillingInvoicesPanel({
         />
       </section>
 
-      <section className="db-soft-card" style={{ padding: 20, marginBottom: 22 }}>
+      {false ? <section className="db-soft-card" style={{ padding: 20, marginBottom: 22 }}>
         <div style={filterRow}>
           {(["all", "open", "paid"] as const).map((option) => (
             <button
@@ -409,7 +409,7 @@ export default function BillingInvoicesPanel({
             })
           )}
         </div>
-      </section>
+      </section> : null}
 
       <SchoolPaymentHistory
         groups={schoolPaymentHistory}
@@ -499,21 +499,39 @@ function SchoolPaymentHistory({
   onViewInvoice: (invoice: Invoice) => void;
   onResendInvoice: (invoice: Invoice) => void;
 }) {
+  const [openSchoolIds, setOpenSchoolIds] = useState<Set<number>>(new Set());
+
+  function toggleSchool(schoolId: number) {
+    setOpenSchoolIds((current) => {
+      const next = new Set(current);
+      if (next.has(schoolId)) next.delete(schoolId);
+      else next.add(schoolId);
+      return next;
+    });
+  }
+
   return (
-    <section className="db-soft-card" style={{ padding: 20 }}>
-      <h2 style={{ marginTop: 0 }}>Payment History by School</h2>
+    <section className="db-soft-card" style={{ padding: 16 }}>
+      <h2 style={{ margin: "0 0 4px", fontSize: 19 }}>
+        School Billing Accounts
+      </h2>
       <p className="db-helper">
-        Each school account keeps its complete payment and invoice record.
+        Open a school to view its invoices and payment history.
       </p>
-      <div style={{ display: "grid", gap: 14 }}>
+      <div style={{ display: "grid", gap: 9 }}>
         {groups.length === 0 ? (
           <p className="db-helper">No school billing records yet.</p>
         ) : (
           groups.map((group) => (
             <article key={group.schoolId} style={schoolHistoryCard}>
-              <div style={schoolHistoryHeader}>
+              <button
+                type="button"
+                style={schoolHistoryHeader}
+                aria-expanded={openSchoolIds.has(group.schoolId)}
+                onClick={() => toggleSchool(group.schoolId)}
+              >
                 <div>
-                  <strong style={{ fontSize: 17 }}>{group.schoolName}</strong>
+                  <strong style={{ fontSize: 15 }}>{group.schoolName}</strong>
                   <p style={meta}>
                     {group.payments.length} payment
                     {group.payments.length === 1 ? "" : "s"} ·{" "}
@@ -521,9 +539,15 @@ function SchoolPaymentHistory({
                     {group.invoices.length === 1 ? "" : "s"}
                   </p>
                 </div>
-              </div>
+                <span style={openClosePill}>
+                  {openSchoolIds.has(group.schoolId) ? "Close" : "Open"}
+                </span>
+              </button>
 
-              <div style={{ display: "grid", gap: 9 }}>
+              {openSchoolIds.has(group.schoolId) ? (
+              <div style={schoolAccountBody}>
+              <div style={{ display: "grid", gap: 7 }}>
+                <strong style={compactSectionLabel}>Payments</strong>
                 {group.payments.length === 0 ? (
                   <p className="db-helper">No payments recorded yet.</p>
                 ) : (
@@ -554,6 +578,10 @@ function SchoolPaymentHistory({
               </div>
 
               <div style={schoolInvoiceActions}>
+                <strong style={compactSectionLabel}>Invoices</strong>
+                {group.invoices.length === 0 ? (
+                  <p className="db-helper">No invoices generated yet.</p>
+                ) : null}
                 {group.invoices.map((invoice) => (
                   <div key={invoice.id} style={schoolInvoiceRow}>
                     <div>
@@ -588,6 +616,8 @@ function SchoolPaymentHistory({
                   </div>
                 ))}
               </div>
+              </div>
+              ) : null}
             </article>
           ))
         )}
@@ -729,23 +759,49 @@ const paymentRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 16,
-  padding: 14,
+  padding: 10,
   border: "1px solid #EDE2DB",
   borderRadius: 14,
 };
 const schoolHistoryCard: React.CSSProperties = {
-  padding: 16,
+  padding: 0,
   border: "1px solid #E7DBD2",
-  borderRadius: 18,
+  borderRadius: 14,
   background: "#FFFDFC",
+  overflow: "hidden",
 };
 const schoolHistoryHeader: React.CSSProperties = {
+  width: "100%",
   display: "flex",
   justifyContent: "space-between",
+  alignItems: "center",
+  textAlign: "left",
   gap: 12,
-  paddingBottom: 12,
-  marginBottom: 12,
-  borderBottom: "1px solid #EFE5DE",
+  padding: "11px 13px",
+  border: 0,
+  background: "#FFFDFC",
+  color: "#2D2A3E",
+  cursor: "pointer",
+};
+const schoolAccountBody: React.CSSProperties = {
+  padding: "10px 13px 13px",
+  borderTop: "1px solid #EFE5DE",
+  fontSize: 13,
+};
+const openClosePill: React.CSSProperties = {
+  flexShrink: 0,
+  padding: "5px 9px",
+  borderRadius: 999,
+  background: "#EAF7FD",
+  color: "#28637A",
+  fontSize: 11,
+  fontWeight: 800,
+};
+const compactSectionLabel: React.CSSProperties = {
+  fontSize: 11,
+  color: "#817699",
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
 };
 const schoolInvoiceActions: React.CSSProperties = {
   display: "grid",
@@ -760,7 +816,7 @@ const schoolInvoiceRow: React.CSSProperties = {
   alignItems: "center",
   flexWrap: "wrap",
   gap: 12,
-  padding: 12,
+  padding: 9,
   borderRadius: 13,
   background: "#F8F5FB",
 };

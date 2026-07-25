@@ -3,9 +3,10 @@
 ## Behaviour
 
 - Activating a preschool creates one idempotent **DailyBloom Setup Fee — [Package] Package** invoice.
-- Saving a setup date or opening Master Billing also reconciles older active
-  schools that are missing their setup-fee invoice. This supports historical
-  setup and payment dates without generating a duplicate setup charge.
+- School creation now creates the setup-fee invoice immediately.
+- Opening Master Billing reconciles every older school that is missing its
+  setup-fee invoice, dated from the preschool's original creation date, without
+  generating duplicate charges.
 - If the school does not yet have a subscription record, activation creates one from the package stored on the school.
 - Activation schedules the first subscription invoice for the next first of the
   month and keeps the subscription active for the continuous monthly flow.
@@ -21,6 +22,8 @@
 - Payment history is grouped by preschool, with every payment and its related
   invoices available under that school account. Master can view or resend each
   invoice from the school history.
+- School billing accounts are compact and collapsed by default so the layout
+  remains manageable as continuous monthly invoices accumulate.
 - A setup-fee exemption is recorded as an immutable billing journal. The
   setup-fee invoice remains visible at R0.00, shows the exemption reason, and is
   emailed to the principal or owner. An invoice with an existing payment cannot
@@ -72,6 +75,7 @@ Run:
 supabase/migrations/20260724_billing_invoice_ledger.sql
 supabase/migrations/20260724_payment_details.sql
 supabase/migrations/20260725_setup_fee_exemption_journals.sql
+supabase/migrations/20260725_backfill_billing_history.sql
 ```
 
 The migration adds:

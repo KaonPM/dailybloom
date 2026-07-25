@@ -6,6 +6,7 @@ export const PLATFORM_OPERATION_PERMISSIONS = {
   remove_principal: PERMISSIONS.PRINCIPAL_MANAGE,
   save_onboarding: PERMISSIONS.SCHOOL_ONBOARD,
   save_subscription: PERMISSIONS.BILLING_MANAGE,
+  ensure_setup_invoices: PERMISSIONS.BILLING_MANAGE,
   record_payment: PERMISSIONS.BILLING_MANAGE,
   mark_overdue: PERMISSIONS.BILLING_MANAGE,
 } as const satisfies Record<string, Permission>;

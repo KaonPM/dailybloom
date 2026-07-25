@@ -62,11 +62,15 @@ export default function BillingPage() {
     "setup_fee" | "subscription"
   >("subscription");
   const [paymentMethod, setPaymentMethod] = useState("EFT");
+  const [paymentDate, setPaymentDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
   const [paymentNotes, setPaymentNotes] = useState("");
   const [activePaymentSubscription, setActivePaymentSubscription] =
     useState<Subscription | null>(null);
 
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(true);
+  const [invoicesOpen, setInvoicesOpen] = useState(false);
   const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
 
   const [filterSchoolId, setFilterSchoolId] = useState("");
@@ -107,6 +111,11 @@ export default function BillingPage() {
     setProfile(currentProfile as Profile);
 
     if (currentProfile.role === "master" || currentProfile.role === "master_admin") {
+      try {
+        await runPlatformOperation({ action: "ensure_setup_invoices" });
+      } catch (reconciliationError) {
+        console.error("Setup invoice reconciliation failed.", reconciliationError);
+      }
       await Promise.all([
         fetchSchools(),
         fetchAllSubscriptions(),
@@ -205,12 +214,38 @@ export default function BillingPage() {
     setSelectedPlan(planName);
   }
 
-  function openPaymentPopup(subscription: Subscription) {
+  async function openPaymentPopup(subscription: Subscription) {
     setActivePaymentSubscription(subscription);
     setPaymentAmount(String(subscription.monthly_price));
     setPaymentChargeType("subscription");
     setPaymentMethod("EFT");
+    setPaymentDate(new Date().toISOString().slice(0, 10));
     setPaymentNotes("");
+
+    try {
+      const response = await authenticatedFetch(
+        `/api/billing/invoices?school_id=${subscription.school_id}`
+      );
+      const result = await response.json();
+      if (!response.ok) return;
+      const oldestOpenInvoice = [...(result.invoices || [])]
+        .filter((invoice) =>
+          ["issued", "partially_paid"].includes(String(invoice.status))
+        )
+        .sort((left, right) =>
+          String(left.issue_date).localeCompare(String(right.issue_date))
+        )[0];
+      if (oldestOpenInvoice) {
+        setPaymentChargeType(
+          oldestOpenInvoice.charge_type === "setup_fee"
+            ? "setup_fee"
+            : "subscription"
+        );
+        setPaymentAmount(String(oldestOpenInvoice.balance_due || ""));
+      }
+    } catch {
+      // The payment form remains usable with subscription defaults.
+    }
   }
 
   function closePaymentPopup() {
@@ -296,6 +331,7 @@ export default function BillingPage() {
         charge_type: paymentChargeType,
         plan_name: subscription.plan_name,
         payment_method: paymentMethod || "EFT",
+        payment_date: paymentDate,
         notes: paymentNotes || null,
       });
     } catch (error) {
@@ -304,7 +340,7 @@ export default function BillingPage() {
       setSavingPaymentId(null);
       return;
     }
-    const paymentDate = operationResult.payment_date;
+    const recordedPaymentDate = operationResult.payment_date;
     const nextBilling = operationResult.next_billing_date;
     const receiptNumber = operationResult.receipt_number;
 
@@ -324,7 +360,7 @@ export default function BillingPage() {
           principalName: principalContact.full_name,
           schoolName: subscription.schools?.school_name || "your school",
           amount,
-          paymentDate,
+          paymentDate: recordedPaymentDate,
           nextBillingDate: nextBilling,
           paymentType:
             paymentChargeType === "setup_fee"
@@ -334,6 +370,7 @@ export default function BillingPage() {
           paymentNotes: paymentNotes || "",
           planName: subscription.plan_name,
           receiptNumber,
+          receiptUrl: operationResult.invoice_document_url,
         }),
       });
 
@@ -348,8 +385,10 @@ export default function BillingPage() {
     setPaymentAmount("");
     setPaymentChargeType("subscription");
     setPaymentMethod("EFT");
+    setPaymentDate(new Date().toISOString().slice(0, 10));
     setPaymentNotes("");
     setSubscriptionsOpen(true);
+    setInvoicesOpen(true);
 
     if (operationResult.invoice_document_url && invoiceWindow) {
       invoiceWindow.location.href = operationResult.invoice_document_url;
@@ -456,16 +495,54 @@ export default function BillingPage() {
           <button
             type="button"
             className="db-button-primary"
-            onClick={() =>
-              document
-                .getElementById("invoices")
-                ?.scrollIntoView({ behavior: "smooth" })
-            }
+            onClick={() => {
+              setInvoicesOpen(true);
+              requestAnimationFrame(() =>
+                requestAnimationFrame(() =>
+                  document
+                    .getElementById("invoices")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                )
+              );
+            }}
           >
             View Invoices & Receipts
           </button>
         </div>
       </div>
+
+      {invoicesOpen ? (
+        <section
+          id="invoices"
+          className="db-soft-card"
+          style={{ scrollMarginTop: 24, marginBottom: 18, padding: 18 }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "center",
+              marginBottom: 16,
+            }}
+          >
+            <div>
+              <p style={{ margin: 0, fontWeight: 800 }}>Invoices & Receipts</p>
+              <p className="db-helper" style={{ margin: "4px 0 0" }}>
+                Setup fees, monthly subscriptions, payments and credits.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="db-button-secondary"
+              onClick={() => setInvoicesOpen(false)}
+            >
+              Close
+            </button>
+          </div>
+          <BillingInvoicesPanel embedded refreshKey={invoiceRefreshKey} />
+        </section>
+      ) : null}
 
       {isMaster ? (
         <>
@@ -772,10 +849,6 @@ export default function BillingPage() {
       </div>
       */}
 
-      <section id="invoices" style={{ scrollMarginTop: 24, marginTop: 18 }}>
-        <BillingInvoicesPanel embedded refreshKey={invoiceRefreshKey} />
-      </section>
-
       {activePaymentSubscription ? (
         <div style={modalOverlay}>
           <div style={modalCard}>
@@ -826,6 +899,15 @@ export default function BillingPage() {
                 type="number"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
+              />
+
+              <label style={labelStyle}>Payment Date</label>
+              <input
+                className="db-input"
+                type="date"
+                value={paymentDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setPaymentDate(e.target.value)}
               />
 
               <label style={labelStyle}>Payment Method</label>

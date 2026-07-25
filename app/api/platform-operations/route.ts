@@ -3,7 +3,9 @@ import { platformOperationPermission } from "../../lib/platform-operation-policy
 import { requireStaffPermission, writeSecurityAudit } from "../../lib/server-authorization";
 import { supabaseAdmin } from "../../lib/supabase-admin";
 import {
+  activateSubscriptionBilling,
   createSetupFeeInvoice,
+  reconcileSetupFeeInvoices,
   sendInvoiceEmail,
 } from "../../lib/billing-ledger";
 import { allocatePaymentOldestFirst } from "../../lib/billing-calculations";
@@ -37,6 +39,10 @@ export async function POST(request: Request) {
       if (schoolError) throw schoolError;
       const { error: profileError } = await supabaseAdmin.from("profiles").update({ is_active: body.is_active }).eq("school_id", schoolId).in("role", ["owner", "principal", "admin", "teacher"]);
       if (profileError) throw profileError;
+      if (body.is_active) {
+        const setupInvoices = await reconcileSetupFeeInvoices();
+        for (const invoice of setupInvoices) await sendInvoiceEmail(invoice);
+      }
       await writeSecurityAudit(authorization.staff, "platform.school_access_updated", { school_id: schoolId, is_active: body.is_active });
       return NextResponse.json({ success: true });
     }
@@ -61,6 +67,10 @@ export async function POST(request: Request) {
       for (const field of ONBOARDING_FIELDS) if (Object.prototype.hasOwnProperty.call(body, field)) row[field] = body[field];
       const { error } = await supabaseAdmin.from("school_onboarding").upsert(row, { onConflict: "school_id" });
       if (error) throw error;
+      if (Object.prototype.hasOwnProperty.call(body, "setup_date")) {
+        const setupInvoices = await reconcileSetupFeeInvoices();
+        for (const invoice of setupInvoices) await sendInvoiceEmail(invoice);
+      }
       await writeSecurityAudit(authorization.staff, "platform.onboarding_updated", { school_id: schoolId });
       return NextResponse.json({ success: true });
     }
@@ -72,12 +82,21 @@ export async function POST(request: Request) {
       if (schoolError) throw schoolError;
       const { error: onboardingError } = await supabaseAdmin.from("school_onboarding").upsert({ school_id: schoolId, onboarding_status: "Activated", updated_at: now }, { onConflict: "school_id" });
       if (onboardingError) throw onboardingError;
-      const setupInvoice = await createSetupFeeInvoice(schoolId);
+      const reconciledInvoices = await reconcileSetupFeeInvoices();
+      const setupInvoice =
+        reconciledInvoices.find(
+          (invoice) => Number(invoice.school_id) === schoolId
+        ) || (await createSetupFeeInvoice(schoolId));
+      const subscription = await activateSubscriptionBilling(
+        schoolId,
+        new Date(now)
+      );
       const invoiceEmail = await sendInvoiceEmail(setupInvoice);
       await writeSecurityAudit(authorization.staff, "platform.school_activated", { school_id: schoolId });
       return NextResponse.json({
         success: true,
         setup_invoice: setupInvoice,
+        next_billing_date: subscription.next_billing_date,
         invoice_email_sent: invoiceEmail.sent,
         invoice_email_reason: invoiceEmail.sent ? null : invoiceEmail.reason,
       });
@@ -94,6 +113,29 @@ export async function POST(request: Request) {
       await supabaseAdmin.from("schools").update({ billing_status: status }).eq("id", schoolId);
       await writeSecurityAudit(authorization.staff, "platform.subscription_saved", { school_id: schoolId, plan_name: planName, status });
       return NextResponse.json({ success: true });
+    }
+
+    if (action === "ensure_setup_invoices") {
+      const invoices = await reconcileSetupFeeInvoices();
+      const delivery = [];
+      for (const invoice of invoices) {
+        const result = await sendInvoiceEmail(invoice);
+        delivery.push({
+          invoice_id: invoice.id,
+          sent: result.sent,
+          reason: result.sent ? null : result.reason,
+        });
+      }
+      await writeSecurityAudit(
+        authorization.staff,
+        "billing.setup_invoices_reconciled",
+        { created: invoices.length }
+      );
+      return NextResponse.json({
+        success: true,
+        created: invoices.length,
+        delivery,
+      });
     }
 
     if (action === "record_payment") {
@@ -115,7 +157,18 @@ export async function POST(request: Request) {
         .maybeSingle();
       if (!subscription) return NextResponse.json({ error: "Subscription was not found for this school." }, { status: 404 });
       const today = new Date();
-      const paymentDate = today.toISOString().slice(0, 10);
+      const paymentDate = String(
+        body.payment_date || today.toISOString().slice(0, 10)
+      );
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate) ||
+        paymentDate > today.toISOString().slice(0, 10)
+      ) {
+        return NextResponse.json(
+          { error: "Enter a valid payment date that is not in the future." },
+          { status: 400 }
+        );
+      }
       const nextBillingDate =
         subscription.next_billing_date ||
         new Date(

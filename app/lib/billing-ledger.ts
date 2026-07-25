@@ -92,6 +92,38 @@ async function ensureSubscription(schoolId: number) {
   return data;
 }
 
+export async function activateSubscriptionBilling(
+  schoolId: number,
+  activationDate = new Date()
+) {
+  const subscription = await ensureSubscription(schoolId);
+  const nextBillingDate = dateOnly(
+    new Date(
+      Date.UTC(
+        activationDate.getUTCFullYear(),
+        activationDate.getUTCMonth() + 1,
+        1
+      )
+    )
+  );
+  const { error } = await supabaseAdmin
+    .from("school_subscriptions")
+    .update({
+      status: "active",
+      next_billing_date: nextBillingDate,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", subscription.id);
+  if (error) throw error;
+
+  await supabaseAdmin
+    .from("schools")
+    .update({ billing_status: "active" })
+    .eq("id", schoolId);
+
+  return { ...subscription, status: "active", next_billing_date: nextBillingDate };
+}
+
 async function schoolBillingContact(schoolId: number) {
   const [{ data: school, error: schoolError }, { data: contacts, error: contactError }] =
     await Promise.all([
@@ -119,13 +151,22 @@ async function schoolBillingContact(schoolId: number) {
   };
 }
 
-export async function createSetupFeeInvoice(schoolId: number) {
+export async function createSetupFeeInvoice(
+  schoolId: number,
+  setupDate?: string | null
+) {
   const { school } = await schoolBillingContact(schoolId);
   const subscription = await ensureSubscription(schoolId);
   const planName = String(
     subscription?.plan_name || school.package_name || "Bloom"
   );
-  const now = new Date();
+  const parsedSetupDate = setupDate
+    ? new Date(`${setupDate.slice(0, 10)}T00:00:00.000Z`)
+    : null;
+  const now =
+    parsedSetupDate && !Number.isNaN(parsedSetupDate.getTime())
+      ? parsedSetupDate
+      : new Date();
   const issueDate = dateOnly(now);
   const dueDate = dateOnly(
     new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 7))
@@ -166,6 +207,54 @@ export async function createSetupFeeInvoice(schoolId: number) {
     .single();
   if (existingError) throw existingError;
   return existing as InvoiceRow;
+}
+
+export async function reconcileSetupFeeInvoices() {
+  const [{ data: schools, error: schoolError }, { data: existing, error: invoiceError }] =
+    await Promise.all([
+      supabaseAdmin
+        .from("schools")
+        .select("id, status, is_active, activated_at, created_at")
+        .or("status.eq.active,is_active.eq.true"),
+      supabaseAdmin
+        .from("billing_invoices")
+        .select("school_id")
+        .eq("charge_type", "setup_fee"),
+    ]);
+  if (schoolError) throw schoolError;
+  if (invoiceError) throw invoiceError;
+
+  const existingSchoolIds = new Set(
+    (existing || []).map((invoice) => Number(invoice.school_id))
+  );
+  const missingSchools = (schools || []).filter(
+    (school) => !existingSchoolIds.has(Number(school.id))
+  );
+  if (missingSchools.length === 0) return [];
+
+  const schoolIds = missingSchools.map((school) => Number(school.id));
+  const { data: onboarding, error: onboardingError } = await supabaseAdmin
+    .from("school_onboarding")
+    .select("school_id, setup_date")
+    .in("school_id", schoolIds);
+  if (onboardingError) throw onboardingError;
+  const setupDates = new Map(
+    (onboarding || []).map((row) => [
+      Number(row.school_id),
+      row.setup_date ? String(row.setup_date) : null,
+    ])
+  );
+
+  const created: InvoiceRow[] = [];
+  for (const school of missingSchools) {
+    const schoolId = Number(school.id);
+    const setupDate =
+      setupDates.get(schoolId) ||
+      (school.activated_at ? String(school.activated_at).slice(0, 10) : null) ||
+      (school.created_at ? String(school.created_at).slice(0, 10) : null);
+    created.push(await createSetupFeeInvoice(schoolId, setupDate));
+  }
+  return created;
 }
 
 export async function createMonthlySubscriptionInvoice(

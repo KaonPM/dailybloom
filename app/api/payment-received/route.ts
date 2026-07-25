@@ -24,7 +24,12 @@ export async function POST(request: Request) {
       paymentNotes,
       planName,
       receiptNumber,
+      receiptUrl,
     } = body;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://dailybloom.co.za";
+    const secureReceiptUrl = receiptUrl
+      ? new URL(String(receiptUrl), appUrl).toString()
+      : "";
 
     if (!principalEmail || !schoolName || !amount) {
       return NextResponse.json(
@@ -63,6 +68,11 @@ export async function POST(request: Request) {
           <p>
             Please keep this email as confirmation that your payment was received.
           </p>
+          ${
+            secureReceiptUrl
+              ? `<p><a href="${secureReceiptUrl}" style="display:inline-block;background:#75C7EA;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:12px;">Open payment receipt</a></p>`
+              : ""
+          }
 
           <p>
             Kind regards,<br />

@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     .select(
       "id, school_id, subscription_id, invoice_number, charge_type, description, plan_name, issue_date, due_date, period_start, period_end, subtotal, vat_amount, total_amount, amount_paid, balance_due, status, download_token, emailed_at, exemption_reason, exempted_at, created_at, schools(id, school_name, logo_url)"
     )
+    .neq("status", "void")
     .order("issue_date", { ascending: false })
     .order("created_at", { ascending: false });
 

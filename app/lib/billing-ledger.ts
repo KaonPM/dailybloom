@@ -412,12 +412,13 @@ export async function reconcileSetupFeeInvoices() {
     if (!setupDate) continue;
     const parsed = new Date(`${setupDate}T00:00:00.000Z`);
     if (Number.isNaN(parsed.getTime())) continue;
-    let billingDate =
-      parsed.getUTCDate() === 1
-        ? new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1))
-        : new Date(
-            Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, 1)
-          );
+    let billingDate = new Date(
+      Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, 1)
+    );
+    await voidSubscriptionInvoicesBefore(
+      Number(school.id),
+      dateOnly(billingDate)
+    );
     while (billingDate <= currentFirst) {
       try {
         await createMonthlySubscriptionInvoice(
@@ -649,6 +650,39 @@ async function applyAvailableCredit(invoice: InvoiceRow) {
     .single();
   if (updateError) throw updateError;
   return updated as InvoiceRow;
+}
+
+async function voidSubscriptionInvoicesBefore(
+  schoolId: number,
+  firstBillingDate: string
+) {
+  const { data: invoices, error: invoiceError } = await supabaseAdmin
+    .from("billing_invoices")
+    .select("id")
+    .eq("school_id", schoolId)
+    .eq("charge_type", "subscription")
+    .neq("status", "void")
+    .lt("period_start", firstBillingDate);
+  if (invoiceError) throw invoiceError;
+
+  for (const invoice of invoices || []) {
+    const { error: allocationError } = await supabaseAdmin
+      .from("billing_payment_allocations")
+      .delete()
+      .eq("invoice_id", invoice.id);
+    if (allocationError) throw allocationError;
+
+    const { error: updateError } = await supabaseAdmin
+      .from("billing_invoices")
+      .update({
+        amount_paid: 0,
+        balance_due: 0,
+        status: "void",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", invoice.id);
+    if (updateError) throw updateError;
+  }
 }
 
 async function reconcileSchoolPayments(schoolId: number) {

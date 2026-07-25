@@ -314,7 +314,11 @@ async function reconcileHistoricalSetupPayment(invoice: InvoiceRow) {
 }
 
 export async function reconcileSetupFeeInvoices() {
-  const [{ data: schools, error: schoolError }, { data: existing, error: invoiceError }] =
+  const [
+    { data: schools, error: schoolError },
+    { data: existing, error: invoiceError },
+    { data: onboarding, error: onboardingError },
+  ] =
     await Promise.all([
       supabaseAdmin
         .from("schools")
@@ -323,9 +327,30 @@ export async function reconcileSetupFeeInvoices() {
         .from("billing_invoices")
         .select("school_id")
         .eq("charge_type", "setup_fee"),
+      supabaseAdmin.from("school_onboarding").select("school_id, setup_date"),
     ]);
   if (schoolError) throw schoolError;
   if (invoiceError) throw invoiceError;
+  if (onboardingError) throw onboardingError;
+
+  const setupDates = new Map(
+    (onboarding || []).map((row) => [
+      Number(row.school_id),
+      row.setup_date ? String(row.setup_date).slice(0, 10) : null,
+    ])
+  );
+  const schoolSetupDate = new Map(
+    (schools || []).map((school) => [
+      Number(school.id),
+      setupDates.get(Number(school.id)) ||
+        (school.activated_at
+          ? String(school.activated_at).slice(0, 10)
+          : null) ||
+        (school.created_at
+          ? String(school.created_at).slice(0, 10)
+          : null),
+    ])
+  );
 
   const existingSchoolIds = new Set(
     (existing || []).map((invoice) => Number(invoice.school_id))
@@ -341,6 +366,17 @@ export async function reconcileSetupFeeInvoices() {
   if (setupInvoiceError) throw setupInvoiceError;
   for (const invoice of setupInvoices || []) {
     try {
+      const setupDate = schoolSetupDate.get(Number(invoice.school_id));
+      if (setupDate && invoice.issue_date !== setupDate) {
+        await supabaseAdmin
+          .from("billing_invoices")
+          .update({
+            issue_date: setupDate,
+            due_date: setupDate,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", invoice.id);
+      }
       await reconcileHistoricalSetupPayment(invoice as InvoiceRow);
     } catch (error) {
       console.error(
@@ -353,15 +389,56 @@ export async function reconcileSetupFeeInvoices() {
   const created: InvoiceRow[] = [];
   for (const school of missingSchools) {
     try {
-      // Legacy setup invoices are issued today rather than backdated. The
-      // original school creation date remains preserved in the audit records.
-      created.push(await createSetupFeeInvoice(Number(school.id)));
+      created.push(
+        await createSetupFeeInvoice(
+          Number(school.id),
+          schoolSetupDate.get(Number(school.id))
+        )
+      );
     } catch (error) {
       console.error(
         `Setup invoice creation failed for school ${school.id}.`,
         error
       );
     }
+  }
+
+  const currentMonth = new Date();
+  const currentFirst = new Date(
+    Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth(), 1)
+  );
+  for (const school of schools || []) {
+    const setupDate = schoolSetupDate.get(Number(school.id));
+    if (!setupDate) continue;
+    const parsed = new Date(`${setupDate}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime())) continue;
+    let billingDate =
+      parsed.getUTCDate() === 1
+        ? new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1))
+        : new Date(
+            Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, 1)
+          );
+    while (billingDate <= currentFirst) {
+      try {
+        await createMonthlySubscriptionInvoice(
+          Number(school.id),
+          billingDate
+        );
+      } catch (error) {
+        console.error(
+          `Historical subscription invoice failed for school ${school.id} on ${dateOnly(billingDate)}.`,
+          error
+        );
+      }
+      billingDate = new Date(
+        Date.UTC(
+          billingDate.getUTCFullYear(),
+          billingDate.getUTCMonth() + 1,
+          1
+        )
+      );
+    }
+    await reconcileSchoolPayments(Number(school.id));
   }
 
   const now = new Date();
@@ -572,6 +649,57 @@ async function applyAvailableCredit(invoice: InvoiceRow) {
     .single();
   if (updateError) throw updateError;
   return updated as InvoiceRow;
+}
+
+async function reconcileSchoolPayments(schoolId: number) {
+  const { data: payments, error: paymentError } = await supabaseAdmin
+    .from("subscription_payments")
+    .select("id, amount")
+    .eq("school_id", schoolId);
+  if (paymentError) throw paymentError;
+
+  const paymentIds = (payments || []).map((payment) => Number(payment.id));
+  const allocationsByPayment = new Map<number, number>();
+  if (paymentIds.length > 0) {
+    const { data: allocations, error: allocationError } = await supabaseAdmin
+      .from("billing_payment_allocations")
+      .select("payment_id, amount")
+      .in("payment_id", paymentIds);
+    if (allocationError) throw allocationError;
+    for (const allocation of allocations || []) {
+      const paymentId = Number(allocation.payment_id);
+      allocationsByPayment.set(
+        paymentId,
+        (allocationsByPayment.get(paymentId) || 0) +
+          Number(allocation.amount || 0)
+      );
+    }
+  }
+
+  for (const payment of payments || []) {
+    const remaining = Math.max(
+      0,
+      Number(payment.amount || 0) -
+        (allocationsByPayment.get(Number(payment.id)) || 0)
+    );
+    const { error } = await supabaseAdmin
+      .from("subscription_payments")
+      .update({ unapplied_amount: remaining })
+      .eq("id", payment.id);
+    if (error) throw error;
+  }
+
+  const { data: openInvoices, error: invoiceError } = await supabaseAdmin
+    .from("billing_invoices")
+    .select("*")
+    .eq("school_id", schoolId)
+    .in("status", ["issued", "partially_paid"])
+    .order("issue_date", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (invoiceError) throw invoiceError;
+  for (const invoice of openInvoices || []) {
+    await applyAvailableCredit(invoice as InvoiceRow);
+  }
 }
 
 function escapeHtml(value: string) {

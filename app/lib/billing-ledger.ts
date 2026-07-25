@@ -48,6 +48,8 @@ async function currentSubscription(schoolId: number) {
     .from("school_subscriptions")
     .select("id, school_id, plan_name, monthly_price, status")
     .eq("school_id", schoolId)
+    .order("id", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
   return data;
@@ -342,41 +344,34 @@ export async function reconcileSetupFeeInvoices() {
     (school) => !existingSchoolIds.has(Number(school.id))
   );
 
-  const created: InvoiceRow[] = [];
-  if (missingSchools.length > 0) {
-    const schoolIds = missingSchools.map((school) => Number(school.id));
-    const { data: onboarding, error: onboardingError } = await supabaseAdmin
-      .from("school_onboarding")
-      .select("school_id, setup_date")
-      .in("school_id", schoolIds);
-    if (onboardingError) throw onboardingError;
-    const setupDates = new Map(
-      (onboarding || []).map((row) => [
-        Number(row.school_id),
-        row.setup_date ? String(row.setup_date) : null,
-      ])
-    );
-
-    for (const school of missingSchools) {
-      const schoolId = Number(school.id);
-      const setupDate =
-        (school.created_at ? String(school.created_at).slice(0, 10) : null) ||
-        setupDates.get(schoolId) ||
-        (school.activated_at
-          ? String(school.activated_at).slice(0, 10)
-          : null) ||
-        null;
-      created.push(await createSetupFeeInvoice(schoolId, setupDate));
-    }
-  }
-
   const { data: setupInvoices, error: setupInvoiceError } = await supabaseAdmin
     .from("billing_invoices")
     .select("*")
     .eq("charge_type", "setup_fee");
   if (setupInvoiceError) throw setupInvoiceError;
   for (const invoice of setupInvoices || []) {
-    await reconcileHistoricalSetupPayment(invoice as InvoiceRow);
+    try {
+      await reconcileHistoricalSetupPayment(invoice as InvoiceRow);
+    } catch (error) {
+      console.error(
+        `Setup payment reconciliation failed for school ${invoice.school_id}.`,
+        error
+      );
+    }
+  }
+
+  const created: InvoiceRow[] = [];
+  for (const school of missingSchools) {
+    try {
+      // Legacy setup invoices are issued today rather than backdated. The
+      // original school creation date remains preserved in the audit records.
+      created.push(await createSetupFeeInvoice(Number(school.id)));
+    } catch (error) {
+      console.error(
+        `Setup invoice creation failed for school ${school.id}.`,
+        error
+      );
+    }
   }
 
   const now = new Date();

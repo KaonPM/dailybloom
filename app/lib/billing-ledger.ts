@@ -322,7 +322,7 @@ export async function reconcileSetupFeeInvoices() {
     await Promise.all([
       supabaseAdmin
         .from("schools")
-        .select("id, status, is_active, activated_at, created_at"),
+        .select("id, status, is_active, created_at"),
       supabaseAdmin
         .from("billing_invoices")
         .select("school_id")
@@ -343,9 +343,6 @@ export async function reconcileSetupFeeInvoices() {
     (schools || []).map((school) => [
       Number(school.id),
       setupDates.get(Number(school.id)) ||
-        (school.activated_at
-          ? String(school.activated_at).slice(0, 10)
-          : null) ||
         (school.created_at
           ? String(school.created_at).slice(0, 10)
           : null),

@@ -53,7 +53,6 @@ begin
         and onboarding.setup_date is not null
       limit 1
     ),
-    target_school.activated_at::date,
     target_school.created_at::date,
     current_date
   )

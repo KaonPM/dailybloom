@@ -103,7 +103,10 @@ export async function POST(request: Request) {
     if (action === "activate_school") {
       if (!schoolId) return NextResponse.json({ error: "School is required." }, { status: 400 });
       const now = new Date().toISOString();
-      const { error: schoolError } = await supabaseAdmin.from("schools").update({ status: "active", activated_at: now }).eq("id", schoolId);
+      const { error: schoolError } = await supabaseAdmin
+        .from("schools")
+        .update({ status: "active" })
+        .eq("id", schoolId);
       if (schoolError) throw schoolError;
       const { error: onboardingError } = await supabaseAdmin.from("school_onboarding").upsert({ school_id: schoolId, onboarding_status: "Activated", updated_at: now }, { onConflict: "school_id" });
       if (onboardingError) throw onboardingError;

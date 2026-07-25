@@ -133,7 +133,7 @@ async function schoolBillingContact(schoolId: number) {
     await Promise.all([
       supabaseAdmin
         .from("schools")
-        .select("id, school_name, package_name, setup_fee_amount")
+        .select("id, school_name, package_name")
         .eq("id", schoolId)
         .single(),
       supabaseAdmin
@@ -175,17 +175,7 @@ export async function createSetupFeeInvoice(
   const dueDate = dateOnly(
     new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 7))
   );
-  const hasConfiguredSetupFee =
-    school.setup_fee_amount !== null &&
-    school.setup_fee_amount !== undefined &&
-    school.setup_fee_amount !== "";
-  const configuredSetupFee = Number(school.setup_fee_amount);
-  const total =
-    hasConfiguredSetupFee &&
-    Number.isFinite(configuredSetupFee) &&
-    configuredSetupFee >= 0
-      ? configuredSetupFee
-      : DAILYBLOOM_SETUP_FEE;
+  const total = DAILYBLOOM_SETUP_FEE;
 
   const { data, error } = await supabaseAdmin
     .from("billing_invoices")

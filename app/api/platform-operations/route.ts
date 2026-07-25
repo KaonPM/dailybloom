@@ -333,6 +333,15 @@ export async function POST(request: Request) {
     await writeSecurityAudit(authorization.staff, "platform.subscription_overdue", { school_id: schoolId, subscription_id: subscriptionId });
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Platform operation failed." }, { status: 400 });
+    const message =
+      error instanceof Error
+        ? error.message
+        : error &&
+            typeof error === "object" &&
+            "message" in error &&
+            typeof error.message === "string"
+          ? error.message
+          : "Platform operation failed.";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

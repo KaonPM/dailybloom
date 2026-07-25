@@ -67,6 +67,7 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+#variable_conflict use_variable
 declare
   target_invoice public.billing_invoices%rowtype;
 begin

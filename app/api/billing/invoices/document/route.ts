@@ -51,6 +51,37 @@ export async function GET(request: Request) {
       )} · ${escapeHtml(payment.receipt_number || "")}</div>`;
     })
     .join("");
+  void paymentDetails;
+  let runningBalance = Number(invoice.total_amount || 0);
+  const paymentLedgerRows = (allocations || [])
+    .map((allocation) => {
+      const relation = allocation.subscription_payments;
+      const payment = Array.isArray(relation) ? relation[0] : relation;
+      if (!payment) return "";
+      runningBalance = Math.max(
+        0,
+        runningBalance - Number(allocation.amount || 0)
+      );
+      return `<tr>
+        <td>${escapeHtml(payment.payment_date)}</td>
+        <td>Payment received · ${escapeHtml(
+          payment.payment_method || "Method not set"
+        )}<br><small class="muted">${escapeHtml(
+          payment.receipt_number || ""
+        )}</small></td>
+        <td>—</td>
+        <td>R${money(allocation.amount)}</td>
+        <td>R${money(runningBalance)}</td>
+      </tr>`;
+    })
+    .join("");
+  const invoiceLedgerRows = `<tr>
+    <td>${escapeHtml(invoice.issue_date)}</td>
+    <td>${escapeHtml(invoice.description)}</td>
+    <td>R${money(invoice.total_amount)}</td>
+    <td>—</td>
+    <td>R${money(invoice.total_amount)}</td>
+  </tr>${paymentLedgerRows}`;
   const html = `<!doctype html>
   <html lang="en">
     <head>
@@ -64,7 +95,7 @@ export async function GET(request: Request) {
         .head{display:flex;justify-content:space-between;gap:24px;border-bottom:4px solid #75c7ea;padding-bottom:22px}
         .brand{width:250px;height:76px;overflow:hidden}.brand img{display:block;width:250px;height:250px;transform:translateY(-87px)}.doc{text-align:right}.doc h2{margin:0 0 8px}
         .grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:28px 0}.muted{color:#6f6880}
-        table{width:100%;border-collapse:collapse;margin:24px 0}th,td{padding:14px;border-bottom:1px solid #eee;text-align:left}th:last-child,td:last-child{text-align:right}
+        table{width:100%;border-collapse:collapse;margin:24px 0;font-size:13px}th,td{padding:11px 8px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}th:nth-child(n+3),td:nth-child(n+3){text-align:right;white-space:nowrap}
         .totals{margin-left:auto;max-width:340px}.row{display:flex;justify-content:space-between;padding:8px 0}.total{font-size:20px;font-weight:800;border-top:2px solid #2d2a3e;margin-top:6px;padding-top:12px}
         .status{display:inline-block;padding:8px 12px;border-radius:999px;background:${isPaid ? "#e9f8ed" : "#fff4d3"};color:${isPaid ? "#267244" : "#805d00"};font-weight:700}
         .note{margin-top:32px;background:#f7f4fb;border-radius:12px;padding:15px;font-size:13px}.actions{text-align:center;margin:22px}.actions button{border:0;border-radius:12px;background:#75c7ea;color:#fff;padding:13px 20px;font-weight:700;cursor:pointer}
@@ -82,18 +113,16 @@ export async function GET(request: Request) {
           <div><strong>Billed to</strong><p>${escapeHtml(school?.school_name || "Preschool")}</p></div>
           <div><strong>Issue date</strong><p>${escapeHtml(invoice.issue_date)}</p><strong>Due date</strong><p>${escapeHtml(invoice.due_date)}</p></div>
         </div>
-        <table><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody><tr><td>${escapeHtml(invoice.description)}${invoice.period_start ? `<br><small class="muted">${escapeHtml(invoice.period_start)} to ${escapeHtml(invoice.period_end || "")}</small>` : ""}</td><td>R${money(invoice.total_amount)}</td></tr></tbody></table>
+        <table>
+          <thead><tr><th>Date</th><th>Account activity</th><th>Invoiced</th><th>Payment</th><th>Running balance</th></tr></thead>
+          <tbody>${invoiceLedgerRows}</tbody>
+        </table>
         <div class="totals">
           <div class="row"><span>Subtotal</span><span>R${money(invoice.subtotal)}</span></div>
           <div class="row"><span>VAT</span><span>R0.00</span></div>
           <div class="row"><span>Paid</span><span>R${money(invoice.amount_paid)}</span></div>
           <div class="row total"><span>${isPaid ? "Total paid" : "Balance due"}</span><span>R${money(isPaid ? invoice.amount_paid : invoice.balance_due)}</span></div>
         </div>
-        ${
-          paymentDetails
-            ? `<div class="note"><strong>Payment details</strong>${paymentDetails}</div>`
-            : ""
-        }
         ${
           invoice.exempted_at
             ? `<div class="note"><strong>Setup fee exempted</strong><p>${escapeHtml(

@@ -547,6 +547,52 @@ function SchoolPaymentHistory({
               {openSchoolIds.has(group.schoolId) ? (
               <div style={schoolAccountBody}>
               <div style={{ display: "grid", gap: 7 }}>
+                <strong style={compactSectionLabel}>Account activity</strong>
+                {group.payments.length === 0 &&
+                group.invoices.length === 0 ? (
+                  <p className="db-helper">
+                    No invoices or payments recorded yet.
+                  </p>
+                ) : (
+                  <div style={ledgerScroller}>
+                    <table style={ledgerTable}>
+                      <thead>
+                        <tr>
+                          <th style={ledgerHeading}>Date</th>
+                          <th style={ledgerHeading}>Details</th>
+                          <th style={ledgerAmountHeading}>Invoiced</th>
+                          <th style={ledgerAmountHeading}>Payment</th>
+                          <th style={ledgerAmountHeading}>Running total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {buildSchoolLedger(group.invoices, group.payments).map(
+                          (entry) => (
+                            <tr key={entry.key}>
+                              <td style={ledgerCell}>{entry.date}</td>
+                              <td style={ledgerCell}>{entry.description}</td>
+                              <td style={ledgerAmountCell}>
+                                {entry.invoiced
+                                  ? `R${money(entry.invoiced)}`
+                                  : "—"}
+                              </td>
+                              <td style={ledgerAmountCell}>
+                                {entry.payment
+                                  ? `R${money(entry.payment)}`
+                                  : "—"}
+                              </td>
+                              <td style={ledgerAmountCell}>
+                                {accountBalanceLabel(entry.balance)}
+                              </td>
+                            </tr>
+                          )
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "grid", gap: 7 }}>
                 <strong style={compactSectionLabel}>Payments</strong>
                 {group.payments.length === 0 ? (
                   <p className="db-helper">No payments recorded yet.</p>
@@ -628,6 +674,49 @@ function SchoolPaymentHistory({
 
 function schoolFromRelation(relation: SchoolRelation) {
   return Array.isArray(relation) ? relation[0] || null : relation;
+}
+
+function buildSchoolLedger(invoices: Invoice[], payments: Payment[]) {
+  const activities = [
+    ...invoices.map((invoice) => ({
+      key: `invoice-${invoice.id}`,
+      date: invoice.issue_date,
+      order: 0,
+      description:
+        invoice.charge_type === "setup_fee"
+          ? `Setup Fee · ${invoice.plan_name || "DailyBloom"}`
+          : invoice.description,
+      invoiced: Number(invoice.total_amount || 0),
+      payment: 0,
+    })),
+    ...payments.map((payment) => ({
+      key: `payment-${payment.id}`,
+      date: payment.payment_date,
+      order: 1,
+      description: `Payment · ${
+        payment.charge_type === "setup_fee"
+          ? "Setup Fee"
+          : "Subscription Fee"
+      } · ${payment.payment_method || "Method not set"}`,
+      invoiced: 0,
+      payment: Number(payment.amount || 0),
+    })),
+  ].sort(
+    (left, right) =>
+      left.date.localeCompare(right.date) || left.order - right.order
+  );
+
+  let balance = 0;
+  return activities.map((activity) => {
+    balance += activity.invoiced - activity.payment;
+    return { ...activity, balance };
+  });
+}
+
+function accountBalanceLabel(value: number) {
+  if (value > 0.005) return `R${money(value)} due`;
+  if (value < -0.005) return `R${money(Math.abs(value))} credit`;
+  return "Paid";
 }
 
 function money(value: unknown) {
@@ -762,6 +851,40 @@ const paymentRow: React.CSSProperties = {
   padding: 10,
   border: "1px solid #EDE2DB",
   borderRadius: 14,
+};
+const ledgerScroller: React.CSSProperties = {
+  overflowX: "auto",
+  border: "1px solid #EDE2DB",
+  borderRadius: 12,
+};
+const ledgerTable: React.CSSProperties = {
+  width: "100%",
+  minWidth: 650,
+  borderCollapse: "collapse",
+  fontSize: 12,
+};
+const ledgerHeading: React.CSSProperties = {
+  padding: "8px 9px",
+  textAlign: "left",
+  color: "#675E78",
+  background: "#F8F5FB",
+  borderBottom: "1px solid #EDE2DB",
+  whiteSpace: "nowrap",
+};
+const ledgerAmountHeading: React.CSSProperties = {
+  ...ledgerHeading,
+  textAlign: "right",
+};
+const ledgerCell: React.CSSProperties = {
+  padding: "8px 9px",
+  borderBottom: "1px solid #F0E8E2",
+  verticalAlign: "top",
+};
+const ledgerAmountCell: React.CSSProperties = {
+  ...ledgerCell,
+  textAlign: "right",
+  whiteSpace: "nowrap",
+  fontWeight: 700,
 };
 const schoolHistoryCard: React.CSSProperties = {
   padding: 0,

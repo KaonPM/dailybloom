@@ -131,7 +131,7 @@ async function schoolBillingContact(schoolId: number) {
     await Promise.all([
       supabaseAdmin
         .from("schools")
-        .select("id, school_name, package_name")
+        .select("id, school_name, package_name, setup_fee_amount")
         .eq("id", schoolId)
         .single(),
       supabaseAdmin
@@ -173,7 +173,17 @@ export async function createSetupFeeInvoice(
   const dueDate = dateOnly(
     new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 7))
   );
-  const total = DAILYBLOOM_SETUP_FEE;
+  const hasConfiguredSetupFee =
+    school.setup_fee_amount !== null &&
+    school.setup_fee_amount !== undefined &&
+    school.setup_fee_amount !== "";
+  const configuredSetupFee = Number(school.setup_fee_amount);
+  const total =
+    hasConfiguredSetupFee &&
+    Number.isFinite(configuredSetupFee) &&
+    configuredSetupFee >= 0
+      ? configuredSetupFee
+      : DAILYBLOOM_SETUP_FEE;
 
   const { data, error } = await supabaseAdmin
     .from("billing_invoices")
@@ -200,7 +210,10 @@ export async function createSetupFeeInvoice(
     .maybeSingle();
 
   if (error) throw error;
-  if (data) return applyAvailableCredit(data as InvoiceRow);
+  if (data) {
+    const credited = await applyAvailableCredit(data as InvoiceRow);
+    return reconcileHistoricalSetupPayment(credited);
+  }
 
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("billing_invoices")
@@ -208,7 +221,104 @@ export async function createSetupFeeInvoice(
     .eq("external_key", `setup:${schoolId}`)
     .single();
   if (existingError) throw existingError;
-  return existing as InvoiceRow;
+  return reconcileHistoricalSetupPayment(existing as InvoiceRow);
+}
+
+async function reconcileHistoricalSetupPayment(invoice: InvoiceRow) {
+  if (
+    invoice.charge_type !== "setup_fee" ||
+    invoice.exempted_at ||
+    Number(invoice.total_amount || 0) <= 0
+  ) {
+    return invoice;
+  }
+
+  const { data: existingAllocations, error: allocationReadError } =
+    await supabaseAdmin
+      .from("billing_payment_allocations")
+      .select("payment_id, amount")
+      .eq("invoice_id", invoice.id);
+  if (allocationReadError) throw allocationReadError;
+
+  if ((existingAllocations || []).length > 0) {
+    const paymentIds = (existingAllocations || []).map((row) => row.payment_id);
+    await supabaseAdmin
+      .from("subscription_payments")
+      .update({
+        charge_type: "setup_fee",
+        plan_name: invoice.plan_name,
+      })
+      .in("id", paymentIds);
+    return invoice;
+  }
+
+  const [{ data: payments, error: paymentError }, { data: allAllocations, error: allAllocationError }] =
+    await Promise.all([
+      supabaseAdmin
+        .from("subscription_payments")
+        .select("id, amount, payment_date")
+        .eq("school_id", invoice.school_id)
+        .order("payment_date", { ascending: true })
+        .order("created_at", { ascending: true }),
+      supabaseAdmin
+        .from("billing_payment_allocations")
+        .select("payment_id"),
+    ]);
+  if (paymentError) throw paymentError;
+  if (allAllocationError) throw allAllocationError;
+
+  const allocatedPaymentIds = new Set(
+    (allAllocations || []).map((row) => Number(row.payment_id))
+  );
+  const historicalPayment = (payments || []).find(
+    (payment) =>
+      !allocatedPaymentIds.has(Number(payment.id)) &&
+      Number(payment.amount || 0) > 0
+  );
+  if (!historicalPayment) return invoice;
+
+  const allocationAmount = Math.min(
+    Number(historicalPayment.amount),
+    Number(invoice.total_amount)
+  );
+  const balanceDue = Math.max(0, Number(invoice.total_amount) - allocationAmount);
+  const status = balanceDue === 0 ? "paid" : "partially_paid";
+
+  const { error: allocationError } = await supabaseAdmin
+    .from("billing_payment_allocations")
+    .insert({
+      payment_id: historicalPayment.id,
+      invoice_id: invoice.id,
+      amount: allocationAmount,
+    });
+  if (allocationError) throw allocationError;
+
+  const { error: paymentUpdateError } = await supabaseAdmin
+    .from("subscription_payments")
+    .update({
+      charge_type: "setup_fee",
+      plan_name: invoice.plan_name,
+      unapplied_amount: Math.max(
+        0,
+        Number(historicalPayment.amount) - allocationAmount
+      ),
+    })
+    .eq("id", historicalPayment.id);
+  if (paymentUpdateError) throw paymentUpdateError;
+
+  const { data: updated, error: invoiceUpdateError } = await supabaseAdmin
+    .from("billing_invoices")
+    .update({
+      amount_paid: allocationAmount,
+      balance_due: balanceDue,
+      status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", invoice.id)
+    .select("*")
+    .single();
+  if (invoiceUpdateError) throw invoiceUpdateError;
+  return updated as InvoiceRow;
 }
 
 export async function reconcileSetupFeeInvoices() {
@@ -231,31 +341,58 @@ export async function reconcileSetupFeeInvoices() {
   const missingSchools = (schools || []).filter(
     (school) => !existingSchoolIds.has(Number(school.id))
   );
-  if (missingSchools.length === 0) return [];
-
-  const schoolIds = missingSchools.map((school) => Number(school.id));
-  const { data: onboarding, error: onboardingError } = await supabaseAdmin
-    .from("school_onboarding")
-    .select("school_id, setup_date")
-    .in("school_id", schoolIds);
-  if (onboardingError) throw onboardingError;
-  const setupDates = new Map(
-    (onboarding || []).map((row) => [
-      Number(row.school_id),
-      row.setup_date ? String(row.setup_date) : null,
-    ])
-  );
 
   const created: InvoiceRow[] = [];
-  for (const school of missingSchools) {
-    const schoolId = Number(school.id);
-    const setupDate =
-      (school.created_at ? String(school.created_at).slice(0, 10) : null) ||
-      setupDates.get(schoolId) ||
-      (school.activated_at ? String(school.activated_at).slice(0, 10) : null) ||
-      null;
-    created.push(await createSetupFeeInvoice(schoolId, setupDate));
+  if (missingSchools.length > 0) {
+    const schoolIds = missingSchools.map((school) => Number(school.id));
+    const { data: onboarding, error: onboardingError } = await supabaseAdmin
+      .from("school_onboarding")
+      .select("school_id, setup_date")
+      .in("school_id", schoolIds);
+    if (onboardingError) throw onboardingError;
+    const setupDates = new Map(
+      (onboarding || []).map((row) => [
+        Number(row.school_id),
+        row.setup_date ? String(row.setup_date) : null,
+      ])
+    );
+
+    for (const school of missingSchools) {
+      const schoolId = Number(school.id);
+      const setupDate =
+        (school.created_at ? String(school.created_at).slice(0, 10) : null) ||
+        setupDates.get(schoolId) ||
+        (school.activated_at
+          ? String(school.activated_at).slice(0, 10)
+          : null) ||
+        null;
+      created.push(await createSetupFeeInvoice(schoolId, setupDate));
+    }
   }
+
+  const { data: setupInvoices, error: setupInvoiceError } = await supabaseAdmin
+    .from("billing_invoices")
+    .select("*")
+    .eq("charge_type", "setup_fee");
+  if (setupInvoiceError) throw setupInvoiceError;
+  for (const invoice of setupInvoices || []) {
+    await reconcileHistoricalSetupPayment(invoice as InvoiceRow);
+  }
+
+  const now = new Date();
+  const upcomingFirst = dateOnly(
+    new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+  );
+  const { error: billingDateError } = await supabaseAdmin
+    .from("school_subscriptions")
+    .update({
+      next_billing_date: upcomingFirst,
+      updated_at: now.toISOString(),
+    })
+    .in("status", ["active", "trial"])
+    .lt("next_billing_date", upcomingFirst);
+  if (billingDateError) throw billingDateError;
+
   return created;
 }
 

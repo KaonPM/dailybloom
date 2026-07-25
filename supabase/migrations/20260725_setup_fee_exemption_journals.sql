@@ -88,13 +88,11 @@ begin
   if target_invoice.exempted_at is not null then
     return target_invoice.id;
   end if;
-  if target_invoice.amount_paid > 0 or exists (
-    select 1
-      from public.billing_payment_allocations allocation
-     where allocation.invoice_id = target_invoice.id
-  ) then
-    raise exception 'A setup fee with recorded payments cannot be exempted.';
-  end if;
+  -- Preserve recorded payments. Only remove their allocations to this setup
+  -- invoice; the account reconciliation process will move them to the oldest
+  -- subscription charge or retain them as school credit.
+  delete from public.billing_payment_allocations
+   where invoice_id = target_invoice.id;
 
   update public.billing_invoices
      set description = description || ' — Setup fee exempted',

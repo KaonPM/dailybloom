@@ -199,6 +199,7 @@ export async function POST(request: Request) {
       );
       if (exemptionError) throw exemptionError;
 
+      const billingRepair = await repairBillingAccount(schoolId, true);
       const { data: exemptedInvoice, error: invoiceError } = await supabaseAdmin
         .from("billing_invoices")
         .select("*")
@@ -210,7 +211,12 @@ export async function POST(request: Request) {
       await writeSecurityAudit(
         authorization.staff,
         "billing.setup_fee_exempted",
-        { school_id: schoolId, invoice_id: invoiceId, reason }
+        {
+          school_id: schoolId,
+          invoice_id: invoiceId,
+          reason,
+          billing_repair: billingRepair,
+        }
       );
       return NextResponse.json({
         success: true,

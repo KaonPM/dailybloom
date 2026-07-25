@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   let invoiceQuery = supabaseAdmin
     .from("billing_invoices")
     .select(
-      "id, school_id, subscription_id, invoice_number, charge_type, description, plan_name, issue_date, due_date, period_start, period_end, subtotal, vat_amount, total_amount, amount_paid, balance_due, status, download_token, emailed_at, created_at, schools(id, school_name, logo_url)"
+      "id, school_id, subscription_id, invoice_number, charge_type, description, plan_name, issue_date, due_date, period_start, period_end, subtotal, vat_amount, total_amount, amount_paid, balance_due, status, download_token, emailed_at, exemption_reason, exempted_at, created_at, schools(id, school_name, logo_url)"
     )
     .order("issue_date", { ascending: false })
     .order("created_at", { ascending: false });
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   let paymentQuery = supabaseAdmin
     .from("subscription_payments")
     .select(
-      "id, school_id, subscription_id, amount, unapplied_amount, payment_date, charge_type, plan_name, payment_method, notes, receipt_number, created_at"
+      "id, school_id, subscription_id, amount, unapplied_amount, payment_date, charge_type, plan_name, payment_method, notes, receipt_number, created_at, schools(id, school_name, logo_url)"
     )
     .order("payment_date", { ascending: false });
 

@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const { data: invoice, error } = await supabaseAdmin
     .from("billing_invoices")
     .select(
-      "id, invoice_number, description, plan_name, charge_type, issue_date, due_date, period_start, period_end, subtotal, vat_amount, total_amount, amount_paid, balance_due, status, schools(school_name)"
+      "id, invoice_number, description, plan_name, charge_type, issue_date, due_date, period_start, period_end, subtotal, vat_amount, total_amount, amount_paid, balance_due, status, exemption_reason, exempted_at, schools(school_name)"
     )
     .eq("download_token", token)
     .maybeSingle();
@@ -24,7 +24,8 @@ export async function GET(request: Request) {
   const school = Array.isArray(invoice.schools)
     ? invoice.schools[0]
     : invoice.schools;
-  const isPaid = invoice.status === "paid";
+  const isExempted = Boolean(invoice.exempted_at);
+  const isPaid = invoice.status === "paid" && !isExempted;
   const title = isPaid ? "Payment Receipt" : "Invoice";
   const { data: allocations } = await supabaseAdmin
     .from("billing_payment_allocations")
@@ -75,7 +76,7 @@ export async function GET(request: Request) {
       <main class="page">
         <div class="head">
           <div><div class="brand"><img src="/icon-512.png" alt="DailyBloom — Where preschools bloom every day" /></div></div>
-          <div class="doc"><h2>${escapeHtml(title)}</h2><div>${escapeHtml(invoice.invoice_number)}</div><p><span class="status">${escapeHtml(String(invoice.status).replaceAll("_", " "))}</span></p></div>
+          <div class="doc"><h2>${escapeHtml(title)}</h2><div>${escapeHtml(invoice.invoice_number)}</div><p><span class="status">${escapeHtml(isExempted ? "setup fee exempted" : String(invoice.status).replaceAll("_", " "))}</span></p></div>
         </div>
         <div class="grid">
           <div><strong>Billed to</strong><p>${escapeHtml(school?.school_name || "Preschool")}</p></div>
@@ -91,6 +92,13 @@ export async function GET(request: Request) {
         ${
           paymentDetails
             ? `<div class="note"><strong>Payment details</strong>${paymentDetails}</div>`
+            : ""
+        }
+        ${
+          invoice.exempted_at
+            ? `<div class="note"><strong>Setup fee exempted</strong><p>${escapeHtml(
+                invoice.exemption_reason || "Approved exemption"
+              )}</p><p>No setup-fee payment is required.</p></div>`
             : ""
         }
         <div class="note">DailyBloom is not currently registered for VAT. No VAT has been charged.</div>

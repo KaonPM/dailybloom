@@ -138,6 +138,47 @@ export async function POST(request: Request) {
       });
     }
 
+    if (action === "exempt_setup_fee") {
+      const reason = String(body.reason || "").trim();
+      if (!schoolId || reason.length < 3) {
+        return NextResponse.json(
+          { error: "Select a school and enter an exemption reason." },
+          { status: 400 }
+        );
+      }
+
+      await createSetupFeeInvoice(schoolId);
+      const { data: invoiceId, error: exemptionError } = await supabaseAdmin.rpc(
+        "apply_setup_fee_exemption",
+        {
+          target_school_id: schoolId,
+          exemption_reason: reason,
+          actor_id: authorization.staff.userId,
+        }
+      );
+      if (exemptionError) throw exemptionError;
+
+      const { data: exemptedInvoice, error: invoiceError } = await supabaseAdmin
+        .from("billing_invoices")
+        .select("*")
+        .eq("id", invoiceId)
+        .single();
+      if (invoiceError) throw invoiceError;
+
+      const invoiceEmail = await sendInvoiceEmail(exemptedInvoice);
+      await writeSecurityAudit(
+        authorization.staff,
+        "billing.setup_fee_exempted",
+        { school_id: schoolId, invoice_id: invoiceId, reason }
+      );
+      return NextResponse.json({
+        success: true,
+        invoice: exemptedInvoice,
+        invoice_email_sent: invoiceEmail.sent,
+        invoice_email_reason: invoiceEmail.sent ? null : invoiceEmail.reason,
+      });
+    }
+
     if (action === "record_payment") {
       const subscriptionId = numberId(body.subscription_id);
       const amount = Number(body.amount);

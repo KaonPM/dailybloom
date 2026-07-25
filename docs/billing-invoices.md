@@ -18,6 +18,13 @@
   package snapshot, payment method and actual payment date.
 - Confirming a payment opens the affected invoice as a payment receipt while
   the normal allocation and monthly billing process continues.
+- Payment history is grouped by preschool, with every payment and its related
+  invoices available under that school account. Master can view or resend each
+  invoice from the school history.
+- A setup-fee exemption is recorded as an immutable billing journal. The
+  setup-fee invoice remains visible at R0.00, shows the exemption reason, and is
+  emailed to the principal or owner. An invoice with an existing payment cannot
+  be exempted.
 - Billing balances continue across calendar years. Invoice numbers include their year, but account balances are never reset.
 - DailyBloom is not VAT registered. Every document states that no VAT was charged and `vat_amount` is constrained to zero.
 
@@ -64,6 +71,7 @@ Run:
 ```text
 supabase/migrations/20260724_billing_invoice_ledger.sql
 supabase/migrations/20260724_payment_details.sql
+supabase/migrations/20260725_setup_fee_exemption_journals.sql
 ```
 
 The migration adds:

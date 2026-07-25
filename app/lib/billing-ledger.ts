@@ -23,6 +23,8 @@ type InvoiceRow = {
   balance_due: number;
   status: string;
   download_token: string;
+  exemption_reason?: string | null;
+  exempted_at?: string | null;
 };
 
 function dateOnly(date: Date) {
@@ -360,7 +362,7 @@ export async function sendInvoiceEmail(invoice: InvoiceRow) {
         <div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #F0E3D8;border-radius:18px;padding:26px">
           <h1 style="margin:0 0 8px">Daily<span style="color:#FF5EA8">Bloom</span></h1>
           <p>Hello ${escapeHtml(contact.full_name || "Principal")},</p>
-          <p>A new invoice is available for <strong>${escapeHtml(
+          <p>${invoice.exempted_at ? "A setup-fee exemption invoice" : "A new invoice"} is available for <strong>${escapeHtml(
             school.school_name || "your preschool"
           )}</strong>.</p>
           <div style="background:#EAF7FD;border:1px solid #CBEAF7;border-radius:14px;padding:16px;margin:20px 0">
@@ -368,6 +370,11 @@ export async function sendInvoiceEmail(invoice: InvoiceRow) {
             <p><strong>Description:</strong> ${escapeHtml(invoice.description)}</p>
             <p><strong>Amount:</strong> R${Number(invoice.total_amount).toFixed(2)}</p>
             <p><strong>Due:</strong> ${escapeHtml(invoice.due_date)}</p>
+            ${
+              invoice.exempted_at
+                ? `<p><strong>Setup fee:</strong> Exempted</p><p><strong>Reason:</strong> ${escapeHtml(invoice.exemption_reason || "Approved exemption")}</p>`
+                : ""
+            }
           </div>
           <p><a href="${escapeHtml(
             documentUrl

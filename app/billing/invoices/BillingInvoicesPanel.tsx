@@ -29,6 +29,8 @@ type Invoice = {
   status: string;
   download_token: string;
   emailed_at: string | null;
+  exemption_reason: string | null;
+  exempted_at: string | null;
   schools: SchoolRelation;
 };
 
@@ -42,6 +44,7 @@ type Payment = {
   plan_name: string | null;
   payment_method: string | null;
   receipt_number: string | null;
+  schools: SchoolRelation;
 };
 
 type Summary = {
@@ -82,8 +85,12 @@ export default function BillingInvoicesPanel({
       return;
     }
 
+    const platformUser = ["master", "master_admin"].includes(
+      String(profile.role || "").toLowerCase()
+    );
     const querySchoolId =
-      Number(requestedSchool || 0) || Number(profile.school_id || 0);
+      Number(requestedSchool || 0) ||
+      (platformUser ? 0 : Number(profile.school_id || 0));
     const query = new URLSearchParams();
     if (querySchoolId) query.set("school_id", String(querySchoolId));
     query.set("refresh", String(refreshKey));
@@ -128,6 +135,39 @@ export default function BillingInvoicesPanel({
     return invoices;
   }, [filter, invoices]);
 
+  const schoolPaymentHistory = useMemo(() => {
+    const groups = new Map<
+      number,
+      { schoolName: string; payments: Payment[]; invoices: Invoice[] }
+    >();
+
+    for (const invoice of invoices) {
+      const school = schoolFromRelation(invoice.schools);
+      const group = groups.get(invoice.school_id) || {
+        schoolName: school?.school_name || "Preschool",
+        payments: [],
+        invoices: [],
+      };
+      group.invoices.push(invoice);
+      groups.set(invoice.school_id, group);
+    }
+
+    for (const payment of payments) {
+      const school = schoolFromRelation(payment.schools);
+      const group = groups.get(payment.school_id) || {
+        schoolName: school?.school_name || "Preschool",
+        payments: [],
+        invoices: [],
+      };
+      group.payments.push(payment);
+      groups.set(payment.school_id, group);
+    }
+
+    return [...groups.entries()]
+      .map(([schoolId, group]) => ({ schoolId, ...group }))
+      .sort((left, right) => left.schoolName.localeCompare(right.schoolName));
+  }, [invoices, payments]);
+
   async function emailInvoice(invoice: Invoice) {
     setSendingId(invoice.id);
     const response = await authenticatedFetch("/api/billing/invoices", {
@@ -160,7 +200,7 @@ export default function BillingInvoicesPanel({
 
   async function downloadPdf(invoice: Invoice) {
     const school = schoolFromRelation(invoice.schools);
-    const paid = invoice.status === "paid";
+    const paid = invoice.status === "paid" && !invoice.exempted_at;
     const pdf = new jsPDF({ unit: "mm", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const logo = await loadDailyBloomLogo();
@@ -231,6 +271,15 @@ export default function BillingInvoicesPanel({
       18,
       272
     );
+    if (invoice.exempted_at) {
+      pdf.setTextColor(38, 114, 68);
+      pdf.text(
+        `Setup fee exempted: ${invoice.exemption_reason || "Approved exemption"}`,
+        18,
+        262
+      );
+      pdf.setTextColor(111, 104, 128);
+    }
     pdf.text("Powered by Lesedi Smart Solutions", 18, 279);
     pdf.save(`${invoice.invoice_number}-${paid ? "receipt" : "invoice"}.pdf`);
   }
@@ -337,7 +386,7 @@ export default function BillingInvoicesPanel({
                       className="db-button-secondary"
                       onClick={() => openPrintableInvoice(invoice)}
                     >
-                      Print
+                      View Invoice
                     </button>
                     <button
                       type="button"
@@ -352,7 +401,7 @@ export default function BillingInvoicesPanel({
                       disabled={sendingId === invoice.id}
                       onClick={() => emailInvoice(invoice)}
                     >
-                      {sendingId === invoice.id ? "Sending..." : "Email"}
+                      {sendingId === invoice.id ? "Sending..." : "Resend Invoice"}
                     </button>
                   </div>
                 </article>
@@ -362,7 +411,14 @@ export default function BillingInvoicesPanel({
         </div>
       </section>
 
-      <section className="db-soft-card" style={{ padding: 20 }}>
+      <SchoolPaymentHistory
+        groups={schoolPaymentHistory}
+        sendingId={sendingId}
+        onViewInvoice={openPrintableInvoice}
+        onResendInvoice={emailInvoice}
+      />
+
+      {false ? <section className="db-soft-card" style={{ padding: 20 }}>
         <h2 style={{ marginTop: 0 }}>Payment History</h2>
         <div style={{ display: "grid", gap: 10 }}>
           {payments.length === 0 ? (
@@ -400,7 +456,7 @@ export default function BillingInvoicesPanel({
             ))
           )}
         </div>
-      </section>
+      </section> : null}
     </div>
   );
 }
@@ -424,6 +480,119 @@ function SummaryCard({
       <strong style={{ fontSize: 28 }}>{value}</strong>
       <span style={meta}>{helper}</span>
     </div>
+  );
+}
+
+function SchoolPaymentHistory({
+  groups,
+  sendingId,
+  onViewInvoice,
+  onResendInvoice,
+}: {
+  groups: Array<{
+    schoolId: number;
+    schoolName: string;
+    payments: Payment[];
+    invoices: Invoice[];
+  }>;
+  sendingId: string;
+  onViewInvoice: (invoice: Invoice) => void;
+  onResendInvoice: (invoice: Invoice) => void;
+}) {
+  return (
+    <section className="db-soft-card" style={{ padding: 20 }}>
+      <h2 style={{ marginTop: 0 }}>Payment History by School</h2>
+      <p className="db-helper">
+        Each school account keeps its complete payment and invoice record.
+      </p>
+      <div style={{ display: "grid", gap: 14 }}>
+        {groups.length === 0 ? (
+          <p className="db-helper">No school billing records yet.</p>
+        ) : (
+          groups.map((group) => (
+            <article key={group.schoolId} style={schoolHistoryCard}>
+              <div style={schoolHistoryHeader}>
+                <div>
+                  <strong style={{ fontSize: 17 }}>{group.schoolName}</strong>
+                  <p style={meta}>
+                    {group.payments.length} payment
+                    {group.payments.length === 1 ? "" : "s"} ·{" "}
+                    {group.invoices.length} invoice
+                    {group.invoices.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gap: 9 }}>
+                {group.payments.length === 0 ? (
+                  <p className="db-helper">No payments recorded yet.</p>
+                ) : (
+                  group.payments.map((payment) => (
+                    <div key={payment.id} style={paymentRow}>
+                      <div>
+                        <strong>{payment.receipt_number || "Payment"}</strong>
+                        <p style={meta}>
+                          {payment.payment_date} ·{" "}
+                          {payment.charge_type === "setup_fee"
+                            ? "Setup Fee"
+                            : "Subscription Fee"}{" "}
+                          · {payment.plan_name || "Package not set"} ·{" "}
+                          {payment.payment_method || "Method not set"}
+                        </p>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <strong>R{money(payment.amount)}</strong>
+                        {Number(payment.unapplied_amount || 0) > 0 ? (
+                          <p style={creditText}>
+                            R{money(payment.unapplied_amount)} credit
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div style={schoolInvoiceActions}>
+                {group.invoices.map((invoice) => (
+                  <div key={invoice.id} style={schoolInvoiceRow}>
+                    <div>
+                      <strong>{invoice.invoice_number}</strong>
+                      <p style={meta}>
+                        {invoice.charge_type === "setup_fee"
+                          ? "Setup Fee"
+                          : invoice.description}{" "}
+                        · {statusLabel(invoice.status)}
+                        {invoice.exempted_at ? " · Exempted" : ""}
+                      </p>
+                    </div>
+                    <div style={actionRow}>
+                      <button
+                        type="button"
+                        className="db-button-secondary"
+                        onClick={() => onViewInvoice(invoice)}
+                      >
+                        View Invoice
+                      </button>
+                      <button
+                        type="button"
+                        className="db-button-primary"
+                        disabled={sendingId === invoice.id}
+                        onClick={() => onResendInvoice(invoice)}
+                      >
+                        {sendingId === invoice.id
+                          ? "Sending..."
+                          : "Resend Invoice"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -563,6 +732,37 @@ const paymentRow: React.CSSProperties = {
   padding: 14,
   border: "1px solid #EDE2DB",
   borderRadius: 14,
+};
+const schoolHistoryCard: React.CSSProperties = {
+  padding: 16,
+  border: "1px solid #E7DBD2",
+  borderRadius: 18,
+  background: "#FFFDFC",
+};
+const schoolHistoryHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  paddingBottom: 12,
+  marginBottom: 12,
+  borderBottom: "1px solid #EFE5DE",
+};
+const schoolInvoiceActions: React.CSSProperties = {
+  display: "grid",
+  gap: 9,
+  marginTop: 14,
+  paddingTop: 14,
+  borderTop: "1px solid #EFE5DE",
+};
+const schoolInvoiceRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: 12,
+  padding: 12,
+  borderRadius: 13,
+  background: "#F8F5FB",
 };
 const creditText: React.CSSProperties = {
   margin: "4px 0 0",

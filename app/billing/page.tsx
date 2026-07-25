@@ -68,6 +68,10 @@ export default function BillingPage() {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [activePaymentSubscription, setActivePaymentSubscription] =
     useState<Subscription | null>(null);
+  const [exemptionSubscription, setExemptionSubscription] =
+    useState<Subscription | null>(null);
+  const [exemptionReason, setExemptionReason] = useState("");
+  const [savingExemption, setSavingExemption] = useState(false);
 
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(true);
   const [invoicesOpen, setInvoicesOpen] = useState(false);
@@ -425,6 +429,40 @@ export default function BillingPage() {
     alert("Subscription marked overdue.");
   }
 
+  async function exemptSetupFee() {
+    if (!exemptionSubscription || exemptionReason.trim().length < 3) {
+      alert("Enter the reason why this school is exempt from the setup fee.");
+      return;
+    }
+
+    setSavingExemption(true);
+    try {
+      const result = await runPlatformOperation({
+        action: "exempt_setup_fee",
+        school_id: exemptionSubscription.school_id,
+        reason: exemptionReason.trim(),
+      });
+      await fetchAllSubscriptions();
+      setInvoiceRefreshKey((current) => current + 1);
+      setInvoicesOpen(true);
+      setExemptionSubscription(null);
+      setExemptionReason("");
+      alert(
+        result.invoice_email_sent
+          ? "Setup-fee exemption journal passed and invoice emailed."
+          : "Setup-fee exemption journal passed. The invoice is available, but the email was not sent."
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "The setup-fee exemption could not be recorded."
+      );
+    } finally {
+      setSavingExemption(false);
+    }
+  }
+
   const isMaster = profile?.role === "master" || profile?.role === "master_admin";
 
   const filteredSubscriptions = useMemo(() => {
@@ -758,6 +796,17 @@ export default function BillingPage() {
                               ? "Saving..."
                               : "Mark Overdue"}
                           </button>
+
+                          <button
+                            type="button"
+                            style={secondaryButton}
+                            onClick={() => {
+                              setExemptionSubscription(subscription);
+                              setExemptionReason("");
+                            }}
+                          >
+                            Exempt Setup Fee
+                          </button>
                         </div>
                       ) : null}
                     </div>
@@ -953,6 +1002,61 @@ export default function BillingPage() {
                     : "Confirm Payment"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {exemptionSubscription ? (
+        <div style={modalOverlay}>
+          <div style={modalCard}>
+            <div style={modalHeader}>
+              <div>
+                <h3 style={modalTitle}>Setup Fee Exemption</h3>
+                <p style={modalSubtitle}>
+                  {exemptionSubscription.schools?.school_name ||
+                    "Selected school"}
+                </p>
+              </div>
+              <button
+                type="button"
+                style={closeButton}
+                disabled={savingExemption}
+                onClick={() => setExemptionSubscription(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="db-helper">
+              This passes an auditable journal and changes the setup-fee invoice
+              to R0.00 with the exemption reason shown on it.
+            </p>
+            <label style={labelStyle}>Exemption Reason</label>
+            <textarea
+              className="db-input"
+              rows={4}
+              value={exemptionReason}
+              placeholder="Example: Promotional setup-fee waiver approved by Master"
+              onChange={(event) => setExemptionReason(event.target.value)}
+            />
+            <div style={modalActions}>
+              <button
+                type="button"
+                style={secondaryButton}
+                disabled={savingExemption}
+                onClick={() => setExemptionSubscription(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="db-button-primary"
+                disabled={savingExemption || exemptionReason.trim().length < 3}
+                onClick={exemptSetupFee}
+              >
+                {savingExemption ? "Saving..." : "Pass Exemption Journal"}
+              </button>
             </div>
           </div>
         </div>

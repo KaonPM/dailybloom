@@ -5,7 +5,6 @@ import { supabaseAdmin } from "../../lib/supabase-admin";
 import {
   activateSubscriptionBilling,
   createSetupFeeInvoice,
-  sendInvoiceEmail,
 } from "../../lib/billing-ledger";
 
 const ONBOARDING_FIELDS = [
@@ -116,14 +115,13 @@ export async function POST(request: Request) {
       );
       await repairBillingAccount(schoolId);
       const setupInvoice = await createSetupFeeInvoice(schoolId);
-      const invoiceEmail = await sendInvoiceEmail(setupInvoice);
       await writeSecurityAudit(authorization.staff, "platform.school_activated", { school_id: schoolId });
       return NextResponse.json({
         success: true,
         setup_invoice: setupInvoice,
         next_billing_date: subscription.next_billing_date,
-        invoice_email_sent: invoiceEmail.sent,
-        invoice_email_reason: invoiceEmail.sent ? null : invoiceEmail.reason,
+        invoice_email_sent: false,
+        invoice_email_reason: "Email is sent after payment is recorded.",
       });
     }
 
@@ -207,7 +205,6 @@ export async function POST(request: Request) {
         .single();
       if (invoiceError) throw invoiceError;
 
-      const invoiceEmail = await sendInvoiceEmail(exemptedInvoice);
       await writeSecurityAudit(
         authorization.staff,
         "billing.setup_fee_exempted",
@@ -221,8 +218,8 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         invoice: exemptedInvoice,
-        invoice_email_sent: invoiceEmail.sent,
-        invoice_email_reason: invoiceEmail.sent ? null : invoiceEmail.reason,
+        invoice_email_sent: false,
+        invoice_email_reason: "Email is sent after payment is recorded.",
       });
     }
 

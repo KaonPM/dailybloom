@@ -473,9 +473,7 @@ export default function BillingPage() {
       setExemptionSubscription(null);
       setExemptionReason("");
       alert(
-        result.invoice_email_sent
-          ? "Setup-fee exemption journal passed and invoice emailed."
-          : "Setup-fee exemption journal passed. The invoice is available, but the email was not sent."
+        "Setup-fee exemption journal passed. It is available in Billing; one receipt email will be sent after payment is recorded."
       );
     } catch (error) {
       alert(

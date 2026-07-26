@@ -15,6 +15,7 @@ test("principal removal requires principal management permission", () => {
 test("billing mutations require billing permission", () => {
   assert.equal(platformOperationPermission("save_subscription"), PERMISSIONS.BILLING_MANAGE);
   assert.equal(platformOperationPermission("record_payment"), PERMISSIONS.BILLING_MANAGE);
+  assert.equal(platformOperationPermission("adjust_payment"), PERMISSIONS.BILLING_MANAGE);
   assert.equal(platformOperationPermission("exempt_setup_fee"), PERMISSIONS.BILLING_MANAGE);
   assert.equal(platformOperationPermission("mark_overdue"), PERMISSIONS.BILLING_MANAGE);
 });

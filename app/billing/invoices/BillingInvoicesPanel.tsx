@@ -38,12 +38,24 @@ type Payment = {
   id: number;
   school_id: number;
   amount: number;
+  original_amount: number;
   unapplied_amount: number;
   payment_date: string;
   charge_type: "setup_fee" | "subscription" | null;
   plan_name: string | null;
   payment_method: string | null;
   receipt_number: string | null;
+  schools: SchoolRelation;
+};
+
+type PaymentAdjustment = {
+  id: number;
+  school_id: number;
+  payment_id: number;
+  adjustment_type: "reversal" | "refund";
+  amount: number;
+  reason: string;
+  created_at: string;
   schools: SchoolRelation;
 };
 
@@ -75,6 +87,7 @@ export default function BillingInvoicesPanel({
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [journals, setJournals] = useState<Journal[]>([]);
+  const [adjustments, setAdjustments] = useState<PaymentAdjustment[]>([]);
   const [summary, setSummary] = useState<Summary>({
     outstanding_balance: 0,
     credit_balance: 0,
@@ -84,10 +97,15 @@ export default function BillingInvoicesPanel({
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<"all" | "open" | "paid">("all");
   const [sendingId, setSendingId] = useState("");
+  const [canAdjustPayments, setCanAdjustPayments] = useState(false);
+  const [recordPage, setRecordPage] = useState(1);
+  const [hasMoreRecords, setHasMoreRecords] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const requestedSchool = searchParams.get("school") || "";
 
-  const loadInvoices = useCallback(async () => {
-    setLoading(true);
+  const loadInvoices = useCallback(async (page = 1, append = false) => {
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     setError("");
 
     const { profile } = await getCurrentProfile();
@@ -100,12 +118,15 @@ export default function BillingInvoicesPanel({
     const platformUser = ["master", "master_admin"].includes(
       String(profile.role || "").toLowerCase()
     );
+    setCanAdjustPayments(platformUser);
     const querySchoolId =
       Number(requestedSchool || 0) ||
       (platformUser ? 0 : Number(profile.school_id || 0));
     const query = new URLSearchParams();
     if (querySchoolId) query.set("school_id", String(querySchoolId));
     query.set("refresh", String(refreshKey));
+    query.set("page", String(page));
+    query.set("page_size", "10");
     const response = await authenticatedFetch(
       `/api/billing/invoices?${query.toString()}`
     );
@@ -113,13 +134,29 @@ export default function BillingInvoicesPanel({
 
     if (!response.ok) {
       setError(result.error || "Invoices could not be loaded.");
-      setLoading(false);
+      if (append) setLoadingMore(false);
+      else setLoading(false);
       return;
     }
 
-    setInvoices((result.invoices || []) as Invoice[]);
-    setPayments((result.payments || []) as Payment[]);
-    setJournals((result.journals || []) as Journal[]);
+    const nextInvoices = (result.invoices || []) as Invoice[];
+    const nextPayments = (result.payments || []) as Payment[];
+    const nextJournals = (result.journals || []) as Journal[];
+    const nextAdjustments = (result.adjustments || []) as PaymentAdjustment[];
+    setInvoices((current) =>
+      append ? mergeById(current, nextInvoices) : nextInvoices
+    );
+    setPayments((current) =>
+      append ? mergeById(current, nextPayments) : nextPayments
+    );
+    setJournals((current) =>
+      append ? mergeById(current, nextJournals) : nextJournals
+    );
+    setAdjustments((current) =>
+      append ? mergeById(current, nextAdjustments) : nextAdjustments
+    );
+    setRecordPage(Number(result.pagination?.page || page));
+    setHasMoreRecords(Boolean(result.pagination?.has_more));
     setSummary(
       result.summary || {
         outstanding_balance: 0,
@@ -127,7 +164,8 @@ export default function BillingInvoicesPanel({
         open_invoices: 0,
       }
     );
-    setLoading(false);
+    if (append) setLoadingMore(false);
+    else setLoading(false);
   }, [requestedSchool, refreshKey]);
 
   useEffect(() => {
@@ -156,6 +194,7 @@ export default function BillingInvoicesPanel({
         payments: Payment[];
         invoices: Invoice[];
         journals: Journal[];
+        adjustments: PaymentAdjustment[];
       }
     >();
 
@@ -166,6 +205,7 @@ export default function BillingInvoicesPanel({
         payments: [],
         invoices: [],
         journals: [],
+        adjustments: [],
       };
       group.invoices.push(invoice);
       groups.set(invoice.school_id, group);
@@ -178,6 +218,7 @@ export default function BillingInvoicesPanel({
         payments: [],
         invoices: [],
         journals: [],
+        adjustments: [],
       };
       group.payments.push(payment);
       groups.set(payment.school_id, group);
@@ -190,15 +231,29 @@ export default function BillingInvoicesPanel({
         payments: [],
         invoices: [],
         journals: [],
+        adjustments: [],
       };
       group.journals.push(journal);
       groups.set(journal.school_id, group);
     }
 
+    for (const adjustment of adjustments) {
+      const school = schoolFromRelation(adjustment.schools);
+      const group = groups.get(adjustment.school_id) || {
+        schoolName: school?.school_name || "Preschool",
+        payments: [],
+        invoices: [],
+        journals: [],
+        adjustments: [],
+      };
+      group.adjustments.push(adjustment);
+      groups.set(adjustment.school_id, group);
+    }
+
     return [...groups.entries()]
       .map(([schoolId, group]) => ({ schoolId, ...group }))
       .sort((left, right) => left.schoolName.localeCompare(right.schoolName));
-  }, [invoices, journals, payments]);
+  }, [adjustments, invoices, journals, payments]);
 
   async function emailInvoice(invoice: Invoice) {
     setSendingId(invoice.id);
@@ -448,7 +503,21 @@ export default function BillingInvoicesPanel({
         sendingId={sendingId}
         onViewInvoice={openPrintableInvoice}
         onResendInvoice={emailInvoice}
+        canAdjustPayments={canAdjustPayments}
+        onAdjusted={loadInvoices}
       />
+      {hasMoreRecords ? (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+          <button
+            type="button"
+            className="db-button-secondary"
+            disabled={loadingMore}
+            onClick={() => void loadInvoices(recordPage + 1, true)}
+          >
+            {loadingMore ? "Loading..." : "Load next 10 billing records"}
+          </button>
+        </div>
+      ) : null}
 
       {false ? <section className="db-soft-card" style={{ padding: 20 }}>
         <h2 style={{ marginTop: 0 }}>Payment History</h2>
@@ -520,6 +589,8 @@ function SchoolPaymentHistory({
   sendingId,
   onViewInvoice,
   onResendInvoice,
+  canAdjustPayments,
+  onAdjusted,
 }: {
   groups: Array<{
     schoolId: number;
@@ -527,16 +598,69 @@ function SchoolPaymentHistory({
     payments: Payment[];
     invoices: Invoice[];
     journals: Journal[];
+    adjustments: PaymentAdjustment[];
   }>;
   sendingId: string;
   onViewInvoice: (invoice: Invoice) => void;
   onResendInvoice: (invoice: Invoice) => void;
+  canAdjustPayments: boolean;
+  onAdjusted: () => Promise<void>;
 }) {
   const [openSchoolIds, setOpenSchoolIds] = useState<Set<number>>(new Set());
   const [activityLimits, setActivityLimits] = useState<Record<number, number>>(
     {}
   );
   const [invoiceLimits, setInvoiceLimits] = useState<Record<number, number>>({});
+  const [adjustingPayment, setAdjustingPayment] = useState<Payment | null>(null);
+  const [adjustmentType, setAdjustmentType] = useState<
+    "reversal" | "refund"
+  >("reversal");
+  const [adjustmentAmount, setAdjustmentAmount] = useState("");
+  const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [savingAdjustment, setSavingAdjustment] = useState(false);
+
+  async function saveAdjustment() {
+    if (!adjustingPayment || savingAdjustment) return;
+    const amount = Number(adjustmentAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      alert("Enter a valid adjustment amount.");
+      return;
+    }
+    if (adjustmentReason.trim().length < 3) {
+      alert("Enter a clear reason for this adjustment.");
+      return;
+    }
+
+    setSavingAdjustment(true);
+    const response = await authenticatedFetch("/api/platform-operations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "adjust_payment",
+        school_id: adjustingPayment.school_id,
+        payment_id: adjustingPayment.id,
+        adjustment_type: adjustmentType,
+        amount,
+        reason: adjustmentReason.trim(),
+      }),
+    });
+    const result = await response.json();
+    setSavingAdjustment(false);
+    if (!response.ok) {
+      alert(result.error || "The payment adjustment could not be saved.");
+      return;
+    }
+
+    setAdjustingPayment(null);
+    setAdjustmentAmount("");
+    setAdjustmentReason("");
+    await onAdjusted();
+    alert(
+      adjustmentType === "reversal"
+        ? "Payment reversal recorded in the audit ledger."
+        : "Payment refund recorded in the audit ledger."
+    );
+  }
 
   function toggleSchool(schoolId: number) {
     setOpenSchoolIds((current) => {
@@ -577,7 +701,8 @@ function SchoolPaymentHistory({
             const accountActivity = buildSchoolLedger(
               group.invoices,
               group.payments,
-              group.journals
+              group.journals,
+              group.adjustments
             );
             const activityLimit = activityLimits[group.schoolId] || 10;
             const invoiceLimit = invoiceLimits[group.schoolId] || 10;
@@ -683,16 +808,51 @@ function SchoolPaymentHistory({
                         </p>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <strong>R{money(payment.amount)}</strong>
+                        <strong>
+                          R{money(payment.original_amount || payment.amount)}
+                        </strong>
                         {Number(payment.unapplied_amount || 0) > 0 ? (
                           <p style={creditText}>
                             R{money(payment.unapplied_amount)} credit
                           </p>
                         ) : null}
+                        {canAdjustPayments && Number(payment.amount || 0) > 0 ? (
+                          <button
+                            type="button"
+                            className="db-button-secondary"
+                            style={{ marginTop: 7, minHeight: 34, padding: "6px 10px" }}
+                            onClick={() => {
+                              setAdjustingPayment(payment);
+                              setAdjustmentType("reversal");
+                              setAdjustmentAmount(String(payment.amount));
+                              setAdjustmentReason("");
+                            }}
+                          >
+                            Reverse / Refund
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   ))
                 )}
+                {group.adjustments.map((adjustment) => (
+                  <div key={`adjustment-${adjustment.id}`} style={paymentRow}>
+                    <div>
+                      <strong>
+                        {adjustment.adjustment_type === "reversal"
+                          ? "Payment reversal"
+                          : "Payment refund"}
+                      </strong>
+                      <p style={meta}>
+                        {adjustment.created_at.slice(0, 10)} ·{" "}
+                        {adjustment.reason}
+                      </p>
+                    </div>
+                    <strong style={{ color: "#9B4052" }}>
+                      -R{money(adjustment.amount)}
+                    </strong>
+                  </div>
+                ))}
               </div>
 
               <div style={schoolInvoiceActions}>
@@ -750,6 +910,72 @@ function SchoolPaymentHistory({
           })
         )}
       </div>
+      {adjustingPayment ? (
+        <div style={modalBackdrop} role="dialog" aria-modal="true">
+          <div className="db-soft-card" style={adjustmentDialog}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <div>
+                <h3 style={{ margin: 0 }}>Reverse or refund payment</h3>
+                <p className="db-helper">
+                  {adjustingPayment.receipt_number || "Payment"} · R
+                  {money(adjustingPayment.amount)} remaining
+                </p>
+              </div>
+              <button
+                type="button"
+                className="db-button-secondary"
+                disabled={savingAdjustment}
+                onClick={() => setAdjustingPayment(null)}
+              >
+                Close
+              </button>
+            </div>
+            <label style={{ display: "grid", gap: 6 }}>
+              <strong>Adjustment type</strong>
+              <select
+                className="db-input"
+                value={adjustmentType}
+                onChange={(event) =>
+                  setAdjustmentType(event.target.value as "reversal" | "refund")
+                }
+              >
+                <option value="reversal">Reversal</option>
+                <option value="refund">Refund</option>
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <strong>Amount</strong>
+              <input
+                className="db-input"
+                type="number"
+                min="0.01"
+                step="0.01"
+                max={Number(adjustingPayment.amount || 0)}
+                value={adjustmentAmount}
+                onChange={(event) => setAdjustmentAmount(event.target.value)}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <strong>Reason</strong>
+              <textarea
+                className="db-input"
+                rows={3}
+                value={adjustmentReason}
+                onChange={(event) => setAdjustmentReason(event.target.value)}
+                placeholder="Why is this payment being reversed or refunded?"
+              />
+            </label>
+            <button
+              type="button"
+              className="db-button-primary"
+              disabled={savingAdjustment}
+              onClick={() => void saveAdjustment()}
+            >
+              {savingAdjustment ? "Saving..." : "Record adjustment"}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -758,10 +984,21 @@ function schoolFromRelation(relation: SchoolRelation) {
   return Array.isArray(relation) ? relation[0] || null : relation;
 }
 
+function mergeById<T extends { id: string | number }>(
+  current: T[],
+  incoming: T[]
+) {
+  const merged = new Map<string, T>();
+  for (const item of current) merged.set(String(item.id), item);
+  for (const item of incoming) merged.set(String(item.id), item);
+  return [...merged.values()];
+}
+
 function buildSchoolLedger(
   invoices: Invoice[],
   payments: Payment[],
-  journals: Journal[]
+  journals: Journal[],
+  adjustments: PaymentAdjustment[]
 ) {
   const activities = [
     ...invoices.map((invoice) => ({
@@ -786,7 +1023,7 @@ function buildSchoolLedger(
           : "Subscription Fee"
       } · ${payment.payment_method || "Method not set"}`,
       invoiced: 0,
-      payment: Number(payment.amount || 0),
+      payment: Number(payment.original_amount || payment.amount || 0),
       credit: 0,
     })),
     ...journals.map((journal) => ({
@@ -797,6 +1034,19 @@ function buildSchoolLedger(
       invoiced: 0,
       payment: 0,
       credit: Number(journal.amount || 0),
+    })),
+    ...adjustments.map((adjustment) => ({
+      key: `adjustment-${adjustment.id}`,
+      date: adjustment.created_at.slice(0, 10),
+      order: 3,
+      description: `${
+        adjustment.adjustment_type === "reversal"
+          ? "Payment reversal"
+          : "Payment refund"
+      } · ${adjustment.reason}`,
+      invoiced: Number(adjustment.amount || 0),
+      payment: 0,
+      credit: 0,
     })),
   ].sort(
     (left, right) =>
@@ -1045,4 +1295,22 @@ const creditText: React.CSSProperties = {
   color: "#267244",
   fontSize: 12,
   fontWeight: 700,
+};
+const modalBackdrop: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 1000,
+  display: "grid",
+  placeItems: "center",
+  padding: 18,
+  background: "rgba(45, 42, 62, 0.48)",
+};
+const adjustmentDialog: React.CSSProperties = {
+  width: "min(540px, 100%)",
+  maxHeight: "90vh",
+  overflowY: "auto",
+  display: "grid",
+  gap: 16,
+  padding: 22,
+  borderTop: "5px solid #F2B7CF",
 };

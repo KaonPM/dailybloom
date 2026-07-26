@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import BillingInvoicesPanel from "./invoices/BillingInvoicesPanel";
 import { supabase } from "../lib/supabase";
@@ -30,11 +30,6 @@ type Profile = {
   role: string;
   school_id: number | null;
   permissions?: string[] | null;
-};
-
-type PrincipalContact = {
-  full_name: string | null;
-  email: string | null;
 };
 
 const PLAN_OPTIONS = [
@@ -79,6 +74,14 @@ export default function BillingPage() {
 
   const [filterSchoolId, setFilterSchoolId] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [subscriptionPage, setSubscriptionPage] = useState(1);
+  const [subscriptionTotalPages, setSubscriptionTotalPages] = useState(1);
+  const [subscriptionTotal, setSubscriptionTotal] = useState(0);
+  const [subscriptionSummary, setSubscriptionSummary] = useState({
+    expected_monthly_revenue: 0,
+    active_count: 0,
+    overdue_count: 0,
+  });
 
   const [loading, setLoading] = useState(true);
   const [savingSubscription, setSavingSubscription] = useState(false);
@@ -142,71 +145,43 @@ export default function BillingPage() {
     setSchools((data || []) as School[]);
   }
 
-  async function fetchAllSubscriptions() {
-    const { data, error } = await supabase
-      .from("school_subscriptions")
-      .select(
-        `
-        *,
-        schools (
-          id,
-          school_name
-        )
-      `
-      )
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setSubscriptions((data || []) as Subscription[]);
-  }
+  const fetchAllSubscriptions = useCallback(
+    async (
+      page = subscriptionPage,
+      schoolFilter = filterSchoolId,
+      statusFilter = filterStatus
+    ) => {
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: "10",
+      });
+      if (schoolFilter) params.set("school_id", schoolFilter);
+      if (statusFilter) params.set("status", statusFilter);
+      const response = await authenticatedFetch(
+        `/api/billing/subscriptions?${params.toString()}`
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        alert(result.error || "Could not load school subscriptions.");
+        return;
+      }
+      setSubscriptions((result.subscriptions || []) as Subscription[]);
+      setSubscriptionPage(Number(result.pagination?.page || 1));
+      setSubscriptionTotalPages(Number(result.pagination?.total_pages || 1));
+      setSubscriptionTotal(Number(result.pagination?.total || 0));
+      setSubscriptionSummary({
+        expected_monthly_revenue: Number(
+          result.summary?.expected_monthly_revenue || 0
+        ),
+        active_count: Number(result.summary?.active_count || 0),
+        overdue_count: Number(result.summary?.overdue_count || 0),
+      });
+    },
+    [filterSchoolId, filterStatus, subscriptionPage]
+  );
 
   async function fetchPrincipalSubscription(schoolId: number) {
-    const { data, error } = await supabase
-      .from("school_subscriptions")
-      .select(
-        `
-        *,
-        schools (
-          id,
-          school_name
-        )
-      `
-      )
-      .eq("school_id", schoolId)
-      .maybeSingle();
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setSubscriptions(data ? ([data] as Subscription[]) : []);
-  }
-
-  async function fetchPrincipalContact(
-    schoolId: number
-  ): Promise<PrincipalContact | null> {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("full_name, email")
-      .eq("school_id", schoolId)
-      .eq("role", "principal")
-      .limit(1);
-
-    if (error) {
-      alert(error.message);
-      return null;
-    }
-
-    if (!data || data.length === 0) {
-      return null;
-    }
-
-    return data[0] as PrincipalContact;
+    await fetchAllSubscriptions(1, String(schoolId), "");
   }
 
   function handlePlanChange(planName: string) {
@@ -320,6 +295,8 @@ export default function BillingPage() {
       next_billing_date: string;
       receipt_number: string;
       invoice_document_url: string | null;
+      receipt_email_sent: boolean;
+      receipt_email_queued: boolean;
     };
     try {
       operationResult = await runPlatformOperation({
@@ -339,42 +316,7 @@ export default function BillingPage() {
       setSavingPaymentId(null);
       return;
     }
-    const recordedPaymentDate = operationResult.payment_date;
-    const nextBilling = operationResult.next_billing_date;
     const receiptNumber = operationResult.receipt_number;
-
-    const principalContact = await fetchPrincipalContact(subscription.school_id);
-
-    let emailSent = false;
-
-    if (principalContact?.email) {
-      const emailResponse = await authenticatedFetch("/api/payment-received", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          school_id: subscription.school_id,
-          principalEmail: principalContact.email,
-          principalName: principalContact.full_name,
-          schoolName: subscription.schools?.school_name || "your school",
-          amount,
-          paymentDate: recordedPaymentDate,
-          nextBillingDate: nextBilling,
-          paymentType:
-            paymentChargeType === "setup_fee"
-              ? "Setup Fee"
-              : "Subscription Fee",
-          paymentMethod: paymentMethod || "EFT",
-          paymentNotes: paymentNotes || "",
-          planName: subscription.plan_name,
-          receiptNumber,
-          receiptUrl: operationResult.invoice_document_url,
-        }),
-      });
-
-      emailSent = emailResponse.ok;
-    }
 
     await fetchAllSubscriptions();
     setInvoiceRefreshKey((current) => current + 1);
@@ -398,11 +340,11 @@ export default function BillingPage() {
       document.getElementById("invoices")?.scrollIntoView({ behavior: "smooth" });
     }
 
-    if (emailSent) {
+    if (operationResult.receipt_email_sent) {
       alert(`Payment recorded and receipt sent. Receipt number: ${receiptNumber}`);
     } else {
       alert(
-        `Payment recorded. Receipt number: ${receiptNumber}. Confirmation email was not sent because no principal email was found.`
+        `Payment recorded. Receipt number: ${receiptNumber}. The receipt email is queued and will retry automatically.`
       );
     }
   }
@@ -458,32 +400,19 @@ export default function BillingPage() {
 
   const isMaster = profile?.role === "master" || profile?.role === "master_admin";
 
-  const filteredSubscriptions = useMemo(() => {
-    return subscriptions.filter((subscription) => {
-      const schoolMatches =
-        !filterSchoolId ||
-        Number(filterSchoolId) === Number(subscription.school_id);
-
-      const statusMatches =
-        !filterStatus || subscription.status === filterStatus;
-
-      return schoolMatches && statusMatches;
-    });
-  }, [subscriptions, filterSchoolId, filterStatus]);
+  const filteredSubscriptions = subscriptions;
 
   const expectedMonthlyRevenue = useMemo(() => {
-    return subscriptions
-      .filter((item) => item.status === "active" || item.status === "trial")
-      .reduce((sum, item) => sum + Number(item.monthly_price || 0), 0);
-  }, [subscriptions]);
+    return subscriptionSummary.expected_monthly_revenue;
+  }, [subscriptionSummary.expected_monthly_revenue]);
 
   const overdueCount = useMemo(() => {
-    return subscriptions.filter((item) => item.status === "overdue").length;
-  }, [subscriptions]);
+    return subscriptionSummary.overdue_count;
+  }, [subscriptionSummary.overdue_count]);
 
   const activeCount = useMemo(() => {
-    return subscriptions.filter((item) => item.status === "active").length;
-  }, [subscriptions]);
+    return subscriptionSummary.active_count;
+  }, [subscriptionSummary.active_count]);
 
   if (loading) {
     return <p>Loading billing...</p>;
@@ -687,7 +616,11 @@ export default function BillingPage() {
                 <select
                   className="db-input"
                   value={filterSchoolId}
-                  onChange={(e) => setFilterSchoolId(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFilterSchoolId(value);
+                    void fetchAllSubscriptions(1, value, filterStatus);
+                  }}
                 >
                   <option value="">All schools</option>
                   {schools.map((school) => (
@@ -700,7 +633,11 @@ export default function BillingPage() {
                 <select
                   className="db-input"
                   value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFilterStatus(value);
+                    void fetchAllSubscriptions(1, filterSchoolId, value);
+                  }}
                 >
                   <option value="">All statuses</option>
                   {STATUS_OPTIONS.map((status) => (
@@ -716,6 +653,7 @@ export default function BillingPage() {
                   onClick={() => {
                     setFilterSchoolId("");
                     setFilterStatus("");
+                    void fetchAllSubscriptions(1, "", "");
                   }}
                 >
                   Clear Filters
@@ -806,6 +744,45 @@ export default function BillingPage() {
                     </div>
                   </div>
                 ))}
+                {isMaster && subscriptionTotalPages > 1 ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      marginTop: 4,
+                    }}
+                  >
+                    <span className="db-helper" style={{ margin: 0 }}>
+                      Page {subscriptionPage} of {subscriptionTotalPages} ·{" "}
+                      {subscriptionTotal} school subscriptions
+                    </span>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        style={secondaryButton}
+                        disabled={subscriptionPage <= 1}
+                        onClick={() =>
+                          void fetchAllSubscriptions(subscriptionPage - 1)
+                        }
+                      >
+                        Previous 10
+                      </button>
+                      <button
+                        type="button"
+                        style={secondaryButton}
+                        disabled={subscriptionPage >= subscriptionTotalPages}
+                        onClick={() =>
+                          void fetchAllSubscriptions(subscriptionPage + 1)
+                        }
+                      >
+                        Next 10
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>

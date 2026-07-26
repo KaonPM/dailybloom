@@ -31,6 +31,7 @@ export async function GET(request: Request) {
     accountInvoiceResult,
     accountPaymentResult,
     accountJournalResult,
+    accountAdjustmentResult,
     subscriptionResult,
   ] = await Promise.all([
     supabaseAdmin
@@ -43,12 +44,17 @@ export async function GET(request: Request) {
     supabaseAdmin
       .from("subscription_payments")
       .select(
-        "id, payment_date, amount, charge_type, plan_name, payment_method, receipt_number"
+        "id, payment_date, amount, original_amount, charge_type, plan_name, payment_method, receipt_number"
       )
       .eq("school_id", invoice.school_id),
     supabaseAdmin
       .from("billing_journal_entries")
       .select("id, entry_type, amount, reason, created_at")
+      .eq("school_id", invoice.school_id)
+      .order("created_at", { ascending: true }),
+    supabaseAdmin
+      .from("billing_payment_adjustments")
+      .select("id, adjustment_type, amount, reason, created_at")
       .eq("school_id", invoice.school_id)
       .order("created_at", { ascending: true }),
     supabaseAdmin
@@ -63,6 +69,7 @@ export async function GET(request: Request) {
     accountInvoiceResult.error ||
     accountPaymentResult.error ||
     accountJournalResult.error ||
+    accountAdjustmentResult.error ||
     subscriptionResult.error
   ) {
     return new NextResponse("Billing account could not be loaded.", {
@@ -150,7 +157,7 @@ export async function GET(request: Request) {
         payment.payment_method || "Method not set"
       }`,
       invoiced: 0,
-      payment: Number(payment.amount || 0),
+      payment: Number(payment.original_amount || payment.amount || 0),
       credit: 0,
       reference: String(payment.receipt_number || ""),
     })),
@@ -166,6 +173,19 @@ export async function GET(request: Request) {
       payment: 0,
       credit: Number(journal.amount || 0),
       reference: String(journal.reason || ""),
+    })),
+    ...(accountAdjustmentResult.data || []).map((adjustment) => ({
+      key: `adjustment-${adjustment.id}`,
+      date: String(adjustment.created_at).slice(0, 10),
+      order: 3,
+      description:
+        adjustment.adjustment_type === "reversal"
+          ? "Payment reversal"
+          : "Payment refund",
+      invoiced: Number(adjustment.amount || 0),
+      payment: 0,
+      credit: 0,
+      reference: String(adjustment.reason || ""),
     })),
   ].sort(
     (left, right) =>

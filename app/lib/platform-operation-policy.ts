@@ -10,6 +10,7 @@ export const PLATFORM_OPERATION_PERMISSIONS = {
   repair_billing_account: PERMISSIONS.BILLING_MANAGE,
   exempt_setup_fee: PERMISSIONS.BILLING_MANAGE,
   record_payment: PERMISSIONS.BILLING_MANAGE,
+  adjust_payment: PERMISSIONS.BILLING_MANAGE,
   mark_overdue: PERMISSIONS.BILLING_MANAGE,
 } as const satisfies Record<string, Permission>;
 

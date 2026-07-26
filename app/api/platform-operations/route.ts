@@ -283,6 +283,40 @@ export async function POST(request: Request) {
           payment_receipt_number: receiptNumber,
         });
       if (paymentError) throw paymentError;
+      const paymentId = Number(
+        (paymentResult as { payment_id?: number } | null)?.payment_id || 0
+      );
+      let receiptDelivery: {
+        sent: boolean;
+        queued: boolean;
+        reason?: string;
+      } = { sent: false, queued: true };
+      if (paymentId) {
+        try {
+          const { processBillingReceiptOutbox } = await import(
+            "../../lib/billing-receipt-delivery"
+          );
+          const delivery = await processBillingReceiptOutbox({
+            paymentId,
+            batchSize: 1,
+          });
+          const result = delivery.results[0];
+          receiptDelivery = {
+            sent: Boolean(result?.sent),
+            queued: !result?.sent,
+            reason: result?.reason,
+          };
+        } catch (deliveryError) {
+          receiptDelivery = {
+            sent: false,
+            queued: true,
+            reason:
+              deliveryError instanceof Error
+                ? deliveryError.message
+                : "Receipt delivery remains queued.",
+          };
+        }
+      }
       await writeSecurityAudit(authorization.staff, "platform.payment_recorded", { school_id: schoolId, subscription_id: subscriptionId, amount, receipt_number: receiptNumber });
       const result = paymentResult as {
         credit_balance?: number;
@@ -301,7 +335,73 @@ export async function POST(request: Request) {
         invoice_document_url: result.invoice_download_token
           ? `/api/billing/invoices/document?token=${result.invoice_download_token}`
           : null,
+        receipt_email_sent: receiptDelivery.sent,
+        receipt_email_queued: receiptDelivery.queued,
+        receipt_email_reason: receiptDelivery.reason || null,
       });
+    }
+
+    if (action === "adjust_payment") {
+      if (!["master", "master_admin"].includes(authorization.staff.role)) {
+        return NextResponse.json(
+          { error: "Only Master billing users may reverse or refund payments." },
+          { status: 403 }
+        );
+      }
+      const paymentId = numberId(body.payment_id);
+      const adjustmentType = String(body.adjustment_type || "");
+      const amount = Number(body.amount);
+      const reason = String(body.reason || "").trim();
+      if (
+        !schoolId ||
+        !paymentId ||
+        !["reversal", "refund"].includes(adjustmentType) ||
+        !Number.isFinite(amount) ||
+        amount <= 0 ||
+        reason.length < 3
+      ) {
+        return NextResponse.json(
+          { error: "Payment, adjustment type, amount and reason are required." },
+          { status: 400 }
+        );
+      }
+
+      const { data: payment, error: paymentLookupError } = await supabaseAdmin
+        .from("subscription_payments")
+        .select("id, school_id, amount")
+        .eq("id", paymentId)
+        .eq("school_id", schoolId)
+        .maybeSingle();
+      if (paymentLookupError) throw paymentLookupError;
+      if (!payment) {
+        return NextResponse.json(
+          { error: "Payment was not found for this school." },
+          { status: 404 }
+        );
+      }
+
+      const { data: adjustment, error: adjustmentError } =
+        await supabaseAdmin.rpc("apply_billing_payment_adjustment", {
+          target_payment_id: paymentId,
+          adjustment_kind: adjustmentType,
+          adjustment_amount: amount,
+          adjustment_reason: reason,
+          actor_id: authorization.staff.userId,
+        });
+      if (adjustmentError) throw adjustmentError;
+
+      await writeSecurityAudit(
+        authorization.staff,
+        `billing.payment_${adjustmentType}`,
+        {
+          school_id: schoolId,
+          payment_id: paymentId,
+          amount,
+          reason,
+          result: adjustment,
+        }
+      );
+      return NextResponse.json({ success: true, adjustment });
     }
 
     const subscriptionId = numberId(body.subscription_id);

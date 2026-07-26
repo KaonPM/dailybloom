@@ -27,8 +27,12 @@ export async function GET(request: Request) {
   const isExempted = Boolean(invoice.exempted_at);
   const isPaid = invoice.status === "paid" && !isExempted;
   const title = isPaid ? "Payment Receipt" : "Invoice";
-  const [accountInvoiceResult, accountPaymentResult, subscriptionResult] =
-    await Promise.all([
+  const [
+    accountInvoiceResult,
+    accountPaymentResult,
+    accountJournalResult,
+    subscriptionResult,
+  ] = await Promise.all([
     supabaseAdmin
       .from("billing_invoices")
       .select(
@@ -43,6 +47,11 @@ export async function GET(request: Request) {
       )
       .eq("school_id", invoice.school_id),
     supabaseAdmin
+      .from("billing_journal_entries")
+      .select("id, entry_type, amount, reason, created_at")
+      .eq("school_id", invoice.school_id)
+      .order("created_at", { ascending: true }),
+    supabaseAdmin
       .from("school_subscriptions")
       .select("plan_name, monthly_price, next_billing_date, status")
       .eq("school_id", invoice.school_id)
@@ -53,6 +62,7 @@ export async function GET(request: Request) {
   if (
     accountInvoiceResult.error ||
     accountPaymentResult.error ||
+    accountJournalResult.error ||
     subscriptionResult.error
   ) {
     return new NextResponse("Billing account could not be loaded.", {
@@ -129,18 +139,33 @@ export async function GET(request: Request) {
           : String(accountInvoice.description),
       invoiced: Number(accountInvoice.total_amount || 0),
       payment: 0,
+      credit: 0,
       reference: "",
     })),
     ...(accountPaymentResult.data || []).map((payment) => ({
       key: `payment-${payment.id}`,
       date: String(payment.payment_date),
-      order: 1,
+      order: 2,
       description: `Payment received · ${
         payment.payment_method || "Method not set"
       }`,
       invoiced: 0,
       payment: Number(payment.amount || 0),
+      credit: 0,
       reference: String(payment.receipt_number || ""),
+    })),
+    ...(accountJournalResult.data || []).map((journal) => ({
+      key: `journal-${journal.id}`,
+      date: String(journal.created_at).slice(0, 10),
+      order: 1,
+      description:
+        journal.entry_type === "setup_fee_exemption"
+          ? "Setup fee exemption - journal credit"
+          : "Billing journal credit",
+      invoiced: 0,
+      payment: 0,
+      credit: Number(journal.amount || 0),
+      reference: String(journal.reason || ""),
     })),
   ].sort(
     (left, right) =>
@@ -150,11 +175,14 @@ export async function GET(request: Request) {
   let accountBalance = 0;
   let totalInvoiced = 0;
   let totalPayments = 0;
+  let totalJournalCredits = 0;
   const accountLedgerRows = accountActivities
     .map((activity) => {
       totalInvoiced += activity.invoiced;
       totalPayments += activity.payment;
-      accountBalance += activity.invoiced - activity.payment;
+      totalJournalCredits += activity.credit;
+      accountBalance +=
+        activity.invoiced - activity.payment - activity.credit;
       return `<tr>
         <td>${escapeHtml(activity.date)}</td>
         <td>${escapeHtml(activity.description)}${
@@ -163,7 +191,13 @@ export async function GET(request: Request) {
             : ""
         }</td>
         <td>${activity.invoiced ? `R${money(activity.invoiced)}` : "—"}</td>
-        <td>${activity.payment ? `R${money(activity.payment)}` : "—"}</td>
+        <td>${
+          activity.payment
+            ? `R${money(activity.payment)}`
+            : activity.credit
+              ? `R${money(activity.credit)} credit`
+              : "—"
+        }</td>
         <td>${accountBalanceLabel(accountBalance)}</td>
       </tr>`;
     })
@@ -219,7 +253,7 @@ export async function GET(request: Request) {
         <div class="grid">
           <div><strong>Billed to</strong><p>${escapeHtml(school?.school_name || "Preschool")}</p></div>
           <div><strong>Issue date</strong><p>${escapeHtml(invoice.issue_date)}</p></div>
-          <div><strong>Due date</strong><p>${escapeHtml(invoice.due_date)}</p></div>
+          <div><strong>Next payment due</strong><p>${escapeHtml(nextInvoiceDate)}</p></div>
         </div>
         <h3 class="section-title">Billing</h3>
         <div class="table-wrap"><table>
@@ -230,6 +264,7 @@ export async function GET(request: Request) {
           <div class="row"><span>Total invoiced</span><span>R${money(totalInvoiced)}</span></div>
           <div class="row"><span>VAT</span><span>R0.00</span></div>
           <div class="row"><span>Total payments</span><span>R${money(totalPayments)}</span></div>
+          <div class="row"><span>Journal credits</span><span>R${money(totalJournalCredits)}</span></div>
           <div class="row total"><span>Running Total</span><span>${signedCurrency(accountPosition)}</span></div>
           <p class="next-invoice">${nextInvoiceText}</p>
         </div>

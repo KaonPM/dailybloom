@@ -95,9 +95,7 @@ begin
    where invoice_id = target_invoice.id;
 
   update public.billing_invoices
-     set description = description || ' — Setup fee exempted',
-         subtotal = 0,
-         total_amount = 0,
+     set description = description || ' - Setup fee exempted',
          amount_paid = 0,
          balance_due = 0,
          status = 'paid',

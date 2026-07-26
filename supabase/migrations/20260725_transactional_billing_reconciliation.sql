@@ -2,6 +2,31 @@
 -- Preserves payments, recreates the expected charge schedule, and reallocates
 -- payments oldest-charge-first in one database transaction.
 
+alter table public.school_subscriptions
+  add column if not exists first_billing_date date;
+
+update public.school_subscriptions subscription
+set first_billing_date = case
+  when school.school_name ilike 'Pheladi Pre School' then date '2026-06-01'
+  when school.school_name ilike 'Little Stars Pre School' then date '2026-06-01'
+  when school.school_name ilike 'Queen Nursery' then date '2026-08-01'
+  else subscription.first_billing_date
+end
+from public.schools school
+where school.id = subscription.school_id
+  and (
+    school.school_name ilike 'Pheladi Pre School'
+    or school.school_name ilike 'Little Stars Pre School'
+    or school.school_name ilike 'Queen Nursery'
+  );
+
+update public.school_onboarding onboarding
+set setup_date = date '2026-05-01',
+    updated_at = now()
+from public.schools school
+where school.id = onboarding.school_id
+  and school.school_name ilike 'Pheladi Pre School';
+
 create or replace function public.reconcile_school_billing_account(
   target_school_id bigint,
   setup_fee_value numeric default 599
@@ -58,8 +83,10 @@ begin
   )
   into setup_on;
 
-  first_subscription_on :=
-    (date_trunc('month', setup_on)::date + interval '1 month')::date;
+  first_subscription_on := coalesce(
+    target_subscription.first_billing_date,
+    (date_trunc('month', setup_on)::date + interval '1 month')::date
+  );
 
   select * into setup_invoice
   from public.billing_invoices
@@ -107,13 +134,18 @@ begin
     )
     returning * into setup_invoice;
     created_setup := true;
-  elsif setup_invoice.exempted_at is null then
+  else
     update public.billing_invoices
     set issue_date = setup_on,
         due_date = setup_on,
         plan_name = target_subscription.plan_name,
-        description =
-          'DailyBloom Setup Fee - ' || target_subscription.plan_name || ' Package',
+        description = 'DailyBloom Setup Fee - ' ||
+          target_subscription.plan_name || ' Package' ||
+          case
+            when setup_invoice.exempted_at is not null
+              then ' - Setup fee exempted'
+            else ''
+          end,
         subtotal = setup_fee_value,
         total_amount = setup_fee_value,
         updated_at = now()
@@ -196,7 +228,10 @@ begin
 
   update public.billing_invoices
   set amount_paid = 0,
-      balance_due = total_amount,
+      balance_due = case
+        when exempted_at is not null or total_amount = 0 then 0
+        else total_amount
+      end,
       status = case
         when exempted_at is not null or total_amount = 0 then 'paid'
         else 'issued'
@@ -254,7 +289,8 @@ begin
   end loop;
 
   update public.school_subscriptions
-  set start_date = setup_on,
+  set start_date = first_subscription_on,
+      first_billing_date = first_subscription_on,
       next_billing_date = greatest(
         first_subscription_on,
         (date_trunc('month', current_date)::date + interval '1 month')::date

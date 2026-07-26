@@ -47,6 +47,17 @@ type Payment = {
   schools: SchoolRelation;
 };
 
+type Journal = {
+  id: number;
+  school_id: number;
+  invoice_id: string | null;
+  entry_type: string;
+  amount: number;
+  reason: string;
+  created_at: string;
+  schools: SchoolRelation;
+};
+
 type Summary = {
   outstanding_balance: number;
   credit_balance: number;
@@ -63,6 +74,7 @@ export default function BillingInvoicesPanel({
   const searchParams = useSearchParams();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [journals, setJournals] = useState<Journal[]>([]);
   const [summary, setSummary] = useState<Summary>({
     outstanding_balance: 0,
     credit_balance: 0,
@@ -107,6 +119,7 @@ export default function BillingInvoicesPanel({
 
     setInvoices((result.invoices || []) as Invoice[]);
     setPayments((result.payments || []) as Payment[]);
+    setJournals((result.journals || []) as Journal[]);
     setSummary(
       result.summary || {
         outstanding_balance: 0,
@@ -138,7 +151,12 @@ export default function BillingInvoicesPanel({
   const schoolPaymentHistory = useMemo(() => {
     const groups = new Map<
       number,
-      { schoolName: string; payments: Payment[]; invoices: Invoice[] }
+      {
+        schoolName: string;
+        payments: Payment[];
+        invoices: Invoice[];
+        journals: Journal[];
+      }
     >();
 
     for (const invoice of invoices) {
@@ -147,6 +165,7 @@ export default function BillingInvoicesPanel({
         schoolName: school?.school_name || "Preschool",
         payments: [],
         invoices: [],
+        journals: [],
       };
       group.invoices.push(invoice);
       groups.set(invoice.school_id, group);
@@ -158,15 +177,28 @@ export default function BillingInvoicesPanel({
         schoolName: school?.school_name || "Preschool",
         payments: [],
         invoices: [],
+        journals: [],
       };
       group.payments.push(payment);
       groups.set(payment.school_id, group);
     }
 
+    for (const journal of journals) {
+      const school = schoolFromRelation(journal.schools);
+      const group = groups.get(journal.school_id) || {
+        schoolName: school?.school_name || "Preschool",
+        payments: [],
+        invoices: [],
+        journals: [],
+      };
+      group.journals.push(journal);
+      groups.set(journal.school_id, group);
+    }
+
     return [...groups.entries()]
       .map(([schoolId, group]) => ({ schoolId, ...group }))
       .sort((left, right) => left.schoolName.localeCompare(right.schoolName));
-  }, [invoices, payments]);
+  }, [invoices, journals, payments]);
 
   async function emailInvoice(invoice: Invoice) {
     setSendingId(invoice.id);
@@ -494,6 +526,7 @@ function SchoolPaymentHistory({
     schoolName: string;
     payments: Payment[];
     invoices: Invoice[];
+    journals: Journal[];
   }>;
   sendingId: string;
   onViewInvoice: (invoice: Invoice) => void;
@@ -566,7 +599,11 @@ function SchoolPaymentHistory({
                         </tr>
                       </thead>
                       <tbody>
-                        {buildSchoolLedger(group.invoices, group.payments).map(
+                        {buildSchoolLedger(
+                          group.invoices,
+                          group.payments,
+                          group.journals
+                        ).map(
                           (entry) => (
                             <tr key={entry.key}>
                               <td style={ledgerCell}>{entry.date}</td>
@@ -579,6 +616,8 @@ function SchoolPaymentHistory({
                               <td style={ledgerAmountCell}>
                                 {entry.payment
                                   ? `R${money(entry.payment)}`
+                                  : entry.credit
+                                    ? `R${money(entry.credit)} credit`
                                   : "—"}
                               </td>
                               <td style={ledgerAmountCell}>
@@ -676,7 +715,11 @@ function schoolFromRelation(relation: SchoolRelation) {
   return Array.isArray(relation) ? relation[0] || null : relation;
 }
 
-function buildSchoolLedger(invoices: Invoice[], payments: Payment[]) {
+function buildSchoolLedger(
+  invoices: Invoice[],
+  payments: Payment[],
+  journals: Journal[]
+) {
   const activities = [
     ...invoices.map((invoice) => ({
       key: `invoice-${invoice.id}`,
@@ -688,6 +731,7 @@ function buildSchoolLedger(invoices: Invoice[], payments: Payment[]) {
           : invoice.description,
       invoiced: Number(invoice.total_amount || 0),
       payment: 0,
+      credit: 0,
     })),
     ...payments.map((payment) => ({
       key: `payment-${payment.id}`,
@@ -700,6 +744,16 @@ function buildSchoolLedger(invoices: Invoice[], payments: Payment[]) {
       } · ${payment.payment_method || "Method not set"}`,
       invoiced: 0,
       payment: Number(payment.amount || 0),
+      credit: 0,
+    })),
+    ...journals.map((journal) => ({
+      key: `journal-${journal.id}`,
+      date: journal.created_at.slice(0, 10),
+      order: 2,
+      description: `Setup Fee Exemption Credit Journal · ${journal.reason}`,
+      invoiced: 0,
+      payment: 0,
+      credit: Number(journal.amount || 0),
     })),
   ].sort(
     (left, right) =>
@@ -708,7 +762,7 @@ function buildSchoolLedger(invoices: Invoice[], payments: Payment[]) {
 
   let balance = 0;
   return activities.map((activity) => {
-    balance += activity.invoiced - activity.payment;
+    balance += activity.invoiced - activity.payment - activity.credit;
     return { ...activity, balance };
   });
 }

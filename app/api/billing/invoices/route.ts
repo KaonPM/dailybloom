@@ -37,15 +37,23 @@ export async function GET(request: Request) {
       "id, school_id, subscription_id, amount, unapplied_amount, payment_date, charge_type, plan_name, payment_method, notes, receipt_number, created_at, schools(id, school_name, logo_url)"
     )
     .order("payment_date", { ascending: false });
+  let journalQuery = supabaseAdmin
+    .from("billing_journal_entries")
+    .select(
+      "id, school_id, invoice_id, entry_type, amount, reason, created_at, schools(id, school_name, logo_url)"
+    )
+    .order("created_at", { ascending: false });
 
   if (schoolId) {
     invoiceQuery = invoiceQuery.eq("school_id", schoolId);
     paymentQuery = paymentQuery.eq("school_id", schoolId);
+    journalQuery = journalQuery.eq("school_id", schoolId);
   }
 
-  const [invoiceResult, paymentResult] = await Promise.all([
+  const [invoiceResult, paymentResult, journalResult] = await Promise.all([
     invoiceQuery,
     paymentQuery,
+    journalQuery,
   ]);
   if (invoiceResult.error) {
     return NextResponse.json({ error: invoiceResult.error.message }, { status: 400 });
@@ -53,9 +61,13 @@ export async function GET(request: Request) {
   if (paymentResult.error) {
     return NextResponse.json({ error: paymentResult.error.message }, { status: 400 });
   }
+  if (journalResult.error) {
+    return NextResponse.json({ error: journalResult.error.message }, { status: 400 });
+  }
 
   const invoices = invoiceResult.data || [];
   const payments = paymentResult.data || [];
+  const journals = journalResult.data || [];
   const outstandingBalance = invoices.reduce(
     (sum, invoice) => sum + Number(invoice.balance_due || 0),
     0
@@ -68,6 +80,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     invoices,
     payments,
+    journals,
     summary: {
       outstanding_balance: outstandingBalance,
       credit_balance: creditBalance,

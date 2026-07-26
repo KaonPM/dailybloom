@@ -545,7 +545,12 @@ export async function sendInvoiceEmail(invoice: InvoiceRow) {
     return { sent: false, reason: "No active principal or owner email found." };
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const configuredAppUrl = String(process.env.NEXT_PUBLIC_APP_URL || "").trim();
+  const appUrl =
+    configuredAppUrl.startsWith("https://") &&
+    !configuredAppUrl.includes("localhost")
+      ? configuredAppUrl.replace(/\/+$/, "")
+      : "https://dailybloom.co.za";
   const documentUrl = `${appUrl}/api/billing/invoices/document?token=${invoice.download_token}`;
   const resend = new Resend(resendApiKey);
   const { error } = await resend.emails.send({

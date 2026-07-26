@@ -161,6 +161,12 @@ export async function POST(request: Request) {
     }
 
     if (action === "repair_billing_account") {
+      if (authorization.staff.role !== "master") {
+        return NextResponse.json(
+          { error: "Only the Master may run emergency billing repair." },
+          { status: 403 }
+        );
+      }
       if (!schoolId) {
         return NextResponse.json(
           { error: "Select a school to repair." },

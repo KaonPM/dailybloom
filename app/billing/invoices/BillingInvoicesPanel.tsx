@@ -533,6 +533,10 @@ function SchoolPaymentHistory({
   onResendInvoice: (invoice: Invoice) => void;
 }) {
   const [openSchoolIds, setOpenSchoolIds] = useState<Set<number>>(new Set());
+  const [activityLimits, setActivityLimits] = useState<Record<number, number>>(
+    {}
+  );
+  const [invoiceLimits, setInvoiceLimits] = useState<Record<number, number>>({});
 
   function toggleSchool(schoolId: number) {
     setOpenSchoolIds((current) => {
@@ -541,6 +545,20 @@ function SchoolPaymentHistory({
       else next.add(schoolId);
       return next;
     });
+  }
+
+  function showNextActivityPage(schoolId: number) {
+    setActivityLimits((current) => ({
+      ...current,
+      [schoolId]: (current[schoolId] || 10) + 10,
+    }));
+  }
+
+  function showNextInvoicePage(schoolId: number) {
+    setInvoiceLimits((current) => ({
+      ...current,
+      [schoolId]: (current[schoolId] || 10) + 10,
+    }));
   }
 
   return (
@@ -555,7 +573,17 @@ function SchoolPaymentHistory({
         {groups.length === 0 ? (
           <p className="db-helper">No school billing records yet.</p>
         ) : (
-          groups.map((group) => (
+          groups.map((group) => {
+            const accountActivity = buildSchoolLedger(
+              group.invoices,
+              group.payments,
+              group.journals
+            );
+            const activityLimit = activityLimits[group.schoolId] || 10;
+            const invoiceLimit = invoiceLimits[group.schoolId] || 10;
+            const visibleActivity = accountActivity.slice(0, activityLimit);
+            const visibleInvoices = group.invoices.slice(0, invoiceLimit);
+            return (
             <article key={group.schoolId} style={schoolHistoryCard}>
               <button
                 type="button"
@@ -599,11 +627,7 @@ function SchoolPaymentHistory({
                         </tr>
                       </thead>
                       <tbody>
-                        {buildSchoolLedger(
-                          group.invoices,
-                          group.payments,
-                          group.journals
-                        ).map(
+                        {visibleActivity.map(
                           (entry) => (
                             <tr key={entry.key}>
                               <td style={ledgerCell}>{entry.date}</td>
@@ -630,6 +654,15 @@ function SchoolPaymentHistory({
                     </table>
                   </div>
                 )}
+                {accountActivity.length > activityLimit ? (
+                  <button
+                    type="button"
+                    className="db-button-secondary"
+                    onClick={() => showNextActivityPage(group.schoolId)}
+                  >
+                    Show next 10 account entries
+                  </button>
+                ) : null}
               </div>
               <div style={{ display: "grid", gap: 7 }}>
                 <strong style={compactSectionLabel}>Payments</strong>
@@ -667,7 +700,7 @@ function SchoolPaymentHistory({
                 {group.invoices.length === 0 ? (
                   <p className="db-helper">No invoices generated yet.</p>
                 ) : null}
-                {group.invoices.map((invoice) => (
+                {visibleInvoices.map((invoice) => (
                   <div key={invoice.id} style={schoolInvoiceRow}>
                     <div>
                       <strong>{invoice.invoice_number}</strong>
@@ -700,11 +733,21 @@ function SchoolPaymentHistory({
                     </div>
                   </div>
                 ))}
+                {group.invoices.length > invoiceLimit ? (
+                  <button
+                    type="button"
+                    className="db-button-secondary"
+                    onClick={() => showNextInvoicePage(group.schoolId)}
+                  >
+                    Show next 10 invoices
+                  </button>
+                ) : null}
               </div>
               </div>
               ) : null}
             </article>
-          ))
+            );
+          })
         )}
       </div>
     </section>

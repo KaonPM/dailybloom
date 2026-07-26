@@ -84,9 +84,6 @@ export default function BillingPage() {
   const [savingSubscription, setSavingSubscription] = useState(false);
   const [savingPaymentId, setSavingPaymentId] = useState<number | null>(null);
   const [markingOverdueId, setMarkingOverdueId] = useState<number | null>(null);
-  const [repairingSchoolId, setRepairingSchoolId] = useState<number | null>(
-    null
-  );
 
   useEffect(() => {
     loadBillingPage();
@@ -425,33 +422,6 @@ export default function BillingPage() {
     setMarkingOverdueId(null);
     setSubscriptionsOpen(true);
     alert("Subscription marked overdue.");
-  }
-
-  async function repairBillingAccount(subscription: Subscription) {
-    setRepairingSchoolId(subscription.school_id);
-    try {
-      await runPlatformOperation({
-        action: "repair_billing_account",
-        school_id: subscription.school_id,
-      });
-      await fetchAllSubscriptions();
-      setInvoiceRefreshKey((current) => current + 1);
-      setInvoicesOpen(true);
-      document
-        .getElementById("invoices")
-        ?.scrollIntoView({ behavior: "smooth" });
-      alert(
-        `${subscription.schools?.school_name || "School"} billing account repaired successfully.`
-      );
-    } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "The billing account could not be repaired."
-      );
-    } finally {
-      setRepairingSchoolId(null);
-    }
   }
 
   async function exemptSetupFee() {
@@ -831,18 +801,6 @@ export default function BillingPage() {
                             Exempt Setup Fee
                           </button>
 
-                          <button
-                            type="button"
-                            style={secondaryButton}
-                            onClick={() => repairBillingAccount(subscription)}
-                            disabled={
-                              repairingSchoolId === subscription.school_id
-                            }
-                          >
-                            {repairingSchoolId === subscription.school_id
-                              ? "Repairing..."
-                              : "Repair Billing"}
-                          </button>
                         </div>
                       ) : null}
                     </div>

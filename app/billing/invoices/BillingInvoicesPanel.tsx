@@ -338,26 +338,19 @@ export default function BillingInvoicesPanel({
     pdf.text(`R${money(invoice.subtotal)}`, pageWidth - 18, 112, {
       align: "right",
     });
-    pdf.text("VAT", totalsX, 120);
-    pdf.text("R0.00", pageWidth - 18, 120, { align: "right" });
-    pdf.text("Amount paid", totalsX, 128);
-    pdf.text(`R${money(invoice.amount_paid)}`, pageWidth - 18, 128, {
+    pdf.text("Amount paid", totalsX, 120);
+    pdf.text(`R${money(invoice.amount_paid)}`, pageWidth - 18, 120, {
       align: "right",
     });
     pdf.setFont("helvetica", "bold");
-    pdf.text("Balance due", totalsX, 139);
-    pdf.text(`R${money(invoice.balance_due)}`, pageWidth - 18, 139, {
+    pdf.text("Balance due", totalsX, 132);
+    pdf.text(`R${money(invoice.balance_due)}`, pageWidth - 18, 132, {
       align: "right",
     });
 
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(9);
     pdf.setTextColor(111, 104, 128);
-    pdf.text(
-      "DailyBloom is not currently registered for VAT. No VAT has been charged.",
-      18,
-      272
-    );
     if (invoice.exempted_at) {
       pdf.setTextColor(38, 114, 68);
       pdf.text(

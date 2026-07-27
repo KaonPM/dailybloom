@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const { data: invoice, error } = await supabaseAdmin
     .from("billing_invoices")
     .select(
-      "id, school_id, invoice_number, description, plan_name, charge_type, issue_date, due_date, period_start, period_end, subtotal, vat_amount, total_amount, amount_paid, balance_due, status, exemption_reason, exempted_at, schools(school_name)"
+      "id, school_id, invoice_number, description, plan_name, charge_type, issue_date, due_date, period_start, period_end, subtotal, total_amount, amount_paid, balance_due, status, exemption_reason, exempted_at, schools(school_name)"
     )
     .eq("download_token", token)
     .maybeSingle();
@@ -282,7 +282,6 @@ export async function GET(request: Request) {
         </table></div>
         <div class="totals">
           <div class="row"><span>Total invoiced</span><span>R${money(totalInvoiced)}</span></div>
-          <div class="row"><span>VAT</span><span>R0.00</span></div>
           <div class="row"><span>Total payments</span><span>R${money(totalPayments)}</span></div>
           <div class="row"><span>Journal credits</span><span>R${money(totalJournalCredits)}</span></div>
           <div class="row total"><span>Running Total</span><span>${signedCurrency(accountPosition)}</span></div>
@@ -295,7 +294,6 @@ export async function GET(request: Request) {
               )}</p><p>No setup-fee payment is required.</p></div>`
             : ""
         }
-        <div class="note">DailyBloom is not currently registered for VAT. No VAT has been charged.</div>
         <div class="footer"><span>DailyBloom · Preschool management made simpler</span><span>Lesedi Smart Solutions (Pty) Ltd</span></div>
       </main>
     </body>

@@ -195,6 +195,8 @@ export default function MasterPage() {
   const [district, setDistrict] = useState("");
   const [centreType, setCentreType] = useState("");
   const [registrationStatus, setRegistrationStatus] = useState("");
+  const [schoolRegistrationFee, setSchoolRegistrationFee] = useState("");
+  const [schoolMonthlyFee, setSchoolMonthlyFee] = useState("");
   const [isSponsored, setIsSponsored] = useState(false);
   const [sponsorProgrammeId, setSponsorProgrammeId] = useState("");
   const [sponsorProgrammes, setSponsorProgrammes] = useState<
@@ -360,6 +362,18 @@ export default function MasterPage() {
       return;
     }
 
+    const registrationAmount = Number(schoolRegistrationFee || 0);
+    const monthlyAmount = Number(schoolMonthlyFee || 0);
+    if (
+      Number.isNaN(registrationAmount) ||
+      registrationAmount < 0 ||
+      Number.isNaN(monthlyAmount) ||
+      monthlyAmount < 0
+    ) {
+      alert("Please enter valid preschool fee amounts.");
+      return;
+    }
+
     setSavingSchool(true);
 
     const { data: schoolData, error } = await supabase
@@ -389,6 +403,27 @@ export default function MasterPage() {
 
     if (error) {
       alert(error.message);
+      setSavingSchool(false);
+      return;
+    }
+
+    const feesResponse = await authenticatedFetch("/api/school-fees/catalog", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "save_standard",
+        school_id: Number(schoolData.id),
+        registration_amount: registrationAmount,
+        monthly_amount: monthlyAmount,
+      }),
+    });
+    const feesResult = await feesResponse.json();
+    if (!feesResponse.ok) {
+      alert(
+        `School created, but its fee setup could not be saved: ${
+          feesResult.error || "Unknown error"
+        }`
+      );
       setSavingSchool(false);
       return;
     }
@@ -429,6 +464,8 @@ export default function MasterPage() {
     setDistrict("");
     setCentreType("");
     setRegistrationStatus("");
+    setSchoolRegistrationFee("");
+    setSchoolMonthlyFee("");
     setIsSponsored(false);
     setSponsorProgrammeId("");
     setPrincipalFullName("");
@@ -1123,6 +1160,47 @@ export default function MasterPage() {
                 </option>
               ))}
             </select>
+
+            <div
+              style={{
+                border: "1px solid #E9DDF2",
+                borderRadius: 16,
+                padding: 14,
+                marginBottom: 14,
+                background: "#FCF9FF",
+              }}
+            >
+              <strong style={{ color: "#2D2A3E" }}>Preschool Fees</strong>
+              <p style={helperText}>
+                These amounts become the defaults when learners are added.
+              </p>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+                  gap: 10,
+                }}
+              >
+                <input
+                  className="db-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Registration fee"
+                  value={schoolRegistrationFee}
+                  onChange={(e) => setSchoolRegistrationFee(e.target.value)}
+                />
+                <input
+                  className="db-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Monthly school fee"
+                  value={schoolMonthlyFee}
+                  onChange={(e) => setSchoolMonthlyFee(e.target.value)}
+                />
+              </div>
+            </div>
 
             <select
               className="db-input"

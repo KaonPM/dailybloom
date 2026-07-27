@@ -191,7 +191,6 @@ export async function createSetupFeeInvoice(
         issue_date: issueDate,
         due_date: dueDate,
         subtotal: total,
-        vat_amount: 0,
         total_amount: total,
         balance_due: total,
         status: "issued",
@@ -493,7 +492,6 @@ export async function createMonthlySubscriptionInvoice(
         period_start: periodStart,
         period_end: periodEnd,
         subtotal: total,
-        vat_amount: 0,
         total_amount: total,
         balance_due: total,
         status: "issued",
@@ -581,7 +579,6 @@ export async function sendInvoiceEmail(invoice: InvoiceRow) {
           <p><a href="${escapeHtml(
             documentUrl
           )}" style="display:inline-block;background:#75C7EA;color:#fff;text-decoration:none;font-weight:700;padding:13px 18px;border-radius:12px">Open invoice</a></p>
-          <p style="color:#6F6880;font-size:13px">DailyBloom is not currently registered for VAT. No VAT has been charged.</p>
         </div>
       </div>`,
   });

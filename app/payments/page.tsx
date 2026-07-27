@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resolveSchoolContext } from "../lib/school-context";
 import SubscriptionGuard from "../components/SubscriptionGuard";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type PaymentItem = {
   id: number;
@@ -26,6 +27,7 @@ type LearnerItem = {
   name?: string | null;
   parent_phone?: string | null;
   school_id?: number | null;
+  monthly_fee?: number | null;
 };
 
 type SchoolItem = {
@@ -51,7 +53,6 @@ export default function PaymentsPage() {
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(todayDate);
   const [scheduledReminderDate, setScheduledReminderDate] = useState(todayDate);
-  const [status, setStatus] = useState("paid");
   const [paymentMonth, setPaymentMonth] = useState(String(today.getMonth() + 1));
   const [paymentYear, setPaymentYear] = useState(String(today.getFullYear()));
   const [parentPhone, setParentPhone] = useState("");
@@ -186,7 +187,7 @@ export default function PaymentsPage() {
   async function fetchLearners(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("learners")
-      .select("id, name, parent_phone, school_id")
+      .select("id, name, parent_phone, school_id, monthly_fee")
       .eq("school_id", currentSchoolId)
       .order("name", { ascending: true });
 
@@ -220,7 +221,10 @@ export default function PaymentsPage() {
     const parsedMonth = Number(paymentMonth);
     const parsedYear = Number(paymentYear);
 
-    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+    if (
+      Number.isNaN(parsedAmount) ||
+      parsedAmount <= 0
+    ) {
       alert("Please enter a valid amount.");
       return;
     }
@@ -238,23 +242,43 @@ export default function PaymentsPage() {
     setLoading(true);
     setLastSavedSuccess(false);
 
-    const { error } = await supabase.from("payments").insert([
-      {
-        learner_name: learnerName.trim(),
-        amount: parsedAmount,
-        payment_date: paymentDate,
-        status,
-        school_id: Number(schoolId),
-        payment_month: parsedMonth,
-        payment_year: parsedYear,
-        parent_phone: parentPhone.trim() || null,
-        payment_method: paymentMethod,
-        reference_number: referenceNumber.trim() || null,
-      },
-    ]);
+    const learner = learners.find(
+      (item) =>
+        String(item.name || "").trim().toLowerCase() ===
+        learnerName.trim().toLowerCase()
+    );
 
-    if (error) {
-      alert(error.message);
+    if (!learner) {
+      alert("Please select a learner from this school.");
+      setLoading(false);
+      return;
+    }
+
+    let response: Response;
+    try {
+      response = await authenticatedFetch("/api/learner-fees/record-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          school_id: Number(schoolId),
+          learner_id: learner.id,
+          payment_amount: parsedAmount,
+          payment_date: paymentDate,
+          payment_month: parsedMonth,
+          payment_year: parsedYear,
+          payment_method: paymentMethod,
+          reference_number: referenceNumber.trim() || null,
+        }),
+      });
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Could not record payment.");
+      setLoading(false);
+      return;
+    }
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Could not record payment.");
       setLoading(false);
       return;
     }
@@ -262,7 +286,6 @@ export default function PaymentsPage() {
     setLearnerName("");
     setAmount("");
     setPaymentDate(todayDate);
-    setStatus("paid");
     setPaymentMonth(String(today.getMonth() + 1));
     setPaymentYear(String(today.getFullYear()));
     setParentPhone("");
@@ -558,7 +581,7 @@ export default function PaymentsPage() {
             </div>
 
             <div>
-              <p style={labelText}>Amount</p>
+              <p style={labelText}>Payment Amount</p>
               <input
                 className="db-input"
                 type="number"
@@ -631,19 +654,6 @@ export default function PaymentsPage() {
               />
             </div>
 
-            <div>
-              <p style={labelText}>Status</p>
-              <select
-                className="db-input"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-              >
-                <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
-                <option value="partial">Partial</option>
-                <option value="overdue">Overdue</option>
-              </select>
-            </div>
           </div>
 
           <button

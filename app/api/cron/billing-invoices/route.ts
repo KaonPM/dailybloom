@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateMonthlyInvoices } from "@/app/lib/billing-ledger";
+import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -12,12 +13,20 @@ export async function GET(request: Request) {
   }
 
   try {
-    const monthlyInvoices = await generateMonthlyInvoices(new Date());
+    const billingDate = new Date();
+    const monthlyInvoices = await generateMonthlyInvoices(billingDate);
+    const learnerChargesResult = await supabaseAdmin.rpc(
+      "generate_learner_monthly_fee_charges",
+      { target_date: billingDate.toISOString().slice(0, 10) }
+    );
+    if (learnerChargesResult.error) throw learnerChargesResult.error;
+    const learnerChargesCreated = Number(learnerChargesResult.data || 0);
 
     return NextResponse.json({
       success: true,
-      created: monthlyInvoices.length,
+      created: monthlyInvoices.length + learnerChargesCreated,
       monthly_created: monthlyInvoices.length,
+      learner_fee_charges_created: learnerChargesCreated,
       delivery: "Billing module only. Email is sent after payment is recorded.",
     });
   } catch (error) {

@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resolveSchoolContext } from "../lib/school-context";
 import { getCurrentProfile } from "../lib/auth";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type LearnerRow = {
   id: string;
@@ -30,6 +31,12 @@ type LearnerRow = {
   is_deleted?: boolean | null;
   deleted_at?: string | null;
   deleted_name?: string | null;
+  monthly_fee?: number | null;
+  fee_billing_start_date?: string | null;
+  registration_fee_amount?: number | null;
+  registration_fee_paid_at?: string | null;
+  registration_fee_payment_method?: string | null;
+  registration_fee_reference?: string | null;
 };
 
 type ClassroomRow = {
@@ -43,6 +50,22 @@ type ProfileRow = {
   classroom_name?: string | null;
   school_id?: number | null;
 };
+
+type SchoolFeeType = {
+  id: number;
+  fee_code: string;
+  fee_name: string;
+  fee_category: "registration" | "monthly" | "other";
+  billing_frequency: "once_off" | "monthly";
+  amount: number;
+};
+
+function nextMonthStart() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+    .toISOString()
+    .slice(0, 10);
+}
 
 export default function LearnersPage() {
   const router = useRouter();
@@ -72,6 +95,20 @@ export default function LearnersPage() {
   const [guardianIdNumber, setGuardianIdNumber] = useState("");
   const [parentPhone, setParentPhone] = useState("");
   const [parentEmail, setParentEmail] = useState("");
+  const [monthlyFee, setMonthlyFee] = useState("");
+  const [registrationFeeAmount, setRegistrationFeeAmount] = useState("");
+  const [registrationFeePaid, setRegistrationFeePaid] = useState(false);
+  const [registrationPaymentMethod, setRegistrationPaymentMethod] =
+    useState("Cash");
+  const [registrationReference, setRegistrationReference] = useState("");
+  const [schoolFeeTypes, setSchoolFeeTypes] = useState<SchoolFeeType[]>([]);
+  const [selectedOtherFeeIds, setSelectedOtherFeeIds] = useState<number[]>([]);
+  const [schoolRegistrationFee, setSchoolRegistrationFee] = useState("");
+  const [schoolMonthlyFee, setSchoolMonthlyFee] = useState("");
+  const [newOtherFeeName, setNewOtherFeeName] = useState("");
+  const [newOtherFeeAmount, setNewOtherFeeAmount] = useState("");
+  const [showSchoolFeeSetup, setShowSchoolFeeSetup] = useState(false);
+  const [savingFeeSetup, setSavingFeeSetup] = useState(false);
 
   const [manualClassroomId, setManualClassroomId] = useState("");
   const [suggestedAgeGroup, setSuggestedAgeGroup] = useState("");
@@ -116,6 +153,7 @@ export default function LearnersPage() {
     await Promise.all([
       fetchClassrooms(context.schoolId),
       fetchLearners(context.schoolId),
+      fetchSchoolFeeCatalog(context.schoolId),
     ]);
 
     setLoading(false);
@@ -162,7 +200,13 @@ export default function LearnersPage() {
         school_id,
         is_deleted,
         deleted_at,
-        deleted_name
+        deleted_name,
+        monthly_fee,
+        fee_billing_start_date,
+        registration_fee_amount,
+        registration_fee_paid_at,
+        registration_fee_payment_method,
+        registration_fee_reference
       `
       )
       .eq("school_id", currentSchoolId)
@@ -175,6 +219,40 @@ export default function LearnersPage() {
     }
 
     setLearners((data || []) as LearnerRow[]);
+  }
+
+  async function fetchSchoolFeeCatalog(
+    currentSchoolId: number,
+    learnerId?: string
+  ) {
+    const query = new URLSearchParams({
+      school_id: String(currentSchoolId),
+    });
+    if (learnerId) query.set("learner_id", learnerId);
+
+    const response = await authenticatedFetch(
+      `/api/school-fees/catalog?${query.toString()}`
+    );
+    const result = await response.json();
+    if (!response.ok) {
+      alert(result.error || "Could not load the school fee setup.");
+      return null;
+    }
+
+    const fees = (result.fees || []) as SchoolFeeType[];
+    setSchoolFeeTypes(fees);
+    setSchoolRegistrationFee(
+      String(fees.find((fee) => fee.fee_category === "registration")?.amount || 0)
+    );
+    setSchoolMonthlyFee(
+      String(fees.find((fee) => fee.fee_category === "monthly")?.amount || 0)
+    );
+    if (learnerId) {
+      setSelectedOtherFeeIds(
+        (result.selected_fee_ids || []).map(Number).filter(Boolean)
+      );
+    }
+    return { fees, selectedFeeIds: result.selected_fee_ids || [] };
   }
 
   const teacherClassroom = String(profile?.classroom_name || "").trim();
@@ -282,6 +360,12 @@ export default function LearnersPage() {
     setGuardianIdNumber("");
     setParentPhone("");
     setParentEmail("");
+    setMonthlyFee(schoolMonthlyFee);
+    setRegistrationFeeAmount(schoolRegistrationFee);
+    setRegistrationFeePaid(false);
+    setRegistrationPaymentMethod("Cash");
+    setRegistrationReference("");
+    setSelectedOtherFeeIds([]);
     setManualClassroomId("");
     setSuggestedAgeGroup("");
     setSelectedLearner(null);
@@ -358,7 +442,7 @@ export default function LearnersPage() {
     router.push(`/children/${learner.id}${schoolQuery}`);
   }
 
-  function editLearner(learner: LearnerRow) {
+  async function editLearner(learner: LearnerRow) {
     setSelectedLearner(learner);
 
     setName(learner.name || "");
@@ -375,11 +459,89 @@ export default function LearnersPage() {
     setGuardianIdNumber(learner.guardian_id_number || "");
     setParentPhone(learner.parent_phone || "");
     setParentEmail(learner.parent_email || "");
+    setMonthlyFee(
+      learner.monthly_fee === null || learner.monthly_fee === undefined
+        ? ""
+        : String(learner.monthly_fee)
+    );
+    setRegistrationFeeAmount(
+      learner.registration_fee_amount === null ||
+        learner.registration_fee_amount === undefined
+        ? ""
+        : String(learner.registration_fee_amount)
+    );
+    setRegistrationFeePaid(Boolean(learner.registration_fee_paid_at));
+    setRegistrationPaymentMethod(
+      learner.registration_fee_payment_method || "Cash"
+    );
+    setRegistrationReference(learner.registration_fee_reference || "");
     setManualClassroomId(
       learner.classroom_id ? String(learner.classroom_id) : ""
     );
+    if (schoolId) {
+      await fetchSchoolFeeCatalog(schoolId, learner.id);
+    }
 
     setShowForm(true);
+  }
+
+  async function updateSchoolFeeCatalog(action: string, extra = {}) {
+    if (!schoolId) return false;
+    setSavingFeeSetup(true);
+    const response = await authenticatedFetch("/api/school-fees/catalog", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ school_id: schoolId, action, ...extra }),
+    });
+    const result = await response.json();
+    setSavingFeeSetup(false);
+    if (!response.ok) {
+      alert(result.error || "Could not update the school fee setup.");
+      return false;
+    }
+    await fetchSchoolFeeCatalog(schoolId);
+    return true;
+  }
+
+  async function saveStandardSchoolFees() {
+    const registrationAmount = Number(schoolRegistrationFee || 0);
+    const monthlyAmount = Number(schoolMonthlyFee || 0);
+    if (
+      Number.isNaN(registrationAmount) ||
+      registrationAmount < 0 ||
+      Number.isNaN(monthlyAmount) ||
+      monthlyAmount < 0
+    ) {
+      alert("Enter valid registration and monthly fee amounts.");
+      return;
+    }
+    const saved = await updateSchoolFeeCatalog("save_standard", {
+      registration_amount: registrationAmount,
+      monthly_amount: monthlyAmount,
+    });
+    if (saved) {
+      if (!selectedLearner) {
+        setRegistrationFeeAmount(String(registrationAmount));
+        setMonthlyFee(String(monthlyAmount));
+      }
+      alert("School fee defaults saved.");
+    }
+  }
+
+  async function addOtherSchoolFee() {
+    const amount = Number(newOtherFeeAmount || 0);
+    if (!newOtherFeeName.trim() || Number.isNaN(amount) || amount < 0) {
+      alert("Enter an additional fee name and a valid amount.");
+      return;
+    }
+    const saved = await updateSchoolFeeCatalog("add_other", {
+      fee_name: newOtherFeeName.trim(),
+      amount,
+    });
+    if (saved) {
+      setNewOtherFeeName("");
+      setNewOtherFeeAmount("");
+    }
   }
 
   async function deleteLearner(learner: LearnerRow) {
@@ -456,6 +618,22 @@ export default function LearnersPage() {
       return;
     }
 
+    const parsedMonthlyFee = Number(monthlyFee || 0);
+    const parsedRegistrationFee = Number(registrationFeeAmount || 0);
+    if (
+      Number.isNaN(parsedMonthlyFee) ||
+      parsedMonthlyFee < 0 ||
+      Number.isNaN(parsedRegistrationFee) ||
+      parsedRegistrationFee < 0
+    ) {
+      alert("Please enter valid school fee amounts.");
+      return;
+    }
+    if (registrationFeePaid && parsedRegistrationFee <= 0) {
+      alert("Enter the registration fee amount before marking it as paid.");
+      return;
+    }
+
     setSaving(true);
 
     const learnerAge = calculateAge(dateOfBirth);
@@ -495,8 +673,24 @@ export default function LearnersPage() {
       parent_email: parentEmail.trim() || null,
       ulin: selectedLearner ? selectedLearner.ulin || null : null,
       school_id: schoolId,
+      monthly_fee: parsedMonthlyFee,
+      fee_billing_start_date:
+        selectedLearner?.fee_billing_start_date || nextMonthStart(),
+      registration_fee_amount: parsedRegistrationFee,
+      registration_fee_paid_at: registrationFeePaid
+        ? selectedLearner?.registration_fee_paid_at ||
+          new Date().toISOString().slice(0, 10)
+        : null,
+      registration_fee_payment_method: registrationFeePaid
+        ? registrationPaymentMethod
+        : null,
+      registration_fee_reference:
+        registrationFeePaid && registrationReference.trim()
+          ? registrationReference.trim()
+          : null,
     };
 
+    let savedLearnerId = selectedLearner?.id || "";
     if (selectedLearner) {
       const { error } = await supabase
         .from("learners")
@@ -510,15 +704,39 @@ export default function LearnersPage() {
         return;
       }
     } else {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("learners")
-        .insert([learnerPayload]);
+        .insert([learnerPayload])
+        .select("id")
+        .single();
 
       if (error) {
         alert(error.message);
         setSaving(false);
         return;
       }
+      savedLearnerId = String(data.id);
+    }
+
+    const feeResponse = await authenticatedFetch("/api/school-fees/catalog", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        school_id: schoolId,
+        action: "sync_learner",
+        learner_id: savedLearnerId,
+        fee_ids: selectedOtherFeeIds,
+      }),
+    });
+    const feeResult = await feeResponse.json();
+    if (!feeResponse.ok) {
+      alert(
+        `Learner saved, but additional fees could not be updated: ${
+          feeResult.error || "Unknown error"
+        }`
+      );
+      setSaving(false);
+      return;
     }
 
     resetForm();
@@ -536,6 +754,9 @@ export default function LearnersPage() {
   const canAddLearner = profile?.role !== "teacher";
   const selectedClassroom = classrooms.find(
     (classroom) => String(classroom.id) === manualClassroomId
+  );
+  const registrationAlreadyRecorded = Boolean(
+    selectedLearner?.registration_fee_paid_at
   );
 
   return (
@@ -591,6 +812,138 @@ export default function LearnersPage() {
           ) : null}
         </div>
       </div>
+
+      {canAddLearner && activeFilter !== "birthdays-today" ? (
+        <div
+          className="db-card db-card-lavender"
+          style={{ padding: 16, marginBottom: 18 }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <div>
+              <h3 style={{ ...sectionTitle, marginBottom: 4 }}>
+                School Fee Setup
+              </h3>
+              <p style={{ ...helperText, margin: 0 }}>
+                Set the fees that appear when adding or editing a learner.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="db-main-pill"
+              onClick={() => setShowSchoolFeeSetup((current) => !current)}
+            >
+              {showSchoolFeeSetup ? "Close" : "Open"}
+            </button>
+          </div>
+
+          {showSchoolFeeSetup ? (
+            <div style={{ marginTop: 16 }}>
+              <div style={grid2}>
+                <div>
+                  <p style={labelText}>Registration Fee</p>
+                  <input
+                    className="db-input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={schoolRegistrationFee}
+                    onChange={(e) => setSchoolRegistrationFee(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <p style={labelText}>Monthly School Fee</p>
+                  <input
+                    className="db-input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={schoolMonthlyFee}
+                    onChange={(e) => setSchoolMonthlyFee(e.target.value)}
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                className="db-button-primary"
+                onClick={saveStandardSchoolFees}
+                disabled={savingFeeSetup}
+              >
+                Save Standard Fees
+              </button>
+
+              <h4 style={subSectionTitle}>Other Fees</h4>
+              <div style={grid2}>
+                <input
+                  className="db-input"
+                  placeholder="Fee name, e.g. Excursion"
+                  value={newOtherFeeName}
+                  onChange={(e) => setNewOtherFeeName(e.target.value)}
+                />
+                <input
+                  className="db-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Amount"
+                  value={newOtherFeeAmount}
+                  onChange={(e) => setNewOtherFeeAmount(e.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                className="db-button-primary"
+                onClick={addOtherSchoolFee}
+                disabled={savingFeeSetup}
+              >
+                + Add Other Fee
+              </button>
+
+              <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                {schoolFeeTypes
+                  .filter((fee) => fee.fee_category === "other")
+                  .map((fee) => (
+                    <div
+                      key={fee.id}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 10,
+                        border: "1px solid #E9DDF2",
+                        borderRadius: 12,
+                        padding: "10px 12px",
+                        background: "#FFF",
+                      }}
+                    >
+                      <span>
+                        {fee.fee_name} · R{Number(fee.amount).toFixed(2)}
+                      </span>
+                      <button
+                        type="button"
+                        className="db-main-pill"
+                        onClick={() =>
+                          updateSchoolFeeCatalog("archive_other", {
+                            fee_id: fee.id,
+                          })
+                        }
+                        disabled={savingFeeSetup}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {showForm && canAddLearner ? (
         <div
@@ -823,6 +1176,151 @@ export default function LearnersPage() {
               </select>
             </div>
           </div>
+
+          <h4 style={subSectionTitle}>Learner Fees</h4>
+
+          <p style={helperText}>
+            Standard amounts come from School Fee Setup. The monthly fee repeats
+            on the 1st; registration and selected other fees are once-off.
+          </p>
+
+          <div style={grid2}>
+            <div>
+              <p style={labelText}>Monthly School Fee</p>
+              <input
+                className="db-input"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Example: 650.00"
+                value={monthlyFee}
+                readOnly
+              />
+            </div>
+
+            <div>
+              <p style={labelText}>Registration Fee</p>
+              <input
+                className="db-input"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Once-off registration amount"
+                value={registrationFeeAmount}
+                readOnly
+              />
+            </div>
+          </div>
+
+          {schoolFeeTypes.some((fee) => fee.fee_category === "other") ? (
+            <div style={{ marginBottom: 14 }}>
+              <p style={labelText}>Other Fees (optional)</p>
+              <select
+                className="db-input"
+                value=""
+                onChange={(event) => {
+                  const feeId = Number(event.target.value);
+                  if (feeId) {
+                    setSelectedOtherFeeIds((current) =>
+                      current.includes(feeId) ? current : [...current, feeId]
+                    );
+                  }
+                }}
+              >
+                <option value="">Select an additional fee</option>
+                {schoolFeeTypes
+                  .filter(
+                    (fee) =>
+                      fee.fee_category === "other" &&
+                      !selectedOtherFeeIds.includes(fee.id)
+                  )
+                  .map((fee) => (
+                    <option key={fee.id} value={fee.id}>
+                      {fee.fee_name} · R{Number(fee.amount).toFixed(2)}
+                    </option>
+                  ))}
+              </select>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginTop: 8,
+                }}
+              >
+                {selectedOtherFeeIds.map((feeId) => {
+                  const fee = schoolFeeTypes.find((item) => item.id === feeId);
+                  if (!fee) return null;
+                  return (
+                    <button
+                      key={feeId}
+                      type="button"
+                      className="db-main-pill"
+                      onClick={() =>
+                        setSelectedOtherFeeIds((current) =>
+                          current.filter((id) => id !== feeId)
+                        )
+                      }
+                    >
+                      {fee.fee_name} · R{Number(fee.amount).toFixed(2)} ×
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              margin: "10px 0 14px",
+              fontWeight: 800,
+              color: "#2D2A3E",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={registrationFeePaid}
+              onChange={(e) => setRegistrationFeePaid(e.target.checked)}
+              disabled={registrationAlreadyRecorded}
+            />
+            Registration fee paid
+          </label>
+
+          {registrationFeePaid ? (
+            <div style={grid2}>
+              <div>
+                <p style={labelText}>Registration Payment Method</p>
+                <select
+                  className="db-input"
+                  value={registrationPaymentMethod}
+                  onChange={(e) =>
+                    setRegistrationPaymentMethod(e.target.value)
+                  }
+                  disabled={registrationAlreadyRecorded}
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="EFT">EFT</option>
+                  <option value="Bank Deposit">Bank Deposit</option>
+                  <option value="Card">Card</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <p style={labelText}>Payment Reference (optional)</p>
+                <input
+                  className="db-input"
+                  placeholder="Receipt or transaction reference"
+                  value={registrationReference}
+                  onChange={(e) => setRegistrationReference(e.target.value)}
+                  disabled={registrationAlreadyRecorded}
+                />
+              </div>
+            </div>
+          ) : null}
 
           <div
             style={{

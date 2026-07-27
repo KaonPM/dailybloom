@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resolveSchoolContext } from "../lib/school-context";
-import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { getCurrentProfile } from "../lib/auth";
 
 type LearnerRow = {
@@ -498,66 +497,36 @@ export default function LearnersPage() {
       school_id: schoolId,
     };
 
-    let learnerRecord;
+    if (selectedLearner) {
+      const { error } = await supabase
+        .from("learners")
+        .update(learnerPayload)
+        .eq("id", selectedLearner.id)
+        .eq("school_id", schoolId);
 
-if (selectedLearner) {
-  const { data, error } = await supabase
-    .from("learners")
-    .update(learnerPayload)
-    .eq("id", selectedLearner.id)
-    .eq("school_id", schoolId)
-    .select()
-    .single();
+      if (error) {
+        alert(error.message);
+        setSaving(false);
+        return;
+      }
+    } else {
+      const { error } = await supabase
+        .from("learners")
+        .insert([learnerPayload]);
 
-  if (error) {
-    alert(error.message);
-    setSaving(false);
-    return;
-  }
+      if (error) {
+        alert(error.message);
+        setSaving(false);
+        return;
+      }
+    }
 
-  learnerRecord = data;
-} else {
-  const { data, error } = await supabase
-    .from("learners")
-    .insert([learnerPayload])
-    .select()
-    .single();
-
-  if (error) {
-    alert(error.message);
-    setSaving(false);
-    return;
-  }
-
-  learnerRecord = data;
-}
-
-// Securely link learner to the Parent Portal and generate a one-time PIN when needed.
-const normalizedPhone = learnerRecord.parent_phone
-  ?.replace(/\D/g, "")
-  .replace(/^27/, "0");
-
-if (normalizedPhone) {
-  const parentAccessResponse = await authenticatedFetch("/api/link-parent-access", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ school_id: schoolId, learner_id: learnerRecord.id, phone: normalizedPhone }),
-  });
-  const parentAccessResult = await parentAccessResponse.json();
-  if (!parentAccessResponse.ok) console.error("Parent access link failed:", parentAccessResult.error);
-  if (parentAccessResult.temporary_pin) {
-    alert(`Parent Portal access created. Give the verified parent this temporary PIN: ${parentAccessResult.temporary_pin}`);
-  }
-}
     resetForm();
     setShowForm(false);
     await fetchLearners(schoolId);
 
     setSaving(false);
-    alert(
-      selectedLearner
-        ? `Learner updated and assigned to ${classroomMatch.classroom_name}.`
-        : `Learner added and assigned to ${classroomMatch.classroom_name}.`
-    );
+    alert("Learner saved. Go to Parent Portal Access to invite the parent.");
   }
 
   if (loading) {

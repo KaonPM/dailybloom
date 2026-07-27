@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/app/lib/supabase";
+import HomeworkCard from "./components/HomeworkCard";
 
 type PersonRelation = {
   full_name?: string | null;
@@ -152,6 +153,7 @@ export default function ParentDashboardClient({
   const [dashboardMessages, setDashboardMessages] = useState<MessageRow[]>([]);
   const [incidentLoading, setIncidentLoading] = useState(false);
   const [incidentReports, setIncidentReports] = useState<IncidentRow[]>([]);
+  const [homeworkCount, setHomeworkCount] = useState(0);
 
   const child =
     children.find((item) => String(item.id) === selectedChildId) ||
@@ -912,6 +914,9 @@ export default function ParentDashboardClient({
           text: `${unacknowledgedIncidents.length} incident report${unacknowledgedIncidents.length === 1 ? "" : "s"} require${unacknowledgedIncidents.length === 1 ? "s" : ""} acknowledgement`,
         }]
       : []),
+    ...(homeworkCount > 0 && !seenUpdateTypes.homework
+      ? [{ type: "homework", text: "New homework is ready to view and print" }]
+      : []),
   ];
 
   return (
@@ -995,6 +1000,12 @@ export default function ParentDashboardClient({
           </div>
         )}
       </div>
+
+      <HomeworkCard
+        learnerId={String(child.id)}
+        schoolId={Number(child.school_id)}
+        onCurrentHomeworkChange={setHomeworkCount}
+      />
 
       <Section id="summary" title={`📝 Today's Summary`}>
         <RangeTabs active={summaryRange} setActive={handleSummaryRangeChange} />

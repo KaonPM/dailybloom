@@ -4,6 +4,7 @@ export type ActivitySection =
   | "overview"
   | "today"
   | "planner"
+  | "homework"
   | "support"
   | "history"
   | "library";
@@ -23,6 +24,7 @@ export function ActivitySectionTabs({
     ...(showOverview ? [["overview", "Overview"]] as Array<[ActivitySection, string]> : []),
     ["today", "Today"],
     ["planner", "Weekly Planner"],
+    ["homework", "Homework"],
     ["support", "Learner Support"],
     ["history", "Completed"],
     ["library", "Activity Library"],

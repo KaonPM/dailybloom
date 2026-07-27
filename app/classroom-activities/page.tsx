@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
@@ -12,6 +12,10 @@ import {
   ActivitySectionTabs,
   type ActivitySection,
 } from "./ActivitySectionTabs";
+import {
+  HomeworkWorkspace,
+  type HomeworkWorkspaceHandle,
+} from "./HomeworkWorkspace";
 
 const developmentalAreas = [
   "Ring Time",
@@ -105,7 +109,7 @@ type OutcomeRow = {
   updated_at?: string | null;
 };
 
-type ProfileRow = { id: string; role?: string | null; school_id?: number | null; classroom_id?: number | null; classroom_name?: string | null };
+type ProfileRow = { id: string; role?: string | null; school_id?: number | null; classroom_id?: number | null; classroom_name?: string | null; permissions?: string[] | null };
 type ClassroomRow = { id: number; classroom_name?: string | null };
 type LearnerRow = { id: string; name?: string | null };
 type ActivityLibraryKey = { developmental_area: string; theme?: string | null; activity_name: string };
@@ -164,6 +168,7 @@ export default function ClassroomActivitiesPage() {
   const [libraryVisibleCount, setLibraryVisibleCount] = useState(PAGE_SIZE);
   const [completedVisibleCount, setCompletedVisibleCount] = useState(PAGE_SIZE);
   const [activeSection, setActiveSection] = useState<ActivitySection>("today");
+  const homeworkWorkspaceRef = useRef<HomeworkWorkspaceHandle>(null);
 
   const role = String(profile?.role || "").toLowerCase();
   const isTeacher = role === "teacher";
@@ -904,6 +909,12 @@ export default function ClassroomActivitiesPage() {
     }
 
     await fetchWeeklyPlans(schoolId);
+    const homeworkSaved = await homeworkWorkspaceRef.current?.save();
+    if (homeworkSaved === false) {
+      setSaving(false);
+      alert("The activity plan was saved, but the homework could not be sent. Please try Save Week Plan again.");
+      return;
+    }
     setIsPlannerOpen(false);
     setSaving(false);
     alert("Weekly activity plan saved.");
@@ -1580,6 +1591,19 @@ export default function ClassroomActivitiesPage() {
           </div>
         ) : null}
       </details>
+      ) : null}
+
+      {schoolId && activeClassroomId ? (
+        <div style={{ display: activeSection === "homework" ? "block" : "none" }}>
+          <HomeworkWorkspace
+            ref={homeworkWorkspaceRef}
+            schoolId={schoolId}
+            classroomId={Number(activeClassroomId)}
+            weekStart={weekStart}
+            role={role}
+            permissions={profile?.permissions || []}
+          />
+        </div>
       ) : null}
 
       {activeSection === "history" ? (

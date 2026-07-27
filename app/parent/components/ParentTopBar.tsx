@@ -7,6 +7,7 @@ import type { OneSignalClient } from "@/app/components/RegisterServiceWorker";
 const menuItems = [
   { label: "Dashboard", href: "/parent/dashboard" },
   { label: "Messages", href: "/parent/messages" },
+  { label: "Homework", href: "/parent/homework" },
   { label: "Fees & Receipts", href: "/parent/fees" },
 ];
 

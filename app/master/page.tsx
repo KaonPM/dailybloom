@@ -1166,19 +1166,27 @@ export default function MasterPage() {
               ))}
             </select>
 
-            <input
-              className="db-input"
-              placeholder="Primary Colour"
-              value={primaryColor}
-              onChange={(e) => setPrimaryColor(e.target.value)}
-            />
+            <label style={setupColourLabel}>
+              Primary Colour
+              <input
+                type="color"
+                aria-label="Select primary school colour"
+                value={primaryColor}
+                onChange={(e) => setPrimaryColor(e.target.value)}
+                style={setupColourInput}
+              />
+            </label>
 
-            <input
-              className="db-input"
-              placeholder="Secondary Colour"
-              value={secondaryColor}
-              onChange={(e) => setSecondaryColor(e.target.value)}
-            />
+            <label style={setupColourLabel}>
+              Secondary Colour
+              <input
+                type="color"
+                aria-label="Select secondary school colour"
+                value={secondaryColor}
+                onChange={(e) => setSecondaryColor(e.target.value)}
+                style={setupColourInput}
+              />
+            </label>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label
@@ -1459,6 +1467,25 @@ const dangerSmallButton = {
 
 const detailText = {
   margin: 0,
+};
+
+const setupColourLabel = {
+  display: "grid",
+  gap: "8px",
+  marginBottom: "14px",
+  color: "#5B5675",
+  fontSize: "14px",
+  fontWeight: 600,
+};
+
+const setupColourInput = {
+  width: "100%",
+  height: "52px",
+  padding: "5px",
+  border: "1px solid #F0E3D8",
+  borderRadius: "14px",
+  background: "#FFFFFF",
+  cursor: "pointer",
 };
 
 const secondaryButton = {

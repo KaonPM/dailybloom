@@ -7,6 +7,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { resolveSchoolContext } from "../lib/school-context";
 import { getCurrentProfile } from "../lib/auth";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import {
+  LearnerMonthlyFeeSelect,
+  MonthlyFeeSetup,
+} from "./MonthlyFeeOptions";
 
 type LearnerRow = {
   id: string;
@@ -32,6 +36,7 @@ type LearnerRow = {
   deleted_at?: string | null;
   deleted_name?: string | null;
   monthly_fee?: number | null;
+  monthly_fee_type_id?: number | null;
   fee_billing_start_date?: string | null;
   registration_fee_amount?: number | null;
   registration_fee_paid_at?: string | null;
@@ -96,6 +101,7 @@ export default function LearnersPage() {
   const [parentPhone, setParentPhone] = useState("");
   const [parentEmail, setParentEmail] = useState("");
   const [monthlyFee, setMonthlyFee] = useState("");
+  const [monthlyFeeTypeId, setMonthlyFeeTypeId] = useState("");
   const [registrationFeeAmount, setRegistrationFeeAmount] = useState("");
   const [registrationFeePaid, setRegistrationFeePaid] = useState(false);
   const [registrationPaymentMethod, setRegistrationPaymentMethod] =
@@ -105,6 +111,8 @@ export default function LearnersPage() {
   const [selectedOtherFeeIds, setSelectedOtherFeeIds] = useState<number[]>([]);
   const [schoolRegistrationFee, setSchoolRegistrationFee] = useState("");
   const [schoolMonthlyFee, setSchoolMonthlyFee] = useState("");
+  const [newMonthlyFeeName, setNewMonthlyFeeName] = useState("");
+  const [newMonthlyFeeAmount, setNewMonthlyFeeAmount] = useState("");
   const [newOtherFeeName, setNewOtherFeeName] = useState("");
   const [newOtherFeeAmount, setNewOtherFeeAmount] = useState("");
   const [showSchoolFeeSetup, setShowSchoolFeeSetup] = useState(false);
@@ -202,6 +210,7 @@ export default function LearnersPage() {
         deleted_at,
         deleted_name,
         monthly_fee,
+        monthly_fee_type_id,
         fee_billing_start_date,
         registration_fee_amount,
         registration_fee_paid_at,
@@ -247,6 +256,12 @@ export default function LearnersPage() {
     setSchoolMonthlyFee(
       String(fees.find((fee) => fee.fee_category === "monthly")?.amount || 0)
     );
+    if (!learnerId) {
+      const defaultMonthly = fees.find(
+        (fee) => fee.fee_code === "monthly_school_fee"
+      );
+      setMonthlyFeeTypeId(defaultMonthly ? String(defaultMonthly.id) : "");
+    }
     if (learnerId) {
       setSelectedOtherFeeIds(
         (result.selected_fee_ids || []).map(Number).filter(Boolean)
@@ -361,6 +376,10 @@ export default function LearnersPage() {
     setParentPhone("");
     setParentEmail("");
     setMonthlyFee(schoolMonthlyFee);
+    const defaultMonthly = schoolFeeTypes.find(
+      (fee) => fee.fee_code === "monthly_school_fee"
+    );
+    setMonthlyFeeTypeId(defaultMonthly ? String(defaultMonthly.id) : "");
     setRegistrationFeeAmount(schoolRegistrationFee);
     setRegistrationFeePaid(false);
     setRegistrationPaymentMethod("Cash");
@@ -464,6 +483,18 @@ export default function LearnersPage() {
         ? ""
         : String(learner.monthly_fee)
     );
+    const matchingMonthlyFee = schoolFeeTypes.find(
+      (fee) =>
+        fee.fee_category === "monthly" &&
+        Number(fee.amount) === Number(learner.monthly_fee || 0)
+    );
+    setMonthlyFeeTypeId(
+      learner.monthly_fee_type_id
+        ? String(learner.monthly_fee_type_id)
+        : matchingMonthlyFee
+        ? String(matchingMonthlyFee.id)
+        : ""
+    );
     setRegistrationFeeAmount(
       learner.registration_fee_amount === null ||
         learner.registration_fee_amount === undefined
@@ -541,6 +572,22 @@ export default function LearnersPage() {
     if (saved) {
       setNewOtherFeeName("");
       setNewOtherFeeAmount("");
+    }
+  }
+
+  async function addMonthlySchoolFee() {
+    const amount = Number(newMonthlyFeeAmount || 0);
+    if (!newMonthlyFeeName.trim() || Number.isNaN(amount) || amount <= 0) {
+      alert("Enter a monthly fee name and an amount greater than zero.");
+      return;
+    }
+    const saved = await updateSchoolFeeCatalog("add_monthly", {
+      fee_name: newMonthlyFeeName.trim(),
+      amount,
+    });
+    if (saved) {
+      setNewMonthlyFeeName("");
+      setNewMonthlyFeeAmount("");
     }
   }
 
@@ -633,6 +680,10 @@ export default function LearnersPage() {
       alert("Enter the registration fee amount before marking it as paid.");
       return;
     }
+    if (!monthlyFeeTypeId || parsedMonthlyFee <= 0) {
+      alert("Select the learner's monthly school fee.");
+      return;
+    }
 
     setSaving(true);
 
@@ -674,6 +725,7 @@ export default function LearnersPage() {
       ulin: selectedLearner ? selectedLearner.ulin || null : null,
       school_id: schoolId,
       monthly_fee: parsedMonthlyFee,
+      monthly_fee_type_id: Number(monthlyFeeTypeId),
       fee_billing_start_date:
         selectedLearner?.fee_billing_start_date || nextMonthStart(),
       registration_fee_amount: parsedRegistrationFee,
@@ -877,6 +929,19 @@ export default function LearnersPage() {
               >
                 Save Standard Fees
               </button>
+
+              <MonthlyFeeSetup
+                options={schoolFeeTypes.filter((fee) => fee.fee_category === "monthly")}
+                name={newMonthlyFeeName}
+                amount={newMonthlyFeeAmount}
+                saving={savingFeeSetup}
+                onNameChange={setNewMonthlyFeeName}
+                onAmountChange={setNewMonthlyFeeAmount}
+                onAdd={() => void addMonthlySchoolFee()}
+                onRemove={(feeId) =>
+                  void updateSchoolFeeCatalog("archive_monthly", { fee_id: feeId })
+                }
+              />
 
               <h4 style={subSectionTitle}>Other Fees</h4>
               <div style={grid2}>
@@ -1187,14 +1252,13 @@ export default function LearnersPage() {
           <div style={grid2}>
             <div>
               <p style={labelText}>Monthly School Fee</p>
-              <input
-                className="db-input"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Example: 650.00"
-                value={monthlyFee}
-                readOnly
+              <LearnerMonthlyFeeSelect
+                options={schoolFeeTypes.filter((fee) => fee.fee_category === "monthly")}
+                value={monthlyFeeTypeId}
+                onChange={(feeId, amount) => {
+                  setMonthlyFeeTypeId(feeId);
+                  setMonthlyFee(String(amount));
+                }}
               />
             </div>
 

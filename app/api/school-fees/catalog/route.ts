@@ -126,6 +126,48 @@ export async function POST(request: Request) {
         created_by: authorization.staff.userId,
       });
       if (result.error) throw result.error;
+    } else if (action === "add_monthly") {
+      const feeName = String(body.fee_name || "").trim();
+      const amount = Number(body.amount || 0);
+      if (!feeName || amount <= 0) {
+        return NextResponse.json(
+          { error: "Enter the monthly fee name and an amount greater than zero." },
+          { status: 400 }
+        );
+      }
+      const result = await supabaseAdmin.from("school_fee_types").insert({
+        school_id: schoolId,
+        fee_code: `monthly_${crypto.randomUUID()}`,
+        fee_name: feeName,
+        fee_category: "monthly",
+        billing_frequency: "monthly",
+        amount,
+        created_by: authorization.staff.userId,
+      });
+      if (result.error) throw result.error;
+    } else if (action === "archive_monthly") {
+      const feeId = Number(body.fee_id);
+      const { count, error: countError } = await supabaseAdmin
+        .from("learners")
+        .select("id", { count: "exact", head: true })
+        .eq("school_id", schoolId)
+        .eq("monthly_fee_type_id", feeId)
+        .or("is_deleted.is.null,is_deleted.eq.false");
+      if (countError) throw countError;
+      if (count) {
+        return NextResponse.json(
+          { error: "This monthly fee is still assigned to active learners." },
+          { status: 409 }
+        );
+      }
+      const result = await supabaseAdmin
+        .from("school_fee_types")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("id", feeId)
+        .eq("school_id", schoolId)
+        .eq("fee_category", "monthly")
+        .neq("fee_code", "monthly_school_fee");
+      if (result.error) throw result.error;
     } else if (action === "archive_other") {
       const feeId = Number(body.fee_id);
       const result = await supabaseAdmin

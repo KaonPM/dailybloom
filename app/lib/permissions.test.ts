@@ -32,6 +32,7 @@ test("teacher cannot manage staff or classrooms", () => {
   assert.equal(ROLE_PERMISSIONS.teacher.includes(PERMISSIONS.STAFF_MANAGE), false);
   assert.equal(ROLE_PERMISSIONS.teacher.includes(PERMISSIONS.CLASSROOM_ASSIGN), false);
   assert.equal(ROLE_PERMISSIONS.teacher.includes(PERMISSIONS.REQUIREMENTS_TRACK), true);
+  assert.equal(ROLE_PERMISSIONS.teacher.includes(PERMISSIONS.ACTIVITIES_MANAGE), true);
   assert.equal(ROLE_PERMISSIONS.teacher.includes(PERMISSIONS.REQUIREMENTS_MANAGE), false);
 });
 

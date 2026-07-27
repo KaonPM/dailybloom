@@ -14,7 +14,7 @@ type StaffProfile = {
   classroom_name?: string | null;
 };
 
-type AuthorizedStaff = { userId: string; profile: StaffProfile; schoolId: number | null; role: string; permissions: string[]; isPlatformUser: boolean };
+export type AuthorizedStaff = { userId: string; profile: StaffProfile; schoolId: number | null; role: string; permissions: string[]; isPlatformUser: boolean };
 type AuthorizationResult = { ok: true; staff: AuthorizedStaff } | { ok: false; response: NextResponse };
 
 function denied(message: string, status: number): AuthorizationResult {
@@ -56,4 +56,19 @@ export async function requireStaffPermission(request: Request, permission: Permi
 
 export async function writeSecurityAudit(staff: AuthorizedStaff, action: string, details: Record<string, unknown> = {}) {
   await supabaseAdmin.from("security_audit_log").insert({ actor_id: staff.userId, actor_name: staff.profile.full_name || staff.profile.email, actor_role: staff.role, school_id: staff.schoolId, action, details });
+}
+
+export async function authenticatedRoleCanAccessLearner(staff: AuthorizedStaff, classroomId: number) {
+  if (staff.role !== "teacher") return true;
+  if (!classroomId) return false;
+
+  const { data: classroom } = await supabaseAdmin
+    .from("classrooms")
+    .select("classroom_name")
+    .eq("id", classroomId)
+    .eq("school_id", Number(staff.schoolId || 0))
+    .maybeSingle();
+
+  const assignedName = String(staff.profile.classroom_name || "").trim().toLowerCase();
+  return Boolean(classroom && assignedName && String(classroom.classroom_name || "").trim().toLowerCase() === assignedName);
 }

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 const PAGE_SIZE = 10;
 
@@ -34,7 +35,7 @@ type OutcomeRow = {
   id: number;
   school_id: number;
   classroom_id: number;
-  learner_id: number;
+  learner_id: string;
   weekly_plan_id: number | null;
   developmental_area: string | null;
   theme: string | null;
@@ -54,7 +55,18 @@ type ProfileRow = {
 };
 
 type ClassroomRow = { id: number; classroom_name?: string | null };
-type LearnerRow = { id: number; name?: string | null; classroom_id?: number | null };
+type LearnerRow = { id: string; name?: string | null; classroom_id?: number | null };
+type SupportUpdateRow = {
+  id: number;
+  outcome_id: number;
+  support_status: string;
+  intervention: string | null;
+  progress_note: string | null;
+  parent_summary: string | null;
+  next_review_date: string | null;
+  recorded_by_name: string | null;
+  recorded_at: string;
+};
 
 export default function SupportRegisterPage() {
   const router = useRouter();
@@ -76,6 +88,16 @@ export default function SupportRegisterPage() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [selectedLearnerId, setSelectedLearnerId] = useState("");
+  const [profileOutcomes, setProfileOutcomes] = useState<OutcomeRow[]>([]);
+  const [supportUpdates, setSupportUpdates] = useState<SupportUpdateRow[]>([]);
+  const [updateOutcomeId, setUpdateOutcomeId] = useState("");
+  const [updateStatus, setUpdateStatus] = useState("active");
+  const [intervention, setIntervention] = useState("");
+  const [progressNote, setProgressNote] = useState("");
+  const [parentSummary, setParentSummary] = useState("");
+  const [nextReviewDate, setNextReviewDate] = useState("");
 
   const role = String(profile?.role || "").toLowerCase();
   const isTeacher = role === "teacher";
@@ -251,29 +273,65 @@ export default function SupportRegisterPage() {
     setOutcomes(data || []);
   }
 
-  async function updateSupportStatus(outcomeId: number, nextStatus: string) {
+  async function openSupportProfile(learnerId: string) {
     if (!schoolId) return;
-
-    setSaving(true);
-
-    const { error } = await supabase
-      .from("learner_activity_outcomes")
-      .update({ support_status: nextStatus })
-      .eq("id", outcomeId)
-      .eq("school_id", schoolId);
-
-    if (error) {
-      alert(error.message);
-      setSaving(false);
-      return;
+    setProfileLoading(true);
+    setSelectedLearnerId(String(learnerId));
+    setLearnerFilter(String(learnerId));
+    try {
+      const response = await authenticatedFetch(
+        `/api/classroom-support?school_id=${schoolId}&learner_id=${learnerId}`
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Support profile could not be loaded.");
+      const nextOutcomes = (payload.outcomes || []) as OutcomeRow[];
+      setProfileOutcomes(nextOutcomes);
+      setSupportUpdates((payload.updates || []) as SupportUpdateRow[]);
+      const firstOpen = nextOutcomes.find((item) => supportStatusValue(item) !== "resolved") || nextOutcomes[0];
+      setUpdateOutcomeId(firstOpen ? String(firstOpen.id) : "");
+      setUpdateStatus(firstOpen ? supportStatusValue(firstOpen) : "active");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Support profile could not be loaded.");
+      setSelectedLearnerId("");
+    } finally {
+      setProfileLoading(false);
     }
-
-    await fetchOutcomes(schoolId);
-    setSaving(false);
   }
 
-  function learnerName(learnerId: number) {
-    const learner = learners.find((item) => Number(item.id) === Number(learnerId));
+  async function saveSupportUpdate() {
+    if (!schoolId || !selectedLearnerId || !updateOutcomeId) return;
+    setSaving(true);
+    try {
+      const response = await authenticatedFetch("/api/classroom-support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          school_id: schoolId,
+          learner_id: selectedLearnerId,
+          outcome_id: Number(updateOutcomeId),
+          support_status: updateStatus,
+          intervention,
+          progress_note: progressNote,
+          parent_summary: parentSummary,
+          next_review_date: nextReviewDate || null,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Support update could not be saved.");
+      setIntervention("");
+      setProgressNote("");
+      setParentSummary("");
+      setNextReviewDate("");
+      await Promise.all([fetchOutcomes(schoolId), openSupportProfile(selectedLearnerId)]);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Support update could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function learnerName(learnerId: string) {
+    const learner = learners.find((item) => String(item.id) === String(learnerId));
     return learner?.name || "Learner";
   }
 
@@ -289,6 +347,13 @@ export default function SupportRegisterPage() {
     setStatusFilter("");
     setMonthFilter("");
     setVisibleCount(PAGE_SIZE);
+  }
+
+  function closeSupportProfile() {
+    setSelectedLearnerId("");
+    setProfileOutcomes([]);
+    setSupportUpdates([]);
+    setUpdateOutcomeId("");
   }
 
   if (loading) {
@@ -408,6 +473,127 @@ export default function SupportRegisterPage() {
         </button>
       </div>
 
+      {selectedLearnerId ? (
+        <section className="db-card db-card-blue support-print-summary" style={cardStyle}>
+          <div className="support-no-print" style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+            <div>
+              <h2 style={sectionTitle}>Learner Support Profile</h2>
+              <p style={textStyle}>A complete working history for parent meetings and classroom follow-up.</p>
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button type="button" className="db-button-primary" style={smallButton} onClick={() => window.print()}>
+                Print Support Summary
+              </button>
+              <button type="button" className="db-button-secondary" style={smallButton} onClick={closeSupportProfile}>
+                Close
+              </button>
+            </div>
+          </div>
+
+          {profileLoading ? <p className="db-helper">Loading learner support profile...</p> : (
+            <>
+              <div className="support-print-heading">
+                <p style={{ margin: 0, color: "var(--db-text-soft)", fontWeight: 800 }}>DailyBloom Learner Support Summary</p>
+                <h1 style={{ margin: "6px 0", color: "var(--db-text)", fontSize: "28px" }}>
+                  {learnerName(selectedLearnerId)}
+                </h1>
+                <p style={textStyle}>
+                  {classroomName(Number(profileOutcomes[0]?.classroom_id || 0))} · Printed {formatShortDate(new Date().toISOString())}
+                </p>
+              </div>
+
+              <div style={{ ...compactGrid, marginTop: "16px" }}>
+                <StatCard title="Support Areas" value={new Set(profileOutcomes.map((item) => item.developmental_area).filter(Boolean)).size} note="Areas identified" />
+                <StatCard title="Open Cases" value={profileOutcomes.filter((item) => supportStatusValue(item) !== "resolved").length} note="Currently receiving support" />
+                <StatCard title="Recorded Updates" value={supportUpdates.length} note="Interventions and reviews" />
+              </div>
+
+              <div className="support-no-print db-soft-card" style={{ padding: "16px", marginBottom: "16px" }}>
+                <h3 style={sectionTitle}>Record Intervention or Progress</h3>
+                <div style={filterGrid}>
+                  <label style={fieldLabel}>
+                    Support area
+                    <select className="db-input" value={updateOutcomeId} onChange={(event) => {
+                      const nextId = event.target.value;
+                      setUpdateOutcomeId(nextId);
+                      const selected = profileOutcomes.find((item) => String(item.id) === nextId);
+                      if (selected) setUpdateStatus(supportStatusValue(selected));
+                    }}>
+                      <option value="">Select support area</option>
+                      {profileOutcomes.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.developmental_area || "Support area"} · {supportStatusLabel(supportStatusValue(item))}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={fieldLabel}>
+                    Current status
+                    <select className="db-input" value={updateStatus} onChange={(event) => setUpdateStatus(event.target.value)}>
+                      {supportStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+                    </select>
+                  </label>
+                  <label style={fieldLabel}>
+                    Next review date
+                    <input className="db-input" type="date" value={nextReviewDate} onChange={(event) => setNextReviewDate(event.target.value)} />
+                  </label>
+                </div>
+                <label style={fieldLabel}>
+                  Intervention used
+                  <textarea className="db-input" rows={3} value={intervention} onChange={(event) => setIntervention(event.target.value)} placeholder="What support, adaptation or practice was provided?" />
+                </label>
+                <label style={fieldLabel}>
+                  Detailed progress note
+                  <textarea className="db-input" rows={3} value={progressNote} onChange={(event) => setProgressNote(event.target.value)} placeholder="What changed, what remains difficult and what should happen next?" />
+                </label>
+                <label style={fieldLabel}>
+                  Parent-friendly summary
+                  <textarea className="db-input" rows={3} value={parentSummary} onChange={(event) => setParentSummary(event.target.value)} placeholder="Plain-language summary suitable for the printed parent meeting handout." />
+                </label>
+                <button type="button" className="db-button-primary" onClick={saveSupportUpdate} disabled={saving || !updateOutcomeId}>
+                  {saving ? "Saving..." : "Save Support Update"}
+                </button>
+              </div>
+
+              <h3 style={sectionTitle}>Support Areas</h3>
+              <div style={{ display: "grid", gap: "10px", marginBottom: "18px" }}>
+                {profileOutcomes.map((item) => (
+                  <div key={item.id} className="db-list-card">
+                    <strong>{item.developmental_area || "Support area"}</strong>
+                    <p style={textStyle}>Status: {supportStatusLabel(supportStatusValue(item))}</p>
+                    <p style={textStyle}>Identified through: {item.activity_name || "Classroom observation"}</p>
+                    {item.observation ? <p style={textStyle}>Initial observation: {item.observation}</p> : null}
+                    <p style={smallHint}>Date identified: {item.activity_date || formatShortDate(item.created_at || "")}</p>
+                  </div>
+                ))}
+              </div>
+
+              <h3 style={sectionTitle}>Intervention and Progress History</h3>
+              {supportUpdates.length === 0 ? (
+                <p className="db-helper">No follow-up updates recorded yet. Initial classroom observations appear above.</p>
+              ) : (
+                <div style={{ display: "grid", gap: "10px" }}>
+                  {supportUpdates.map((update) => {
+                    const outcome = profileOutcomes.find((item) => item.id === update.outcome_id);
+                    return (
+                      <div key={update.id} className="db-list-card">
+                        <strong>{outcome?.developmental_area || "Support area"} · {supportStatusLabel(update.support_status)}</strong>
+                        {update.intervention ? <p style={textStyle}><b>Intervention:</b> {update.intervention}</p> : null}
+                        {update.progress_note ? <p className="support-no-print" style={textStyle}><b>Detailed note:</b> {update.progress_note}</p> : null}
+                        {update.parent_summary ? <p style={textStyle}><b>Progress summary:</b> {update.parent_summary}</p> : null}
+                        {update.next_review_date ? <p style={textStyle}><b>Next review:</b> {formatShortDate(update.next_review_date)}</p> : null}
+                        <p style={smallHint}>{formatShortDate(update.recorded_at)}{update.recorded_by_name ? ` · ${update.recorded_by_name}` : ""}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <p className="support-print-footer">This summary supports discussion between the preschool and parent/guardian. It is not a medical diagnosis.</p>
+            </>
+          )}
+        </section>
+      ) : null}
+
       <div className="db-card db-card-lavender" style={cardStyle}>
         <h3 style={sectionTitle}>Support Cases ({filteredRows.length})</h3>
 
@@ -425,20 +611,9 @@ export default function SupportRegisterPage() {
                 {item.observation ? <p style={textStyle}>Teacher notes: {item.observation}</p> : null}
                 <p style={smallHint}>Date identified: {item.activity_date || formatShortDate(item.created_at || "")}</p>
 
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
-                  {supportStatuses.map((status) => (
-                    <button
-                      key={status.value}
-                      type="button"
-                      className="db-button-primary"
-                      style={smallButton}
-                      onClick={() => updateSupportStatus(item.id, status.value)}
-                      disabled={saving || supportStatusValue(item) === status.value}
-                    >
-                      {status.label}
-                    </button>
-                  ))}
-                </div>
+                <button type="button" className="db-button-primary" style={{ ...smallButton, marginTop: "10px" }} onClick={() => openSupportProfile(item.learner_id)}>
+                  View Support Profile
+                </button>
               </div>
             ))}
           </div>
@@ -535,6 +710,14 @@ const smallHint = {
 const smallButton = {
   minHeight: "36px",
   padding: "8px 12px",
+} as const;
+
+const fieldLabel = {
+  display: "grid",
+  gap: "6px",
+  marginBottom: "12px",
+  color: "var(--db-text)",
+  fontWeight: 700,
 } as const;
 
 const backButton = {

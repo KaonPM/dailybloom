@@ -91,7 +91,7 @@ type OutcomeRow = {
   id: number;
   school_id: number;
   classroom_id: number;
-  learner_id: number;
+  learner_id: string;
   weekly_plan_id: number | null;
   developmental_area: string | null;
   theme: string | null;
@@ -985,17 +985,10 @@ export default function ClassroomActivitiesPage() {
 
     setSaving(true);
 
-    const validLearnerIds = supportLearnerIds.filter(
-      (learnerId) =>
-        learnerId !== null &&
-        learnerId !== undefined &&
-        String(learnerId).trim() !== "" &&
-        !Number.isNaN(Number(learnerId)) &&
-        Number(learnerId) > 0
-    );
+    const validLearnerIds = supportLearnerIds.filter((learnerId) => String(learnerId).trim() !== "");
 
     const supportRows = validLearnerIds.map((learnerId) => ({
-      learner_id: Number(learnerId),
+      learner_id: learnerId,
       support_status: supportLearnerStatuses[String(learnerId)] || "new",
       observation:
         supportLearnerNotes[String(learnerId)]?.trim() || observation.trim() || null,
@@ -1060,7 +1053,7 @@ export default function ClassroomActivitiesPage() {
 
       const openSupport = selectedTodayPlan
         ? getOpenSupportOutcome(
-            Number(learnerId),
+            learnerId,
             selectedTodayPlan.developmental_area,
             selectedTodayPlan.id
           )
@@ -1082,41 +1075,20 @@ export default function ClassroomActivitiesPage() {
     }));
   }
 
-  async function updateSupportStatus(outcomeId: number, nextStatus: string) {
-    if (!schoolId) return;
-
-    setSaving(true);
-
-    const { error } = await supabase
-      .from("learner_activity_outcomes")
-      .update({ support_status: nextStatus, updated_at: new Date().toISOString() })
-      .eq("id", outcomeId)
-      .eq("school_id", schoolId);
-
-    if (error) {
-      alert(error.message);
-      setSaving(false);
-      return;
-    }
-
-    await fetchOutcomes(schoolId);
-    setSaving(false);
-  }
-
-  function getPreviousOutcome(learnerId: number, area: string, currentPlanId?: number) {
+  function getPreviousOutcome(learnerId: string, area: string, currentPlanId?: number) {
     return outcomes.find((item) => {
       return (
-        Number(item.learner_id) === Number(learnerId) &&
+        String(item.learner_id) === String(learnerId) &&
         item.developmental_area === area &&
         item.weekly_plan_id !== currentPlanId
       );
     });
   }
 
-  function getOpenSupportOutcome(learnerId: number, area: string, currentPlanId?: number) {
+  function getOpenSupportOutcome(learnerId: string, area: string, currentPlanId?: number) {
     return outcomes.find((item) => {
       return (
-        Number(item.learner_id) === Number(learnerId) &&
+        String(item.learner_id) === String(learnerId) &&
         item.developmental_area === area &&
         item.outcome_status === "needs_support" &&
         item.weekly_plan_id !== currentPlanId &&
@@ -1125,8 +1097,8 @@ export default function ClassroomActivitiesPage() {
     });
   }
 
-  function learnerName(learnerId: number) {
-    const learner = allLearners.find((item) => Number(item.id) === Number(learnerId));
+  function learnerName(learnerId: string) {
+    const learner = allLearners.find((item) => String(item.id) === String(learnerId));
     return learner?.name || "Learner";
   }
 
@@ -1550,7 +1522,7 @@ export default function ClassroomActivitiesPage() {
                 {visibleLearners.map((learner) => {
                   const learnerId = String(learner.id);
                   const selected = supportLearnerIds.includes(learnerId);
-                  const previous = getPreviousOutcome(Number(learner.id), selectedTodayPlan.developmental_area, selectedTodayPlan.id);
+                  const previous = getPreviousOutcome(String(learner.id), selectedTodayPlan.developmental_area, selectedTodayPlan.id);
 
                   return (
                     <div key={learner.id} style={learnerCard}>
@@ -1647,9 +1619,9 @@ export default function ClassroomActivitiesPage() {
             </p>
           </div>
 
-          <button type="button" className="db-button-primary" style={smallButton} onClick={() => setIsTrackerOpen(true)}>
+          <Link href={isMaster && schoolId ? `/support-register?school=${schoolId}` : "/support-register"} className="db-button-primary" style={{ ...smallButton, textDecoration: "none" }}>
             Open Support Register
-          </button>
+          </Link>
         </div>
 
         <div style={compactGrid}>
@@ -1718,17 +1690,13 @@ export default function ClassroomActivitiesPage() {
                   {item.observation ? <p style={textStyle}>Teacher notes: {item.observation}</p> : null}
                   <p style={smallHint}>Date identified: {item.activity_date || formatShortDate(item.created_at || "")}</p>
 
-                  <label style={labelStyle}>Update status</label>
-                  <select
-                    className="db-input"
-                    value={supportStatusValue(item)}
-                    onChange={(event) => updateSupportStatus(item.id, event.target.value)}
-                    disabled={saving}
+                  <Link
+                    href={isMaster && schoolId ? `/support-register?school=${schoolId}` : "/support-register"}
+                    className="db-button-primary"
+                    style={{ ...smallButton, display: "inline-flex", marginTop: "10px", textDecoration: "none" }}
                   >
-                    {supportStatuses.map((status) => (
-                      <option key={status.value} value={status.value}>{status.label}</option>
-                    ))}
-                  </select>
+                    View Support Profile
+                  </Link>
                 </div>
               ))}
             </div>

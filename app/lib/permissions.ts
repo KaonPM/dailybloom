@@ -91,7 +91,7 @@ export const ROLE_PERMISSIONS: Record<string, readonly Permission[]> = {
   owner: Object.values(PERMISSIONS).filter((permission) => !permission.startsWith("platform.")),
   principal: Object.values(PERMISSIONS).filter((permission) => !permission.startsWith("platform.")),
   admin: Object.values(PERMISSIONS).filter((permission) => !permission.startsWith("platform.")),
-  teacher: [PERMISSIONS.MESSAGE_SEND, PERMISSIONS.MESSAGE_VIEW, PERMISSIONS.PARENT_NOTIFY, PERMISSIONS.REQUIREMENTS_VIEW, PERMISSIONS.REQUIREMENTS_TRACK],
+  teacher: [PERMISSIONS.ACTIVITIES_MANAGE, PERMISSIONS.MESSAGE_SEND, PERMISSIONS.MESSAGE_VIEW, PERMISSIONS.PARENT_NOTIFY, PERMISSIONS.REQUIREMENTS_VIEW, PERMISSIONS.REQUIREMENTS_TRACK],
 };
 
 export const DELEGATED_ROLES = ["admin", "master_admin"] as const;

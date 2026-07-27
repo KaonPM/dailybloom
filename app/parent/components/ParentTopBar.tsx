@@ -9,6 +9,7 @@ const menuItems = [
   { label: "Messages", href: "/parent/messages" },
   { label: "Homework", href: "/parent/homework" },
   { label: "Fees & Receipts", href: "/parent/fees" },
+  { label: "Incident Reports", href: "/parent/incidents" },
 ];
 
 export default function ParentTopBar({
@@ -103,18 +104,26 @@ export default function ParentTopBar({
               </Link>
             ))}
 
-            <Link
-              href="/api/parent-logout"
-              onClick={() => setOpen(false)}
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                window.location.assign("/api/parent-logout");
+              }}
               style={{
                 ...menuLink,
                 color: "#E53935",
                 fontWeight: 700,
                 borderBottom: "none",
+                width: "100%",
+                border: "none",
+                background: "transparent",
+                textAlign: "left",
+                cursor: "pointer",
               }}
             >
               Logout
-            </Link>
+            </button>
           </div>
         </>
       )}

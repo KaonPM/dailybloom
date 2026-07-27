@@ -69,10 +69,9 @@ export default function HomeworkCard({
   }, [learnerId, onCurrentHomeworkChange, schoolId]);
 
   return (
-    <section className="db-soft-card" style={cardStyle}>
+    <div>
       <div style={headerStyle}>
         <div>
-          <h2 style={{ margin: 0 }}>Homework</h2>
           <p className="db-helper" style={{ margin: "5px 0 0" }}>
             Worksheets and instructions shared by the school
           </p>
@@ -101,15 +100,9 @@ export default function HomeworkCard({
           No homework has been allocated for this week.
         </p>
       )}
-    </section>
+    </div>
   );
 }
-
-const cardStyle = {
-  padding: "20px",
-  marginBottom: "18px",
-  borderTop: "4px solid #7CCCF3",
-} as const;
 
 const headerStyle = {
   display: "flex",

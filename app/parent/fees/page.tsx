@@ -2,17 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type Learner = {
-  id: string | number;
-  name?: string | null;
-  school_id?: number | null;
-};
-type Charge = {
-  id: number;
-  description: string;
-  billing_period: string;
-  amount: number;
-};
+type Learner = { id: string | number; name?: string | null; school_id?: number | null };
+type Charge = { id: number; description: string; billing_period: string; amount: number };
 type Payment = {
   id: number;
   amount: number;
@@ -20,10 +11,29 @@ type Payment = {
   payment_method: string;
   receipt_number: string;
 };
-type School = {
-  school_name?: string | null;
-  logo_url?: string | null;
+type School = { school_name?: string | null; logo_url?: string | null };
+type LearnerAccount = { monthly_fee?: number | null };
+type ActivityRow = {
+  date: string;
+  label: string;
+  invoiced: number;
+  payment: number;
+  runningTotal: number;
+  id: string;
+  receipt?: string;
+  paymentId?: number;
+  chargeId?: number;
 };
+
+const PAGE_SIZE = 10;
+const money = (value: number) =>
+  `R${Math.abs(Number(value || 0)).toFixed(2)}`;
+const balanceLabel = (value: number) =>
+  value < 0
+    ? `-${money(value)} credit`
+    : value > 0
+      ? `${money(value)} due`
+      : "R0.00";
 
 export default function ParentFeesPage() {
   const [learners, setLearners] = useState<Learner[]>([]);
@@ -31,8 +41,10 @@ export default function ParentFeesPage() {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [school, setSchool] = useState<School | null>(null);
+  const [learnerAccount, setLearnerAccount] = useState<LearnerAccount | null>(null);
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     fetch("/api/parent-context", { cache: "no-store" })
@@ -52,7 +64,6 @@ export default function ParentFeesPage() {
 
   useEffect(() => {
     if (!learner?.id || !learner.school_id) return;
-    setLoading(true);
     const params = new URLSearchParams({
       learner_id: String(learner.id),
       school_id: String(learner.school_id),
@@ -63,69 +74,69 @@ export default function ParentFeesPage() {
         setCharges(result.charges || []);
         setPayments(result.payments || []);
         setSchool(result.school || null);
+        setLearnerAccount(result.learner || null);
         setBalance(Number(result.balance || 0));
       })
       .finally(() => setLoading(false));
   }, [learner?.id, learner?.school_id]);
 
-  const money = (value: number) =>
-    `R${Math.abs(Number(value || 0)).toFixed(2)}`;
-  const activity: Array<{
-    date: string;
-    label: string;
-    amount: string;
-    id: string;
-    receipt?: string;
-    paymentId?: number;
-    chargeId?: number;
-  }> = [
-    ...charges.map((row) => ({
-      date: row.billing_period,
-      label: row.description,
-      amount: `${money(row.amount)} invoiced`,
-      id: `c-${row.id}`,
-      chargeId: row.id,
-    })),
-    ...payments.map((row) => ({
-      date: row.payment_date,
-      label: `Payment received · ${row.payment_method}`,
-      amount: `${money(row.amount)} paid`,
-      id: `p-${row.id}`,
-      receipt: row.receipt_number,
-      paymentId: row.id,
-    })),
-  ].sort((a, b) => b.date.localeCompare(a.date));
+  const statement = useMemo(() => {
+    const rows: ActivityRow[] = [
+      ...charges.map((row) => ({
+        date: row.billing_period,
+        label: row.description,
+        invoiced: Number(row.amount || 0),
+        payment: 0,
+        runningTotal: 0,
+        id: `c-${row.id}`,
+        chargeId: row.id,
+      })),
+      ...payments.map((row) => ({
+        date: row.payment_date,
+        label: `Payment received · ${row.payment_method}`,
+        invoiced: 0,
+        payment: Number(row.amount || 0),
+        runningTotal: 0,
+        id: `p-${row.id}`,
+        receipt: row.receipt_number,
+        paymentId: row.id,
+      })),
+    ].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+
+    return rows.reduce<ActivityRow[]>((ledger, row) => {
+      const previousTotal = ledger.at(-1)?.runningTotal || 0;
+      return [
+        ...ledger,
+        {
+          ...row,
+          runningTotal: previousTotal + row.invoiced - row.payment,
+        },
+      ];
+    }, []);
+  }, [charges, payments]);
+
+  const visibleRows = statement.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const nextPaymentDate = useMemo(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth() + 1, 1).toLocaleDateString(
+      "en-ZA",
+      { day: "numeric", month: "long", year: "numeric" }
+    );
+  }, []);
+  const monthlyFee = Number(learnerAccount?.monthly_fee || 0);
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <div className="db-soft-card" style={{ padding: 20 }}>
-        <div
-          style={{
-            display: "flex",
-            gap: 14,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
+        <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
           {school?.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={school.logo_url}
-              alt={`${school.school_name || "School"} logo`}
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 16,
-                objectFit: "cover",
-              }}
-            />
+            <img src={school.logo_url} alt={`${school.school_name || "School"} logo`} style={{ width: 64, height: 64, borderRadius: 16, objectFit: "cover" }} />
           ) : null}
           <div>
-            <h1 className="db-page-title">Fees & Receipts</h1>
+            <h1 className="db-page-title">Fees &amp; Receipts</h1>
             <p className="db-page-subtitle">
-              {school?.school_name
-                ? `${school.school_name} fee account`
-                : "View school fee charges, payments and receipts."}
+              {school?.school_name ? `${school.school_name} continuous fee statement` : "View invoices, payments and receipts."}
             </p>
           </div>
         </div>
@@ -133,93 +144,90 @@ export default function ParentFeesPage() {
           <select
             className="db-input"
             value={selected}
-            onChange={(event) => setSelected(event.target.value)}
+            onChange={(event) => {
+              setLoading(true);
+              setPage(0);
+              setSelected(event.target.value);
+            }}
             style={{ marginTop: 14 }}
           >
-            {learners.map((item) => (
-              <option key={item.id} value={String(item.id)}>
-                {item.name}
-              </option>
-            ))}
+            {learners.map((item) => <option key={item.id} value={String(item.id)}>{item.name}</option>)}
           </select>
         ) : null}
       </div>
 
       <div className="db-card db-card-blue" style={{ padding: 18 }}>
-        <p style={{ margin: 0, color: "#6D6888", fontWeight: 700 }}>
-          Current account
-        </p>
-        <h2 style={{ margin: "8px 0", color: "#2D2A3E" }}>
-          {balance > 0
-            ? `${money(balance)} due`
-            : balance < 0
-              ? `-${money(balance)} credit`
-              : "Paid up"}
-        </h2>
-        <p className="db-helper">
-          Registration and monthly school-fee activity appears here.
-        </p>
+        <p style={{ margin: 0, color: "#6D6888", fontWeight: 700 }}>Current account</p>
+        <h2 style={{ margin: "8px 0", color: "#2D2A3E" }}>{balanceLabel(balance)}</h2>
+        <p className="db-helper">Registration fees, monthly charges and every recorded payment remain on this statement.</p>
+        {monthlyFee > 0 ? (
+          <p style={{ margin: "8px 0 0", color: "#6D6888", fontSize: 12 }}>
+            Next monthly fee: {money(monthlyFee)} · due {nextPaymentDate}
+          </p>
+        ) : null}
       </div>
 
       <div className="db-soft-card" style={{ padding: 18 }}>
-        <h2 style={{ color: "#2D2A3E" }}>Account activity</h2>
-        {loading ? (
-          <p>Loading...</p>
-        ) : activity.length === 0 ? (
+        <h2 style={{ color: "#2D2A3E" }}>Continuous billing statement</h2>
+        {loading ? <p>Loading...</p> : statement.length === 0 ? (
           <p>No fee activity recorded yet.</p>
         ) : (
-          <div style={{ display: "grid", gap: 10 }}>
-            {activity.map((row) => (
-              <div
-                key={row.id}
-                style={{
-                  border: "1px solid #F0E3D8",
-                  borderRadius: 14,
-                  padding: 14,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <strong>{row.label}</strong>
-                  <p style={{ margin: "5px 0 0", color: "#6D6888" }}>
-                    {row.date}
-                    {row.receipt ? ` · ${row.receipt}` : ""}
-                  </p>
+          <>
+            <div style={{ overflowX: "auto" }}>
+              <div style={{ minWidth: 760 }}>
+                <div style={statementHeader}>
+                  <strong>Date</strong><strong>Account activity</strong><strong>Invoiced</strong><strong>Payment</strong><strong>Running total</strong>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <strong>{row.amount}</strong>
-                  {row.chargeId && learner?.school_id ? (
-                    <a
-                      className="db-button-secondary"
-                      href={`/parent/fees/invoice?charge=${row.chargeId}&learner=${encodeURIComponent(String(learner.id))}&school=${learner.school_id}`}
-                    >
-                      View Invoice
-                    </a>
-                  ) : null}
-                  {row.paymentId && learner?.school_id ? (
-                    <a
-                      className="db-button-secondary"
-                      href={`/parent/fees/receipt?payment=${row.paymentId}&learner=${encodeURIComponent(String(learner.id))}&school=${learner.school_id}`}
-                    >
-                      View Receipt
-                    </a>
-                  ) : null}
-                </div>
+                {visibleRows.map((row) => (
+                  <div key={row.id} style={statementRow}>
+                    <span>{row.date}</span>
+                    <div>
+                      <strong>{row.label}</strong>
+                      {row.receipt ? <p style={{ margin: "5px 0 0", color: "#6D6888" }}>{row.receipt}</p> : null}
+                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        {row.chargeId && learner?.school_id ? (
+                          <a className="db-button-secondary" href={`/parent/fees/invoice?charge=${row.chargeId}&learner=${encodeURIComponent(String(learner.id))}&school=${learner.school_id}`}>Invoice</a>
+                        ) : null}
+                        {row.paymentId && learner?.school_id ? (
+                          <a className="db-button-secondary" href={`/parent/fees/receipt?payment=${row.paymentId}&learner=${encodeURIComponent(String(learner.id))}&school=${learner.school_id}`}>Receipt</a>
+                        ) : null}
+                      </div>
+                    </div>
+                    <strong>{row.invoiced ? money(row.invoiced) : "—"}</strong>
+                    <strong>{row.payment ? money(row.payment) : "—"}</strong>
+                    <strong>{balanceLabel(row.runningTotal)}</strong>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+            {statement.length > PAGE_SIZE ? (
+              <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                <button className="db-button-secondary" type="button" disabled={page === 0} onClick={() => setPage((value) => value - 1)}>Previous 10</button>
+                <button className="db-button-primary" type="button" disabled={(page + 1) * PAGE_SIZE >= statement.length} onClick={() => setPage((value) => value + 1)}>Next 10</button>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
     </div>
   );
 }
+
+const statementHeader = {
+  display: "grid",
+  gridTemplateColumns: "110px minmax(280px, 1fr) 110px 110px 140px",
+  gap: 12,
+  padding: "12px 14px",
+  background: "#F8F4FF",
+  borderRadius: "14px 14px 0 0",
+  color: "#2D2A3E",
+} as const;
+
+const statementRow = {
+  display: "grid",
+  gridTemplateColumns: "110px minmax(280px, 1fr) 110px 110px 140px",
+  gap: 12,
+  alignItems: "center",
+  padding: 14,
+  borderBottom: "1px solid #F0E3D8",
+} as const;

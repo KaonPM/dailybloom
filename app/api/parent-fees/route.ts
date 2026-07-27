@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     supabaseAdmin.from("learner_fee_payments").select("id, amount, payment_date, payment_method, reference_number, receipt_number, created_at").eq("school_id", schoolId).eq("learner_id", learnerId).order("payment_date", { ascending: false }),
     supabaseAdmin.from("schools").select("id, school_name, logo_url, contact_number, primary_color, secondary_color").eq("id", schoolId).maybeSingle(),
     supabaseAdmin.from("dbe_registration").select("email_address, physical_address, contact_number").eq("school_id", schoolId).maybeSingle(),
-    supabaseAdmin.from("learners").select("id, name, legal_name").eq("id", learnerId).eq("school_id", schoolId).maybeSingle(),
+    supabaseAdmin.from("learners").select("id, name, legal_name, monthly_fee").eq("id", learnerId).eq("school_id", schoolId).maybeSingle(),
   ]);
   if (chargeResult.error || paymentResult.error || schoolResult.error || learnerResult.error) {
     return NextResponse.json(

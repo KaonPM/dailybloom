@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/app/lib/supabase";
 import HomeworkCard from "./components/HomeworkCard";
+import FeesReceiptsCard from "./components/FeesReceiptsCard";
 
 type PersonRelation = {
   full_name?: string | null;
@@ -1001,11 +1002,20 @@ export default function ParentDashboardClient({
         )}
       </div>
 
-      <HomeworkCard
-        learnerId={String(child.id)}
-        schoolId={Number(child.school_id)}
-        onCurrentHomeworkChange={setHomeworkCount}
-      />
+      <Section id="homework" title={`Homework${homeworkCount ? ` (${homeworkCount})` : ""}`}>
+        <HomeworkCard
+          learnerId={String(child.id)}
+          schoolId={Number(child.school_id)}
+          onCurrentHomeworkChange={setHomeworkCount}
+        />
+      </Section>
+
+      <Section id="fees" title="Fees & Receipts">
+        <FeesReceiptsCard
+          learnerId={String(child.id)}
+          schoolId={Number(child.school_id)}
+        />
+      </Section>
 
       <Section id="summary" title={`📝 Today's Summary`}>
         <RangeTabs active={summaryRange} setActive={handleSummaryRangeChange} />

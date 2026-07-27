@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import BillingInvoicesPanel from "./invoices/BillingInvoicesPanel";
 import { supabase } from "../lib/supabase";
@@ -873,7 +874,8 @@ export default function BillingPage() {
       </div>
       */}
 
-      {activePaymentSubscription ? (
+      {activePaymentSubscription && typeof document !== "undefined"
+        ? createPortal(
         <div style={modalOverlay}>
           <div style={modalCard}>
             <div style={modalHeader}>
@@ -979,10 +981,13 @@ export default function BillingPage() {
               </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        </div>,
+        document.body
+          )
+        : null}
 
-      {exemptionSubscription ? (
+      {exemptionSubscription && typeof document !== "undefined"
+        ? createPortal(
         <div style={modalOverlay}>
           <div style={modalCard}>
             <div style={modalHeader}>
@@ -1034,8 +1039,10 @@ export default function BillingPage() {
               </button>
             </div>
           </div>
-        </div>
-      ) : null}
+        </div>,
+        document.body
+          )
+        : null}
     </div>
   );
 }
@@ -1125,12 +1132,16 @@ const modalOverlay = {
   alignItems: "center",
   justifyContent: "center",
   padding: "18px",
+  overflowY: "auto",
   zIndex: 999,
 } as const;
 
 const modalCard = {
   width: "100%",
   maxWidth: "480px",
+  maxHeight: "calc(100dvh - 36px)",
+  overflowY: "auto",
+  boxSizing: "border-box",
   background: "#FFFFFF",
   borderRadius: "22px",
   padding: "20px",
@@ -1138,10 +1149,15 @@ const modalCard = {
 } as const;
 
 const modalHeader = {
+  position: "sticky",
+  top: 0,
+  zIndex: 1,
   display: "flex",
   justifyContent: "space-between",
   alignItems: "flex-start",
   gap: "12px",
+  background: "#FFFFFF",
+  paddingBottom: "10px",
 } as const;
 
 const modalTitle = {
@@ -1178,9 +1194,13 @@ const labelStyle = {
 };
 
 const modalActions = {
+  position: "sticky",
+  bottom: 0,
   display: "flex",
   justifyContent: "flex-end",
   gap: "10px",
-  marginTop: "14px",
+  margin: "14px -2px -2px",
+  padding: "12px 2px 2px",
+  background: "#FFFFFF",
   flexWrap: "wrap",
 } as const;

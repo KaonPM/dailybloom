@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 import { getCurrentProfile } from "../../../lib/auth";
 import { authenticatedFetch } from "../../../lib/authenticated-fetch";
+import { convertPdfLogoToPng } from "../../../lib/pdf-logo";
 
 type School = {
   id: number;
@@ -199,29 +200,40 @@ export default function MasterSchoolOverviewPage() {
       alert("Please select a logo first.");
       return;
     }
-
-    setSavingLogo(true);
-
-    const form = new FormData();
-    form.set("school_id", String(school.id));
-    form.set("file", logoFile);
-    const response = await authenticatedFetch("/api/school-logo", {
-      method: "POST",
-      body: form,
-    });
-    const result = await response.json();
-
-    if (!response.ok) {
-      alert(result.error || "Logo upload failed.");
-      setSavingLogo(false);
+    if (logoFile.size > 5 * 1024 * 1024) {
+      alert("Upload a logo file no larger than 5 MB.");
       return;
     }
 
-    setSchool({ ...school, logo_url: result.logo_url });
-    setLogoFile(null);
-    setSavingLogo(false);
-    setOpenSetupPanel(null);
-    alert("School logo updated.");
+    setSavingLogo(true);
+
+    try {
+      const uploadFile =
+        logoFile.type === "application/pdf" || /\.pdf$/i.test(logoFile.name)
+          ? await convertPdfLogoToPng(logoFile)
+          : logoFile;
+      const form = new FormData();
+      form.set("school_id", String(school.id));
+      form.set("file", uploadFile);
+      const response = await authenticatedFetch("/api/school-logo", {
+        method: "POST",
+        body: form,
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Logo upload failed.");
+      }
+
+      setSchool({ ...school, logo_url: result.logo_url });
+      setLogoFile(null);
+      setOpenSetupPanel(null);
+      alert("School logo updated.");
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Logo upload failed.");
+    } finally {
+      setSavingLogo(false);
+    }
   }
 
   async function saveSchoolColours() {
@@ -474,8 +486,8 @@ export default function MasterSchoolOverviewPage() {
                   }
                 />
                 <span style={helperText}>
-                  Choose a JPG, PNG or WebP image up to 5 MB. If needed, open
-                  Downloads from the left side of the file window.
+                  Choose a PDF, JPG, PNG or WebP file. PDF logos are converted
+                  to PNG automatically. Maximum file size: 5 MB.
                 </span>
                 {logoFile ? (
                   <span style={helperText}>Selected: {logoFile.name}</span>

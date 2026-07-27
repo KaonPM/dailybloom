@@ -49,6 +49,8 @@ export default function PrincipalsPage() {
   const [expandedPrincipalId, setExpandedPrincipalId] = useState<string | null>(
     null
   );
+  const [editingPrincipalId, setEditingPrincipalId] = useState<string | null>(null);
+  const [editingPrincipalEmail, setEditingPrincipalEmail] = useState("");
   const [visiblePrincipalCount, setVisiblePrincipalCount] = useState(5);
   const [canManageSchoolStatus, setCanManageSchoolStatus] = useState(false);
   const [canManagePrincipals, setCanManagePrincipals] = useState(false);
@@ -310,6 +312,39 @@ export default function PrincipalsPage() {
     alert("Principal access email resent.");
   }
 
+  async function updatePrincipalEmail(principal: PrincipalProfile) {
+    if (!principal.school_id || !editingPrincipalEmail.trim()) {
+      alert("Enter a valid principal email address.");
+      return;
+    }
+
+    setActionLoadingId(principal.id);
+    try {
+      const response = await authenticatedFetch("/api/account-email", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: principal.id,
+          school_id: principal.school_id,
+          role: principal.role || "principal",
+          email: editingPrincipalEmail.trim(),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Could not update the principal email.");
+      }
+      setEditingPrincipalId(null);
+      setEditingPrincipalEmail("");
+      await fetchPrincipals();
+      alert("Principal email updated. The new email is now used for sign in.");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not update the principal email.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
   if (checkingAccess) {
     return <p>Loading...</p>;
   }
@@ -421,6 +456,43 @@ export default function PrincipalsPage() {
                             <p style={textStyle}>
                               Email: {principal.email || "No email"}
                             </p>
+                            {editingPrincipalId === principal.id ? (
+                              <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
+                                <label style={{ display: "grid", gap: "7px", fontWeight: 700 }}>
+                                  Login email address
+                                  <input
+                                    className="db-input"
+                                    type="email"
+                                    value={editingPrincipalEmail}
+                                    onChange={(event) => setEditingPrincipalEmail(event.target.value)}
+                                    disabled={isBusy}
+                                  />
+                                </label>
+                                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                  <button
+                                    type="button"
+                                    className="db-button-primary"
+                                    style={smallButton}
+                                    onClick={() => updatePrincipalEmail(principal)}
+                                    disabled={isBusy}
+                                  >
+                                    {isBusy ? "Saving..." : "Save Email"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="db-button-secondary"
+                                    style={smallButton}
+                                    onClick={() => {
+                                      setEditingPrincipalId(null);
+                                      setEditingPrincipalEmail("");
+                                    }}
+                                    disabled={isBusy}
+                                  >
+                                    Close
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
                             <p style={textStyle}>
                               School: {principal.schools?.school_name || "Not linked"}
                             </p>
@@ -481,7 +553,7 @@ export default function PrincipalsPage() {
                             setExpandedPrincipalId(isExpanded ? null : principal.id)
                           }
                         >
-                          {isExpanded ? "Hide" : "View"}
+                          {isExpanded ? "Close" : "View"}
                         </button>
 
                         {canManageSchoolStatus && effectiveActive ? (
@@ -508,6 +580,20 @@ export default function PrincipalsPage() {
 
                         {canManagePrincipals ? (
                           <>
+                            <button
+                              type="button"
+                              className="db-button-primary"
+                              style={smallButton}
+                              onClick={() => {
+                                setExpandedPrincipalId(principal.id);
+                                setEditingPrincipalId(principal.id);
+                                setEditingPrincipalEmail(principal.email || "");
+                              }}
+                              disabled={isBusy}
+                            >
+                              Update Email
+                            </button>
+
                             <button
                               type="button"
                               className="db-button-primary"

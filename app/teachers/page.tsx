@@ -118,6 +118,11 @@ export default function TeachersPage() {
     setEditingId(null);
   }
 
+  function closeForm() {
+    resetForm();
+    setShowForm(false);
+  }
+
   function startEdit(teacher: TeacherRow) {
     setEditingId(teacher.id);
     setFullName(teacher.full_name || "");
@@ -139,6 +144,23 @@ export default function TeachersPage() {
     setSaving(true);
 
     if (editingId) {
+      const emailResponse = await authenticatedFetch("/api/account-email", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: editingId,
+          school_id: schoolId,
+          role: "teacher",
+          email: email.trim(),
+        }),
+      });
+      const emailResult = await emailResponse.json();
+      if (!emailResponse.ok) {
+        alert(emailResult.error || "Could not update the teacher email.");
+        setSaving(false);
+        return;
+      }
+
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -153,8 +175,7 @@ export default function TeachersPage() {
         return;
       }
 
-      resetForm();
-      setShowForm(false);
+      closeForm();
       await loadTeachers(schoolId);
 
       setSaving(false);
@@ -311,19 +332,25 @@ export default function TeachersPage() {
               Manage teachers, classroom assignments, and access.
             </p>
 
-            {schoolParam && schoolId ? (
-              <Link href={`/master/school/${schoolId}`} className="db-main-pill" style={backButton}>
-                Back to School Overview
-              </Link>
-            ) : null}
+            <Link
+              href={schoolParam && schoolId ? `/master/school/${schoolId}` : "/dashboard"}
+              className="db-main-pill"
+              style={backButton}
+            >
+              Back to School Overview
+            </Link>
           </div>
 
           <button
             type="button"
             className="db-button-primary"
             onClick={() => {
-              resetForm();
-              setShowForm((prev) => !prev);
+              if (showForm) {
+                closeForm();
+              } else {
+                resetForm();
+                setShowForm(true);
+              }
             }}
           >
             {showForm ? "Close" : "Add Teacher"}
@@ -336,9 +363,14 @@ export default function TeachersPage() {
           className="db-card db-card-blue"
           style={{ padding: 16, marginBottom: 18 }}
         >
-          <h3 style={sectionTitle}>
-            {editingId ? "Edit Teacher" : "Add Teacher"}
-          </h3>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <h3 style={sectionTitle}>
+              {editingId ? "Edit Teacher" : "Add Teacher"}
+            </h3>
+            <button type="button" className="db-button-secondary" onClick={closeForm} disabled={saving}>
+              Close
+            </button>
+          </div>
 
           <div style={grid2}>
             <div>
@@ -358,12 +390,11 @@ export default function TeachersPage() {
                 placeholder="teacher@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={editingId !== null}
               />
 
               {editingId ? (
                 <p style={hintText}>
-                  Email cannot be edited here because login email is controlled by Supabase Auth.
+                  Updating this changes the email the teacher uses to sign in.
                 </p>
               ) : null}
             </div>
@@ -469,6 +500,15 @@ export default function TeachersPage() {
                         marginTop: 8,
                       }}
                     >
+                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        <button
+                          type="button"
+                          className="db-button-secondary"
+                          onClick={() => setSelectedTeacher(null)}
+                        >
+                          Close
+                        </button>
+                      </div>
                       <p style={smallText}>Email: {teacher.email || "No email"}</p>
 
                       <p style={smallText}>

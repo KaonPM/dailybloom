@@ -31,6 +31,7 @@ export default function StaffAccessPage() {
   const [permissions, setPermissions] = useState<Permission[]>([...recommendedAdminPermissions]);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingPermissions, setEditingPermissions] = useState<Permission[]>([]);
+  const [editingEmail, setEditingEmail] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [resendingUserId, setResendingUserId] = useState<string | null>(null);
@@ -143,17 +144,37 @@ export default function StaffAccessPage() {
   function beginEditing(assignment: Assignment) {
     setEditingUserId(assignment.user_id);
     setEditingPermissions([...assignment.permissions]);
+    setEditingEmail(assignment.profile?.email || "");
     setMessage(null);
   }
 
   async function savePermissions(assignment: Assignment) {
-    if (!schoolId || editingPermissions.length === 0) {
+    if (!schoolId || !editingEmail.trim()) {
+      setMessage({ type: "error", text: "Enter the administrator's email address." });
+      return;
+    }
+    if (editingPermissions.length === 0) {
       setMessage({ type: "error", text: "Select at least one permission." });
       return;
     }
     setSaving(true);
     setMessage(null);
     try {
+      const emailResponse = await authenticatedFetch("/api/account-email", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: "admin",
+          school_id: schoolId,
+          user_id: assignment.user_id,
+          email: editingEmail.trim(),
+        }),
+      });
+      const emailResult = await emailResponse.json();
+      if (!emailResponse.ok) {
+        throw new Error(emailResult.error || "Could not update the Preschool Admin email.");
+      }
+
       const response = await authenticatedFetch("/api/role-assignments", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -169,7 +190,8 @@ export default function StaffAccessPage() {
       if (!response.ok) throw new Error(result.error || "Could not update permissions.");
       setEditingUserId(null);
       setEditingPermissions([]);
-      setMessage({ type: "success", text: "Preschool Admin permissions updated." });
+      setEditingEmail("");
+      setMessage({ type: "success", text: "Preschool Admin details updated." });
       await loadAssignments(schoolId);
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Could not update permissions." });
@@ -243,10 +265,21 @@ export default function StaffAccessPage() {
                 </div>
                 {editingUserId === assignment.user_id ? (
                   <div style={{ borderTop: "1px solid #EEE3DA", paddingTop: "14px", display: "grid", gap: "12px" }}>
+                    <label style={{ display: "grid", gap: "7px", fontWeight: 700 }}>
+                      Login email address
+                      <input
+                        className="db-input"
+                        type="email"
+                        value={editingEmail}
+                        onChange={(event) => setEditingEmail(event.target.value)}
+                        disabled={saving}
+                      />
+                      <span className="db-helper">Updating this changes the email the administrator uses to sign in.</span>
+                    </label>
                     <PermissionChecklist options={adminOptions} selected={editingPermissions} onChange={setEditingPermissions} disabled={saving} />
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      <button className="db-button-primary" type="button" disabled={saving} onClick={() => savePermissions(assignment)}>Save Permissions</button>
-                      <button className="db-button-secondary" type="button" disabled={saving} onClick={() => { setEditingUserId(null); setEditingPermissions([]); }}>Cancel</button>
+                      <button className="db-button-primary" type="button" disabled={saving} onClick={() => savePermissions(assignment)}>Save Changes</button>
+                      <button className="db-button-secondary" type="button" disabled={saving} onClick={() => { setEditingUserId(null); setEditingPermissions([]); setEditingEmail(""); }}>Close</button>
                     </div>
                   </div>
                 ) : null}

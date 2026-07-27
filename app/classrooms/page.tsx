@@ -213,6 +213,11 @@ export default function ClassroomsPage() {
     setEditingId(null);
   }
 
+  function closeClassroomForm() {
+    resetForm();
+    setShowForm(false);
+  }
+
   function startEdit(room: ClassroomRow) {
     const currentAgeGroups = room.age_groups || [];
     const currentTemplates =
@@ -610,19 +615,25 @@ export default function ClassroomsPage() {
               Manage classrooms, age groups, assigned teachers, and learner placement.
             </p>
 
-            {schoolParam && schoolId ? (
-              <Link href={`/master/school/${schoolId}`} className="db-main-pill" style={backButton}>
-                Back to School Overview
-              </Link>
-            ) : null}
+            <Link
+              href={schoolParam && schoolId ? `/master/school/${schoolId}` : "/dashboard"}
+              className="db-main-pill"
+              style={backButton}
+            >
+              Back to School Overview
+            </Link>
           </div>
 
           <button
             type="button"
             className="db-button-primary"
             onClick={() => {
-              resetForm();
-              setShowForm((prev) => !prev);
+              if (showForm) {
+                closeClassroomForm();
+              } else {
+                resetForm();
+                setShowForm(true);
+              }
             }}
           >
             {showForm ? "Close" : "Add Classroom"}
@@ -632,9 +643,19 @@ export default function ClassroomsPage() {
 
       {showForm ? (
         <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
-          <h3 style={sectionTitle}>
-            {editingId ? "Edit Classroom" : "Add Classroom"}
-          </h3>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <h3 style={sectionTitle}>
+              {editingId ? "Edit Classroom" : "Add Classroom"}
+            </h3>
+            <button
+              type="button"
+              className="db-button-secondary"
+              onClick={closeClassroomForm}
+              disabled={saving}
+            >
+              Close
+            </button>
+          </div>
 
           <div style={grid2}>
             <div>
@@ -808,7 +829,16 @@ export default function ClassroomsPage() {
 
                   {active && selectedStats ? (
                     <div style={expandedCard}>
-                      <h3 style={sectionTitle}>{selectedStats.roomName}</h3>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                        <h3 style={sectionTitle}>{selectedStats.roomName}</h3>
+                        <button
+                          type="button"
+                          className="db-button-secondary"
+                          onClick={() => setSelectedClassroom(null)}
+                        >
+                          Close
+                        </button>
+                      </div>
 
                       <p style={smallText}>
                         Age groups: {getAgeGroupsLabel(selectedStats.room)}

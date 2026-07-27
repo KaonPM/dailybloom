@@ -11,20 +11,20 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const learnerId = String(params.get("learner_id") || "");
   const schoolId = Number(params.get("school_id"));
-  const homeworkId = Number(params.get("homework_id"));
+  const assignmentId = Number(params.get("assignment_id"));
   if (!parentCanAccessLearnerAtSchool(parent.children || [], schoolId, learnerId)) {
     return NextResponse.json({ error: "Not allowed." }, { status: 403 });
   }
   const learner = (parent.children || []).find((row) => String(row.id) === learnerId && Number(row.school_id) === schoolId);
   if (!learner?.classroom_id) return NextResponse.json({ homework: [] });
 
-  if (homeworkId) {
+  if (assignmentId) {
     const { data: assignment } = await supabaseAdmin
       .from("homework_assignments")
       .select("homework_id, homework_library!inner(file_path)")
+      .eq("id", assignmentId)
       .eq("school_id", schoolId)
       .eq("classroom_id", learner.classroom_id)
-      .eq("homework_id", homeworkId)
       .maybeSingle();
     const library = assignment?.homework_library as unknown as { file_path?: string } | null;
     if (!library?.file_path) return NextResponse.json({ error: "Homework not found." }, { status: 404 });
@@ -35,11 +35,11 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabaseAdmin
     .from("homework_assignments")
-    .select("id, week_start, homework_id, instruction_note, position, homework_library(title, file_name)")
+    .select("id, week_start, activity_date, homework_id, instruction_note, position, homework_library(title, file_name)")
     .eq("school_id", schoolId)
     .eq("classroom_id", learner.classroom_id)
     .not("homework_id", "is", null)
-    .order("week_start", { ascending: false })
+    .order("activity_date", { ascending: false })
     .limit(20);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ homework: data || [] }, { headers: { "Cache-Control": "no-store, max-age=0" } });

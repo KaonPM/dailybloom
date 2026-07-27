@@ -51,6 +51,7 @@ export async function GET(request: Request) {
   const schoolId = Number(params.get("school_id"));
   const classroomId = Number(params.get("classroom_id"));
   const weekStart = String(params.get("week_start") || "");
+  const activityDate = String(params.get("activity_date") || "");
   const homeworkId = Number(params.get("homework_id"));
   const authorization = await requireStaffPermission(request, PERMISSIONS.ACTIVITIES_MANAGE, schoolId);
   if (!authorization.ok) return authorization.response;
@@ -68,8 +69,8 @@ export async function GET(request: Request) {
 
   const [libraryResult, assignmentResult] = await Promise.all([
     supabaseAdmin.from("homework_library").select("id, title, file_name, notes").eq("school_id", schoolId).eq("archived", false).order("title"),
-    classroomId && weekStart
-      ? supabaseAdmin.from("homework_assignments").select("id, homework_id, instruction_note, position").eq("school_id", schoolId).eq("classroom_id", classroomId).eq("week_start", weekStart).order("position")
+    classroomId && weekStart && activityDate
+      ? supabaseAdmin.from("homework_assignments").select("id, homework_id, instruction_note, position").eq("school_id", schoolId).eq("classroom_id", classroomId).eq("week_start", weekStart).eq("activity_date", activityDate).order("position")
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (libraryResult.error || assignmentResult.error) return NextResponse.json({ error: libraryResult.error?.message || assignmentResult.error?.message }, { status: 400 });
@@ -112,10 +113,20 @@ export async function PATCH(request: Request) {
   const schoolId = Number(body.school_id);
   const classroomId = Number(body.classroom_id);
   const weekStart = String(body.week_start || "");
-  const items = Array.isArray(body.items) ? body.items.slice(0, 3) : [];
+  const activityDate = String(body.activity_date || "");
+  const items = Array.isArray(body.items) ? body.items.slice(0, 1) : [];
   const authorization = await requireStaffPermission(request, PERMISSIONS.ACTIVITIES_MANAGE, schoolId);
   if (!authorization.ok) return authorization.response;
-  if (!classroomId || !/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) return NextResponse.json({ error: "Classroom and week are required." }, { status: 400 });
+  if (
+    !classroomId ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(weekStart) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(activityDate)
+  ) {
+    return NextResponse.json(
+      { error: "Classroom, week and teaching date are required." },
+      { status: 400 }
+    );
+  }
   if (!(await authenticatedRoleCanAccessLearner(authorization.staff, classroomId))) {
     return NextResponse.json({ error: "Teachers can only allocate homework to their assigned classroom." }, { status: 403 });
   }
@@ -142,14 +153,18 @@ export async function PATCH(request: Request) {
     p_school_id: schoolId,
     p_classroom_id: classroomId,
     p_week_start: weekStart,
+    p_activity_date: activityDate,
     p_assigned_by: authorization.staff.userId,
     p_items: cleanItems,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  if (cleanItems.length) await notifyClassroomParents(schoolId, classroomId);
+  if (body.notify_parent === true && body.week_has_homework === true) {
+    await notifyClassroomParents(schoolId, classroomId);
+  }
   await writeSecurityAudit(authorization.staff, "homework.week_published", {
     classroom_id: classroomId,
     week_start: weekStart,
+    activity_date: activityDate,
     homework_count: cleanItems.length,
   });
   return NextResponse.json({ success: true });

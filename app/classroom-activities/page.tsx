@@ -168,7 +168,9 @@ export default function ClassroomActivitiesPage() {
   const [libraryVisibleCount, setLibraryVisibleCount] = useState(PAGE_SIZE);
   const [completedVisibleCount, setCompletedVisibleCount] = useState(PAGE_SIZE);
   const [activeSection, setActiveSection] = useState<ActivitySection>("today");
-  const homeworkWorkspaceRef = useRef<HomeworkWorkspaceHandle>(null);
+  const homeworkWorkspaceRefs = useRef<
+    Record<string, HomeworkWorkspaceHandle | null>
+  >({});
 
   const role = String(profile?.role || "").toLowerCase();
   const isTeacher = role === "teacher";
@@ -909,11 +911,24 @@ export default function ClassroomActivitiesPage() {
     }
 
     await fetchWeeklyPlans(schoolId);
-    const homeworkSaved = await homeworkWorkspaceRef.current?.save();
-    if (homeworkSaved === false) {
-      setSaving(false);
-      alert("The activity plan was saved, but the homework could not be sent. Please try Save Week Plan again.");
-      return;
+    const homeworkWorkspaces = plannerRows
+      .map((row) => homeworkWorkspaceRefs.current[row.activity_date])
+      .filter((workspace): workspace is HomeworkWorkspaceHandle =>
+        Boolean(workspace)
+      );
+    const weekHasHomework = homeworkWorkspaces.some((workspace) =>
+      workspace.hasHomework()
+    );
+    for (let index = 0; index < homeworkWorkspaces.length; index += 1) {
+      const homeworkSaved = await homeworkWorkspaces[index].save(
+        index === homeworkWorkspaces.length - 1,
+        weekHasHomework
+      );
+      if (!homeworkSaved) {
+        setSaving(false);
+        alert("The activity plan was saved, but the homework could not be sent. Please try Save Week Plan again.");
+        return;
+      }
     }
     setIsPlannerOpen(false);
     setSaving(false);
@@ -1443,6 +1458,30 @@ export default function ClassroomActivitiesPage() {
                     ) : (
                       <p style={textStyle}>{dayTypeLabel(row.day_type)}. No activity required.</p>
                     )}
+
+                    <div
+                      style={{
+                        gridColumn: "1 / -1",
+                        display: isTeachingDay(row.day_type) ? "block" : "none",
+                      }}
+                    >
+                      {schoolId && activeClassroomId ? (
+                        <HomeworkWorkspace
+                          ref={(handle) => {
+                            homeworkWorkspaceRefs.current[row.activity_date] = handle;
+                          }}
+                          schoolId={schoolId}
+                          classroomId={Number(activeClassroomId)}
+                          weekStart={weekStart}
+                          activityDate={row.activity_date}
+                          dayLabel={row.dayLabel}
+                          role={role}
+                          permissions={profile?.permissions || []}
+                          showUpload={index === 0}
+                          enabled={isTeachingDay(row.day_type)}
+                        />
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}
@@ -1591,19 +1630,6 @@ export default function ClassroomActivitiesPage() {
           </div>
         ) : null}
       </details>
-      ) : null}
-
-      {schoolId && activeClassroomId ? (
-        <div style={{ display: activeSection === "homework" ? "block" : "none" }}>
-          <HomeworkWorkspace
-            ref={homeworkWorkspaceRef}
-            schoolId={schoolId}
-            classroomId={Number(activeClassroomId)}
-            weekStart={weekStart}
-            role={role}
-            permissions={profile?.permissions || []}
-          />
-        </div>
       ) : null}
 
       {activeSection === "history" ? (

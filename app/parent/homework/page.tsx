@@ -6,6 +6,7 @@ type Learner = { id: string | number; name?: string | null; school_id?: number |
 type Assignment = {
   id: number;
   week_start: string;
+  activity_date: string;
   homework_id: number;
   instruction_note?: string | null;
   homework_library: { title?: string; file_name?: string } | null;
@@ -40,12 +41,12 @@ export default function ParentHomeworkPage() {
       });
   }, [learner?.id, learner?.school_id]);
 
-  async function openHomework(homeworkId: number) {
+  async function openHomework(assignmentId: number) {
     if (!learner?.id || !learner.school_id) return;
     const params = new URLSearchParams({
       learner_id: String(learner.id),
       school_id: String(learner.school_id),
-      homework_id: String(homeworkId),
+      assignment_id: String(assignmentId),
     });
     const response = await fetch(`/api/parent-homework?${params}`, { cache: "no-store" });
     const body = await response.json();
@@ -69,9 +70,9 @@ export default function ParentHomeworkPage() {
       {assignments.map((assignment) => (
         <div key={assignment.id} className="db-card db-card-blue" style={{ padding: 18 }}>
           <strong>{assignment.homework_library?.title || "Homework"}</strong>
-          <p className="db-helper">Week starting {assignment.week_start}</p>
+          <p className="db-helper">For {assignment.activity_date}</p>
           {assignment.instruction_note ? <p><strong>Instructions:</strong> {assignment.instruction_note}</p> : null}
-          <button type="button" className="db-button-primary" onClick={() => void openHomework(assignment.homework_id)}>
+          <button type="button" className="db-button-primary" onClick={() => void openHomework(assignment.id)}>
             View / Print Homework
           </button>
         </div>

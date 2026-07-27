@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 type HomeworkRow = {
   id: number;
   week_start: string;
+  activity_date: string;
   instruction_note?: string | null;
   homework_library?: { title?: string | null } | { title?: string | null }[] | null;
 };
@@ -88,6 +89,7 @@ export default function HomeworkCard({
           {rows.slice(0, 3).map((row) => (
             <a key={row.id} href="/parent/homework" style={itemStyle}>
               <strong>{homeworkTitle(row)}</strong>
+              <span style={noteStyle}>For {row.activity_date}</span>
               <span style={noteStyle}>
                 {row.instruction_note || "Open homework for the teacher's instructions."}
               </span>

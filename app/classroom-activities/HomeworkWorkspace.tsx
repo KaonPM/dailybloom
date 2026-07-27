@@ -12,13 +12,36 @@ import { PERMISSIONS } from "../lib/permissions";
 
 type Homework = { id: number; title: string; file_name: string };
 type Selection = { homework_id: string; instruction_note: string };
-export type HomeworkWorkspaceHandle = { save: () => Promise<boolean> };
-type Props = { schoolId: number; classroomId: number; weekStart: string; role: string; permissions: string[] };
+export type HomeworkWorkspaceHandle = {
+  save: (notifyParent?: boolean, weekHasHomework?: boolean) => Promise<boolean>;
+  hasHomework: () => boolean;
+};
+type Props = {
+  schoolId: number;
+  classroomId: number;
+  weekStart: string;
+  activityDate: string;
+  dayLabel: string;
+  role: string;
+  permissions: string[];
+  showUpload?: boolean;
+  enabled?: boolean;
+};
 
 const emptySelection = (): Selection => ({ homework_id: "", instruction_note: "" });
 
 export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
-  function HomeworkWorkspace({ schoolId, classroomId, weekStart, role, permissions }, ref) {
+  function HomeworkWorkspace({
+    schoolId,
+    classroomId,
+    weekStart,
+    activityDate,
+    dayLabel,
+    role,
+    permissions,
+    showUpload = false,
+    enabled = true,
+  }, ref) {
     const [items, setItems] = useState<Homework[]>([]);
     const [selections, setSelections] = useState<Selection[]>([emptySelection()]);
     const [title, setTitle] = useState("");
@@ -37,7 +60,7 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
     }, []);
 
     const load = useCallback(async () => {
-      const response = await request(`/api/classroom-homework?school_id=${schoolId}&classroom_id=${classroomId}&week_start=${weekStart}`);
+      const response = await request(`/api/classroom-homework?school_id=${schoolId}&classroom_id=${classroomId}&week_start=${weekStart}&activity_date=${activityDate}`);
       const body = await response.json();
       if (!response.ok) return setMessage(body.error || "Homework could not be loaded.");
       setItems(body.homework || []);
@@ -45,14 +68,18 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
         homework_id: String(row.homework_id),
         instruction_note: row.instruction_note || "",
       }));
-      setSelections(assigned.length ? assigned : [emptySelection()]);
-    }, [classroomId, request, schoolId, weekStart]);
+      setSelections(
+        enabled && assigned.length ? assigned : [emptySelection()]
+      );
+    }, [activityDate, classroomId, enabled, request, schoolId, weekStart]);
 
     useEffect(() => { void load(); }, [load]);
 
-    async function saveSelections() {
+    async function saveSelections(notifyParent = false, weekHasHomework = false) {
       setSaving(true);
-      const selected = selections.filter((row) => row.homework_id);
+      const selected = enabled
+        ? selections.filter((row) => row.homework_id)
+        : [];
       const response = await request("/api/classroom-homework", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -60,6 +87,9 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
           school_id: schoolId,
           classroom_id: classroomId,
           week_start: weekStart,
+          activity_date: activityDate,
+          notify_parent: notifyParent,
+          week_has_homework: weekHasHomework,
           items: selected.map((row, position) => ({
             homework_id: Number(row.homework_id),
             instruction_note: row.instruction_note.trim(),
@@ -73,11 +103,15 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
         setMessage(body.error || "Homework could not be saved.");
         return false;
       }
-      setMessage(selected.length ? "Homework sent to the parent portal." : "No homework allocated for this week.");
+      setMessage(selected.length ? `${dayLabel} homework saved.` : `No homework allocated for ${dayLabel}.`);
       return true;
     }
 
-    useImperativeHandle(ref, () => ({ save: saveSelections }));
+    useImperativeHandle(ref, () => ({
+      save: saveSelections,
+      hasHomework: () =>
+        enabled && selections.some((row) => Boolean(row.homework_id)),
+    }));
 
     function updateSelection(index: number, patch: Partial<Selection>) {
       setSelections((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
@@ -101,10 +135,10 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
     }
 
     return (
-      <section className="db-card db-card-blue" style={{ padding: 18, marginBottom: 16 }}>
-        <h3 style={{ marginTop: 0 }}>Homework</h3>
+      <section className="db-card db-card-blue" style={{ padding: 12, marginTop: 10 }}>
+        <h4 style={{ margin: "0 0 6px" }}>Homework for {dayLabel}</h4>
         <p className="db-helper">
-          Select up to three approved homework items and add an instruction for each. They are sent only when Save Week Plan is clicked.
+          Select one homework item for this teaching day and add instructions for the parent.
         </p>
 
         <div style={{ display: "grid", gap: 10 }}>
@@ -123,17 +157,11 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
                   onChange={(event) => updateSelection(index, { instruction_note: event.target.value })}
                 />
               ) : null}
-              {selections.length > 1 ? (
-                <button type="button" className="db-button-primary" onClick={() => setSelections((current) => current.filter((_, rowIndex) => rowIndex !== index))}>Remove Homework</button>
-              ) : null}
             </div>
           ))}
-          <button type="button" className="db-button-primary" disabled={selections.length >= 3} onClick={() => setSelections((current) => [...current, emptySelection()])}>
-            Add Homework
-          </button>
         </div>
 
-        {canUpload ? (
+        {canUpload && showUpload ? (
           <details style={{ marginTop: 18 }}>
             <summary style={{ cursor: "pointer", fontWeight: 800 }}>Upload homework</summary>
             <div style={{ display: "grid", gap: 10, marginTop: 12 }}>

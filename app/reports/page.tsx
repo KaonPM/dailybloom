@@ -391,9 +391,7 @@ export default function ReportsPage() {
         }`,
         extra: `Guardian: ${item.guardian_name || "Not added"} | Phone: ${
           item.parent_phone || "Not added"
-        } | Email: ${item.parent_email || "Not added"} | Receiving School: ${
-          item.receiving_school || "Not added"
-        }`,
+        } | Email: ${item.parent_email || "Not added"}`,
       }));
 
     setReportRows(rows);

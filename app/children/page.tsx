@@ -1553,10 +1553,6 @@ export default function LearnersPage() {
                       <p style={smallText}>
                         Email Address: {learner.parent_email || "Not added"}
                       </p>
-                      <p style={smallText}>
-                        ULIN / LURITS Ref:{" "}
-                        {learner.ulin || "Not assigned yet"}
-                      </p>
                     </div>
                   ) : null}
                 </div>

@@ -1078,15 +1078,6 @@ export default function LearnerProfilePage() {
             />
             <Info label="SA ID Number" value={learner.sa_id_number} />
             <Info label="Classroom" value={learner.class} />
-            <Info
-              label="Grade RR Candidate"
-              value={learner.grade_rr_candidate ? "Yes" : "No"}
-            />
-            <Info
-              label="LURITS Number (Optional)"
-              value={learner.ulin || "Not assigned yet"}
-            />
-            <Info label="Receiving School" value={learner.receiving_school} />
           </div>
 
           <h3 style={sectionTitle}>Primary Contact</h3>

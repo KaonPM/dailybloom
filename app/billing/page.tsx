@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import BillingInvoicesPanel from "./invoices/BillingInvoicesPanel";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
@@ -42,6 +42,8 @@ const STATUS_OPTIONS = ["trial", "active", "overdue", "cancelled"];
 
 export default function BillingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedSchoolId = searchParams.get("school") || "";
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [schools, setSchools] = useState<School[]>([]);
@@ -118,9 +120,11 @@ export default function BillingPage() {
     setProfile(currentProfile as Profile);
 
     if (currentProfile.role === "master" || currentProfile.role === "master_admin") {
+      setFilterSchoolId(requestedSchoolId);
+      setSelectedSchoolId(requestedSchoolId);
       await Promise.all([
         fetchSchools(),
-        fetchAllSubscriptions(),
+        fetchAllSubscriptions(1, requestedSchoolId, ""),
       ]);
     } else {
       await Promise.all([

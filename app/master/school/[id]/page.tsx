@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 import { getCurrentProfile } from "../../../lib/auth";
+import { authenticatedFetch } from "../../../lib/authenticated-fetch";
 
 type School = {
   id: number;
@@ -201,35 +202,22 @@ export default function MasterSchoolOverviewPage() {
 
     setSavingLogo(true);
 
-    const fileExtension = logoFile.name.split(".").pop();
-    const filePath = `school-${school.id}/logo-${Date.now()}.${fileExtension}`;
+    const form = new FormData();
+    form.set("school_id", String(school.id));
+    form.set("file", logoFile);
+    const response = await authenticatedFetch("/api/school-logo", {
+      method: "POST",
+      body: form,
+    });
+    const result = await response.json();
 
-    const { error: uploadError } = await supabase.storage
-      .from("school-logos")
-      .upload(filePath, logoFile, { upsert: true });
-
-    if (uploadError) {
-      alert(uploadError.message);
+    if (!response.ok) {
+      alert(result.error || "Logo upload failed.");
       setSavingLogo(false);
       return;
     }
 
-    const { data } = supabase.storage
-      .from("school-logos")
-      .getPublicUrl(filePath);
-
-    const { error: updateError } = await supabase
-      .from("schools")
-      .update({ logo_url: data.publicUrl })
-      .eq("id", school.id);
-
-    if (updateError) {
-      alert(updateError.message);
-      setSavingLogo(false);
-      return;
-    }
-
-    setSchool({ ...school, logo_url: data.publicUrl });
+    setSchool({ ...school, logo_url: result.logo_url });
     setLogoFile(null);
     setSavingLogo(false);
     setOpenSetupPanel(null);
@@ -415,6 +403,10 @@ export default function MasterSchoolOverviewPage() {
           <Link href={`/payments?school=${school.id}`} style={topButtonBlue}>
             Open Payments
           </Link>
+
+          <Link href={`/billing?school=${school.id}`} style={topButtonBlue}>
+            Open Billing
+          </Link>
         </div>
       </div>
 
@@ -477,11 +469,14 @@ export default function MasterSchoolOverviewPage() {
 
                 <input
                   type="file"
-                  accept="image/*"
+                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                   onChange={(event) =>
                     setLogoFile(event.target.files?.[0] || null)
                   }
                 />
+                {logoFile ? (
+                  <span style={helperText}>Selected: {logoFile.name}</span>
+                ) : null}
 
                 <button
                   onClick={uploadSchoolLogo}

@@ -469,11 +469,14 @@ export default function MasterSchoolOverviewPage() {
 
                 <input
                   type="file"
-                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                   onChange={(event) =>
                     setLogoFile(event.target.files?.[0] || null)
                   }
                 />
+                <span style={helperText}>
+                  Choose a JPG, PNG or WebP image up to 5 MB. If needed, open
+                  Downloads from the left side of the file window.
+                </span>
                 {logoFile ? (
                   <span style={helperText}>Selected: {logoFile.name}</span>
                 ) : null}

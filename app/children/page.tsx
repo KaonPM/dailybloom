@@ -818,18 +818,27 @@ export default function LearnersPage() {
         return;
       }
     } else {
-      const { data, error } = await supabase
-        .from("learners")
-        .insert([learnerPayload])
-        .select("id")
-        .single();
+      const createLearner = (id: string) =>
+        supabase
+          .from("learners")
+          .insert([{ ...learnerPayload, id }])
+          .select("id")
+          .single();
 
-      if (error) {
-        alert(error.message);
+      let result = await createLearner(crypto.randomUUID());
+      if (
+        result.error?.code === "23505" &&
+        result.error.message.includes("learners_pkey")
+      ) {
+        result = await createLearner(crypto.randomUUID());
+      }
+
+      if (result.error) {
+        alert(result.error.message);
         setSaving(false);
         return;
       }
-      savedLearnerId = String(data.id);
+      savedLearnerId = String(result.data.id);
     }
 
     const feeResponse = await authenticatedFetch("/api/school-fees/catalog", {

@@ -16,6 +16,10 @@ import {
   HomeworkWorkspace,
   type HomeworkWorkspaceHandle,
 } from "./HomeworkWorkspace";
+import {
+  ActivityDashboardStats,
+  CompletedActivitiesPanel,
+} from "./ClassroomActivityPanels";
 
 const developmentalAreas = [
   "Ring Time",
@@ -1304,15 +1308,7 @@ export default function ClassroomActivitiesPage() {
         }}
       />
 
-      <div style={compactGrid}>
-        <StatCard
-          title="Week Planned"
-          value={dashboardStats.weekPlanned ? "Yes" : "No"}
-          note={dashboardStats.weekPlanned ? "Monday to Friday ready" : "Week incomplete"}
-        />
-        <StatCard title="Planned" value={dashboardStats.planned} note="Teaching activities" />
-        <StatCard title="Completed" value={dashboardStats.completed} note="Completed this week" />
-      </div>
+      <ActivityDashboardStats stats={dashboardStats} />
 
       {(isPrincipal || isMaster) && activeSection === "overview" ? (
         <div className="db-card db-card-blue" style={cardStyle}>
@@ -1633,30 +1629,18 @@ export default function ClassroomActivitiesPage() {
       ) : null}
 
       {activeSection === "history" ? (
-      <details className="db-card db-card-blue" style={cardStyle} open={isCompletedOpen} onToggle={(e) => setIsCompletedOpen((e.target as HTMLDetailsElement).open)}>
-        <summary style={summaryStyle}>Completed Activities ({completedPlans.length})</summary>
-        <p style={smallHint}>Completed classroom activities are kept here so the working area stays clean.</p>
-
-        {completedPlans.length === 0 ? (
-          <p className="db-helper">No completed activities yet.</p>
-        ) : (
-          <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
-            {visibleCompletedPlans.map((plan) => (
-              <div key={plan.id} className="db-list-card">
-                <strong>{plan.activity_name}</strong>
-                <p style={textStyle}>{formatDisplayDate(plan.activity_date)} | {plan.theme}</p>
-                <p style={smallHint}>Completed: {formatShortDate(plan.completed_at || plan.activity_date)}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {completedPlans.length > completedVisibleCount ? (
-          <button type="button" className="db-button-primary" style={{ ...smallButton, marginTop: "10px" }} onClick={() => setCompletedVisibleCount((current) => current + PAGE_SIZE)}>
-            Show More Completed Activities
-          </button>
-        ) : null}
-      </details>
+      <CompletedActivitiesPanel
+        open={isCompletedOpen}
+        plans={visibleCompletedPlans}
+        totalCount={completedPlans.length}
+        hasMore={completedPlans.length > completedVisibleCount}
+        onToggle={setIsCompletedOpen}
+        onShowMore={() =>
+          setCompletedVisibleCount((current) => current + PAGE_SIZE)
+        }
+        formatDisplayDate={formatDisplayDate}
+        formatShortDate={formatShortDate}
+      />
       ) : null}
 
       {(activeSection === "support" || activeSection === "overview") ? (

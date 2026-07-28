@@ -57,7 +57,7 @@ export default function FeesReceiptsCard({ learnerId, schoolId }: Props) {
         className="db-button-primary"
         style={{ textDecoration: "none", width: "fit-content" }}
       >
-        View Fees, Invoices &amp; Receipts
+        View Statement
       </a>
     </div>
   );

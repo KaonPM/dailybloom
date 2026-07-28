@@ -8,7 +8,7 @@ const menuItems = [
   { label: "Dashboard", href: "/parent/dashboard" },
   { label: "Messages", href: "/parent/messages" },
   { label: "Homework", href: "/parent/homework" },
-  { label: "Fees & Receipts", href: "/parent/fees" },
+  { label: "Fee Statement", href: "/parent/fees" },
   { label: "Incident Reports", href: "/parent/incidents" },
 ];
 

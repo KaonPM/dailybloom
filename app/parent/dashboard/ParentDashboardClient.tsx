@@ -1010,7 +1010,7 @@ export default function ParentDashboardClient({
         />
       </Section>
 
-      <Section id="fees" title="Fees & Receipts">
+      <Section id="fees" title="Fee Statement">
         <FeesReceiptsCard
           learnerId={String(child.id)}
           schoolId={Number(child.school_id)}

@@ -21,8 +21,6 @@ type ActivityRow = {
   runningTotal: number;
   id: string;
   receipt?: string;
-  paymentId?: number;
-  chargeId?: number;
 };
 
 const PAGE_SIZE = 10;
@@ -89,7 +87,6 @@ export default function ParentFeesPage() {
         payment: 0,
         runningTotal: 0,
         id: `c-${row.id}`,
-        chargeId: row.id,
       })),
       ...payments.map((row) => ({
         date: row.payment_date,
@@ -99,7 +96,6 @@ export default function ParentFeesPage() {
         runningTotal: 0,
         id: `p-${row.id}`,
         receipt: row.receipt_number,
-        paymentId: row.id,
       })),
     ].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 
@@ -134,9 +130,11 @@ export default function ParentFeesPage() {
             <img src={school.logo_url} alt={`${school.school_name || "School"} logo`} style={{ width: 64, height: 64, borderRadius: 16, objectFit: "cover" }} />
           ) : null}
           <div>
-            <h1 className="db-page-title">Fees &amp; Receipts</h1>
+            <h1 className="db-page-title">Fee Statement</h1>
             <p className="db-page-subtitle">
-              {school?.school_name ? `${school.school_name} continuous fee statement` : "View invoices, payments and receipts."}
+              {school?.school_name
+                ? `${school.school_name} continuous learner account`
+                : "View billed amounts and recorded payments."}
             </p>
           </div>
         </div>
@@ -156,8 +154,8 @@ export default function ParentFeesPage() {
         ) : null}
       </div>
 
-      <div className="db-card db-card-blue" style={{ padding: 18 }}>
-        <p style={{ margin: 0, color: "#6D6888", fontWeight: 700 }}>Current account</p>
+      <div className="db-soft-card" style={{ padding: 18 }}>
+        <p style={{ margin: 0, color: "#6D6888", fontWeight: 700 }}>Running total</p>
         <h2 style={{ margin: "8px 0", color: "#2D2A3E" }}>{balanceLabel(balance)}</h2>
         <p className="db-helper">Registration fees, monthly charges and every recorded payment remain on this statement.</p>
         {monthlyFee > 0 ? (
@@ -165,10 +163,20 @@ export default function ParentFeesPage() {
             Next monthly fee: {money(monthlyFee)} · due {nextPaymentDate}
           </p>
         ) : null}
-      </div>
+        {learner?.school_id ? (
+          <a
+            className="db-button-primary"
+            href={`/parent/fees/invoice?learner=${encodeURIComponent(String(learner.id))}&school=${learner.school_id}`}
+            style={{ display: "inline-flex", marginTop: 12, textDecoration: "none" }}
+          >
+            Print Statement
+          </a>
+        ) : null}
 
-      <div className="db-soft-card" style={{ padding: 18 }}>
-        <h2 style={{ color: "#2D2A3E" }}>Continuous billing statement</h2>
+        <h2 style={{ color: "#2D2A3E", marginTop: 24 }}>Account activity</h2>
+        <p className="db-helper">
+          Monthly fees are billed on the 1st. Payments appear after the school records them.
+        </p>
         {loading ? <p>Loading...</p> : statement.length === 0 ? (
           <p>No fee activity recorded yet.</p>
         ) : (
@@ -176,7 +184,7 @@ export default function ParentFeesPage() {
             <div style={{ overflowX: "auto" }}>
               <div style={{ minWidth: 760 }}>
                 <div style={statementHeader}>
-                  <strong>Date</strong><strong>Account activity</strong><strong>Invoiced</strong><strong>Payment</strong><strong>Running total</strong>
+                  <strong>Date</strong><strong>Account activity</strong><strong>Billed</strong><strong>Payment</strong><strong>Running total</strong>
                 </div>
                 {visibleRows.map((row) => (
                   <div key={row.id} style={statementRow}>
@@ -184,14 +192,6 @@ export default function ParentFeesPage() {
                     <div>
                       <strong>{row.label}</strong>
                       {row.receipt ? <p style={{ margin: "5px 0 0", color: "#6D6888" }}>{row.receipt}</p> : null}
-                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                        {row.chargeId && learner?.school_id ? (
-                          <a className="db-button-secondary" href={`/parent/fees/invoice?charge=${row.chargeId}&learner=${encodeURIComponent(String(learner.id))}&school=${learner.school_id}`}>Invoice</a>
-                        ) : null}
-                        {row.paymentId && learner?.school_id ? (
-                          <a className="db-button-secondary" href={`/parent/fees/receipt?payment=${row.paymentId}&learner=${encodeURIComponent(String(learner.id))}&school=${learner.school_id}`}>Receipt</a>
-                        ) : null}
-                      </div>
                     </div>
                     <strong>{row.invoiced ? money(row.invoiced) : "—"}</strong>
                     <strong>{row.payment ? money(row.payment) : "—"}</strong>

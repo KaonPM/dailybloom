@@ -3,65 +3,46 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
-import { reportCategories } from "../lib/report-categories";
 import {
-  gradeRRCategories,
-  gradeRRRatingScale,
-} from "../lib/grade-rr-categories";
+  getProgressReportCategories,
+  getProgressReportRatingScale,
+  getProgressReportTitle,
+  principalAssessmentStatusFilters,
+  splitProgressReportCategories,
+  teacherAssessmentStatusFilters,
+} from "../lib/progress-report-config";
+import {
+  getAssessmentTimestamp,
+  getAssessmentValue,
+  getCategoryIndicators,
+  makeAssessmentKey,
+  normalizeLatestAssessments,
+  normalizeProgressReportMatchValue as normalizeMatchValue,
+} from "../lib/progress-report-assessments";
+import type {
+  ProgressReportAssessment as AssessmentRow,
+  ProgressReportCategory as ReportCategory,
+  ProgressReportId as IdValue,
+  ProgressReportIndicator as Indicator,
+  ProgressReportRatingLevel as RatingLevel,
+  ProgressReportType as ReportType,
+} from "../lib/progress-report-types";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { awardDefinitions } from "../lib/award-types";
 import { PERMISSIONS } from "../lib/permissions";
-
-const reportLevels = ["NP", "PA", "A", "G", "VG"];
+import {
+  GeneratedReportsList,
+  PrincipalReviewList,
+  TeacherChecklistCapture,
+} from "./components/ProgressReportPanels";
 
 const certificateTypes = awardDefinitions.map((award) => award.name);
 const certificateReasonOptions = Object.fromEntries(
   awardDefinitions.map((award) => [award.name, award.reasons])
 );
-
-const teacherAssessmentStatusFilters = [
-  "draft",
-  "submitted",
-  "reviewed",
-  "locked",
-  "generated",
-];
-
-const principalAssessmentStatusFilters = [
-  "submitted",
-  "reviewed",
-  "locked",
-  "generated",
-];
-
-type ReportType = "developmental" | "grade-rr";
-type IdValue = string | number | null | undefined;
-
-type Indicator = {
-  key: string;
-  label: string;
-  name?: string;
-  text?: string;
-};
-
-type ReportCategory = {
-  key: string;
-  label: string;
-  name?: string;
-  description?: string;
-  indicators?: Indicator[];
-  sections?: { indicators?: Indicator[] }[];
-};
-
-type RatingLevel = string | {
-  code?: string;
-  value?: string | number;
-  level?: string;
-  label?: string;
-};
 
 type ProfileRow = {
   id: string;
@@ -137,32 +118,6 @@ type PeriodRow = {
   status?: string | null;
 };
 
-type AssessmentRow = {
-  id?: number | null;
-  school_id?: number | null;
-  classroom_id?: number | null;
-  teacher_id?: string | null;
-  learner_id?: string | number | null;
-  report_period_id?: number | null;
-  report_type?: ReportType | null;
-  status?: string | null;
-  category?: string | null;
-  indicator_key?: string | null;
-  indicator_label?: string | null;
-  indicator?: string | null;
-  label?: string | null;
-  level?: string | null;
-  rating?: string | null;
-  assessment_level?: string | null;
-  selected_level?: string | null;
-  selected_rating?: string | null;
-  value?: string | null;
-  teacher_comment?: string | null;
-  principal_comment?: string | null;
-  updated_at?: string | null;
-  created_at?: string | null;
-};
-
 type TeacherReportSummary = {
   learner_id?: IdValue;
   classroom_id?: IdValue;
@@ -203,71 +158,6 @@ type AwardRow = {
   created_at?: string | null;
   deleted_at?: string | null;
 };
-
-function getAssessmentValue(assessment?: AssessmentRow | null) {
-  return (
-    assessment?.level ||
-    assessment?.rating ||
-    assessment?.assessment_level ||
-    assessment?.selected_level ||
-    assessment?.selected_rating ||
-    assessment?.value ||
-    ""
-  );
-}
-
-function getCategoryIndicators(category?: ReportCategory | null): Indicator[] {
-  return (
-    category?.indicators ||
-    category?.sections?.flatMap((section) => section.indicators || []) ||
-    []
-  );
-}
-
-function getAssessmentTimestamp(
-  assessment?: { updated_at?: string | null; created_at?: string | null } | null
-) {
-  const value = assessment?.updated_at || assessment?.created_at || "";
-  const timestamp = value ? new Date(value).getTime() : 0;
-
-  return Number.isNaN(timestamp) ? 0 : timestamp;
-}
-
-function normalizeLatestAssessments(assessments: AssessmentRow[]) {
-  const latestByIndicator = new Map<string, AssessmentRow>();
-
-  assessments.forEach((assessment) => {
-    const key = [
-      assessment.category || "",
-      assessment.indicator_key || assessment.indicator_label || "",
-    ].join("::");
-
-    const current = latestByIndicator.get(key);
-    const assessmentHasValue = Boolean(getAssessmentValue(assessment));
-    const currentHasValue = Boolean(getAssessmentValue(current));
-
-    if (
-      !current ||
-      (assessmentHasValue && !currentHasValue) ||
-      (assessmentHasValue === currentHasValue &&
-        getAssessmentTimestamp(assessment) >= getAssessmentTimestamp(current))
-    ) {
-      latestByIndicator.set(key, assessment);
-    }
-  });
-
-  return Array.from(latestByIndicator.values());
-}
-
-function makeAssessmentKey(categoryKey: string, indicatorKey: string) {
-  return `${categoryKey}::${indicatorKey}`;
-}
-
-function normalizeMatchValue(value: unknown) {
-  return String(value || "")
-    .trim()
-    .toLowerCase();
-}
 
 export default function ProgressReportsPage() {
   const router = useRouter();
@@ -362,32 +252,17 @@ export default function ProgressReportsPage() {
   const pageSize = 5;
 
   const activeCategories = useMemo(() => {
-    return reportType === "grade-rr" ? gradeRRCategories : reportCategories;
+    return getProgressReportCategories(reportType);
   }, [reportType]);
 
   const activeRatingScale = useMemo(() => {
-    return reportType === "grade-rr" ? gradeRRRatingScale : reportLevels;
+    return getProgressReportRatingScale(reportType);
   }, [reportType]);
 
-  const reportTitle =
-    reportType === "grade-rr"
-      ? "Grade RR Progress Report"
-      : "Developmental Progress Report";
-
-  const reportTitleUpper =
-    reportType === "grade-rr"
-      ? "GRADE RR PROGRESS REPORT"
-      : "DEVELOPMENTAL PROGRESS REPORT";
-
-  const firstPageCategories =
-    reportType === "grade-rr"
-      ? activeCategories.slice(0, 2)
-      : activeCategories.slice(0, 3);
-
-  const secondPageCategories =
-    reportType === "grade-rr"
-      ? activeCategories.slice(2)
-      : activeCategories.slice(3);
+  const reportTitle = getProgressReportTitle(reportType);
+  const reportTitleUpper = getProgressReportTitle(reportType, true);
+  const { firstPageCategories, secondPageCategories } =
+    splitProgressReportCategories(reportType, activeCategories);
 
   useEffect(() => {
     loadPage();
@@ -3162,109 +3037,25 @@ export default function ProgressReportsPage() {
         </div>
 
         {showAssessments && (
-          <>
-            {visibleAssessments.length === 0 ? (
-              <p className="db-helper" style={{ marginTop: "14px" }}>
-                No reports found for this view.
-              </p>
-            ) : (
-              <div style={{ display: "grid", gap: "10px", marginTop: "14px" }}>
-                {visibleAssessments.map((item) => {
-                  const key = getAssessmentReviewKey(item);
-                  const isExpanded = expandedAssessmentKey === key;
-
-                  return (
-                    <div
-                      key={key}
-                      className="db-list-card"
-                      style={{ padding: "14px 16px" }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          cursor: "pointer",
-                        }}
-                        onClick={() =>
-                          setExpandedAssessmentKey(isExpanded ? null : key)
-                        }
-                      >
-                          <div>
-                            <strong>{getLearnerName(item.learner_id)}</strong>
-                            <p style={textStyle}>
-                              {getClassroomName(item.classroom_id)} · {getTeacherName(item.teacher_id)}
-                            </p>
-                            <p style={textStyle}>
-                              {getPeriodTitle(item.report_period_id)} · {formatReportTemplate(item.report_type || "developmental")}
-                            </p>
-                            <span style={assessmentStatusStyle(item.status)}>
-                              {formatAssessmentStatus(item.status)}
-                            </span>
-                          </div>
-                        <span
-                          style={{
-                            color: "var(--db-text-soft)",
-                            fontSize: "18px",
-                          }}
-                        >
-                          {isExpanded ? "-" : "+"}
-                        </span>
-                      </div>
-
-                      {isExpanded && (
-                        <div style={{ marginTop: "12px" }}>
-                          <p style={textStyle}>
-                            Class: {getClassroomName(item.classroom_id)}
-                          </p>
-                          <p style={textStyle}>
-                            Practitioner/Teacher:{" "}
-                            {getTeacherName(item.teacher_id)}
-                          </p>
-                          <p style={textStyle}>
-                            Period: {getPeriodTitle(item.report_period_id)}
-                          </p>
-                          <p style={textStyle}>
-                            Type:{" "}
-                            {formatReportTemplate(
-                              item.report_type || "developmental"
-                            )}
-                          </p>
-                          <p style={textStyle}>Observation items: {item.count}</p>
-
-                          <button
-                            className="db-button-primary"
-                            style={{ marginTop: "10px" }}
-                            onClick={() => openAssessmentReview(item)}
-                          >
-                            {principalReportTab === "reviewed" ? "View Report" : "Review Report"}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-              <button
-                className="db-button-primary"
-                disabled={assessmentPage === 1}
-                onClick={() => setAssessmentPage((page) => Math.max(1, page - 1))}
-              >
-                Previous
-              </button>
-
-              <button
-                className="db-button-primary"
-                disabled={assessmentPage * pageSize >= filteredAssessments.length}
-                onClick={() => setAssessmentPage((page) => page + 1)}
-              >
-                Next
-              </button>
-            </div>
-          </>
+          <PrincipalReviewList
+            items={visibleAssessments}
+            expandedKey={expandedAssessmentKey}
+            reportTab={principalReportTab}
+            page={assessmentPage}
+            pageSize={pageSize}
+            totalItems={filteredAssessments.length}
+            getKey={getAssessmentReviewKey}
+            getLearnerName={getLearnerName}
+            getClassroomName={getClassroomName}
+            getTeacherName={getTeacherName}
+            getPeriodTitle={getPeriodTitle}
+            formatReportTemplate={formatReportTemplate}
+            formatStatus={formatAssessmentStatus}
+            statusStyle={assessmentStatusStyle}
+            onToggle={setExpandedAssessmentKey}
+            onOpen={openAssessmentReview}
+            onPageChange={setAssessmentPage}
+          />
         )}
         </div>
       )}
@@ -3285,125 +3076,24 @@ export default function ProgressReportsPage() {
         </div>
 
         {showGeneratedReports && (
-          <>
-            {visibleReports.length === 0 ? (
-              <p className="db-helper" style={{ marginTop: "14px" }}>
-                No generated progress reports yet.
-              </p>
-            ) : (
-              <div style={{ display: "grid", gap: "10px", marginTop: "14px" }}>
-                {visibleReports.map((item) => {
-                  const key = String(item.id);
-                  const isExpanded = expandedReportKey === key;
-
-                  return (
-                    <div
-                      key={item.id}
-                      className="db-list-card"
-                      style={{ padding: "14px 16px" }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          cursor: "pointer",
-                        }}
-                        onClick={() =>
-                          setExpandedReportKey(isExpanded ? null : key)
-                        }
-                      >
-                        <strong>{getLearnerName(item.learner_id)}</strong>
-                        <span
-                          style={{
-                            color: "var(--db-text-soft)",
-                            fontSize: "18px",
-                          }}
-                        >
-                          {isExpanded ? "-" : "+"}
-                        </span>
-                      </div>
-
-                      {isExpanded && (
-                        <div style={{ marginTop: "12px" }}>
-                          <p style={textStyle}>
-                            Type:{" "}
-                            {(item.report_type || "developmental") === "grade-rr"
-                              ? "Grade RR Progress Report"
-                              : "Developmental Progress Report"}
-                          </p>
-                          <p style={textStyle}>
-                            Class: {getClassroomName(item.classroom_id)}
-                          </p>
-                          <p style={textStyle}>
-                            Period: {getPeriodTitle(item.report_period_id)}
-                          </p>
-                          <p style={textStyle}>
-                            Generated:{" "}
-                            {item.generated_at
-                              ? new Date(item.generated_at).toLocaleDateString()
-                              : "Not recorded"}
-                          </p>
-
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "10px",
-                              flexWrap: "wrap",
-                              marginTop: "10px",
-                            }}
-                          >
-                            <button
-                              className="db-button-primary"
-                              onClick={() => openGeneratedReport(item)}
-                            >
-                              View Report
-                            </button>
-
-                            <button
-                              className="db-button-primary"
-                              style={{ background: "#d9534f" }}
-                              onClick={() => item.id && deleteGeneratedReport(item.id)}
-                            >
-                              Delete Report
-                            </button>
-
-                            <button
-                              className="db-button-primary"
-                              onClick={async () => {
-                                setPendingDownload(true);
-                                await openGeneratedReport(item);
-                              }}
-                            >
-                              Download / Print
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-              <button
-                className="db-button-primary"
-                disabled={reportPage === 1}
-                onClick={() => setReportPage((page) => Math.max(1, page - 1))}
-              >
-                Previous
-              </button>
-
-              <button
-                className="db-button-primary"
-                disabled={reportPage * pageSize >= filteredReports.length}
-                onClick={() => setReportPage((page) => page + 1)}
-              >
-                Next
-              </button>
-            </div>
-          </>
+          <GeneratedReportsList
+            reports={visibleReports}
+            expandedKey={expandedReportKey}
+            page={reportPage}
+            pageSize={pageSize}
+            totalItems={filteredReports.length}
+            getLearnerName={getLearnerName}
+            getClassroomName={getClassroomName}
+            getPeriodTitle={getPeriodTitle}
+            onToggle={setExpandedReportKey}
+            onOpen={openGeneratedReport}
+            onDelete={deleteGeneratedReport}
+            onDownload={async (item) => {
+              setPendingDownload(true);
+              await openGeneratedReport(item);
+            }}
+            onPageChange={setReportPage}
+          />
         )}
         </div>
       )}
@@ -4325,124 +4015,6 @@ export default function ProgressReportsPage() {
           }
         }
       `}</style>
-    </div>
-  );
-}
-
-function TeacherChecklistCapture({
-  categories,
-  ratingScale,
-  teacherRatings,
-  onRatingChange,
-  disabled = false,
-}: {
-  categories: ReportCategory[];
-  ratingScale: RatingLevel[];
-  teacherRatings: Record<string, string>;
-  onRatingChange: (
-    categoryKey: string,
-    indicatorKey: string,
-    level: string
-  ) => void;
-  disabled?: boolean;
-}) {
-  function getLevelCode(level: RatingLevel): string {
-    if (typeof level === "string") {
-      return level.includes(" - ") ? level.split(" - ")[0] : level;
-    }
-
-    return String(
-      level?.code ||
-      level?.value ||
-      level?.level ||
-      level?.label ||
-      String(level || "")
-    );
-  }
-
-  const levels = ratingScale.map((level) => getLevelCode(level));
-
-  return (
-    <div style={{ display: "grid", gap: "14px", marginTop: "16px" }}>
-      {categories.map((category) => {
-        const indicators = getCategoryIndicators(category);
-
-        return (
-          <div key={category.key} className="db-list-card">
-            <strong>{category.label}</strong>
-
-            {category.description ? (
-              <p style={textStyle}>{category.description}</p>
-            ) : null}
-
-            {indicators.length === 0 ? (
-              <p className="db-helper">No indicators configured.</p>
-            ) : (
-              <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
-                {indicators.map((indicator) => {
-                  const indicatorKey = indicator.key || indicator.label;
-                  const selectedLevel =
-                    teacherRatings[
-                      makeAssessmentKey(category.key, indicatorKey)
-                    ] || "";
-
-                  return (
-                    <div
-                      key={`${category.key}-${indicatorKey}`}
-                      style={{
-                        borderTop: "1px solid #eee",
-                        paddingTop: "10px",
-                      }}
-                    >
-                      <p style={{ ...textStyle, color: "var(--db-text)" }}>
-                        {indicator.label}
-                      </p>
-
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "10px",
-                          flexWrap: "wrap",
-                          marginTop: "8px",
-                        }}
-                      >
-                        {levels.map((level) => (
-                          <label
-                            key={`${category.key}-${indicatorKey}-${level}`}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              color: "var(--db-text-soft)",
-                              fontSize: "13px",
-                              fontWeight: 700,
-                            }}
-                          >
-                            <input
-                              type="radio"
-                              name={`${category.key}-${indicatorKey}`}
-                              checked={selectedLevel === level}
-                              disabled={disabled}
-                              onChange={() =>
-                                onRatingChange(
-                                  category.key,
-                                  indicatorKey,
-                                  level
-                                )
-                              }
-                            />
-                            {level}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }

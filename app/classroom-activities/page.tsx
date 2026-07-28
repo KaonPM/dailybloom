@@ -16,10 +16,12 @@ import {
   HomeworkWorkspace,
   type HomeworkWorkspaceHandle,
 } from "./HomeworkWorkspace";
+import HomeworkLibraryPanel from "./HomeworkLibraryPanel";
 import {
   ActivityDashboardStats,
   CompletedActivitiesPanel,
 } from "./ClassroomActivityPanels";
+import { PERMISSIONS } from "../lib/permissions";
 
 const developmentalAreas = [
   "Ring Time",
@@ -172,6 +174,7 @@ export default function ClassroomActivitiesPage() {
   const [libraryVisibleCount, setLibraryVisibleCount] = useState(PAGE_SIZE);
   const [completedVisibleCount, setCompletedVisibleCount] = useState(PAGE_SIZE);
   const [activeSection, setActiveSection] = useState<ActivitySection>("today");
+  const [homeworkLibraryVersion, setHomeworkLibraryVersion] = useState(0);
   const homeworkWorkspaceRefs = useRef<
     Record<string, HomeworkWorkspaceHandle | null>
   >({});
@@ -184,6 +187,10 @@ export default function ClassroomActivitiesPage() {
   const canManageLibrary = isTeacher || isPrincipal || isMaster;
   const canPlanWeek = isTeacher || isPrincipal || isMaster;
   const canViewTracker = isTeacher || isPrincipal || isMaster;
+  const canManageHomeworkUploads =
+    role === "principal" ||
+    (role === "admin" &&
+      (profile?.permissions || []).includes(PERMISSIONS.HOMEWORK_MANAGE));
 
   const todayDate = getJohannesburgDate();
   const weekEnd = useMemo(() => addDays(weekStart, 4), [weekStart]);
@@ -1384,6 +1391,15 @@ export default function ClassroomActivitiesPage() {
               </div>
             </div>
 
+            {schoolId && canManageHomeworkUploads ? (
+              <HomeworkLibraryPanel
+                schoolId={schoolId}
+                onLibraryChanged={() =>
+                  setHomeworkLibraryVersion((value) => value + 1)
+                }
+              />
+            ) : null}
+
             <div style={{ display: "grid", gap: "8px" }}>
               {plannerRows.map((row, index) => {
                 const rowLibrary = activitiesForTheme(row.theme);
@@ -1471,9 +1487,7 @@ export default function ClassroomActivitiesPage() {
                           weekStart={weekStart}
                           activityDate={row.activity_date}
                           dayLabel={row.dayLabel}
-                          role={role}
-                          permissions={profile?.permissions || []}
-                          showUpload
+                          libraryVersion={homeworkLibraryVersion}
                           enabled={isTeachingDay(row.day_type)}
                         />
                       ) : null}

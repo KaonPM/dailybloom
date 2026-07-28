@@ -38,7 +38,6 @@ export async function GET(request: Request) {
     .select("id, week_start, activity_date, homework_id, instruction_note, position, homework_library(title, file_name)")
     .eq("school_id", schoolId)
     .eq("classroom_id", learner.classroom_id)
-    .not("homework_id", "is", null)
     .order("activity_date", { ascending: false })
     .limit(20);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

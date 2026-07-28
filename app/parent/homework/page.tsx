@@ -7,9 +7,9 @@ type Assignment = {
   id: number;
   week_start: string;
   activity_date: string;
-  homework_id: number;
+  homework_id: number | null;
   instruction_note?: string | null;
-  homework_library: { title?: string; file_name?: string } | null;
+  homework_library: { title?: string; file_name?: string | null } | null;
 };
 
 export default function ParentHomeworkPage() {
@@ -58,7 +58,9 @@ export default function ParentHomeworkPage() {
     <div style={{ display: "grid", gap: 16 }}>
       <div className="db-soft-card" style={{ padding: 20 }}>
         <h1 className="db-page-title">Homework</h1>
-        <p className="db-page-subtitle">Open, download or print homework allocated by the preschool.</p>
+        <p className="db-page-subtitle">
+          View the teacher&apos;s instructions and open or print any attached worksheet.
+        </p>
         {learners.length > 1 ? (
           <select className="db-input" value={selected} onChange={(event) => setSelected(event.target.value)} style={{ marginTop: 12 }}>
             {learners.map((row) => <option key={row.id} value={row.id}>{row.name || "Learner"}</option>)}
@@ -69,12 +71,16 @@ export default function ParentHomeworkPage() {
       {assignments.length === 0 ? <div className="db-card" style={{ padding: 20 }}>No homework has been allocated.</div> : null}
       {assignments.map((assignment) => (
         <div key={assignment.id} className="db-card db-card-blue" style={{ padding: 18 }}>
-          <strong>{assignment.homework_library?.title || "Homework"}</strong>
+          <strong>{assignment.homework_library?.title || "Homework instructions"}</strong>
           <p className="db-helper">For {assignment.activity_date}</p>
           {assignment.instruction_note ? <p><strong>Instructions:</strong> {assignment.instruction_note}</p> : null}
-          <button type="button" className="db-button-primary" onClick={() => void openHomework(assignment.id)}>
-            View / Print Homework
-          </button>
+          {assignment.homework_id ? (
+            <button type="button" className="db-button-primary" onClick={() => void openHomework(assignment.id)}>
+              View / Print Homework
+            </button>
+          ) : (
+            <p className="db-helper">No attachment — follow the instructions above.</p>
+          )}
         </div>
       ))}
       {message ? <p role="status" className="db-helper">{message}</p> : null}

@@ -78,27 +78,64 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const form = await request.formData();
-  const schoolId = Number(form.get("school_id"));
-  const title = String(form.get("title") || "").trim().slice(0, 160);
-  const notes = String(form.get("notes") || "").trim().slice(0, 500);
-  const file = form.get("file");
+  const body = await request.json();
+  const action = String(body.action || "");
+  const schoolId = Number(body.school_id);
+  const title = String(body.title || "").trim().slice(0, 160);
   const authorization = await requireStaffPermission(request, PERMISSIONS.HOMEWORK_MANAGE, schoolId);
   if (!authorization.ok) return authorization.response;
   if (!["principal", "admin"].includes(authorization.staff.role)) {
     return NextResponse.json({ error: "Only a principal or authorised preschool administrator can upload homework." }, { status: 403 });
   }
-  if (!(file instanceof File) || !title) return NextResponse.json({ error: "Homework name and file are required." }, { status: 400 });
-  if (!ALLOWED_TYPES.has(file.type) || file.size <= 0 || file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "Upload a PDF, Word, JPG or PNG file no larger than 15 MB." }, { status: 400 });
+
+  if (action === "create_upload") {
+    const fileName = String(body.file_name || "").trim().slice(0, 240);
+    const fileType = String(body.file_type || "");
+    const fileSize = Number(body.file_size);
+    if (!title || !fileName) {
+      return NextResponse.json(
+        { error: "Homework name and file are required." },
+        { status: 400 }
+      );
+    }
+    if (!ALLOWED_TYPES.has(fileType) || fileSize <= 0 || fileSize > MAX_BYTES) {
+      return NextResponse.json(
+        { error: "Upload a PDF, Word, JPG or PNG file no larger than 15 MB." },
+        { status: 400 }
+      );
+    }
+
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const filePath = `${schoolId}/${crypto.randomUUID()}-${safeName}`;
+    const { data, error } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .createSignedUploadUrl(filePath);
+    if (error || !data?.token) {
+      return NextResponse.json(
+        { error: error?.message || "Homework upload could not be prepared." },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ path: filePath, token: data.token });
   }
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-  const filePath = `${schoolId}/${crypto.randomUUID()}-${safeName}`;
-  const { error: uploadError } = await supabaseAdmin.storage.from(BUCKET).upload(filePath, Buffer.from(await file.arrayBuffer()), { contentType: file.type });
-  if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 });
+  if (action !== "complete_upload") {
+    return NextResponse.json(
+      { error: "Unsupported homework upload action." },
+      { status: 400 }
+    );
+  }
+
+  const fileName = String(body.file_name || "").trim().slice(0, 240);
+  const filePath = String(body.file_path || "");
+  if (!title || !fileName || !filePath.startsWith(`${schoolId}/`)) {
+    return NextResponse.json(
+      { error: "The completed homework upload details are invalid." },
+      { status: 400 }
+    );
+  }
   const { data, error } = await supabaseAdmin.from("homework_library").insert({
-    school_id: schoolId, title, notes: notes || null, file_name: file.name, file_path: filePath, uploaded_by: authorization.staff.userId,
+    school_id: schoolId, title, notes: null, file_name: fileName, file_path: filePath, uploaded_by: authorization.staff.userId,
   }).select("id, title, file_name, notes").single();
   if (error) {
     await supabaseAdmin.storage.from(BUCKET).remove([filePath]);
@@ -106,6 +143,48 @@ export async function POST(request: Request) {
   }
   await writeSecurityAudit(authorization.staff, "homework.uploaded", { homework_id: data.id, title });
   return NextResponse.json({ homework: data });
+}
+
+export async function DELETE(request: Request) {
+  const params = new URL(request.url).searchParams;
+  const schoolId = Number(params.get("school_id"));
+  const homeworkId = Number(params.get("homework_id"));
+  const authorization = await requireStaffPermission(
+    request,
+    PERMISSIONS.HOMEWORK_MANAGE,
+    schoolId
+  );
+  if (!authorization.ok) return authorization.response;
+  if (!["principal", "admin"].includes(authorization.staff.role)) {
+    return NextResponse.json(
+      { error: "Only a principal or authorised preschool administrator can archive homework." },
+      { status: 403 }
+    );
+  }
+  if (!homeworkId) {
+    return NextResponse.json(
+      { error: "Homework item is required." },
+      { status: 400 }
+    );
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("homework_library")
+    .update({ archived: true })
+    .eq("id", homeworkId)
+    .eq("school_id", schoolId)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) {
+    return NextResponse.json(
+      { error: error?.message || "Homework item was not found." },
+      { status: error ? 400 : 404 }
+    );
+  }
+  await writeSecurityAudit(authorization.staff, "homework.archived", {
+    homework_id: homeworkId,
+  });
+  return NextResponse.json({ success: true });
 }
 
 export async function PATCH(request: Request) {
@@ -134,18 +213,24 @@ export async function PATCH(request: Request) {
   const seenHomeworkIds = new Set<number>();
   const cleanItems = items
     .map((item: { homework_id?: unknown; instruction_note?: unknown }, position: number) => ({
-      homework_id: Number(item.homework_id),
+      homework_id:
+        item.homework_id === null || item.homework_id === ""
+          ? null
+          : Number(item.homework_id),
       instruction_note: String(item.instruction_note || "").trim().slice(0, 500),
       position,
     }))
-    .filter((item: { homework_id: number }) => {
+    .filter((item: { homework_id: number | null; instruction_note: string }) => {
+      if (item.homework_id === null) {
+        return Boolean(item.instruction_note);
+      }
       if (!Number.isFinite(item.homework_id) || item.homework_id <= 0 || seenHomeworkIds.has(item.homework_id)) {
         return false;
       }
       seenHomeworkIds.add(item.homework_id);
       return true;
     })
-    .map((item: { homework_id: number; instruction_note: string; position: number }, position: number) => ({
+    .map((item: { homework_id: number | null; instruction_note: string; position: number }, position: number) => ({
       ...item,
       position,
     }));

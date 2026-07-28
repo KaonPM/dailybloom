@@ -30,7 +30,7 @@ function homeworkTitle(row: HomeworkRow) {
   const library = Array.isArray(row.homework_library)
     ? row.homework_library[0]
     : row.homework_library;
-  return library?.title || "Homework";
+  return library?.title || "Homework instructions";
 }
 
 export default function HomeworkCard({
@@ -77,7 +77,7 @@ export default function HomeworkCard({
           </p>
         </div>
         <a href="/parent/homework" className="db-button-primary" style={linkStyle}>
-          View &amp; Print
+          Open Homework
         </a>
       </div>
 

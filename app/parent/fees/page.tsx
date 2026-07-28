@@ -166,11 +166,21 @@ export default function ParentFeesPage() {
           <button
             type="button"
             className="db-button-primary"
-            onClick={() => window.print()}
+            onClick={() => {
+              const query = new URLSearchParams({
+                learner: String(learner.id),
+                school: String(learner.school_id),
+              });
+              window.open(
+                `/parent/fees/invoice?${query}`,
+                "_blank",
+                "noopener,noreferrer"
+              );
+            }}
             disabled={loading}
             style={{ display: "inline-flex", marginTop: 12 }}
           >
-            Print Statement
+            Open / Print Statement
           </button>
         ) : null}
 

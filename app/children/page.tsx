@@ -21,6 +21,7 @@ type LearnerRow = {
   date_of_birth?: string | null;
   birth_certificate_number?: string | null;
   sa_id_number?: string | null;
+  passport_number?: string | null;
   gender?: string | null;
   nationality?: string | null;
   home_language?: string | null;
@@ -42,6 +43,17 @@ type LearnerRow = {
   registration_fee_paid_at?: string | null;
   registration_fee_payment_method?: string | null;
   registration_fee_reference?: string | null;
+  has_medical_aid?: boolean | null;
+  medical_aid_name?: string | null;
+  medical_aid_number?: string | null;
+  medical_aid_main_member?: string | null;
+  medical_aid_phone?: string | null;
+  family_doctor_name?: string | null;
+  family_doctor_phone?: string | null;
+  preferred_hospital?: string | null;
+  allergies?: string | null;
+  medical_conditions?: string | null;
+  medical_instructions?: string | null;
 };
 
 type ClassroomRow = {
@@ -90,6 +102,7 @@ export default function LearnersPage() {
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [birthCertificateNumber, setBirthCertificateNumber] = useState("");
   const [saIdNumber, setSaIdNumber] = useState("");
+  const [passportNumber, setPassportNumber] = useState("");
   const [gender, setGender] = useState("");
   const [nationality, setNationality] = useState("South African");
   const [homeLanguage, setHomeLanguage] = useState("");
@@ -100,6 +113,17 @@ export default function LearnersPage() {
   const [guardianIdNumber, setGuardianIdNumber] = useState("");
   const [parentPhone, setParentPhone] = useState("");
   const [parentEmail, setParentEmail] = useState("");
+  const [hasMedicalAid, setHasMedicalAid] = useState(false);
+  const [medicalAidName, setMedicalAidName] = useState("");
+  const [medicalAidNumber, setMedicalAidNumber] = useState("");
+  const [medicalAidMainMember, setMedicalAidMainMember] = useState("");
+  const [medicalAidPhone, setMedicalAidPhone] = useState("");
+  const [familyDoctorName, setFamilyDoctorName] = useState("");
+  const [familyDoctorPhone, setFamilyDoctorPhone] = useState("");
+  const [preferredHospital, setPreferredHospital] = useState("");
+  const [allergies, setAllergies] = useState("");
+  const [medicalConditions, setMedicalConditions] = useState("");
+  const [medicalInstructions, setMedicalInstructions] = useState("");
   const [monthlyFee, setMonthlyFee] = useState("");
   const [monthlyFeeTypeId, setMonthlyFeeTypeId] = useState("");
   const [registrationFeeAmount, setRegistrationFeeAmount] = useState("");
@@ -366,6 +390,7 @@ export default function LearnersPage() {
     setDateOfBirth("");
     setBirthCertificateNumber("");
     setSaIdNumber("");
+    setPassportNumber("");
     setGender("");
     setNationality("South African");
     setHomeLanguage("");
@@ -375,6 +400,17 @@ export default function LearnersPage() {
     setGuardianIdNumber("");
     setParentPhone("");
     setParentEmail("");
+    setHasMedicalAid(false);
+    setMedicalAidName("");
+    setMedicalAidNumber("");
+    setMedicalAidMainMember("");
+    setMedicalAidPhone("");
+    setFamilyDoctorName("");
+    setFamilyDoctorPhone("");
+    setPreferredHospital("");
+    setAllergies("");
+    setMedicalConditions("");
+    setMedicalInstructions("");
     setMonthlyFee(schoolMonthlyFee);
     const defaultMonthly = schoolFeeTypes.find(
       (fee) => fee.fee_code === "monthly_school_fee"
@@ -469,6 +505,7 @@ export default function LearnersPage() {
     setDateOfBirth(learner.date_of_birth || "");
     setBirthCertificateNumber(learner.birth_certificate_number || "");
     setSaIdNumber(learner.sa_id_number || "");
+    setPassportNumber(learner.passport_number || "");
     setGender(learner.gender || "");
     setNationality(learner.nationality || "");
     setHomeLanguage(learner.home_language || "");
@@ -478,6 +515,17 @@ export default function LearnersPage() {
     setGuardianIdNumber(learner.guardian_id_number || "");
     setParentPhone(learner.parent_phone || "");
     setParentEmail(learner.parent_email || "");
+    setHasMedicalAid(Boolean(learner.has_medical_aid));
+    setMedicalAidName(learner.medical_aid_name || "");
+    setMedicalAidNumber(learner.medical_aid_number || "");
+    setMedicalAidMainMember(learner.medical_aid_main_member || "");
+    setMedicalAidPhone(learner.medical_aid_phone || "");
+    setFamilyDoctorName(learner.family_doctor_name || "");
+    setFamilyDoctorPhone(learner.family_doctor_phone || "");
+    setPreferredHospital(learner.preferred_hospital || "");
+    setAllergies(learner.allergies || "");
+    setMedicalConditions(learner.medical_conditions || "");
+    setMedicalInstructions(learner.medical_instructions || "");
     setMonthlyFee(
       learner.monthly_fee === null || learner.monthly_fee === undefined
         ? ""
@@ -713,6 +761,7 @@ export default function LearnersPage() {
       date_of_birth: dateOfBirth,
       birth_certificate_number: birthCertificateNumber.trim() || null,
       sa_id_number: saIdNumber.trim() || null,
+      passport_number: passportNumber.trim() || null,
       gender,
       nationality: nationality || null,
       home_language: homeLanguage,
@@ -722,6 +771,19 @@ export default function LearnersPage() {
       guardian_id_number: guardianIdNumber.trim() || null,
       parent_phone: parentPhone.trim(),
       parent_email: parentEmail.trim() || null,
+      has_medical_aid: hasMedicalAid,
+      medical_aid_name: hasMedicalAid ? medicalAidName.trim() || null : null,
+      medical_aid_number: hasMedicalAid ? medicalAidNumber.trim() || null : null,
+      medical_aid_main_member: hasMedicalAid
+        ? medicalAidMainMember.trim() || null
+        : null,
+      medical_aid_phone: hasMedicalAid ? medicalAidPhone.trim() || null : null,
+      family_doctor_name: familyDoctorName.trim() || null,
+      family_doctor_phone: familyDoctorPhone.trim() || null,
+      preferred_hospital: preferredHospital.trim() || null,
+      allergies: allergies.trim() || null,
+      medical_conditions: medicalConditions.trim() || null,
+      medical_instructions: medicalInstructions.trim() || null,
       ulin: selectedLearner ? selectedLearner.ulin || null : null,
       school_id: schoolId,
       monthly_fee: parsedMonthlyFee,
@@ -1098,6 +1160,18 @@ export default function LearnersPage() {
 
           <div style={grid2}>
             <div>
+              <p style={labelText}>Passport Number</p>
+              <input
+                className="db-input"
+                placeholder="If the learner uses a passport"
+                value={passportNumber}
+                onChange={(event) => setPassportNumber(event.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={grid2}>
+            <div>
               <p style={labelText}>Nationality</p>
               <select
                 className="db-input"
@@ -1202,7 +1276,13 @@ export default function LearnersPage() {
                 placeholder="Phone number"
                 value={parentPhone}
                 onChange={(e) => setParentPhone(e.target.value)}
+                disabled={Boolean(selectedLearner)}
               />
+              {selectedLearner ? (
+                <p style={helperText}>
+                  Change portal access safely from the learner profile.
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -1218,6 +1298,79 @@ export default function LearnersPage() {
               />
             </div>
           </div>
+
+          <details className="db-soft-card" style={{ padding: 14, margin: "16px 0" }}>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>
+              Medical Aid Information
+            </summary>
+            <div style={{ marginTop: 14 }}>
+              <div style={grid2}>
+                <div>
+                  <p style={labelText}>Learner has medical aid</p>
+                  <select
+                    className="db-input"
+                    value={hasMedicalAid ? "yes" : "no"}
+                    onChange={(event) => setHasMedicalAid(event.target.value === "yes")}
+                  >
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </div>
+              </div>
+
+              {hasMedicalAid ? (
+                <div style={grid2}>
+                  <div>
+                    <p style={labelText}>Medical Aid Name</p>
+                    <input className="db-input" value={medicalAidName} onChange={(event) => setMedicalAidName(event.target.value)} />
+                  </div>
+                  <div>
+                    <p style={labelText}>Membership Number</p>
+                    <input className="db-input" value={medicalAidNumber} onChange={(event) => setMedicalAidNumber(event.target.value)} />
+                  </div>
+                  <div>
+                    <p style={labelText}>Main Member</p>
+                    <input className="db-input" value={medicalAidMainMember} onChange={(event) => setMedicalAidMainMember(event.target.value)} />
+                  </div>
+                  <div>
+                    <p style={labelText}>Medical Aid Telephone</p>
+                    <input className="db-input" inputMode="tel" value={medicalAidPhone} onChange={(event) => setMedicalAidPhone(event.target.value)} />
+                  </div>
+                </div>
+              ) : null}
+
+              <div style={grid2}>
+                <div>
+                  <p style={labelText}>Family Doctor</p>
+                  <input className="db-input" value={familyDoctorName} onChange={(event) => setFamilyDoctorName(event.target.value)} />
+                </div>
+                <div>
+                  <p style={labelText}>Doctor Telephone</p>
+                  <input className="db-input" inputMode="tel" value={familyDoctorPhone} onChange={(event) => setFamilyDoctorPhone(event.target.value)} />
+                </div>
+                <div>
+                  <p style={labelText}>Preferred Hospital</p>
+                  <input className="db-input" value={preferredHospital} onChange={(event) => setPreferredHospital(event.target.value)} />
+                </div>
+              </div>
+
+              <div style={grid2}>
+                <div>
+                  <p style={labelText}>Allergies</p>
+                  <textarea className="db-input" value={allergies} onChange={(event) => setAllergies(event.target.value)} style={{ minHeight: 72 }} />
+                </div>
+                <div>
+                  <p style={labelText}>Medical Conditions</p>
+                  <textarea className="db-input" value={medicalConditions} onChange={(event) => setMedicalConditions(event.target.value)} style={{ minHeight: 72 }} />
+                </div>
+              </div>
+
+              <div>
+                <p style={labelText}>Special Medical Instructions</p>
+                <textarea className="db-input" value={medicalInstructions} onChange={(event) => setMedicalInstructions(event.target.value)} style={{ minHeight: 72 }} />
+              </div>
+            </div>
+          </details>
 
           <h4 style={subSectionTitle}>Classroom Assignment</h4>
 

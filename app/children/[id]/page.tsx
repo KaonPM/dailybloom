@@ -23,6 +23,7 @@ type LearnerRow = {
   date_of_birth?: string | null;
   birth_certificate_number?: string | null;
   sa_id_number?: string | null;
+  passport_number?: string | null;
   gender?: string | null;
   nationality?: string | null;
   home_language?: string | null;
@@ -37,6 +38,17 @@ type LearnerRow = {
   school_id?: number | null;
   grade_rr_candidate?: boolean | null;
   notes?: string | null;
+  has_medical_aid?: boolean | null;
+  medical_aid_name?: string | null;
+  medical_aid_number?: string | null;
+  medical_aid_main_member?: string | null;
+  medical_aid_phone?: string | null;
+  family_doctor_name?: string | null;
+  family_doctor_phone?: string | null;
+  preferred_hospital?: string | null;
+  allergies?: string | null;
+  medical_conditions?: string | null;
+  medical_instructions?: string | null;
 };
 
 type ClassroomRow = {
@@ -385,6 +397,9 @@ export default function LearnerProfilePage() {
   const [requirementNote, setRequirementNote] = useState("");
   const [savingRequirementNote, setSavingRequirementNote] = useState(false);
   const [requirementsExpanded, setRequirementsExpanded] = useState(false);
+  const [editingPortalPhone, setEditingPortalPhone] = useState(false);
+  const [portalPhoneDraft, setPortalPhoneDraft] = useState("");
+  const [savingPortalPhone, setSavingPortalPhone] = useState(false);
 
   const [activeTab, setActiveTab] = useState<
     "overview" | "requirements" | "documents"
@@ -460,6 +475,48 @@ export default function LearnerProfilePage() {
     await fetchDocuments(context.schoolId, currentLearner.id);
 
     setLoading(false);
+  }
+
+  async function updateParentPortalPhone() {
+    if (!learner || !schoolId) return;
+    const confirmed = window.confirm(
+      "Change this learner's Parent Portal phone number? The previous number will lose access to this learner and existing sessions will be signed out."
+    );
+    if (!confirmed) return;
+
+    setSavingPortalPhone(true);
+    try {
+      const response = await authenticatedFetch(
+        "/api/learners/parent-portal-phone",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            school_id: schoolId,
+            learner_id: learner.id,
+            phone: portalPhoneDraft,
+          }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error || "Could not update the Parent Portal number."
+        );
+      }
+      setLearner({ ...learner, parent_phone: result.phone });
+      setPortalPhoneDraft(result.phone);
+      setEditingPortalPhone(false);
+      alert(result.message);
+    } catch (error: unknown) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Could not update the Parent Portal number."
+      );
+    } finally {
+      setSavingPortalPhone(false);
+    }
   }
 
   async function syncAndFetchChecklist(
@@ -1077,6 +1134,7 @@ export default function LearnerProfilePage() {
               value={learner.birth_certificate_number}
             />
             <Info label="SA ID Number" value={learner.sa_id_number} />
+            <Info label="Passport Number" value={learner.passport_number} />
             <Info label="Classroom" value={learner.class} />
           </div>
 
@@ -1088,6 +1146,79 @@ export default function LearnerProfilePage() {
             <Info label="Phone" value={learner.parent_phone} />
             <Info label="Email" value={learner.parent_email} />
             <Info label="ID Number" value={learner.guardian_id_number} />
+          </div>
+
+          <div className="db-soft-card" style={{ padding: 12, marginTop: 10 }}>
+            <strong style={labelText}>Parent Portal Phone Number</strong>
+            <p style={{ ...valueText, marginBottom: 10 }}>
+              Used for Parent Portal access and parent-facing notifications.
+            </p>
+            {editingPortalPhone ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <input
+                  className="db-input"
+                  inputMode="tel"
+                  value={portalPhoneDraft}
+                  onChange={(event) => setPortalPhoneDraft(event.target.value)}
+                  style={{ maxWidth: 280 }}
+                />
+                <button
+                  type="button"
+                  className="db-button-primary"
+                  onClick={updateParentPortalPhone}
+                  disabled={savingPortalPhone}
+                >
+                  {savingPortalPhone ? "Updating..." : "Confirm Update"}
+                </button>
+                <button
+                  type="button"
+                  className="db-button-secondary"
+                  onClick={() => setEditingPortalPhone(false)}
+                  disabled={savingPortalPhone}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="db-button-secondary"
+                onClick={() => {
+                  setPortalPhoneDraft(learner.parent_phone || "");
+                  setEditingPortalPhone(true);
+                }}
+              >
+                Edit Parent Portal Phone Number
+              </button>
+            )}
+          </div>
+
+          <h3 style={sectionTitle}>Medical Aid Information</h3>
+          <div style={grid}>
+            <Info
+              label="Has Medical Aid"
+              value={learner.has_medical_aid ? "Yes" : "No"}
+            />
+            {learner.has_medical_aid ? (
+              <>
+                <Info label="Medical Aid Name" value={learner.medical_aid_name} />
+                <Info label="Membership Number" value={learner.medical_aid_number} />
+                <Info label="Main Member" value={learner.medical_aid_main_member} />
+                <Info label="Medical Aid Telephone" value={learner.medical_aid_phone} />
+              </>
+            ) : null}
+            <Info label="Family Doctor" value={learner.family_doctor_name} />
+            <Info label="Doctor Telephone" value={learner.family_doctor_phone} />
+            <Info label="Preferred Hospital" value={learner.preferred_hospital} />
+            <Info label="Allergies" value={learner.allergies || "None recorded"} />
+            <Info
+              label="Medical Conditions"
+              value={learner.medical_conditions || "None recorded"}
+            />
+            <Info
+              label="Special Medical Instructions"
+              value={learner.medical_instructions || "None recorded"}
+            />
           </div>
 
           <h3 style={sectionTitle}>Additional Information</h3>

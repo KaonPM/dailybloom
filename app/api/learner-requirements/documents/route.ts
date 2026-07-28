@@ -36,46 +36,57 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const form = await request.formData();
-  const schoolId = Number(form.get("school_id"));
-  const classroomId = Number(form.get("classroom_id"));
-  const learnerId = String(form.get("learner_id") || "");
-  const documentType = canonicalLearnerDocumentName(
-    String(form.get("document_type") || "")
-  ).slice(0, 160);
-  const file = form.get("file");
-  const authorization = await requireStaffPermission(request, PERMISSIONS.REQUIREMENTS_MANAGE, schoolId);
-  if (!authorization.ok) return authorization.response;
-  if (!(file instanceof File) || !documentType || !await validateLearner(schoolId, classroomId, learnerId)) {
-    return NextResponse.json({ error: "Valid learner, document type and file are required." }, { status: 400 });
+  try {
+    const form = await request.formData();
+    const schoolId = Number(form.get("school_id"));
+    const classroomId = Number(form.get("classroom_id"));
+    const learnerId = String(form.get("learner_id") || "");
+    const documentType = canonicalLearnerDocumentName(
+      String(form.get("document_type") || "")
+    ).slice(0, 160);
+    const file = form.get("file");
+    const authorization = await requireStaffPermission(request, PERMISSIONS.REQUIREMENTS_MANAGE, schoolId);
+    if (!authorization.ok) return authorization.response;
+    if (!(file instanceof File) || !documentType || !await validateLearner(schoolId, classroomId, learnerId)) {
+      return NextResponse.json({ error: "Valid learner, document type and file are required." }, { status: 400 });
+    }
+    if (file.size === 0) {
+      return NextResponse.json({ error: "The selected document is empty." }, { status: 400 });
+    }
+    if (!ALLOWED_TYPES.has(file.type) || file.size > MAX_BYTES) {
+      return NextResponse.json({ error: "Upload a PDF, JPG or PNG file no larger than 10 MB." }, { status: 400 });
+    }
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const safeType = documentType.replace(/[^a-zA-Z0-9]/g, "-");
+    const filePath = `${schoolId}/${learnerId}/${safeType}-${Date.now()}-${safeName}`;
+    const { error: uploadError } = await supabaseAdmin.storage.from(BUCKET).upload(filePath, Buffer.from(await file.arrayBuffer()), { contentType: file.type, upsert: false });
+    if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 });
+    const { data: learnerDocuments } = await supabaseAdmin
+      .from("learner_documents")
+      .select("id, file_path, document_type")
+      .eq("school_id", schoolId)
+      .eq("learner_id", learnerId)
+      .order("id", { ascending: false });
+    const existing = learnerDocuments?.find((document) =>
+      learnerDocumentNamesMatch(document.document_type, documentType)
+    );
+    const now = new Date().toISOString();
+    const values = { school_id: schoolId, learner_id: learnerId, document_type: documentType, document_name: documentType, file_name: file.name, file_path: filePath, file_url: null, uploaded_at: now, updated_at: now, uploaded_by: authorization.staff.userId, uploaded_by_name: authorization.staff.profile.full_name || authorization.staff.profile.email };
+    const result = existing ? await supabaseAdmin.from("learner_documents").update(values).eq("id", existing.id) : await supabaseAdmin.from("learner_documents").insert(values);
+    if (result.error) {
+      await supabaseAdmin.storage.from(BUCKET).remove([filePath]);
+      return NextResponse.json({ error: result.error.message }, { status: 400 });
+    }
+    if (existing?.file_path && existing.file_path !== filePath) await supabaseAdmin.storage.from(BUCKET).remove([existing.file_path]);
+    await writeSecurityAudit(authorization.staff, existing ? "requirements.document_replaced" : "requirements.document_uploaded", { learner_id: learnerId, document_type: documentType });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Learner document upload failed", error);
+    return NextResponse.json(
+      { error: "The document upload failed unexpectedly. Please try again." },
+      { status: 500 }
+    );
   }
-  if (!ALLOWED_TYPES.has(file.type) || file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "Upload a PDF, JPG or PNG file no larger than 10 MB." }, { status: 400 });
-  }
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-  const safeType = documentType.replace(/[^a-zA-Z0-9]/g, "-");
-  const filePath = `${schoolId}/${learnerId}/${safeType}-${Date.now()}-${safeName}`;
-  const { error: uploadError } = await supabaseAdmin.storage.from(BUCKET).upload(filePath, Buffer.from(await file.arrayBuffer()), { contentType: file.type, upsert: false });
-  if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 });
-  const { data: learnerDocuments } = await supabaseAdmin
-    .from("learner_documents")
-    .select("id, file_path, document_type")
-    .eq("school_id", schoolId)
-    .eq("learner_id", learnerId)
-    .order("id", { ascending: false });
-  const existing = learnerDocuments?.find((document) =>
-    learnerDocumentNamesMatch(document.document_type, documentType)
-  );
-  const now = new Date().toISOString();
-  const values = { school_id: schoolId, learner_id: learnerId, document_type: documentType, document_name: documentType, file_name: file.name, file_path: filePath, file_url: null, uploaded_at: now, updated_at: now, uploaded_by: authorization.staff.userId, uploaded_by_name: authorization.staff.profile.full_name || authorization.staff.profile.email };
-  const result = existing ? await supabaseAdmin.from("learner_documents").update(values).eq("id", existing.id) : await supabaseAdmin.from("learner_documents").insert(values);
-  if (result.error) {
-    await supabaseAdmin.storage.from(BUCKET).remove([filePath]);
-    return NextResponse.json({ error: result.error.message }, { status: 400 });
-  }
-  if (existing?.file_path && existing.file_path !== filePath) await supabaseAdmin.storage.from(BUCKET).remove([existing.file_path]);
-  await writeSecurityAudit(authorization.staff, existing ? "requirements.document_replaced" : "requirements.document_uploaded", { learner_id: learnerId, document_type: documentType });
-  return NextResponse.json({ success: true });
 }
 
 export async function DELETE(request: Request) {

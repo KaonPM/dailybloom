@@ -850,25 +850,68 @@ export default function LearnerProfilePage() {
   ) {
     if (!learner || !schoolId || !learner.classroom_id) return;
 
-    const file = event.target.files?.[0];
+    const input = event.currentTarget;
+    const file = input.files?.[0];
 
     if (!file) return;
 
+    const allowedTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
+    const maxFileSize = 10 * 1024 * 1024;
+
+    if (!allowedTypes.has(file.type)) {
+      alert("Please upload a PDF, JPG or PNG document.");
+      input.value = "";
+      return;
+    }
+
+    if (file.size > maxFileSize) {
+      alert("The document is too large. The maximum upload size is 10 MB.");
+      input.value = "";
+      return;
+    }
+
     setUploadingDocumentType(documentType);
     setDocumentAction(`upload-${documentType}`);
-    const form = new FormData();
-    form.set("school_id", String(schoolId));
-    form.set("classroom_id", String(learner.classroom_id));
-    form.set("learner_id", learner.id);
-    form.set("document_type", documentType);
-    form.set("file", file);
-    const response = await authenticatedFetch("/api/learner-requirements/documents", { method: "POST", body: form });
-    const result = await response.json();
-    if (!response.ok) alert(result.error || "The document could not be uploaded.");
-    else await fetchDocuments(schoolId, learner.id);
-    setUploadingDocumentType("");
-    setDocumentAction("");
-    event.target.value = "";
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 90_000);
+
+    try {
+      const form = new FormData();
+      form.set("school_id", String(schoolId));
+      form.set("classroom_id", String(learner.classroom_id));
+      form.set("learner_id", learner.id);
+      form.set("document_type", documentType);
+      form.set("file", file);
+
+      const response = await authenticatedFetch("/api/learner-requirements/documents", {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
+      const contentType = response.headers.get("content-type") || "";
+      const result = contentType.includes("application/json")
+        ? await response.json()
+        : { error: await response.text() };
+
+      if (!response.ok) {
+        throw new Error(result.error || "The document could not be uploaded.");
+      }
+
+      await fetchDocuments(schoolId, learner.id);
+    } catch (error) {
+      const message =
+        error instanceof DOMException && error.name === "AbortError"
+          ? "The upload took too long. Please check your connection and try again."
+          : error instanceof Error && error.message
+            ? error.message
+            : "The document could not be uploaded. Please try again.";
+      alert(message);
+    } finally {
+      window.clearTimeout(timeout);
+      setUploadingDocumentType("");
+      setDocumentAction("");
+      input.value = "";
+    }
   }
 
   async function viewDocument(document: LearnerDocument) {

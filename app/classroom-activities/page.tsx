@@ -1473,7 +1473,7 @@ export default function ClassroomActivitiesPage() {
                           dayLabel={row.dayLabel}
                           role={role}
                           permissions={profile?.permissions || []}
-                          showUpload={index === 0}
+                          showUpload
                           enabled={isTeachingDay(row.day_type)}
                         />
                       ) : null}

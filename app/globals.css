@@ -35,6 +35,27 @@ body {
   box-sizing: border-box;
 }
 
+@keyframes db-route-loading {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(260%);
+  }
+}
+
+.db-route-loading-bar {
+  animation: db-route-loading 1.15s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .db-route-loading-bar {
+    animation: none;
+    width: 100% !important;
+  }
+}
+
 body {
   font-weight: 400;
 }

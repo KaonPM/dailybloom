@@ -42,6 +42,7 @@ export default function ParentTopBar({
   return (
     <>
       <header
+        className="parent-topbar"
         style={{
           background: "#fff",
           borderBottom: "1px solid #eee",
@@ -77,7 +78,7 @@ export default function ParentTopBar({
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="parent-topbar-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {!notificationsEnabled ? <button type="button" onClick={enableNotifications} className="db-main-pill db-main-pill-yellow">Enable Notifications</button> : null}
           <button type="button" onClick={() => setOpen(!open)} style={iconButton}>☰</button>
         </div>

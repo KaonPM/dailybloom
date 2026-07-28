@@ -32,6 +32,7 @@ export default async function ParentLayout({
       />
 
       <main
+        className="parent-main-content"
         style={{
           maxWidth: "1100px",
           margin: "0 auto",

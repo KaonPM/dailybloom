@@ -888,9 +888,161 @@ line-height:1.45;
   display: none;
 }
 
+.fee-statement-row-hidden {
+  display: none !important;
+}
+
+@media (max-width: 600px) {
+  .parent-main-content {
+    padding: 18px 12px !important;
+  }
+
+  .parent-topbar {
+    padding: 12px 14px !important;
+    gap: 10px;
+  }
+
+  .parent-topbar > div:first-child {
+    min-width: 0;
+  }
+
+  .parent-topbar > div:first-child h2 {
+    font-size: 18px !important;
+  }
+
+  .parent-topbar > div:first-child p {
+    max-width: 145px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .parent-topbar-actions {
+    flex-shrink: 0;
+  }
+
+  .parent-topbar-actions .db-main-pill {
+    min-height: 38px !important;
+    max-width: 112px;
+    padding: 8px 10px !important;
+    overflow: hidden;
+    font-size: 11px !important;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .fee-statement-scroll {
+    overflow: visible !important;
+  }
+
+  .fee-statement-table {
+    min-width: 0 !important;
+  }
+
+  .fee-statement-header {
+    display: none !important;
+  }
+
+  .fee-statement-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 12px 8px !important;
+    padding: 14px 12px !important;
+    margin-top: 10px;
+    border: 1px solid #f0e3d8 !important;
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  .fee-statement-date,
+  .fee-statement-activity {
+    grid-column: 1 / -1;
+  }
+
+  .fee-statement-date {
+    color: #6d6888;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .fee-statement-activity {
+    overflow-wrap: anywhere;
+  }
+
+  .fee-statement-row > strong {
+    min-width: 0;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .fee-statement-row > strong::before {
+    display: block;
+    margin-bottom: 5px;
+    color: #6d6888;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .fee-statement-row > strong:nth-of-type(1)::before {
+    content: "Billed";
+  }
+
+  .fee-statement-row > strong:nth-of-type(2)::before {
+    content: "Payment";
+  }
+
+  .fee-statement-row > strong:nth-of-type(3)::before {
+    content: "Running total";
+  }
+
+  .fee-statement-pagination > button {
+    flex: 1;
+  }
+}
+
 @media print {
   body * {
     visibility: hidden !important;
+  }
+
+  .fee-print-statement,
+  .fee-print-statement * {
+    visibility: visible !important;
+  }
+
+  .fee-print-statement {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    background: #fff !important;
+    color: #17132f !important;
+  }
+
+  .fee-print-statement button,
+  .fee-print-statement select {
+    display: none !important;
+  }
+
+  .fee-print-statement .db-soft-card,
+  .fee-print-statement .db-card {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+
+  .fee-print-statement .fee-statement-row {
+    display: grid !important;
+    grid-template-columns: 110px minmax(280px, 1fr) 110px 110px 140px !important;
+  }
+
+  .fee-print-statement .fee-statement-header {
+    display: grid !important;
+  }
+
+  .fee-print-statement .fee-statement-row > strong::before {
+    display: none !important;
   }
 
   .support-print-summary,

@@ -111,7 +111,6 @@ export default function ParentFeesPage() {
     }, []);
   }, [charges, payments]);
 
-  const visibleRows = statement.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const nextPaymentDate = useMemo(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth() + 1, 1).toLocaleDateString(
@@ -122,7 +121,7 @@ export default function ParentFeesPage() {
   const monthlyFee = Number(learnerAccount?.monthly_fee || 0);
 
   return (
-    <div style={{ display: "grid", gap: 18 }}>
+    <div className="fee-print-statement" style={{ display: "grid", gap: 18 }}>
       <div className="db-soft-card" style={{ padding: 20 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
           {school?.logo_url ? (
@@ -164,13 +163,15 @@ export default function ParentFeesPage() {
           </p>
         ) : null}
         {learner?.school_id ? (
-          <a
+          <button
+            type="button"
             className="db-button-primary"
-            href={`/parent/fees/invoice?learner=${encodeURIComponent(String(learner.id))}&school=${learner.school_id}`}
-            style={{ display: "inline-flex", marginTop: 12, textDecoration: "none" }}
+            onClick={() => window.print()}
+            disabled={loading}
+            style={{ display: "inline-flex", marginTop: 12 }}
           >
             Print Statement
-          </a>
+          </button>
         ) : null}
 
         <h2 style={{ color: "#2D2A3E", marginTop: 24 }}>Account activity</h2>
@@ -181,15 +182,23 @@ export default function ParentFeesPage() {
           <p>No fee activity recorded yet.</p>
         ) : (
           <>
-            <div style={{ overflowX: "auto" }}>
-              <div style={{ minWidth: 760 }}>
-                <div style={statementHeader}>
+            <div className="fee-statement-scroll" style={{ overflowX: "auto" }}>
+              <div className="fee-statement-table" style={{ minWidth: 760 }}>
+                <div className="fee-statement-header" style={statementHeader}>
                   <strong>Date</strong><strong>Account activity</strong><strong>Billed</strong><strong>Payment</strong><strong>Running total</strong>
                 </div>
-                {visibleRows.map((row) => (
-                  <div key={row.id} style={statementRow}>
-                    <span>{row.date}</span>
-                    <div>
+                {statement.map((row, index) => {
+                  const visibleOnPage =
+                    index >= page * PAGE_SIZE &&
+                    index < (page + 1) * PAGE_SIZE;
+                  return (
+                  <div
+                    key={row.id}
+                    className={visibleOnPage ? "fee-statement-row" : "fee-statement-row fee-statement-row-hidden"}
+                    style={statementRow}
+                  >
+                    <span className="fee-statement-date">{row.date}</span>
+                    <div className="fee-statement-activity">
                       <strong>{row.label}</strong>
                       {row.receipt ? <p style={{ margin: "5px 0 0", color: "#6D6888" }}>{row.receipt}</p> : null}
                     </div>
@@ -197,11 +206,12 @@ export default function ParentFeesPage() {
                     <strong>{row.payment ? money(row.payment) : "—"}</strong>
                     <strong>{balanceLabel(row.runningTotal)}</strong>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
             {statement.length > PAGE_SIZE ? (
-              <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+              <div className="fee-statement-pagination" style={{ display: "flex", gap: 10, marginTop: 14 }}>
                 <button className="db-button-secondary" type="button" disabled={page === 0} onClick={() => setPage((value) => value - 1)}>Previous 10</button>
                 <button className="db-button-primary" type="button" disabled={(page + 1) * PAGE_SIZE >= statement.length} onClick={() => setPage((value) => value + 1)}>Next 10</button>
               </div>

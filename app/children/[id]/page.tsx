@@ -872,31 +872,69 @@ export default function LearnerProfilePage() {
 
     setUploadingDocumentType(documentType);
     setDocumentAction(`upload-${documentType}`);
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 90_000);
 
     try {
-      const form = new FormData();
-      form.set("school_id", String(schoolId));
-      form.set("classroom_id", String(learner.classroom_id));
-      form.set("learner_id", learner.id);
-      form.set("document_type", documentType);
-      form.set("file", file);
-
-      const response = await authenticatedFetch("/api/learner-requirements/documents", {
-        method: "POST",
-        body: form,
-        signal: controller.signal,
-      });
-      const contentType = response.headers.get("content-type") || "";
-      const result = contentType.includes("application/json")
-        ? await response.json()
-        : { error: await response.text() };
-
-      if (!response.ok) {
-        throw new Error(result.error || "The document could not be uploaded.");
+      const prepareResponse = await authenticatedFetch(
+        "/api/learner-requirements/documents",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "create_upload",
+            school_id: schoolId,
+            classroom_id: learner.classroom_id,
+            learner_id: learner.id,
+            document_type: documentType,
+            file_name: file.name,
+            file_type: file.type,
+            file_size: file.size,
+          }),
+        }
+      );
+      const prepared = await prepareResponse.json();
+      if (!prepareResponse.ok || !prepared.path || !prepared.token) {
+        throw new Error(
+          prepared.error || "A secure document upload could not be prepared."
+        );
       }
 
+      const uploadResult = await Promise.race([
+        supabase.storage
+          .from("learner-documents")
+          .uploadToSignedUrl(prepared.path, prepared.token, file, {
+            contentType: file.type,
+          }),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(
+            () => reject(new DOMException("Upload timed out", "AbortError")),
+            90_000
+          );
+        }),
+      ]);
+      if (uploadResult.error) throw uploadResult.error;
+
+      const completeResponse = await authenticatedFetch(
+        "/api/learner-requirements/documents",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "complete_upload",
+            school_id: schoolId,
+            classroom_id: learner.classroom_id,
+            learner_id: learner.id,
+            document_type: documentType,
+            file_name: file.name,
+            file_path: prepared.path,
+          }),
+        }
+      );
+      const completed = await completeResponse.json();
+      if (!completeResponse.ok) {
+        throw new Error(
+          completed.error || "The uploaded document could not be saved."
+        );
+      }
       await fetchDocuments(schoolId, learner.id);
     } catch (error) {
       const message =
@@ -907,7 +945,6 @@ export default function LearnerProfilePage() {
             : "The document could not be uploaded. Please try again.";
       alert(message);
     } finally {
-      window.clearTimeout(timeout);
       setUploadingDocumentType("");
       setDocumentAction("");
       input.value = "";

@@ -220,6 +220,12 @@ export default function Sidebar() {
       },
       { label: "Broadcasts", href: "/broadcasts", match: ["/broadcasts"], permission: PERMISSIONS.BROADCASTS_MANAGE },
       {
+        label: "Parent Permissions",
+        href: "/parent-permissions",
+        match: ["/parent-permissions"],
+        permission: PERMISSIONS.PARENT_PERMISSIONS_MANAGE,
+      },
+      {
         label: "Incident Reports",
         href: "/incident-reports",
         match: ["/incident-reports"],

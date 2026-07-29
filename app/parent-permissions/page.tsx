@@ -1,0 +1,214 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
+import { resolveSchoolContext } from "@/app/lib/school-context";
+import { supabase } from "@/app/lib/supabase";
+
+type Learner = { id: string; name?: string | null; classroom_id?: number | null; parent_phone?: string | null };
+type Classroom = { id: number; classroom_name?: string | null };
+type ResponseRow = { response: "granted" | "declined"; learner_id: string; parent_name: string; responded_at: string };
+type PermissionRequest = {
+  id: number;
+  permission_type: string;
+  title: string;
+  description: string;
+  event_date?: string | null;
+  response_deadline?: string | null;
+  status: "sent" | "closed";
+  created_at: string;
+  parent_permission_request_learners?: { learner_id: string }[];
+  parent_permission_responses?: ResponseRow[];
+};
+
+const typeOptions = [
+  { value: "photos_videos", label: "Photos & Videos" },
+  { value: "general", label: "General Permission" },
+  { value: "school_excursion", label: "School Excursion" },
+];
+
+export default function ParentPermissionsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [learners, setLearners] = useState<Learner[]>([]);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [requests, setRequests] = useState<PermissionRequest[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [audience, setAudience] = useState("all");
+  const [permissionType, setPermissionType] = useState("photos_videos");
+  const [title, setTitle] = useState("Permission to use photos and videos");
+  const [description, setDescription] = useState("");
+  const [eventDate, setEventDate] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function loadPage() {
+    const context = await resolveSchoolContext(searchParams.get("school"));
+    if (context.error) return router.push("/login");
+    if (context.shouldReturnToMaster || !context.schoolId) return router.push("/master");
+    setSchoolId(context.schoolId);
+    const [{ data: learnerRows }, { data: classroomRows }] = await Promise.all([
+      supabase.from("learners").select("id, name, classroom_id, parent_phone").eq("school_id", context.schoolId).order("name"),
+      supabase.from("classrooms").select("id, classroom_name").eq("school_id", context.schoolId).order("classroom_name"),
+    ]);
+    setLearners((learnerRows || []) as Learner[]);
+    setClassrooms((classroomRows || []) as Classroom[]);
+    setSelectedIds((learnerRows || []).map((learner) => String(learner.id)));
+    await loadRequests(context.schoolId);
+  }
+
+  async function loadRequests(currentSchoolId: number) {
+    const response = await authenticatedFetch(`/api/parent-permissions?school_id=${currentSchoolId}`, { cache: "no-store" });
+    const body = await response.json();
+    if (!response.ok) return setMessage(body.error || "Permission requests could not be loaded.");
+    setRequests(body.requests || []);
+  }
+
+  useEffect(() => {
+    void loadPage();
+    // School context is resolved once when the route opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectedLearners = useMemo(
+    () => learners.filter((learner) => selectedIds.includes(String(learner.id))),
+    [learners, selectedIds]
+  );
+
+  function updateAudience(value: string) {
+    setAudience(value);
+    setSelectedIds(value === "all"
+      ? learners.map((learner) => String(learner.id))
+      : learners.filter((learner) => String(learner.classroom_id) === value).map((learner) => String(learner.id)));
+  }
+
+  function updateType(value: string) {
+    setPermissionType(value);
+    if (value === "photos_videos") setTitle("Permission to use photos and videos");
+    if (value === "general") setTitle("General parent permission");
+    if (value === "school_excursion") setTitle("School excursion permission");
+  }
+
+  async function submitRequest() {
+    if (!schoolId) return;
+    setSaving(true);
+    setMessage("");
+    const response = await authenticatedFetch("/api/parent-permissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        school_id: schoolId,
+        permission_type: permissionType,
+        title,
+        description,
+        event_date: eventDate || null,
+        response_deadline: deadline || null,
+        learner_ids: selectedIds,
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      setSaving(false);
+      return setMessage(body.error || "Permission request could not be sent.");
+    }
+    authenticatedFetch("/api/notifications/parent-push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "parent_permission",
+        school_id: schoolId,
+        title: "A permission request needs your response",
+        parent_phones: body.parent_phones || [],
+      }),
+    }).catch(console.error);
+    setShowCreate(false);
+    setDescription("");
+    setEventDate("");
+    setDeadline("");
+    setMessage("Permission request sent to the selected parents.");
+    await loadRequests(schoolId);
+    setSaving(false);
+  }
+
+  async function setRequestStatus(requestId: number, status: "sent" | "closed") {
+    if (!schoolId) return;
+    const response = await authenticatedFetch("/api/parent-permissions", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ school_id: schoolId, request_id: requestId, status }),
+    });
+    const body = await response.json();
+    if (!response.ok) return setMessage(body.error || "Request could not be updated.");
+    await loadRequests(schoolId);
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+      <section className="db-page-header">
+        <div>
+          <h1 className="db-page-title">Parent Permissions</h1>
+          <p className="db-page-subtitle">Request and track learner-specific consent securely.</p>
+        </div>
+        <button className="db-button-primary" type="button" onClick={() => setShowCreate((value) => !value)}>
+          {showCreate ? "Close" : "New Permission Request"}
+        </button>
+      </section>
+
+      {message ? <div className="db-soft-card" style={{ padding: 14 }}>{message}</div> : null}
+
+      {showCreate ? (
+        <section className="db-card" style={{ padding: 20, display: "grid", gap: 14 }}>
+          <h2 style={{ margin: 0 }}>Create permission request</h2>
+          <div className="db-form-grid">
+            <label>Permission type<select value={permissionType} onChange={(event) => updateType(event.target.value)}>
+              {typeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select></label>
+            <label>Recipients<select value={audience} onChange={(event) => updateAudience(event.target.value)}>
+              <option value="all">All learners</option>
+              {classrooms.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.classroom_name}</option>)}
+            </select></label>
+            <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+            <label>Response deadline<input type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} /></label>
+            {permissionType === "school_excursion" ? (
+              <label>Excursion date<input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} /></label>
+            ) : null}
+          </div>
+          <label>Clear explanation<textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Explain exactly what the parent is agreeing to." /></label>
+          <p className="db-helper" style={{ margin: 0 }}>{selectedLearners.length} learners selected. No response is treated as permission not granted.</p>
+          <button className="db-button-primary" type="button" disabled={saving || selectedIds.length === 0} onClick={() => void submitRequest()}>
+            {saving ? "Sending..." : "Send Permission Request"}
+          </button>
+        </section>
+      ) : null}
+
+      <section className="db-card" style={{ padding: 20 }}>
+        <h2 style={{ marginTop: 0 }}>Permission request history</h2>
+        <div style={{ display: "grid", gap: 12 }}>
+          {requests.length ? requests.map((request) => {
+            const targets = request.parent_permission_request_learners?.length || 0;
+            const responses = request.parent_permission_responses || [];
+            const granted = responses.filter((item) => item.response === "granted").length;
+            const declined = responses.filter((item) => item.response === "declined").length;
+            return (
+              <article key={request.id} className="db-soft-card" style={{ padding: 16, display: "grid", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div><strong>{request.title}</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>{typeOptions.find((item) => item.value === request.permission_type)?.label}</p></div>
+                  <span className="db-main-pill db-main-pill-blue">{request.status}</span>
+                </div>
+                <p style={{ margin: 0 }}>{request.description}</p>
+                <p className="db-helper" style={{ margin: 0 }}>{granted} granted · {declined} declined · {Math.max(0, targets - responses.length)} awaiting</p>
+                <button className="db-button-secondary" type="button" onClick={() => void setRequestStatus(request.id, request.status === "closed" ? "sent" : "closed")}>
+                  {request.status === "closed" ? "Reopen" : "Close Request"}
+                </button>
+              </article>
+            );
+          }) : <p className="db-helper">No permission requests created yet.</p>}
+        </div>
+      </section>
+    </div>
+  );
+}

@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/app/lib/supabase-admin";
 import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
 import { PERMISSIONS } from "@/app/lib/permissions";
 
-type ParentPushType = "daily_summary" | "broadcast" | "event_reminder" | "incident_report";
+type ParentPushType = "daily_summary" | "broadcast" | "event_reminder" | "incident_report" | "parent_permission";
 
 function getTomorrowDate() {
   const tomorrow = new Date();
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL || "https://www.dailybloom.co.za";
 
-    if (!schoolId || !["daily_summary", "broadcast", "event_reminder", "incident_report"].includes(type)) {
+    if (!schoolId || !["daily_summary", "broadcast", "event_reminder", "incident_report", "parent_permission"].includes(type)) {
       return NextResponse.json(
         { error: "Missing or unsupported parent notification type." },
         { status: 400 }
@@ -145,6 +145,15 @@ export async function POST(request: Request) {
       title = schoolName;
       message = `${body.learner_name || "Your child"} has an incident report ready for acknowledgement.`;
       url = `${siteUrl}/parent/incidents`;
+    }
+
+    if (type === "parent_permission") {
+      externalIds = body.parent_phones?.length
+        ? uniqueValues(body.parent_phones).filter((phone) => allowedParentPhones.includes(phone))
+        : [];
+      title = schoolName;
+      message = body.title || "A parent permission request needs your response.";
+      url = `${siteUrl}/parent/permissions`;
     }
 
     const result = await sendOneSignalPush({

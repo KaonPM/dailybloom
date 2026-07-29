@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/app/lib/supabase";
 import HomeworkCard from "./components/HomeworkCard";
 import FeesReceiptsCard from "./components/FeesReceiptsCard";
+import PermissionsCard from "./components/PermissionsCard";
 
 type PersonRelation = {
   full_name?: string | null;
@@ -155,6 +156,7 @@ export default function ParentDashboardClient({
   const [incidentLoading, setIncidentLoading] = useState(false);
   const [incidentReports, setIncidentReports] = useState<IncidentRow[]>([]);
   const [homeworkCount, setHomeworkCount] = useState(0);
+  const [permissionCount, setPermissionCount] = useState(0);
 
   const child =
     children.find((item) => String(item.id) === selectedChildId) ||
@@ -918,6 +920,9 @@ export default function ParentDashboardClient({
     ...(homeworkCount > 0 && !seenUpdateTypes.homework
       ? [{ type: "homework", text: "New homework is ready to view and print" }]
       : []),
+    ...(permissionCount > 0 && !seenUpdateTypes.permissions
+      ? [{ type: "permissions", text: `${permissionCount} permission request${permissionCount === 1 ? "" : "s"} need${permissionCount === 1 ? "s" : ""} your response` }]
+      : []),
   ];
 
   return (
@@ -1014,6 +1019,14 @@ export default function ParentDashboardClient({
         <FeesReceiptsCard
           learnerId={String(child.id)}
           schoolId={Number(child.school_id)}
+        />
+      </Section>
+
+      <Section id="permissions" title={`Permissions${permissionCount ? ` (${permissionCount} new)` : ""}`}>
+        <PermissionsCard
+          learnerId={String(child.id)}
+          schoolId={Number(child.school_id)}
+          onPendingChange={setPermissionCount}
         />
       </Section>
 

@@ -77,6 +77,8 @@ type SchoolFeeType = {
   amount: number;
 };
 
+const LEARNERS_PER_PAGE = 20;
+
 function nextMonthStart() {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
@@ -152,6 +154,8 @@ export default function LearnersPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [learnerSearch, setLearnerSearch] = useState("");
+  const [learnerPage, setLearnerPage] = useState(1);
 
   useEffect(() => {
     loadPage();
@@ -383,6 +387,40 @@ export default function LearnersPage() {
 
     return scopedLearners;
   }, [learners, profile, teacherClassroom, teacherClassroomId, activeFilter]);
+
+  const searchedLearners = useMemo(() => {
+    const searchValue = learnerSearch.trim().toLowerCase();
+
+    if (searchValue.length < 3) {
+      return visibleLearners;
+    }
+
+    return visibleLearners.filter((learner) =>
+      [learner.name, learner.legal_name].some((value) =>
+        String(value || "")
+          .toLowerCase()
+          .includes(searchValue)
+      )
+    );
+  }, [learnerSearch, visibleLearners]);
+
+  const learnerPageCount = Math.max(
+    1,
+    Math.ceil(searchedLearners.length / LEARNERS_PER_PAGE)
+  );
+  const activeLearnerPage = Math.min(learnerPage, learnerPageCount);
+  const paginatedLearners = searchedLearners.slice(
+    (activeLearnerPage - 1) * LEARNERS_PER_PAGE,
+    activeLearnerPage * LEARNERS_PER_PAGE
+  );
+  const firstLearnerNumber =
+    searchedLearners.length === 0
+      ? 0
+      : (activeLearnerPage - 1) * LEARNERS_PER_PAGE + 1;
+  const lastLearnerNumber = Math.min(
+    activeLearnerPage * LEARNERS_PER_PAGE,
+    searchedLearners.length
+  );
 
   function resetForm() {
     setName("");
@@ -1588,39 +1626,78 @@ export default function LearnersPage() {
       <div className="db-card db-card-lavender" style={{ padding: 16 }}>
         <h3 style={sectionTitle}>
           {activeFilter === "birthdays-today"
-            ? `Birthdays Today (${visibleLearners.length})`
-            : `Learners (${visibleLearners.length})`}
+            ? `Birthdays Today (${searchedLearners.length})`
+            : `Learners (${searchedLearners.length})`}
         </h3>
 
-        {visibleLearners.length === 0 ? (
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            alignItems: "end",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            marginBottom: 12,
+          }}
+        >
+          <label style={{ flex: "1 1 280px" }}>
+            <span style={labelText}>Search learners</span>
+            <input
+              className="db-input"
+              type="search"
+              value={learnerSearch}
+              placeholder="Type at least 3 letters of a learner's name"
+              onChange={(event) => {
+                setLearnerSearch(event.target.value);
+                setLearnerPage(1);
+              }}
+            />
+          </label>
+
+          <span className="db-helper" style={{ margin: "0 0 10px" }}>
+            {learnerSearch.trim().length > 0 &&
+            learnerSearch.trim().length < 3
+              ? "Enter 3 letters to start searching."
+              : searchedLearners.length > 0
+              ? `Showing ${firstLearnerNumber}-${lastLearnerNumber} of ${searchedLearners.length}`
+              : "No matching learners"}
+          </span>
+        </div>
+
+        {searchedLearners.length === 0 ? (
           <p className="db-helper">
-            {profile?.role === "teacher"
+            {learnerSearch.trim().length >= 3
+              ? "No learners match your search."
+              : profile?.role === "teacher"
               ? "No learners found for your assigned classroom."
               : "No learners added yet."}
           </p>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-              gap: 10,
-            }}
-          >
-            {visibleLearners.map((learner) => {
-              const active = selectedLearner?.id === learner.id;
+          <>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                gap: 10,
+              }}
+            >
+              {paginatedLearners.map((learner) => {
+                const active = selectedLearner?.id === learner.id;
 
-              return (
-                <div
-                  key={learner.id}
-                  style={{
-                    background: active ? "#EAF7FD" : "#FFFDFB",
-                    border: active ? "1px solid #CBEAF7" : "1px solid #F0E3D8",
-                    borderRadius: 14,
-                    padding: 12,
-                    textAlign: "left",
-                    color: "#2D2A3E",
-                  }}
-                >
+                return (
+                  <div
+                    key={learner.id}
+                    style={{
+                      background: active ? "#EAF7FD" : "#FFFDFB",
+                      border: active
+                        ? "1px solid #CBEAF7"
+                        : "1px solid #F0E3D8",
+                      borderRadius: 14,
+                      padding: 12,
+                      textAlign: "left",
+                      color: "#2D2A3E",
+                    }}
+                  >
                   <strong style={{ display: "block", fontSize: 15 }}>
                     {learner.name || "Unnamed learner"}
                   </strong>
@@ -1717,10 +1794,52 @@ export default function LearnersPage() {
                       </p>
                     </div>
                   ) : null}
-                </div>
-              );
-            })}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {learnerPageCount > 1 ? (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  marginTop: 16,
+                }}
+              >
+                <button
+                  type="button"
+                  className="db-button-secondary"
+                  disabled={activeLearnerPage === 1}
+                  onClick={() =>
+                    setLearnerPage((currentPage) =>
+                      Math.max(1, currentPage - 1)
+                    )
+                  }
+                >
+                  Previous 20
+                </button>
+                <span className="db-helper" style={{ margin: 0 }}>
+                  Page {activeLearnerPage} of {learnerPageCount}
+                </span>
+                <button
+                  type="button"
+                  className="db-button-secondary"
+                  disabled={activeLearnerPage === learnerPageCount}
+                  onClick={() =>
+                    setLearnerPage((currentPage) =>
+                      Math.min(learnerPageCount, currentPage + 1)
+                    )
+                  }
+                >
+                  Next 20
+                </button>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
     </div>

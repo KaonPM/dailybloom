@@ -6,7 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
-import { defaultActivityLibrary } from "../lib/default-activity-library";
+import {
+  defaultActivityLibrary,
+  gradeRActivityLibrary,
+  type DefaultActivityLibraryItem,
+} from "../lib/default-activity-library";
 import { getJohannesburgDate } from "../lib/classroom-activity-dates";
 import {
   ActivitySectionTabs,
@@ -172,12 +176,14 @@ export default function ClassroomActivitiesPage() {
   const [learnerVisibleCount, setLearnerVisibleCount] = useState(PAGE_SIZE);
   const [supportVisibleCount, setSupportVisibleCount] = useState(PAGE_SIZE);
   const [libraryVisibleCount, setLibraryVisibleCount] = useState(PAGE_SIZE);
+  const [importingGradeRLibrary, setImportingGradeRLibrary] = useState(false);
   const [completedVisibleCount, setCompletedVisibleCount] = useState(PAGE_SIZE);
   const [activeSection, setActiveSection] = useState<ActivitySection>("today");
   const [homeworkLibraryVersion, setHomeworkLibraryVersion] = useState(0);
   const homeworkWorkspaceRefs = useRef<
     Record<string, HomeworkWorkspaceHandle | null>
   >({});
+  const gradeRSeedRequests = useRef<Set<number>>(new Set());
 
   const role = String(profile?.role || "").toLowerCase();
   const isTeacher = role === "teacher";
@@ -194,6 +200,16 @@ export default function ClassroomActivitiesPage() {
 
   const todayDate = getJohannesburgDate();
   const weekEnd = useMemo(() => addDays(weekStart, 4), [weekStart]);
+  const activeClassroom = useMemo(
+    () =>
+      classrooms.find(
+        (classroom) => String(classroom.id) === String(activeClassroomId)
+      ) || null,
+    [classrooms, activeClassroomId]
+  );
+  const activeClassroomIsGradeR = isGradeRClassroom(
+    activeClassroom?.classroom_name
+  );
 
   const currentWeekPlans = useMemo(() => {
     return weeklyPlans.filter((plan) => {
@@ -477,10 +493,15 @@ export default function ClassroomActivitiesPage() {
     const teacherClassroom = getTeacherClassroom(classroomRows, currentProfile);
     const firstClassroom = classroomRows[0];
 
-    if (teacherClassroom) {
-      setActiveClassroomId(String(teacherClassroom.id));
-    } else if (firstClassroom) {
-      setActiveClassroomId(String(firstClassroom.id));
+    const initialClassroom = teacherClassroom || firstClassroom;
+
+    if (initialClassroom) {
+      setActiveClassroomId(String(initialClassroom.id));
+      await ensureGradeRLibrary(
+        initialClassroom,
+        context.schoolId,
+        currentProfile
+      );
     }
 
     setLoading(false);
@@ -524,6 +545,56 @@ export default function ClassroomActivitiesPage() {
   }
 
   async function seedDefaultLibrary(currentSchoolId: number, currentProfile: ProfileRow) {
+    await seedLibraryItems(
+      currentSchoolId,
+      currentProfile,
+      defaultActivityLibrary,
+      "DailyBloom activity library imported."
+    );
+  }
+
+  async function seedGradeRLibrary(currentSchoolId: number, currentProfile: ProfileRow) {
+    setImportingGradeRLibrary(true);
+    await seedLibraryItems(
+      currentSchoolId,
+      currentProfile,
+      gradeRActivityLibrary,
+      "DBE-aligned Grade R activities added.",
+      true
+    );
+    setImportingGradeRLibrary(false);
+  }
+
+  async function ensureGradeRLibrary(
+    classroom: ClassroomRow | null | undefined,
+    currentSchoolId: number,
+    currentProfile: ProfileRow
+  ) {
+    if (
+      !classroom ||
+      !isGradeRClassroom(classroom.classroom_name) ||
+      gradeRSeedRequests.current.has(currentSchoolId)
+    ) {
+      return;
+    }
+
+    gradeRSeedRequests.current.add(currentSchoolId);
+    await seedLibraryItems(
+      currentSchoolId,
+      currentProfile,
+      gradeRActivityLibrary,
+      "",
+      false
+    );
+  }
+
+  async function seedLibraryItems(
+    currentSchoolId: number,
+    currentProfile: ProfileRow,
+    libraryItems: DefaultActivityLibraryItem[],
+    successMessage: string,
+    showFeedback = true
+  ) {
     const { data, error } = await supabase
       .from("activity_library")
       .select("developmental_area, theme, activity_name")
@@ -542,12 +613,17 @@ export default function ClassroomActivitiesPage() {
       )
     );
 
-    const missingItems = defaultActivityLibrary.filter(
+    const missingItems = libraryItems.filter(
       (item) =>
         !existing.has(`${item.developmental_area}|||${item.theme}|||${item.activity_name}`)
     );
 
-    if (missingItems.length === 0) return;
+    if (missingItems.length === 0) {
+      if (showFeedback) {
+        alert("All activities in this collection are already in the library.");
+      }
+      return;
+    }
 
     const rows = missingItems.map((item) => ({
       school_id: currentSchoolId,
@@ -566,7 +642,9 @@ export default function ClassroomActivitiesPage() {
     }
 
     await fetchActivityLibrary(currentSchoolId);
-    alert("DailyBloom activity library imported.");
+    if (showFeedback && successMessage) {
+      alert(successMessage);
+    }
   }
 
   async function fetchActivityLibrary(currentSchoolId: number) {
@@ -669,6 +747,17 @@ export default function ClassroomActivitiesPage() {
     return Array.from(themeSet).sort();
   }
 
+  function plannerThemes() {
+    const themes = allThemes();
+
+    if (!activeClassroomIsGradeR) return themes;
+
+    return [
+      ...themes.filter((theme) => isGradeRTheme(theme)),
+      ...themes.filter((theme) => !isGradeRTheme(theme)),
+    ];
+  }
+
   function activitiesForTheme(selectedTheme: string) {
     return activityLibrary.filter((item) => item.theme === selectedTheme);
   }
@@ -683,7 +772,7 @@ export default function ClassroomActivitiesPage() {
       });
 
       const firstExisting = existingPlans[0];
-      const fallbackTheme = firstExisting?.theme || allThemes()[0] || "";
+      const fallbackTheme = firstExisting?.theme || plannerThemes()[0] || "";
 
       const existingActivities = existingPlans
         .filter((plan) => isTeachingDay(plan.day_type) && Boolean(plan.activity_library_id))
@@ -1273,7 +1362,19 @@ export default function ClassroomActivitiesPage() {
             <select
               className="db-input"
               value={activeClassroomId}
-              onChange={(e) => setActiveClassroomId(e.target.value)}
+              onChange={async (e) => {
+                const classroomId = e.target.value;
+                setActiveClassroomId(classroomId);
+
+                const classroom =
+                  classrooms.find(
+                    (item) => String(item.id) === String(classroomId)
+                  ) || null;
+
+                if (schoolId && profile) {
+                  await ensureGradeRLibrary(classroom, schoolId, profile);
+                }
+              }}
               disabled={isTeacher}
             >
               <option value="">Select classroom</option>
@@ -1421,7 +1522,7 @@ export default function ClassroomActivitiesPage() {
                       <>
                         <select className="db-input" value={row.theme} onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}>
                           <option value="">Select theme</option>
-                          {allThemes().map((themeItem) => (
+                          {plannerThemes().map((themeItem) => (
                             <option key={themeItem} value={themeItem}>{themeItem}</option>
                           ))}
                         </select>
@@ -1770,7 +1871,7 @@ export default function ClassroomActivitiesPage() {
           <summary style={summaryStyle}>Activity Library ({activityLibrary.length})</summary>
 
           <p style={smallHint}>
-            Teachers may create activities. Development focus is saved in the background for learner support tracking.
+            Choose a ready-made activity or add one that suits the class, available materials and learners&apos; needs. Development focus is saved in the background for learner support tracking.
           </p>
 
           <div style={filterGrid}>
@@ -1796,6 +1897,11 @@ export default function ClassroomActivitiesPage() {
                 <option key={theme} value={theme}>{theme}</option>
               ))}
             </select>
+            {activeClassroomIsGradeR ? (
+              <p className="db-helper" style={{ margin: "6px 0 0" }}>
+                Grade R recognised. Relevant activities appear first.
+              </p>
+            ) : null}
           </div>
 
           <div style={{ marginTop: "12px" }}>
@@ -1810,8 +1916,19 @@ export default function ClassroomActivitiesPage() {
                 Import DailyBloom Activity Library
               </button>
             ) : null}
+            <button
+              type="button"
+              className="db-button-primary"
+              style={{ width: "100%", marginBottom: "8px" }}
+              onClick={() => schoolId && profile && seedGradeRLibrary(schoolId, profile)}
+              disabled={saving || importingGradeRLibrary}
+            >
+              {importingGradeRLibrary
+                ? "Adding Grade R Activities..."
+                : "Add DBE-Aligned Grade R Activities"}
+            </button>
             <button type="button" className="db-button-primary" style={{ width: "100%" }} onClick={() => { resetLibraryForm(); setShowLibraryForm((current) => !current); }}>
-              {showLibraryForm ? "Close Library Form" : "Add Library Activity"}
+              {showLibraryForm ? "Close Custom Activity" : "Add Your Own Activity"}
             </button>
 
             {showLibraryForm ? (
@@ -1868,6 +1985,14 @@ function formatDate(date: Date) {
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const dd = String(date.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function isGradeRClassroom(classroomName?: string | null) {
+  return /^grade\s*r(?:\s|$|\()/i.test(String(classroomName || "").trim());
+}
+
+function isGradeRTheme(theme?: string | null) {
+  return String(theme || "").startsWith("Grade R:");
 }
 
 function getMonday(date: Date) {

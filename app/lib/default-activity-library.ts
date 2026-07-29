@@ -5,6 +5,48 @@ export type DefaultActivityLibraryItem = {
   developmental_area: string;
 };
 
+export const gradeRActivityLibrary: DefaultActivityLibraryItem[] = [
+  // ENGLISH HOME LANGUAGE
+  { theme: "Grade R: English Home Language", activity_name: "Story Listening and Questions", description: "Read a short picture story. Learners listen, answer simple questions and share what they noticed.", developmental_area: "Language" },
+  { theme: "Grade R: English Home Language", activity_name: "Story Picture Sequencing", description: "Learners arrange three or four story pictures in order and explain what happened first, next and last.", developmental_area: "Language" },
+  { theme: "Grade R: English Home Language", activity_name: "Rhymes and Action Songs", description: "Learners repeat familiar rhymes and songs while adding actions, rhythm and new vocabulary.", developmental_area: "Music & Movement" },
+  { theme: "Grade R: English Home Language", activity_name: "Beginning Sound Hunt", description: "Choose a familiar sound and let learners find or name classroom objects that begin with that sound.", developmental_area: "Language" },
+  { theme: "Grade R: English Home Language", activity_name: "Sound and Picture Match", description: "Learners match familiar picture cards to their beginning sounds and say each word aloud.", developmental_area: "Language" },
+  { theme: "Grade R: English Home Language", activity_name: "Show and Tell", description: "Learners describe a familiar object or experience while classmates listen and ask simple questions.", developmental_area: "Language" },
+  { theme: "Grade R: English Home Language", activity_name: "Follow the Instructions", description: "Learners listen to and carry out one-step and two-step oral instructions through a movement game.", developmental_area: "Language" },
+  { theme: "Grade R: English Home Language", activity_name: "My Name Card", description: "Learners recognise their own name, compare it with classmates' names and trace or copy it when ready.", developmental_area: "Fine Motor" },
+  { theme: "Grade R: English Home Language", activity_name: "Picture Talk", description: "Use a detailed picture to encourage full sentences, positional words, prediction and new vocabulary.", developmental_area: "Language" },
+  { theme: "Grade R: English Home Language", activity_name: "Emergent Writing Through Drawing", description: "Learners draw an experience, explain their picture and add marks, labels or a sentence at their level.", developmental_area: "Fine Motor" },
+
+  // MATHEMATICS
+  { theme: "Grade R: Mathematics", activity_name: "Count and Move", description: "Learners count movements and concrete objects, touching or moving one item for each number word.", developmental_area: "Mathematics" },
+  { theme: "Grade R: Mathematics", activity_name: "Number and Quantity Match", description: "Learners match number symbols to groups containing the corresponding number of objects.", developmental_area: "Mathematics" },
+  { theme: "Grade R: Mathematics", activity_name: "More Fewer or Equal", description: "Learners compare two small groups of concrete objects and explain which has more, fewer or the same.", developmental_area: "Mathematics" },
+  { theme: "Grade R: Mathematics", activity_name: "Sort and Explain", description: "Learners sort familiar objects by colour, shape, size or use and explain their sorting rule.", developmental_area: "Mathematics" },
+  { theme: "Grade R: Mathematics", activity_name: "Copy and Continue the Pattern", description: "Learners copy, continue and create simple repeating patterns using objects, sounds or movements.", developmental_area: "Mathematics" },
+  { theme: "Grade R: Mathematics", activity_name: "Shape Hunt and Build", description: "Learners identify shapes in their environment and combine shapes or blocks to make a picture or model.", developmental_area: "Mathematics" },
+  { theme: "Grade R: Mathematics", activity_name: "Position and Direction Game", description: "Learners follow instructions using words such as above, below, inside, outside, next to and behind.", developmental_area: "Mathematics" },
+  { theme: "Grade R: Mathematics", activity_name: "Measure with Classroom Objects", description: "Learners compare length or height using blocks, hands or other informal measuring units.", developmental_area: "Mathematics" },
+  { theme: "Grade R: Mathematics", activity_name: "Capacity Exploration", description: "Learners fill, pour and compare containers using the words full, empty, more and less.", developmental_area: "Mathematics" },
+  { theme: "Grade R: Mathematics", activity_name: "Class Picture Graph", description: "Collect simple class information and represent it with objects or pictures, then discuss most and least.", developmental_area: "Mathematics" },
+  { theme: "Grade R: Mathematics", activity_name: "Number Story Problem", description: "Act out a simple adding or taking-away story with concrete objects and let learners explain the answer.", developmental_area: "Mathematics" },
+
+  // LIFE SKILLS
+  { theme: "Grade R: Beginning Knowledge", activity_name: "My Family and Community", description: "Learners talk, draw or role-play people in their families and community and how they help one another.", developmental_area: "Life Skills" },
+  { theme: "Grade R: Beginning Knowledge", activity_name: "Weather Watch", description: "Learners observe and record the day's weather and discuss suitable clothing and activities.", developmental_area: "Ring Time" },
+  { theme: "Grade R: Beginning Knowledge", activity_name: "Plant Investigation", description: "Learners observe a plant, identify basic parts and discuss what plants need to grow.", developmental_area: "Life Skills" },
+  { theme: "Grade R: Beginning Knowledge", activity_name: "Healthy Choices", description: "Learners sort pictures or real examples into healthy everyday choices and occasional treats.", developmental_area: "Life Skills" },
+  { theme: "Grade R: Personal and Social Well-being", activity_name: "Feelings and Calm Choices", description: "Learners identify feelings and practise age-appropriate ways to calm down, communicate and ask for help.", developmental_area: "Life Skills" },
+  { theme: "Grade R: Personal and Social Well-being", activity_name: "Friendship Role Play", description: "Learners role-play sharing, taking turns, including others and solving a simple disagreement kindly.", developmental_area: "Life Skills" },
+  { theme: "Grade R: Personal and Social Well-being", activity_name: "Safe or Unsafe", description: "Learners discuss picture scenarios, identify safe and unsafe choices and name trusted adults.", developmental_area: "Life Skills" },
+  { theme: "Grade R: Creative Arts", activity_name: "Create with Recycled Materials", description: "Learners plan and make an open-ended model or artwork using clean recycled materials.", developmental_area: "Creative Art" },
+  { theme: "Grade R: Creative Arts", activity_name: "Music and Rhythm Patterns", description: "Learners copy and create simple rhythm patterns using clapping, body percussion or instruments.", developmental_area: "Music & Movement" },
+  { theme: "Grade R: Creative Arts", activity_name: "Story Role Play", description: "Learners use dress-up items, puppets or imagination to act out a familiar story or real-life situation.", developmental_area: "Creative Art" },
+  { theme: "Grade R: Physical Education", activity_name: "Balance and Coordination Course", description: "Learners move through a safe course that includes balancing, crawling, stepping, jumping and changing direction.", developmental_area: "Gross Motor" },
+  { theme: "Grade R: Physical Education", activity_name: "Ball Skills Circuit", description: "Learners rotate through rolling, throwing, catching, bouncing and kicking activities at their level.", developmental_area: "Gross Motor" },
+  { theme: "Grade R: Physical Education", activity_name: "Movement and Spatial Awareness", description: "Learners move safely at different speeds, levels and directions while responding to signals.", developmental_area: "Gross Motor" },
+];
+
 export const defaultActivityLibrary: DefaultActivityLibraryItem[] = [
   // ALL ABOUT ME
   { theme: "All About Me", activity_name: "Introducing Myself", description: "Learners introduce themselves by saying their name and sharing something about themselves.", developmental_area: "Language" },

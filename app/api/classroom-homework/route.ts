@@ -70,7 +70,7 @@ export async function GET(request: Request) {
   const [libraryResult, assignmentResult] = await Promise.all([
     supabaseAdmin.from("homework_library").select("id, title, file_name, notes").eq("school_id", schoolId).eq("archived", false).order("title"),
     classroomId && weekStart && activityDate
-      ? supabaseAdmin.from("homework_assignments").select("id, homework_id, instruction_note, position").eq("school_id", schoolId).eq("classroom_id", classroomId).eq("week_start", weekStart).eq("activity_date", activityDate).order("position")
+      ? supabaseAdmin.from("homework_assignments").select("id, homework_id, instruction_note, due_date, position").eq("school_id", schoolId).eq("classroom_id", classroomId).eq("week_start", weekStart).eq("activity_date", activityDate).order("position")
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (libraryResult.error || assignmentResult.error) return NextResponse.json({ error: libraryResult.error?.message || assignmentResult.error?.message }, { status: 400 });
@@ -81,11 +81,30 @@ export async function POST(request: Request) {
   const body = await request.json();
   const action = String(body.action || "");
   const schoolId = Number(body.school_id);
+  const classroomId = Number(body.classroom_id);
   const title = String(body.title || "").trim().slice(0, 160);
-  const authorization = await requireStaffPermission(request, PERMISSIONS.HOMEWORK_MANAGE, schoolId);
+  const authorization = await requireStaffPermission(
+    request,
+    classroomId
+      ? PERMISSIONS.ACTIVITIES_MANAGE
+      : PERMISSIONS.HOMEWORK_MANAGE,
+    schoolId
+  );
   if (!authorization.ok) return authorization.response;
-  if (!["principal", "admin"].includes(authorization.staff.role)) {
-    return NextResponse.json({ error: "Only a principal or authorised preschool administrator can upload homework." }, { status: 403 });
+  if (
+    classroomId &&
+    !(await authenticatedRoleCanAccessLearner(authorization.staff, classroomId))
+  ) {
+    return NextResponse.json({ error: "Teachers can only upload homework for their assigned classroom." }, { status: 403 });
+  }
+  if (
+    !classroomId &&
+    !["principal", "admin"].includes(authorization.staff.role)
+  ) {
+    return NextResponse.json(
+      { error: "Select a classroom before uploading homework." },
+      { status: 400 }
+    );
   }
 
   if (action === "create_upload") {
@@ -212,15 +231,16 @@ export async function PATCH(request: Request) {
 
   const seenHomeworkIds = new Set<number>();
   const cleanItems = items
-    .map((item: { homework_id?: unknown; instruction_note?: unknown }, position: number) => ({
+    .map((item: { homework_id?: unknown; instruction_note?: unknown; due_date?: unknown }, position: number) => ({
       homework_id:
         item.homework_id === null || item.homework_id === ""
           ? null
           : Number(item.homework_id),
       instruction_note: String(item.instruction_note || "").trim().slice(0, 500),
+      due_date: String(item.due_date || ""),
       position,
     }))
-    .filter((item: { homework_id: number | null; instruction_note: string }) => {
+    .filter((item: { homework_id: number | null; instruction_note: string; due_date: string }) => {
       if (item.homework_id === null) {
         return Boolean(item.instruction_note);
       }
@@ -230,8 +250,13 @@ export async function PATCH(request: Request) {
       seenHomeworkIds.add(item.homework_id);
       return true;
     })
-    .map((item: { homework_id: number | null; instruction_note: string; position: number }, position: number) => ({
+    .map((item: { homework_id: number | null; instruction_note: string; due_date: string; position: number }, position: number) => ({
       ...item,
+      due_date:
+        /^\d{4}-\d{2}-\d{2}$/.test(item.due_date) &&
+        item.due_date >= activityDate
+          ? item.due_date
+          : activityDate,
       position,
     }));
   const { error } = await supabaseAdmin.rpc("replace_classroom_homework", {

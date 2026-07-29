@@ -7,6 +7,7 @@ type Assignment = {
   id: number;
   week_start: string;
   activity_date: string;
+  due_date?: string | null;
   homework_id: number | null;
   instruction_note?: string | null;
   homework_library: { title?: string; file_name?: string | null } | null;
@@ -73,6 +74,7 @@ export default function ParentHomeworkPage() {
         <div key={assignment.id} className="db-card db-card-blue" style={{ padding: 18 }}>
           <strong>{assignment.homework_library?.title || "Homework instructions"}</strong>
           <p className="db-helper">For {assignment.activity_date}</p>
+          <p className="db-helper"><strong>Due:</strong> {assignment.due_date || assignment.activity_date}</p>
           {assignment.instruction_note ? <p><strong>Instructions:</strong> {assignment.instruction_note}</p> : null}
           {assignment.homework_id ? (
             <button type="button" className="db-button-primary" onClick={() => void openHomework(assignment.id)}>

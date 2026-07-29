@@ -187,7 +187,7 @@ export default function ClassroomActivitiesPage() {
   const canManageLibrary = isTeacher || isPrincipal || isMaster;
   const canPlanWeek = isTeacher || isPrincipal || isMaster;
   const canViewTracker = isTeacher || isPrincipal || isMaster;
-  const canManageHomeworkUploads =
+  const canManageHomeworkLibrary =
     role === "principal" ||
     (role === "admin" &&
       (profile?.permissions || []).includes(PERMISSIONS.HOMEWORK_MANAGE));
@@ -1391,7 +1391,7 @@ export default function ClassroomActivitiesPage() {
               </div>
             </div>
 
-            {schoolId && canManageHomeworkUploads ? (
+            {schoolId && canManageHomeworkLibrary ? (
               <HomeworkLibraryPanel
                 schoolId={schoolId}
                 onLibraryChanged={() =>
@@ -1487,6 +1487,13 @@ export default function ClassroomActivitiesPage() {
                           weekStart={weekStart}
                           activityDate={row.activity_date}
                           dayLabel={row.dayLabel}
+                          defaultDueDate={
+                            plannerRows
+                              .slice(index + 1)
+                              .find((candidate) =>
+                                isTeachingDay(candidate.day_type)
+                              )?.activity_date || addDays(weekStart, 7)
+                          }
                           libraryVersion={homeworkLibraryVersion}
                           enabled={isTeachingDay(row.day_type)}
                         />

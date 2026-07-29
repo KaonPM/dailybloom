@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabaseAdmin
     .from("homework_assignments")
-    .select("id, week_start, activity_date, homework_id, instruction_note, position, homework_library(title, file_name)")
+    .select("id, week_start, activity_date, due_date, homework_id, instruction_note, position, homework_library(title, file_name)")
     .eq("school_id", schoolId)
     .eq("classroom_id", learner.classroom_id)
     .order("activity_date", { ascending: false })

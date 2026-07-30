@@ -154,7 +154,6 @@ export default function ParentPermissionsPage() {
           <p className="db-page-subtitle">Request and track learner-specific consent securely.</p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button className="db-main-pill db-main-pill-blue" type="button" onClick={() => router.back()}>← Back</button>
           <button className="db-main-pill db-main-pill-yellow" type="button" onClick={() => router.push(schoolId ? `/dashboard?school=${schoolId}` : "/dashboard")}>🏠 Dashboard</button>
           <button className="db-button-primary" type="button" onClick={() => setShowCreate((value) => !value)}>
             {showCreate ? "Close" : "+ New Permission Request"}

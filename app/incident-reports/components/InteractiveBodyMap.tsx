@@ -13,17 +13,40 @@ type BodyZone = Point & {
 };
 
 const frontZones: BodyZone[] = [
+  { name: "Forehead", x: 120, y: 10, width: 40, height: 18, markerX: 140, markerY: 19 },
   { name: "Right ear", x: 98, y: 27, width: 16, height: 27, markerX: 106, markerY: 40 },
   { name: "Left ear", x: 166, y: 27, width: 16, height: 27, markerX: 174, markerY: 40 },
   { name: "Right eye", x: 122, y: 26, width: 14, height: 16, markerX: 129, markerY: 34 },
   { name: "Left eye", x: 144, y: 26, width: 14, height: 16, markerX: 151, markerY: 34 },
   { name: "Nose", x: 133, y: 38, width: 15, height: 15, markerX: 140, markerY: 46 },
   { name: "Mouth", x: 128, y: 51, width: 24, height: 13, markerX: 140, markerY: 57 },
+  { name: "Right cheek/jaw", x: 108, y: 39, width: 26, height: 27, markerX: 121, markerY: 52 },
+  { name: "Left cheek/jaw", x: 146, y: 39, width: 26, height: 27, markerX: 159, markerY: 52 },
   { name: "Head/face", x: 104, y: 9, width: 72, height: 65, markerX: 140, markerY: 20 },
+  { name: "Right shoulder", x: 88, y: 78, width: 28, height: 42, markerX: 102, markerY: 99 },
+  { name: "Left shoulder", x: 164, y: 78, width: 28, height: 42, markerX: 178, markerY: 99 },
+  { name: "Right elbow", x: 60, y: 139, width: 34, height: 38, markerX: 77, markerY: 158 },
+  { name: "Left elbow", x: 186, y: 139, width: 34, height: 38, markerX: 203, markerY: 158 },
+  { name: "Right wrist", x: 58, y: 207, width: 35, height: 25, markerX: 75, markerY: 219 },
+  { name: "Left wrist", x: 187, y: 207, width: 35, height: 25, markerX: 205, markerY: 219 },
   { name: "Right fingers", x: 55, y: 247, width: 40, height: 23, markerX: 75, markerY: 258 },
   { name: "Left fingers", x: 185, y: 247, width: 40, height: 23, markerX: 205, markerY: 258 },
   { name: "Right toes", x: 78, y: 382, width: 60, height: 20, markerX: 108, markerY: 393 },
   { name: "Left toes", x: 142, y: 382, width: 60, height: 20, markerX: 172, markerY: 393 },
+  { name: "Neck/throat", x: 124, y: 68, width: 32, height: 22, markerX: 140, markerY: 79 },
+  { name: "Chest", x: 105, y: 88, width: 70, height: 66, markerX: 140, markerY: 121 },
+  { name: "Abdomen", x: 105, y: 154, width: 70, height: 55, markerX: 140, markerY: 181 },
+  { name: "Right hip", x: 94, y: 188, width: 34, height: 45, markerX: 111, markerY: 210 },
+  { name: "Left hip", x: 152, y: 188, width: 34, height: 45, markerX: 169, markerY: 210 },
+  { name: "Groin/genital area", x: 123, y: 197, width: 34, height: 42, markerX: 140, markerY: 218 },
+  { name: "Right thigh", x: 96, y: 226, width: 41, height: 72, markerX: 116, markerY: 262 },
+  { name: "Left thigh", x: 143, y: 226, width: 41, height: 72, markerX: 164, markerY: 262 },
+  { name: "Right knee", x: 98, y: 294, width: 38, height: 37, markerX: 117, markerY: 312 },
+  { name: "Left knee", x: 144, y: 294, width: 38, height: 37, markerX: 163, markerY: 312 },
+  { name: "Right shin/calf", x: 99, y: 329, width: 37, height: 40, markerX: 117, markerY: 349 },
+  { name: "Left shin/calf", x: 144, y: 329, width: 37, height: 40, markerX: 163, markerY: 349 },
+  { name: "Right ankle", x: 96, y: 362, width: 42, height: 22, markerX: 117, markerY: 373 },
+  { name: "Left ankle", x: 142, y: 362, width: 42, height: 22, markerX: 163, markerY: 373 },
   { name: "Neck/chest", x: 94, y: 72, width: 92, height: 91, markerX: 140, markerY: 117 },
   { name: "Stomach", x: 100, y: 163, width: 80, height: 61, markerX: 140, markerY: 191 },
   { name: "Right arm", x: 57, y: 77, width: 42, height: 145, markerX: 78, markerY: 145 },
@@ -39,13 +62,33 @@ const frontZones: BodyZone[] = [
 const backZones: BodyZone[] = [
   { name: "Right ear/back", x: 98, y: 27, width: 16, height: 27, markerX: 106, markerY: 40 },
   { name: "Left ear/back", x: 166, y: 27, width: 16, height: 27, markerX: 174, markerY: 40 },
+  { name: "Right elbow/back", x: 60, y: 139, width: 34, height: 38, markerX: 77, markerY: 158 },
+  { name: "Left elbow/back", x: 186, y: 139, width: 34, height: 38, markerX: 203, markerY: 158 },
+  { name: "Right wrist/back", x: 58, y: 207, width: 35, height: 25, markerX: 75, markerY: 219 },
+  { name: "Left wrist/back", x: 187, y: 207, width: 35, height: 25, markerX: 205, markerY: 219 },
   { name: "Right fingers/back", x: 55, y: 247, width: 40, height: 23, markerX: 75, markerY: 258 },
   { name: "Left fingers/back", x: 185, y: 247, width: 40, height: 23, markerX: 205, markerY: 258 },
   { name: "Right toes/back", x: 78, y: 382, width: 60, height: 20, markerX: 108, markerY: 393 },
   { name: "Left toes/back", x: 142, y: 382, width: 60, height: 20, markerX: 172, markerY: 393 },
   { name: "Back of head", x: 104, y: 9, width: 72, height: 65, markerX: 140, markerY: 40 },
-  { name: "Neck/back", x: 94, y: 72, width: 92, height: 105, markerX: 140, markerY: 124 },
-  { name: "Lower back", x: 100, y: 177, width: 80, height: 47, markerX: 140, markerY: 198 },
+  { name: "Neck/back", x: 122, y: 68, width: 36, height: 30, markerX: 140, markerY: 83 },
+  { name: "Upper back", x: 104, y: 92, width: 72, height: 45, markerX: 140, markerY: 114 },
+  { name: "Middle back", x: 104, y: 137, width: 72, height: 42, markerX: 140, markerY: 158 },
+  { name: "Lower back", x: 104, y: 179, width: 72, height: 37, markerX: 140, markerY: 197 },
+  { name: "Right hip/back", x: 94, y: 188, width: 34, height: 45, markerX: 111, markerY: 210 },
+  { name: "Left hip/back", x: 152, y: 188, width: 34, height: 45, markerX: 169, markerY: 210 },
+  { name: "Right buttock", x: 105, y: 202, width: 35, height: 42, markerX: 122, markerY: 223 },
+  { name: "Left buttock", x: 140, y: 202, width: 35, height: 42, markerX: 157, markerY: 223 },
+  { name: "Right thigh/back", x: 96, y: 236, width: 41, height: 62, markerX: 116, markerY: 267 },
+  { name: "Left thigh/back", x: 143, y: 236, width: 41, height: 62, markerX: 164, markerY: 267 },
+  { name: "Right knee/back", x: 98, y: 294, width: 38, height: 37, markerX: 117, markerY: 312 },
+  { name: "Left knee/back", x: 144, y: 294, width: 38, height: 37, markerX: 163, markerY: 312 },
+  { name: "Right calf", x: 99, y: 329, width: 37, height: 40, markerX: 117, markerY: 349 },
+  { name: "Left calf", x: 144, y: 329, width: 37, height: 40, markerX: 163, markerY: 349 },
+  { name: "Right ankle/back", x: 96, y: 362, width: 42, height: 22, markerX: 117, markerY: 373 },
+  { name: "Left ankle/back", x: 142, y: 362, width: 42, height: 22, markerX: 163, markerY: 373 },
+  { name: "Right heel/sole", x: 79, y: 370, width: 62, height: 26, markerX: 110, markerY: 383 },
+  { name: "Left heel/sole", x: 139, y: 370, width: 62, height: 26, markerX: 170, markerY: 383 },
   { name: "Right shoulder", x: 62, y: 76, width: 48, height: 49, markerX: 87, markerY: 99 },
   { name: "Left shoulder", x: 170, y: 76, width: 48, height: 49, markerX: 193, markerY: 99 },
   { name: "Right arm/back", x: 57, y: 112, width: 42, height: 110, markerX: 78, markerY: 165 },
@@ -105,6 +148,10 @@ export default function InteractiveBodyMap({
   const title = side === "front" ? "Front Body Map" : "Back Body Map";
   const [cursor, setCursor] = useState<Point | null>(null);
   const [hovered, setHovered] = useState<BodyZone | null>(null);
+  const hasSensitiveMarker = selected.some((value) => {
+    const label = injuryMarkerLabel(value).toLowerCase();
+    return label.includes("genital") || label.includes("buttock");
+  });
 
   function movePreview(event: PointerEvent<SVGSVGElement>) {
     const point = svgPoint(event);
@@ -163,6 +210,14 @@ export default function InteractiveBodyMap({
           <path d="M141 205 Q161 197 178 203 L186 226 L173 369 Q152 376 144 365 Z" fill={`url(#body-fill-${side})`} stroke="#81739c" strokeWidth="2" />
           <path d="M106 364 Q123 365 137 374 L136 394 Q105 405 78 395 Q76 381 91 374 Z" fill={`url(#body-fill-${side})`} stroke="#81739c" strokeWidth="2" />
           <path d="M174 364 Q157 365 143 374 L144 394 Q175 405 202 395 Q204 381 189 374 Z" fill={`url(#body-fill-${side})`} stroke="#81739c" strokeWidth="2" />
+          <g fill="#fff" opacity="0.7" stroke="#9b8baa" strokeWidth="1.2">
+            <circle cx="77" cy="158" r="5" />
+            <circle cx="203" cy="158" r="5" />
+            <circle cx="117" cy="312" r="6" />
+            <circle cx="163" cy="312" r="6" />
+            <circle cx="117" cy="373" r="4" />
+            <circle cx="163" cy="373" r="4" />
+          </g>
 
           {side === "front" ? (
             <g stroke="#514663" strokeLinecap="round" fill="none" strokeWidth="1.8">
@@ -249,6 +304,12 @@ export default function InteractiveBodyMap({
           </div>
         </div>
       ) : null}
+
+      {hasSensitiveMarker ? (
+        <div role="note" style={styles.safeguardingNote}>
+          <strong>Safeguarding reminder:</strong> A sensitive injury area has been marked. Record only necessary factual information and follow the school&apos;s safeguarding procedure.
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -323,4 +384,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   redDot: { width: 9, height: 9, flexShrink: 0, borderRadius: 999, background: "#dc2626" },
   remove: { marginLeft: "auto", color: "#b91c1c", fontSize: 18, lineHeight: 1 },
+  safeguardingNote: {
+    marginTop: 12,
+    border: "1px solid #f0c36d",
+    borderRadius: 14,
+    background: "#fff8dc",
+    color: "#713f12",
+    padding: "11px 13px",
+    fontSize: 12,
+    lineHeight: 1.5,
+  },
 };

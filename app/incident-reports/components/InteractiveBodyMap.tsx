@@ -13,6 +13,8 @@ type BodyZone = Point & {
 };
 
 const frontZones: BodyZone[] = [
+  { name: "Right ear", x: 98, y: 27, width: 16, height: 27, markerX: 106, markerY: 40 },
+  { name: "Left ear", x: 166, y: 27, width: 16, height: 27, markerX: 174, markerY: 40 },
   { name: "Right eye", x: 122, y: 26, width: 14, height: 16, markerX: 129, markerY: 34 },
   { name: "Left eye", x: 144, y: 26, width: 14, height: 16, markerX: 151, markerY: 34 },
   { name: "Nose", x: 133, y: 38, width: 15, height: 15, markerX: 140, markerY: 46 },
@@ -35,6 +37,8 @@ const frontZones: BodyZone[] = [
 ];
 
 const backZones: BodyZone[] = [
+  { name: "Right ear/back", x: 98, y: 27, width: 16, height: 27, markerX: 106, markerY: 40 },
+  { name: "Left ear/back", x: 166, y: 27, width: 16, height: 27, markerX: 174, markerY: 40 },
   { name: "Right fingers/back", x: 55, y: 247, width: 40, height: 23, markerX: 75, markerY: 258 },
   { name: "Left fingers/back", x: 185, y: 247, width: 40, height: 23, markerX: 205, markerY: 258 },
   { name: "Right toes/back", x: 78, y: 382, width: 60, height: 20, markerX: 108, markerY: 393 },
@@ -146,6 +150,8 @@ export default function InteractiveBodyMap({
             </linearGradient>
           </defs>
 
+          <ellipse cx="106" cy="40" rx="7" ry="12" fill={`url(#body-fill-${side})`} stroke="#81739c" strokeWidth="2" />
+          <ellipse cx="174" cy="40" rx="7" ry="12" fill={`url(#body-fill-${side})`} stroke="#81739c" strokeWidth="2" />
           <circle cx="140" cy="40" r="31" fill={`url(#body-fill-${side})`} stroke="#81739c" strokeWidth="2" />
           <rect x="128" y="69" width="24" height="18" rx="8" fill={`url(#body-fill-${side})`} stroke="#81739c" strokeWidth="2" />
           <path d="M101 87 Q140 72 179 87 L181 203 Q140 222 99 203 Z" fill={`url(#body-fill-${side})`} stroke="#81739c" strokeWidth="2" />
@@ -160,6 +166,8 @@ export default function InteractiveBodyMap({
 
           {side === "front" ? (
             <g stroke="#514663" strokeLinecap="round" fill="none" strokeWidth="1.8">
+              <path d="M104 36 Q110 40 104 46" />
+              <path d="M176 36 Q170 40 176 46" />
               <path d="M123 33 Q129 28 135 33 Q129 38 123 33" />
               <circle cx="129" cy="33" r="1.7" fill="#514663" />
               <path d="M145 33 Q151 28 157 33 Q151 38 145 33" />

@@ -11,6 +11,7 @@ import {
   LearnerMonthlyFeeSelect,
   MonthlyFeeSetup,
 } from "./MonthlyFeeOptions";
+import { OtherFeeSetup } from "./OtherFeeSetup";
 
 type LearnerRow = {
   id: string;
@@ -1052,68 +1053,22 @@ export default function LearnersPage() {
                 }
               />
 
-              <h4 style={subSectionTitle}>Other Fees</h4>
-              <div style={grid2}>
-                <input
-                  className="db-input"
-                  placeholder="Fee name, e.g. Excursion"
-                  value={newOtherFeeName}
-                  onChange={(e) => setNewOtherFeeName(e.target.value)}
-                />
-                <input
-                  className="db-input"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Amount"
-                  value={newOtherFeeAmount}
-                  onChange={(e) => setNewOtherFeeAmount(e.target.value)}
-                />
-              </div>
-              <button
-                type="button"
-                className="db-button-primary"
-                onClick={addOtherSchoolFee}
-                disabled={savingFeeSetup}
-              >
-                + Add Other Fee
-              </button>
-
-              <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-                {schoolFeeTypes
-                  .filter((fee) => fee.fee_category === "other")
-                  .map((fee) => (
-                    <div
-                      key={fee.id}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: 10,
-                        border: "1px solid #E9DDF2",
-                        borderRadius: 12,
-                        padding: "10px 12px",
-                        background: "#FFF",
-                      }}
-                    >
-                      <span>
-                        {fee.fee_name} · R{Number(fee.amount).toFixed(2)}
-                      </span>
-                      <button
-                        type="button"
-                        className="db-main-pill"
-                        onClick={() =>
-                          updateSchoolFeeCatalog("archive_other", {
-                            fee_id: fee.id,
-                          })
-                        }
-                        disabled={savingFeeSetup}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-              </div>
+              <OtherFeeSetup
+                options={schoolFeeTypes.filter(
+                  (fee) => fee.fee_category === "other"
+                )}
+                name={newOtherFeeName}
+                amount={newOtherFeeAmount}
+                saving={savingFeeSetup}
+                onNameChange={setNewOtherFeeName}
+                onAmountChange={setNewOtherFeeAmount}
+                onAdd={() => void addOtherSchoolFee()}
+                onRemove={(feeId) =>
+                  void updateSchoolFeeCatalog("archive_other", {
+                    fee_id: feeId,
+                  })
+                }
+              />
             </div>
           ) : null}
         </div>

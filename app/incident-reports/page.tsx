@@ -7,6 +7,7 @@ import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { PERMISSIONS } from "../lib/permissions";
+import InteractiveBodyMap from "./components/InteractiveBodyMap";
 
 type Learner = {
   id: string;
@@ -89,34 +90,6 @@ const incidentTypes = [
 const behaviourTypes = new Set([
   "Disruptive behaviour", "Aggressive behaviour", "Bullying or peer conflict",
 ]);
-
-const frontAreas = [
-  "Head/face",
-  "Neck/chest",
-  "Stomach",
-  "Left arm",
-  "Right arm",
-  "Left hand",
-  "Right hand",
-  "Left leg",
-  "Right leg",
-  "Left foot",
-  "Right foot",
-];
-
-const backAreas = [
-  "Back of head",
-  "Neck/back",
-  "Lower back",
-  "Left shoulder",
-  "Right shoulder",
-  "Left arm/back",
-  "Right arm/back",
-  "Left leg/back",
-  "Right leg/back",
-  "Left foot/back",
-  "Right foot/back",
-];
 
 export default function IncidentReportsPage() {
   const router = useRouter();
@@ -714,8 +687,8 @@ export default function IncidentReportsPage() {
           </Field>
 
           {showInjuryFields ? <><label style={{ ...checkboxLine, marginTop: 12 }}><input type="checkbox" checked={medicalAssistanceRequired} onChange={(event) => setMedicalAssistanceRequired(event.target.checked)} />Medical assistance required</label><div style={bodyMapGrid}>
-            <BodyMap title="Front Body Map" areas={frontAreas} selected={frontInjuries} onToggle={(area) => toggleArea(area, "front")} />
-            <BodyMap title="Back Body Map" areas={backAreas} selected={backInjuries} onToggle={(area) => toggleArea(area, "back")} />
+            <InteractiveBodyMap side="front" selected={frontInjuries} onToggle={(area) => toggleArea(area, "front")} />
+            <InteractiveBodyMap side="back" selected={backInjuries} onToggle={(area) => toggleArea(area, "back")} />
           </div></> : null}
 
           <Field label="Photos (up to 2)">
@@ -786,31 +759,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div style={{ marginTop: 10 }}>
       <p style={labelText}>{label}</p>
       {children}
-    </div>
-  );
-}
-
-function BodyMap({ title, areas, selected, onToggle }: { title: string; areas: string[]; selected: string[]; onToggle: (area: string) => void }) {
-  return (
-    <div style={bodyMapBox}>
-      <h4 style={bodyMapTitle}>{title}</h4>
-      <div style={bodyShape}>
-        <div style={headShape} />
-        <div style={torsoShape} />
-        <div style={limbRow}>
-          <span style={limbShape} />
-          <span style={limbShape} />
-        </div>
-      </div>
-
-      <div style={areaGrid}>
-        {areas.map((area) => (
-          <label key={area} style={checkboxLine}>
-            <input type="checkbox" checked={selected.includes(area)} onChange={() => onToggle(area)} />
-            {area}
-          </label>
-        ))}
-      </div>
     </div>
   );
 }
@@ -946,61 +894,11 @@ const checkboxLine = {
   fontWeight: 600,
 } as const;
 
-const bodyMapBox = {
-  border: "1px solid #F0E3D8",
-  borderRadius: 14,
-  padding: 12,
-  background: "#FFFDFB",
-} as const;
-
 const bodyMapTitle = {
   margin: "0 0 10px",
   color: "#2D2A3E",
   fontSize: 16,
   fontWeight: 800,
-} as const;
-
-const bodyShape = {
-  display: "grid",
-  justifyContent: "center",
-  justifyItems: "center",
-  gap: 5,
-  marginBottom: 12,
-} as const;
-
-const headShape = {
-  width: 34,
-  height: 34,
-  borderRadius: "999px",
-  border: "2px solid #7CCCF3",
-  background: "#EAF7FD",
-} as const;
-
-const torsoShape = {
-  width: 70,
-  height: 90,
-  borderRadius: "24px 24px 12px 12px",
-  border: "2px solid #7CCCF3",
-  background: "#EAF7FD",
-} as const;
-
-const limbRow = {
-  display: "flex",
-  gap: 36,
-} as const;
-
-const limbShape = {
-  display: "block",
-  width: 20,
-  height: 70,
-  borderRadius: 999,
-  border: "2px solid #7CCCF3",
-  background: "#EAF7FD",
-} as const;
-
-const areaGrid = {
-  display: "grid",
-  gap: 8,
 } as const;
 
 const reportButton = {

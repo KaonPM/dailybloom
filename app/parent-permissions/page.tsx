@@ -148,37 +148,41 @@ export default function ParentPermissionsPage() {
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
-      <section className="db-page-header">
+      <section className="db-page-header db-card-blue">
         <div>
-          <h1 className="db-page-title">Parent Permissions</h1>
+          <h1 className="db-page-title">✅ Parent Permissions</h1>
           <p className="db-page-subtitle">Request and track learner-specific consent securely.</p>
         </div>
-        <button className="db-button-primary" type="button" onClick={() => setShowCreate((value) => !value)}>
-          {showCreate ? "Close" : "New Permission Request"}
-        </button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button className="db-main-pill db-main-pill-blue" type="button" onClick={() => router.back()}>← Back</button>
+          <button className="db-main-pill db-main-pill-yellow" type="button" onClick={() => router.push(schoolId ? `/dashboard?school=${schoolId}` : "/dashboard")}>🏠 Dashboard</button>
+          <button className="db-button-primary" type="button" onClick={() => setShowCreate((value) => !value)}>
+            {showCreate ? "Close" : "+ New Permission Request"}
+          </button>
+        </div>
       </section>
 
       {message ? <div className="db-soft-card" style={{ padding: 14 }}>{message}</div> : null}
 
       {showCreate ? (
-        <section className="db-card" style={{ padding: 20, display: "grid", gap: 14 }}>
-          <h2 style={{ margin: 0 }}>Create permission request</h2>
-          <div className="db-form-grid">
-            <label>Permission type<select value={permissionType} onChange={(event) => updateType(event.target.value)}>
+        <section className="db-card db-card-blue" style={{ padding: 22, display: "grid", gap: 18 }}>
+          <div><h2 style={{ margin: 0 }}>📝 Create permission request</h2><p className="db-helper" style={{ marginBottom: 0 }}>Choose who should respond and explain clearly what permission is needed.</p></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 16 }}>
+            <label style={{ display: "grid", gap: 7 }}><strong>Permission type</strong><select className="db-input" value={permissionType} onChange={(event) => updateType(event.target.value)}>
               {typeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select></label>
-            <label>Recipients<select value={audience} onChange={(event) => updateAudience(event.target.value)}>
+            <label style={{ display: "grid", gap: 7 }}><strong>Recipients</strong><select className="db-input" value={audience} onChange={(event) => updateAudience(event.target.value)}>
               <option value="all">All learners</option>
               {classrooms.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.classroom_name}</option>)}
             </select></label>
-            <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
-            <label>Response deadline<input type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} /></label>
+            <label style={{ display: "grid", gap: 7 }}><strong>Title</strong><input className="db-input" value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+            <label style={{ display: "grid", gap: 7 }}><strong>Response deadline</strong><input className="db-input" type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} /></label>
             {permissionType === "school_excursion" ? (
-              <label>Excursion date<input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} /></label>
+              <label style={{ display: "grid", gap: 7 }}><strong>Excursion date</strong><input className="db-input" type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} /></label>
             ) : null}
           </div>
-          <label>Clear explanation<textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Explain exactly what the parent is agreeing to." /></label>
-          <p className="db-helper" style={{ margin: 0 }}>{selectedLearners.length} learners selected. No response is treated as permission not granted.</p>
+          <label style={{ display: "grid", gap: 7 }}><strong>Clear explanation</strong><textarea className="db-input" rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Explain exactly what the parent is agreeing to." /></label>
+          <div className="db-soft-card" style={{ padding: 14 }}>👨‍👩‍👧 <strong>{selectedLearners.length} learners selected.</strong> <span className="db-helper">No response is treated as permission not granted.</span></div>
           <button className="db-button-primary" type="button" disabled={saving || selectedIds.length === 0} onClick={() => void submitRequest()}>
             {saving ? "Sending..." : "Send Permission Request"}
           </button>
@@ -186,7 +190,10 @@ export default function ParentPermissionsPage() {
       ) : null}
 
       <section className="db-card" style={{ padding: 20 }}>
-        <h2 style={{ marginTop: 0 }}>Permission request history</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <div><h2 style={{ margin: 0 }}>📋 Permission request history</h2><p className="db-helper" style={{ margin: "5px 0 16px" }}>Track responses and reopen or close requests.</p></div>
+          <span className="db-main-pill db-main-pill-yellow">{requests.length} request{requests.length === 1 ? "" : "s"}</span>
+        </div>
         <div style={{ display: "grid", gap: 12 }}>
           {requests.length ? requests.map((request) => {
             const targets = request.parent_permission_request_learners?.length || 0;
@@ -206,7 +213,7 @@ export default function ParentPermissionsPage() {
                 </button>
               </article>
             );
-          }) : <p className="db-helper">No permission requests created yet.</p>}
+          }) : <div style={{ padding: "34px 16px", textAlign: "center" }}><div style={{ fontSize: 38 }}>📭</div><h3 style={{ marginBottom: 6 }}>No permission requests yet</h3><p className="db-helper" style={{ margin: 0 }}>Select “New Permission Request” when consent is needed.</p></div>}
         </div>
       </section>
     </div>

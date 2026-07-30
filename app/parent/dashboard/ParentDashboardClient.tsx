@@ -1007,7 +1007,7 @@ export default function ParentDashboardClient({
         )}
       </div>
 
-      <Section id="homework" title={`Homework${homeworkCount ? ` (${homeworkCount})` : ""}`}>
+      <Section id="homework" title={`📚 Homework${homeworkCount ? ` (${homeworkCount})` : ""}`}>
         <HomeworkCard
           learnerId={String(child.id)}
           schoolId={Number(child.school_id)}
@@ -1015,14 +1015,14 @@ export default function ParentDashboardClient({
         />
       </Section>
 
-      <Section id="fees" title="Fee Statement">
+      <Section id="fees" title="🧾 Fee Statement">
         <FeesReceiptsCard
           learnerId={String(child.id)}
           schoolId={Number(child.school_id)}
         />
       </Section>
 
-      <Section id="permissions" title={`Permissions${permissionCount ? ` (${permissionCount} new)` : ""}`}>
+      <Section id="permissions" title={`✅ Permissions${permissionCount ? ` (${permissionCount} new)` : ""}`}>
         <PermissionsCard
           learnerId={String(child.id)}
           schoolId={Number(child.school_id)}
@@ -1173,7 +1173,7 @@ export default function ParentDashboardClient({
         )}
       </Section>
 
-      <Section id="attendance" title="✔ Attendance">
+      <Section id="attendance" title="✔️ Attendance">
         <RangeTabs
           active={attendanceRange}
           setActive={handleAttendanceRangeChange}
@@ -1251,7 +1251,7 @@ export default function ParentDashboardClient({
         )}
       </Section>
 
-      <Section id="incidents" title={`⚠ Incident Reports${unacknowledgedIncidents.length ? ` (${unacknowledgedIncidents.length} new)` : ""}`}>
+      <Section id="incidents" title={`⚠️ Incident Reports${unacknowledgedIncidents.length ? ` (${unacknowledgedIncidents.length} new)` : ""}`}>
         <div style={styles.parentMessageIntro}>
           <h3 style={styles.contentTitle}>Incident Reports</h3>
           <p style={styles.emptyText}>

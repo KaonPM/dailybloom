@@ -5,12 +5,12 @@ import { useEffect, useState } from "react";
 import type { OneSignalClient } from "@/app/components/RegisterServiceWorker";
 
 const menuItems = [
-  { label: "Dashboard", href: "/parent/dashboard" },
-  { label: "Messages", href: "/parent/messages" },
-  { label: "Homework", href: "/parent/homework" },
-  { label: "Fee Statement", href: "/parent/fees" },
-  { label: "Incident Reports", href: "/parent/incidents" },
-  { label: "Permissions", href: "/parent/permissions" },
+  { label: "🏠 Dashboard", href: "/parent/dashboard" },
+  { label: "💬 Messages", href: "/parent/messages" },
+  { label: "📚 Homework", href: "/parent/homework" },
+  { label: "🧾 Fee Statement", href: "/parent/fees" },
+  { label: "⚠️ Incident Reports", href: "/parent/incidents" },
+  { label: "✅ Permissions", href: "/parent/permissions" },
 ];
 
 export default function ParentTopBar({
@@ -80,8 +80,8 @@ export default function ParentTopBar({
         </div>
 
         <div className="parent-topbar-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {!notificationsEnabled ? <button type="button" onClick={enableNotifications} className="db-main-pill db-main-pill-yellow">Enable Notifications</button> : null}
-          <button type="button" onClick={() => setOpen(!open)} style={iconButton}>☰</button>
+          {!notificationsEnabled ? <button type="button" onClick={enableNotifications} className="db-main-pill db-main-pill-yellow">🔔 Enable Notifications</button> : null}
+          <button type="button" aria-label="Open parent portal menu" onClick={() => setOpen(!open)} style={iconButton}>☰</button>
         </div>
       </header>
 
@@ -124,7 +124,7 @@ export default function ParentTopBar({
                 cursor: "pointer",
               }}
             >
-              Logout
+              🚪 Logout
             </button>
           </div>
         </>

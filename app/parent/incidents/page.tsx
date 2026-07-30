@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ParentPageActions from "../components/ParentPageActions";
 
 type ParentIncident = {
   id: number; learner_name?: string; report_reference?: string; incident_date?: string;
@@ -35,8 +36,9 @@ export default function ParentIncidentsPage() {
   }
 
   return <div style={{ display: "grid", gap: 16 }}>
+    <ParentPageActions />
     <div className="db-soft-card" style={{ padding: 18 }}>
-      <h1 className="db-page-title">Incident Reports</h1>
+      <h1 className="db-page-title">⚠️ Incident Reports</h1>
       <p className="db-page-subtitle">Reports shared securely by your child&apos;s principal.</p>
     </div>
     {loading ? <p>Loading incident reports...</p> : reports.length === 0 ?

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ParentPageActions from "../components/ParentPageActions";
 
 type Learner = { id: string | number; name?: string | null; school_id?: number | null };
 type Assignment = {
@@ -57,8 +58,9 @@ export default function ParentHomeworkPage() {
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
+      <ParentPageActions />
       <div className="db-soft-card" style={{ padding: 20 }}>
-        <h1 className="db-page-title">Homework</h1>
+        <h1 className="db-page-title">📚 Homework</h1>
         <p className="db-page-subtitle">
           View the teacher&apos;s instructions and open or print any attached worksheet.
         </p>

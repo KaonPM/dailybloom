@@ -2,6 +2,7 @@ import { getCurrentParent } from "@/app/lib/getCurrentParent";
 import MessagesClient from "@/app/messages/MessagesClient";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 import { PERMISSIONS } from "@/app/lib/permissions";
+import ParentPageActions from "../components/ParentPageActions";
 
 type ParentChildSchool = {
   school_id?: number | null;
@@ -61,13 +62,16 @@ export default async function ParentMessagesPage() {
   );
 
   return (
-    <MessagesClient
-      initialParent={{
-        ...parent,
-        children: parent?.children || [],
-        schoolStaff: schoolStaff || [],
-      }}
-      mode="parent"
-    />
+    <div style={{ display: "grid", gap: 16 }}>
+      <ParentPageActions />
+      <MessagesClient
+        initialParent={{
+          ...parent,
+          children: parent?.children || [],
+          schoolStaff: schoolStaff || [],
+        }}
+        mode="parent"
+      />
+    </div>
   );
 }

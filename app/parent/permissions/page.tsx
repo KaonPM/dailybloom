@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ParentPageActions from "../components/ParentPageActions";
 
 type Learner = { id: string | number; name?: string | null; school_id?: number | null };
 type RequestDetails = {
@@ -88,25 +89,25 @@ export default function ParentPermissionsPage() {
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
-      <section className="db-page-header">
+      <ParentPageActions />
+      <section className="db-page-header db-card-blue">
         <div>
-          <h1 className="db-page-title">Permissions</h1>
+          <h1 className="db-page-title">✅ Permissions</h1>
           <p className="db-page-subtitle">Review and respond to requests from your preschool.</p>
         </div>
-        <a href="/parent/dashboard" className="db-main-pill db-main-pill-yellow" style={{ textDecoration: "none" }}>Dashboard</a>
       </section>
 
       {learners.length > 1 ? (
-        <label className="db-card" style={{ padding: 16 }}>Learner
-          <select value={learnerId} onChange={(event) => setLearnerId(event.target.value)}>
+        <label className="db-card" style={{ padding: 18, display: "grid", gap: 8 }}><strong>Choose learner</strong>
+          <select className="db-input" value={learnerId} onChange={(event) => setLearnerId(event.target.value)}>
             {learners.map((learner) => <option key={String(learner.id)} value={String(learner.id)}>{learner.name}</option>)}
           </select>
         </label>
       ) : null}
       {message ? <div className="db-soft-card" style={{ padding: 14 }}>{message}</div> : null}
 
-      <label className="db-card" style={{ padding: 18 }}>Parent/guardian full name
-        <input value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Your full legal name" />
+      <label className="db-card" style={{ padding: 18, display: "grid", gap: 8 }}><strong>Parent/guardian full name</strong>
+        <input className="db-input" value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Your full legal name" />
         <span className="db-helper">Your name, response, date and linked learner will be recorded.</span>
       </label>
 
@@ -118,7 +119,7 @@ export default function ParentPermissionsPage() {
           return (
             <article key={row.request_id} className="db-card" style={{ padding: 20, display: "grid", gap: 12 }}>
               <div>
-                <h2 style={{ margin: 0 }}>{request.title}</h2>
+                <h2 style={{ margin: 0 }}>{request.permission_type === "photos_videos" ? "📸" : request.permission_type === "school_excursion" ? "🚌" : "✅"} {request.title}</h2>
                 <p className="db-helper" style={{ margin: "5px 0 0" }}>
                   {request.event_date ? `Event date: ${request.event_date} · ` : ""}
                   {request.response_deadline ? `Respond by ${request.response_deadline}` : "No response deadline"}
@@ -139,7 +140,7 @@ export default function ParentPermissionsPage() {
               </div>
             </article>
           );
-        }) : <div className="db-card" style={{ padding: 20 }}><p className="db-helper">No permission requests are waiting for this learner.</p></div>}
+        }) : <div className="db-card" style={{ padding: 32, textAlign: "center" }}><div style={{ fontSize: 36 }}>✅</div><h2 style={{ marginBottom: 6 }}>You are all caught up</h2><p className="db-helper" style={{ margin: 0 }}>No permission requests are waiting for this learner.</p></div>}
       </div>
     </div>
   );

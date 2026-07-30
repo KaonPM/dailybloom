@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ParentPageActions from "../components/ParentPageActions";
 
 type Learner = { id: string | number; name?: string | null; school_id?: number | null };
 type Charge = { id: number; description: string; billing_period: string; amount: number };
@@ -122,6 +123,7 @@ export default function ParentFeesPage() {
 
   return (
     <div className="fee-print-statement" style={{ display: "grid", gap: 18 }}>
+      <div className="no-print"><ParentPageActions /></div>
       <div className="db-soft-card" style={{ padding: 20 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
           {school?.logo_url ? (
@@ -129,7 +131,7 @@ export default function ParentFeesPage() {
             <img src={school.logo_url} alt={`${school.school_name || "School"} logo`} style={{ width: 64, height: 64, borderRadius: 16, objectFit: "cover" }} />
           ) : null}
           <div>
-            <h1 className="db-page-title">Fee Statement</h1>
+            <h1 className="db-page-title">🧾 Fee Statement</h1>
             <p className="db-page-subtitle">
               {school?.school_name
                 ? `${school.school_name} continuous learner account`

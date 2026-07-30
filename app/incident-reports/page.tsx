@@ -1,13 +1,13 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { PERMISSIONS } from "../lib/permissions";
-import InteractiveBodyMap from "./components/InteractiveBodyMap";
+import InteractiveBodyMap, { injuryMarkerLabel } from "./components/InteractiveBodyMap";
 
 type Learner = {
   id: string;
@@ -162,11 +162,45 @@ export default function IncidentReportsPage() {
   const isBehaviourIncident = behaviourTypes.has(incidentType);
   const showInjuryFields = incidentType === "Accident or injury" || injuryOccurred !== "no";
 
-  useEffect(() => {
-    loadPage();
+  const fetchLearners = useCallback(async (currentSchoolId: number, currentProfile: ProfileRow) => {
+    let query = supabase
+      .from("learners")
+      .select("id, name, parent_name, parent_phone, classroom_id, classrooms:classroom_id(classroom_name)")
+      .eq("school_id", currentSchoolId)
+      .or("is_deleted.is.null,is_deleted.eq.false")
+      .order("name", { ascending: true });
+
+    if (currentProfile?.role === "teacher" && currentProfile.classroom_name) {
+      query = query.eq("class", currentProfile.classroom_name);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setLearners((data || []) as Learner[]);
   }, []);
 
-  async function loadPage() {
+  const fetchReports = useCallback(async (currentSchoolId: number) => {
+    const { data, error } = await supabase
+      .from("incident_reports")
+      .select("*")
+      .eq("school_id", currentSchoolId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Incident reports fetch error:", error);
+      setReports([]);
+      return;
+    }
+
+    setReports((data || []) as IncidentReport[]);
+  }, []);
+
+  const loadPage = useCallback(async () => {
     const [{ profile: currentProfile }, context] = await Promise.all([
       getCurrentProfile(),
       resolveSchoolContext(schoolParam),
@@ -191,45 +225,11 @@ export default function IncidentReportsPage() {
     ]);
 
     setLoading(false);
-  }
+  }, [fetchLearners, fetchReports, router, schoolParam]);
 
-  async function fetchLearners(currentSchoolId: number, currentProfile = profile) {
-    let query = supabase
-      .from("learners")
-      .select("id, name, parent_name, parent_phone, classroom_id, classrooms:classroom_id(classroom_name)")
-      .eq("school_id", currentSchoolId)
-      .or("is_deleted.is.null,is_deleted.eq.false")
-      .order("name", { ascending: true });
-
-    if (currentProfile?.role === "teacher" && currentProfile.classroom_name) {
-      query = query.eq("class", currentProfile.classroom_name);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setLearners((data || []) as Learner[]);
-  }
-
-  async function fetchReports(currentSchoolId: number) {
-    const { data, error } = await supabase
-      .from("incident_reports")
-      .select("*")
-      .eq("school_id", currentSchoolId)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Incident reports fetch error:", error);
-      setReports([]);
-      return;
-    }
-
-    setReports((data || []) as IncidentReport[]);
-  }
+  useEffect(() => {
+    void loadPage();
+  }, [loadPage]);
 
   function resetForm() {
     setLearnerId("");
@@ -511,8 +511,8 @@ export default function IncidentReportsPage() {
                   <p style={detailText}><strong>Action taken:</strong> {report.action_taken || "Not set"}</p>
                   <p style={detailText}><strong>Parent notified:</strong> {report.parent_notified ? "Yes" : "No"}</p>
                   <p style={detailText}><strong>Witness:</strong> {report.witness_name || "Not set"}</p>
-                  <p style={detailText}><strong>Front injuries:</strong> {(report.front_injury_areas || []).join(", ") || "None marked"}</p>
-                  <p style={detailText}><strong>Back injuries:</strong> {(report.back_injury_areas || []).join(", ") || "None marked"}</p>
+                  <p style={detailText}><strong>Front injuries:</strong> {(report.front_injury_areas || []).map(injuryMarkerLabel).join(", ") || "None marked"}</p>
+                  <p style={detailText}><strong>Back injuries:</strong> {(report.back_injury_areas || []).map(injuryMarkerLabel).join(", ") || "None marked"}</p>
 
                   {(report.photo_urls || []).length > 0 ? (
                     <div style={photoGrid}>

@@ -1,13 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type PointerEvent } from "react";
 
 type BodySide = "front" | "back";
-
-type BodyZone = {
+type Point = { x: number; y: number };
+type BodyZone = Point & {
   name: string;
-  x: number;
-  y: number;
   width: number;
   height: number;
   markerX: number;
@@ -15,32 +13,80 @@ type BodyZone = {
 };
 
 const frontZones: BodyZone[] = [
-  { name: "Head/face", x: 104, y: 9, width: 72, height: 65, markerX: 140, markerY: 40 },
+  { name: "Right eye", x: 122, y: 26, width: 14, height: 16, markerX: 129, markerY: 34 },
+  { name: "Left eye", x: 144, y: 26, width: 14, height: 16, markerX: 151, markerY: 34 },
+  { name: "Nose", x: 133, y: 38, width: 15, height: 15, markerX: 140, markerY: 46 },
+  { name: "Mouth", x: 128, y: 51, width: 24, height: 13, markerX: 140, markerY: 57 },
+  { name: "Head/face", x: 104, y: 9, width: 72, height: 65, markerX: 140, markerY: 20 },
+  { name: "Right fingers", x: 55, y: 247, width: 40, height: 23, markerX: 75, markerY: 258 },
+  { name: "Left fingers", x: 185, y: 247, width: 40, height: 23, markerX: 205, markerY: 258 },
+  { name: "Right toes", x: 78, y: 382, width: 60, height: 20, markerX: 108, markerY: 393 },
+  { name: "Left toes", x: 142, y: 382, width: 60, height: 20, markerX: 172, markerY: 393 },
   { name: "Neck/chest", x: 94, y: 72, width: 92, height: 91, markerX: 140, markerY: 117 },
   { name: "Stomach", x: 100, y: 163, width: 80, height: 61, markerX: 140, markerY: 191 },
-  { name: "Left arm", x: 181, y: 77, width: 42, height: 145, markerX: 202, markerY: 145 },
   { name: "Right arm", x: 57, y: 77, width: 42, height: 145, markerX: 78, markerY: 145 },
-  { name: "Left hand", x: 181, y: 218, width: 45, height: 51, markerX: 203, markerY: 242 },
-  { name: "Right hand", x: 54, y: 218, width: 45, height: 51, markerX: 77, markerY: 242 },
-  { name: "Left leg", x: 140, y: 220, width: 48, height: 154, markerX: 164, markerY: 298 },
+  { name: "Left arm", x: 181, y: 77, width: 42, height: 145, markerX: 202, markerY: 145 },
+  { name: "Right hand", x: 54, y: 218, width: 45, height: 51, markerX: 77, markerY: 238 },
+  { name: "Left hand", x: 181, y: 218, width: 45, height: 51, markerX: 203, markerY: 238 },
   { name: "Right leg", x: 92, y: 220, width: 48, height: 154, markerX: 116, markerY: 298 },
-  { name: "Left foot", x: 139, y: 370, width: 62, height: 38, markerX: 170, markerY: 388 },
-  { name: "Right foot", x: 79, y: 370, width: 62, height: 38, markerX: 110, markerY: 388 },
+  { name: "Left leg", x: 140, y: 220, width: 48, height: 154, markerX: 164, markerY: 298 },
+  { name: "Right foot", x: 79, y: 370, width: 62, height: 38, markerX: 110, markerY: 380 },
+  { name: "Left foot", x: 139, y: 370, width: 62, height: 38, markerX: 170, markerY: 380 },
 ];
 
 const backZones: BodyZone[] = [
+  { name: "Right fingers/back", x: 55, y: 247, width: 40, height: 23, markerX: 75, markerY: 258 },
+  { name: "Left fingers/back", x: 185, y: 247, width: 40, height: 23, markerX: 205, markerY: 258 },
+  { name: "Right toes/back", x: 78, y: 382, width: 60, height: 20, markerX: 108, markerY: 393 },
+  { name: "Left toes/back", x: 142, y: 382, width: 60, height: 20, markerX: 172, markerY: 393 },
   { name: "Back of head", x: 104, y: 9, width: 72, height: 65, markerX: 140, markerY: 40 },
   { name: "Neck/back", x: 94, y: 72, width: 92, height: 105, markerX: 140, markerY: 124 },
   { name: "Lower back", x: 100, y: 177, width: 80, height: 47, markerX: 140, markerY: 198 },
-  { name: "Left shoulder", x: 170, y: 76, width: 48, height: 49, markerX: 193, markerY: 99 },
   { name: "Right shoulder", x: 62, y: 76, width: 48, height: 49, markerX: 87, markerY: 99 },
-  { name: "Left arm/back", x: 181, y: 112, width: 42, height: 110, markerX: 202, markerY: 165 },
+  { name: "Left shoulder", x: 170, y: 76, width: 48, height: 49, markerX: 193, markerY: 99 },
   { name: "Right arm/back", x: 57, y: 112, width: 42, height: 110, markerX: 78, markerY: 165 },
-  { name: "Left leg/back", x: 140, y: 220, width: 48, height: 154, markerX: 164, markerY: 298 },
+  { name: "Left arm/back", x: 181, y: 112, width: 42, height: 110, markerX: 202, markerY: 165 },
+  { name: "Right hand/back", x: 54, y: 218, width: 45, height: 51, markerX: 77, markerY: 238 },
+  { name: "Left hand/back", x: 181, y: 218, width: 45, height: 51, markerX: 203, markerY: 238 },
   { name: "Right leg/back", x: 92, y: 220, width: 48, height: 154, markerX: 116, markerY: 298 },
-  { name: "Left foot/back", x: 139, y: 370, width: 62, height: 38, markerX: 170, markerY: 388 },
-  { name: "Right foot/back", x: 79, y: 370, width: 62, height: 38, markerX: 110, markerY: 388 },
+  { name: "Left leg/back", x: 140, y: 220, width: 48, height: 154, markerX: 164, markerY: 298 },
+  { name: "Right foot/back", x: 79, y: 370, width: 62, height: 38, markerX: 110, markerY: 380 },
+  { name: "Left foot/back", x: 139, y: 370, width: 62, height: 38, markerX: 170, markerY: 380 },
 ];
+
+function markerDetails(value: string, zones: BodyZone[]) {
+  const [name, coordinates] = value.split("@@");
+  const zone = zones.find((item) => item.name === name);
+  const [savedX, savedY] = (coordinates || "").split(",").map(Number);
+  return {
+    name,
+    x: Number.isFinite(savedX) ? savedX : zone?.markerX ?? 140,
+    y: Number.isFinite(savedY) ? savedY : zone?.markerY ?? 210,
+  };
+}
+
+function svgPoint(event: PointerEvent<SVGSVGElement>): Point | null {
+  const matrix = event.currentTarget.getScreenCTM();
+  if (!matrix) return null;
+  const point = event.currentTarget.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  const transformed = point.matrixTransform(matrix.inverse());
+  return { x: transformed.x, y: transformed.y };
+}
+
+function zoneAt(point: Point, zones: BodyZone[]) {
+  return zones.find((zone) =>
+    point.x >= zone.x &&
+    point.x <= zone.x + zone.width &&
+    point.y >= zone.y &&
+    point.y <= zone.y + zone.height
+  ) || null;
+}
+
+export function injuryMarkerLabel(value: string) {
+  return value.split("@@")[0];
+}
 
 export default function InteractiveBodyMap({
   side,
@@ -49,26 +95,47 @@ export default function InteractiveBodyMap({
 }: {
   side: BodySide;
   selected: string[];
-  onToggle: (area: string) => void;
+  onToggle: (marker: string) => void;
 }) {
   const zones = side === "front" ? frontZones : backZones;
-  const [hovered, setHovered] = useState<string | null>(null);
   const title = side === "front" ? "Front Body Map" : "Back Body Map";
+  const [cursor, setCursor] = useState<Point | null>(null);
+  const [hovered, setHovered] = useState<BodyZone | null>(null);
+
+  function movePreview(event: PointerEvent<SVGSVGElement>) {
+    const point = svgPoint(event);
+    const zone = point ? zoneAt(point, zones) : null;
+    setCursor(zone ? point : null);
+    setHovered(zone);
+  }
+
+  function placeMarker(event: PointerEvent<SVGSVGElement>) {
+    const point = svgPoint(event);
+    const zone = point ? zoneAt(point, zones) : null;
+    if (!point || !zone) return;
+    onToggle(`${zone.name}@@${point.x.toFixed(1)},${point.y.toFixed(1)}`);
+  }
 
   return (
     <section style={styles.card}>
       <div style={styles.headingRow}>
         <div>
           <h3 style={styles.title}>{title}</h3>
-          <p style={styles.help}>Hover to identify an area, then click to mark or remove it.</p>
+          <p style={styles.help}>Move the small dot over the injured part, then click to place the red marker.</p>
         </div>
         <span style={styles.count}>{selected.length} marked</span>
       </div>
 
       <div style={styles.mapWrap}>
         <svg
-          aria-label={`${title}. Select an injured body area.`}
-          role="img"
+          aria-label={`${title}. Move over and click the injured body area.`}
+          onClick={placeMarker}
+          onPointerLeave={() => {
+            setCursor(null);
+            setHovered(null);
+          }}
+          onPointerMove={movePreview}
+          role="application"
           style={styles.svg}
           viewBox="0 0 280 420"
         >
@@ -92,88 +159,88 @@ export default function InteractiveBodyMap({
           <path d="M174 364 Q157 365 143 374 L144 394 Q175 405 202 395 Q204 381 189 374 Z" fill={`url(#body-fill-${side})`} stroke="#81739c" strokeWidth="2" />
 
           {side === "front" ? (
-            <g stroke="#675b7d" strokeLinecap="round" fill="none">
-              <circle cx="129" cy="34" r="3" fill="#675b7d" />
-              <circle cx="151" cy="34" r="3" fill="#675b7d" />
-              <path d="M140 37 L136 48 L143 48" />
-              <path d="M130 55 Q140 61 150 55" />
+            <g stroke="#514663" strokeLinecap="round" fill="none" strokeWidth="1.8">
+              <path d="M123 33 Q129 28 135 33 Q129 38 123 33" />
+              <circle cx="129" cy="33" r="1.7" fill="#514663" />
+              <path d="M145 33 Q151 28 157 33 Q151 38 145 33" />
+              <circle cx="151" cy="33" r="1.7" fill="#514663" />
+              <path d="M140 37 L136 48 Q140 51 144 48" />
+              <path d="M129 56 Q140 63 151 56 Q140 59 129 56" />
             </g>
           ) : (
             <path d="M116 31 Q140 17 164 31" fill="none" stroke="#675b7d" strokeLinecap="round" strokeWidth="2" />
           )}
 
-          <g stroke="#81739c" strokeLinecap="round">
-            {[64, 70, 76, 82, 88].map((x) => <line key={`rh-${x}`} x1={x} y1="252" x2={x - 3} y2="263" />)}
-            {[192, 198, 204, 210, 216].map((x) => <line key={`lh-${x}`} x1={x} y1="252" x2={x + 3} y2="263" />)}
-            {[88, 98, 108, 118, 128].map((x) => <line key={`rf-${x}`} x1={x} y1="382" x2={x - 2} y2="396" />)}
-            {[152, 162, 172, 182, 192].map((x) => <line key={`lf-${x}`} x1={x} y1="382" x2={x + 2} y2="396" />)}
+          <g stroke="#81739c" strokeLinecap="round" strokeWidth="1.4">
+            {[62, 68, 74, 80, 86].map((x) => <line key={`rh-${x}`} x1={x} y1="251" x2={x - 3} y2="264" />)}
+            {[194, 200, 206, 212, 218].map((x) => <line key={`lh-${x}`} x1={x} y1="251" x2={x + 3} y2="264" />)}
+            {[87, 97, 107, 117, 127].map((x) => <line key={`rf-${x}`} x1={x} y1="383" x2={x - 2} y2="397" />)}
+            {[153, 163, 173, 183, 193].map((x) => <line key={`lf-${x}`} x1={x} y1="383" x2={x + 2} y2="397" />)}
           </g>
 
-          {zones.map((zone) => {
-            const isSelected = selected.includes(zone.name);
-            const isHovered = hovered === zone.name;
+          {hovered ? (
+            <rect
+              fill="rgba(250, 204, 21, 0.18)"
+              height={hovered.height}
+              pointerEvents="none"
+              rx="10"
+              stroke="#eab308"
+              strokeDasharray="4 4"
+              width={hovered.width}
+              x={hovered.x}
+              y={hovered.y}
+            />
+          ) : null}
+
+          {selected.map((value) => {
+            const marker = markerDetails(value, zones);
             return (
-              <g key={zone.name}>
-                <rect
-                  aria-label={`${isSelected ? "Remove" : "Mark"} ${zone.name}`}
-                  fill={isHovered ? "rgba(250, 204, 21, 0.28)" : "transparent"}
-                  height={zone.height}
-                  onBlur={() => setHovered(null)}
-                  onClick={() => onToggle(zone.name)}
-                  onFocus={() => setHovered(zone.name)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onToggle(zone.name);
-                    }
-                  }}
-                  onMouseEnter={() => setHovered(zone.name)}
-                  onMouseLeave={() => setHovered(null)}
-                  role="button"
-                  rx="12"
-                  stroke={isHovered ? "#eab308" : "transparent"}
-                  strokeWidth="2"
-                  style={{ cursor: "pointer", outline: "none" }}
-                  tabIndex={0}
-                  width={zone.width}
-                  x={zone.x}
-                  y={zone.y}
-                />
-                {isSelected ? (
-                  <g pointerEvents="none">
-                    <circle cx={zone.markerX} cy={zone.markerY} fill="#dc2626" r="8" stroke="white" strokeWidth="3" />
-                    <circle cx={zone.markerX} cy={zone.markerY} fill="#fecaca" r="2.5" />
-                  </g>
-                ) : null}
+              <g key={value} pointerEvents="none">
+                <circle cx={marker.x} cy={marker.y} fill="#dc2626" r="7" stroke="white" strokeWidth="3" />
+                <circle cx={marker.x} cy={marker.y} fill="#fecaca" r="2" />
               </g>
             );
           })}
+
+          {cursor ? (
+            <circle
+              cx={cursor.x}
+              cy={cursor.y}
+              fill="#ef4444"
+              opacity="0.55"
+              pointerEvents="none"
+              r="4"
+              stroke="white"
+              strokeWidth="2"
+            />
+          ) : null}
         </svg>
 
         <div aria-live="polite" style={styles.hoverLabel}>
-          {hovered ? `Select: ${hovered}` : "Move over the body to identify an area"}
+          {hovered ? `${hovered.name} — click to mark` : "Move the pointer over the body"}
         </div>
       </div>
 
-      <div style={styles.checklist}>
-        {zones.map((zone) => {
-          const isSelected = selected.includes(zone.name);
-          return (
-            <button
-              aria-pressed={isSelected}
-              key={zone.name}
-              onClick={() => onToggle(zone.name)}
-              style={{ ...styles.checkItem, ...(isSelected ? styles.checkItemSelected : {}) }}
-              type="button"
-            >
-              <span style={{ ...styles.checkbox, ...(isSelected ? styles.checkboxSelected : {}) }}>
-                {isSelected ? "✓" : ""}
-              </span>
-              {zone.name}
-            </button>
-          );
-        })}
-      </div>
+      {selected.length > 0 ? (
+        <div style={styles.markedPanel}>
+          <p style={styles.markedTitle}>Marked injury areas</p>
+          <div style={styles.checklist}>
+            {selected.map((value) => (
+              <button
+                key={value}
+                onClick={() => onToggle(value)}
+                style={styles.checkItem}
+                title="Click to remove this marker"
+                type="button"
+              >
+                <span style={styles.redDot} />
+                {injuryMarkerLabel(value)}
+                <span aria-hidden="true" style={styles.remove}>×</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -206,7 +273,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "radial-gradient(circle at center, #f8f5ff 0%, #fff 72%)",
     padding: "8px 8px 12px",
   },
-  svg: { display: "block", width: "min(100%, 310px)", height: "auto", overflow: "visible" },
+  svg: { display: "block", width: "min(100%, 330px)", height: "auto", overflow: "visible", cursor: "crosshair", touchAction: "none" },
   hoverLabel: {
     minHeight: 31,
     borderRadius: 999,
@@ -217,21 +284,28 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     textAlign: "center",
   },
+  markedPanel: {
+    marginTop: 14,
+    padding: 12,
+    borderRadius: 16,
+    background: "#fff7f7",
+    border: "1px solid #fecaca",
+  },
+  markedTitle: { margin: "0 0 9px", color: "#991b1b", fontSize: 13, fontWeight: 800 },
   checklist: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
     gap: 8,
-    marginTop: 14,
   },
   checkItem: {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    minHeight: 42,
-    border: "1px solid #eadbe0",
-    borderRadius: 13,
+    minHeight: 40,
+    border: "1px solid #ef4444",
+    borderRadius: 12,
     background: "#fff",
-    color: "#3c3150",
+    color: "#991b1b",
     padding: "8px 10px",
     font: "inherit",
     fontSize: 13,
@@ -239,22 +313,6 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "left",
     cursor: "pointer",
   },
-  checkItemSelected: {
-    borderColor: "#ef4444",
-    background: "#fff1f2",
-    color: "#991b1b",
-    boxShadow: "0 0 0 2px rgba(239, 68, 68, 0.08)",
-  },
-  checkbox: {
-    display: "grid",
-    placeItems: "center",
-    width: 21,
-    height: 21,
-    flexShrink: 0,
-    border: "2px solid #c4b7cb",
-    borderRadius: 6,
-    color: "#fff",
-    fontSize: 13,
-  },
-  checkboxSelected: { borderColor: "#dc2626", background: "#dc2626" },
+  redDot: { width: 9, height: 9, flexShrink: 0, borderRadius: 999, background: "#dc2626" },
+  remove: { marginLeft: "auto", color: "#b91c1c", fontSize: 18, lineHeight: 1 },
 };

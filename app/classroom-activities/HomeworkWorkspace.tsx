@@ -56,6 +56,7 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
       emptySelection(defaultDueDate),
     ]);
     const [uploadTitle, setUploadTitle] = useState("");
+    const [uploadInstruction, setUploadInstruction] = useState("");
     const [uploadFile, setUploadFile] = useState<File | null>(null);
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -268,11 +269,15 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
       setSelections([
         {
           homework_id: String(homework.id),
-          instruction_note: selections[0]?.instruction_note || "",
+          instruction_note:
+            uploadInstruction.trim() ||
+            selections[0]?.instruction_note ||
+            "",
           due_date: selections[0]?.due_date || defaultDueDate,
         },
       ]);
       setUploadTitle("");
+      setUploadInstruction("");
       setUploadFile(null);
       setMessage(`${homework.title} uploaded and selected for ${dayLabel}.`);
     }
@@ -395,6 +400,16 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
                   maxLength={160}
                   placeholder="Homework name"
                   onChange={(event) => setUploadTitle(event.target.value)}
+                />
+                <textarea
+                  className="db-input"
+                  value={uploadInstruction}
+                  maxLength={500}
+                  placeholder="Instructions for parent, e.g. Print pages 1–2 and complete by Friday."
+                  onChange={(event) =>
+                    setUploadInstruction(event.target.value)
+                  }
+                  style={{ minHeight: 80, resize: "vertical" }}
                 />
                 <input
                   className="db-input"

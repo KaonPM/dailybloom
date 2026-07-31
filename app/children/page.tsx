@@ -187,11 +187,19 @@ export default function LearnersPage() {
 
     setSchoolId(context.schoolId);
 
-    await Promise.all([
+    const pageRequests: Promise<unknown>[] = [
       fetchClassrooms(context.schoolId),
       fetchLearners(context.schoolId),
-      fetchSchoolFeeCatalog(context.schoolId),
-    ]);
+    ];
+
+    // Teachers only need their assigned-class learner list. The fee catalogue
+    // is a billing-management resource and requesting it for teachers produces
+    // an unnecessary permission warning when they open Learners.
+    if (currentProfile.role !== "teacher") {
+      pageRequests.push(fetchSchoolFeeCatalog(context.schoolId));
+    }
+
+    await Promise.all(pageRequests);
 
     setLoading(false);
   }

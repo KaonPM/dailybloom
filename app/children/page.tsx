@@ -12,6 +12,10 @@ import {
   MonthlyFeeSetup,
 } from "./MonthlyFeeOptions";
 import { OtherFeeSetup } from "./OtherFeeSetup";
+import {
+  duplicateLearnerDisplayName,
+  findLearnerDuplicate,
+} from "../lib/learner-duplicates";
 
 type LearnerRow = {
   id: string;
@@ -232,6 +236,7 @@ export default function LearnersPage() {
         date_of_birth,
         birth_certificate_number,
         sa_id_number,
+        passport_number,
         gender,
         nationality,
         home_language,
@@ -778,6 +783,40 @@ export default function LearnersPage() {
     if (!monthlyFeeTypeId || parsedMonthlyFee <= 0) {
       alert("Select the learner's monthly school fee.");
       return;
+    }
+
+    const duplicate = findLearnerDuplicate(
+      {
+        legalName,
+        dateOfBirth,
+        birthCertificateNumber,
+        saIdNumber,
+        passportNumber,
+      },
+      learners,
+      selectedLearner?.id
+    );
+
+    if (duplicate?.kind === "identifier") {
+      const existingName = duplicateLearnerDisplayName(duplicate.learner);
+      setLearnerSearch(existingName);
+      setLearnerPage(1);
+      alert(
+        `This learner may already be registered. ${existingName} has the same ${duplicate.field}. Review the existing learner instead of creating another record.`
+      );
+      return;
+    }
+
+    if (duplicate?.kind === "identity") {
+      const existingName = duplicateLearnerDisplayName(duplicate.learner);
+      const confirmedDifferentLearner = window.confirm(
+        `Possible duplicate learner: ${existingName} has the same full legal name and date of birth.\n\nSelect Cancel to review the existing learner. Select OK only if these are different learners.`
+      );
+      if (!confirmedDifferentLearner) {
+        setLearnerSearch(existingName);
+        setLearnerPage(1);
+        return;
+      }
     }
 
     setSaving(true);

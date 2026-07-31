@@ -373,9 +373,11 @@ export function GeneratedReportsList({
                   <div style={{ marginTop: "12px" }}>
                     <p style={textStyle}>
                       Type:{" "}
-                      {(item.report_type || "developmental") === "grade-rr"
-                        ? "Grade RR Progress Report"
-                        : "Developmental Progress Report"}
+                      {(item.report_type || "developmental") === "grade-r"
+                        ? "Grade R Learner Report"
+                        : (item.report_type || "developmental") === "grade-rr"
+                          ? "Grade RR Progress Report"
+                          : "Developmental Progress Report"}
                     </p>
                     <p style={textStyle}>
                       Class: {getClassroomName(item.classroom_id)}

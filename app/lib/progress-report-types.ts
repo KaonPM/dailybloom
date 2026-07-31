@@ -1,4 +1,4 @@
-export type ProgressReportType = "developmental" | "grade-rr";
+export type ProgressReportType = "developmental" | "grade-rr" | "grade-r";
 export type ProgressReportId = string | number | null | undefined;
 
 export type ProgressReportIndicator = {

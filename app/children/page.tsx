@@ -27,6 +27,7 @@ type LearnerRow = {
   birth_certificate_number?: string | null;
   sa_id_number?: string | null;
   passport_number?: string | null;
+  admission_number?: string | null;
   gender?: string | null;
   nationality?: string | null;
   home_language?: string | null;
@@ -110,6 +111,7 @@ export default function LearnersPage() {
   const [birthCertificateNumber, setBirthCertificateNumber] = useState("");
   const [saIdNumber, setSaIdNumber] = useState("");
   const [passportNumber, setPassportNumber] = useState("");
+  const [admissionNumber, setAdmissionNumber] = useState("");
   const [gender, setGender] = useState("");
   const [nationality, setNationality] = useState("South African");
   const [homeLanguage, setHomeLanguage] = useState("");
@@ -237,6 +239,7 @@ export default function LearnersPage() {
         birth_certificate_number,
         sa_id_number,
         passport_number,
+        admission_number,
         gender,
         nationality,
         home_language,
@@ -443,6 +446,7 @@ export default function LearnersPage() {
     setBirthCertificateNumber("");
     setSaIdNumber("");
     setPassportNumber("");
+    setAdmissionNumber("");
     setGender("");
     setNationality("South African");
     setHomeLanguage("");
@@ -558,6 +562,7 @@ export default function LearnersPage() {
     setBirthCertificateNumber(learner.birth_certificate_number || "");
     setSaIdNumber(learner.sa_id_number || "");
     setPassportNumber(learner.passport_number || "");
+    setAdmissionNumber(learner.admission_number || "");
     setGender(learner.gender || "");
     setNationality(learner.nationality || "");
     setHomeLanguage(learner.home_language || "");
@@ -848,6 +853,7 @@ export default function LearnersPage() {
       birth_certificate_number: birthCertificateNumber.trim() || null,
       sa_id_number: saIdNumber.trim() || null,
       passport_number: passportNumber.trim() || null,
+      admission_number: admissionNumber.trim() || null,
       gender,
       nationality: nationality || null,
       home_language: homeLanguage,
@@ -964,6 +970,9 @@ export default function LearnersPage() {
   const selectedClassroom = classrooms.find(
     (classroom) => String(classroom.id) === manualClassroomId
   );
+  const selectedClassroomIsGradeR =
+    /\bgrade\s*r\b/i.test(selectedClassroom?.classroom_name || "") &&
+    !/\bgrade\s*rr\b/i.test(selectedClassroom?.classroom_name || "");
   const registrationAlreadyRecorded = Boolean(
     selectedLearner?.registration_fee_paid_at
   );
@@ -1217,6 +1226,17 @@ export default function LearnersPage() {
                 onChange={(event) => setPassportNumber(event.target.value)}
               />
             </div>
+            {selectedClassroomIsGradeR ? (
+              <div>
+                <p style={labelText}>Admission Number</p>
+                <input
+                  className="db-input"
+                  placeholder="Optional — may be added later"
+                  value={admissionNumber}
+                  onChange={(event) => setAdmissionNumber(event.target.value)}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div style={grid2}>

@@ -9,6 +9,10 @@ import {
   gradeRRCategories,
   gradeRRRatingScale,
 } from "../lib/grade-rr-categories";
+import {
+  gradeRCategories,
+  gradeRRatingScale,
+} from "../lib/grade-r-categories";
 import { PERMISSIONS } from "../lib/permissions";
 
 const levelOptions = [
@@ -19,7 +23,7 @@ const levelOptions = [
   { value: "VG", label: "VG - Very Good" },
 ];
 
-type ReportType = "developmental" | "grade-rr";
+type ReportType = "developmental" | "grade-rr" | "grade-r";
 type Indicator = { key: string; label: string };
 type Category = {
   key: string;
@@ -87,7 +91,7 @@ export default function TeacherAssessmentsPage() {
   const [learners, setLearners] = useState<LearnerRow[]>([]);
   const [periods, setPeriods] = useState<PeriodRow[]>([]);
 
-  const [reportType, setReportType] = useState<"developmental" | "grade-rr">(
+  const [reportType, setReportType] = useState<ReportType>(
     "developmental"
   );
 
@@ -103,10 +107,18 @@ export default function TeacherAssessmentsPage() {
   const [saving, setSaving] = useState(false);
 
   const activeCategories =
-    reportType === "grade-rr" ? gradeRRCategories : reportCategories;
+    reportType === "grade-r"
+      ? gradeRCategories
+      : reportType === "grade-rr"
+        ? gradeRRCategories
+        : reportCategories;
 
   const activeLevels =
-    reportType === "grade-rr" ? gradeRRRatingScale : levelOptions;
+    reportType === "grade-r"
+      ? gradeRRatingScale
+      : reportType === "grade-rr"
+        ? gradeRRRatingScale
+        : levelOptions;
 
   useEffect(() => {
     loadPage();
@@ -157,13 +169,13 @@ export default function TeacherAssessmentsPage() {
       (period) => String(period.id) === String(periodId)
     );
 
-    return selectedPeriod?.report_template === "grade-rr"
-      ? "grade-rr"
-      : "developmental";
+    if (selectedPeriod?.report_template === "grade-r") return "grade-r";
+    return selectedPeriod?.report_template === "grade-rr" ? "grade-rr" : "developmental";
   }
 
   function formatReportTemplate(template: string) {
     if (template === "grade-rr") return "Grade RR Assessment";
+    if (template === "grade-r") return "Grade R Assessment";
     return "Developmental Assessment";
   }
 
@@ -291,7 +303,11 @@ export default function TeacherAssessmentsPage() {
     setExistingAssessments(data || []);
 
     const categories =
-      template === "grade-rr" ? gradeRRCategories : reportCategories;
+      template === "grade-r"
+        ? gradeRCategories
+        : template === "grade-rr"
+          ? gradeRRCategories
+          : reportCategories;
 
     const nextValues: AssessmentValues = {};
 
@@ -561,9 +577,11 @@ export default function TeacherAssessmentsPage() {
       {canShowAssessmentForm ? (
         <div className="db-card db-card-lavender" style={{ padding: 20 }}>
           <h3 style={sectionTitle}>
-            {reportType === "grade-rr"
-              ? "Grade RR Assessment Indicators"
-              : "Development Indicators"}
+            {reportType === "grade-r"
+              ? "Grade R Assessment Indicators"
+              : reportType === "grade-rr"
+                ? "Grade RR Assessment Indicators"
+                : "Development Indicators"}
           </h3>
 
           <div style={{ display: "grid", gap: 16 }}>

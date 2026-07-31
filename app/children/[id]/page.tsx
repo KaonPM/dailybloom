@@ -24,6 +24,7 @@ type LearnerRow = {
   birth_certificate_number?: string | null;
   sa_id_number?: string | null;
   passport_number?: string | null;
+  admission_number?: string | null;
   gender?: string | null;
   nationality?: string | null;
   home_language?: string | null;
@@ -1214,6 +1215,13 @@ export default function LearnerProfilePage() {
               value={learner.birth_certificate_number}
             />
             <Info label="SA ID Number" value={learner.sa_id_number} />
+            {/\bgrade\s*r\b/i.test(learner.class || "") &&
+            !/\bgrade\s*rr\b/i.test(learner.class || "") ? (
+              <Info
+                label="Admission Number"
+                value={learner.admission_number || "Not assigned"}
+              />
+            ) : null}
             <Info label="Passport Number" value={learner.passport_number} />
             <Info label="Classroom" value={learner.class} />
           </div>

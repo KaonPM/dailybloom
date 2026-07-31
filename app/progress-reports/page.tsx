@@ -101,6 +101,7 @@ type LearnerRow = {
   assigned_classroom_name?: string | null;
   age?: string | number | null;
   date_of_birth?: string | null;
+  admission_number?: string | null;
 };
 
 type PeriodRow = {
@@ -173,7 +174,7 @@ export default function ProgressReportsPage() {
   const [allAssessments, setAllAssessments] = useState<AssessmentRow[]>([]);
   const [generatedReports, setGeneratedReports] = useState<GeneratedReportRow[]>([]);
 
-  const [reportType, setReportType] = useState<"developmental" | "grade-rr">(
+  const [reportType, setReportType] = useState<ReportType>(
     "developmental"
   );
 
@@ -194,7 +195,7 @@ export default function ProgressReportsPage() {
   const [newOpeningDate, setNewOpeningDate] = useState("");
   const [newClosingDate, setNewClosingDate] = useState("");
   const [newReportTemplate, setNewReportTemplate] = useState<
-    "developmental" | "grade-rr"
+    ReportType
   >("developmental");
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -597,6 +598,7 @@ export default function ProgressReportsPage() {
   }
 
   function formatReportTemplate(template: string) {
+    if (template === "grade-r") return "Grade R Learner Report";
     if (template === "grade-rr") return "Grade RR Progress Report";
     return "Developmental Progress Report";
   }
@@ -779,7 +781,7 @@ export default function ProgressReportsPage() {
     setSelectedLearnerId(String(item.learner_id || ""));
     setSelectedPeriodId(String(item.report_period_id || ""));
     setReportType(
-      (item.report_type || "developmental") as "developmental" | "grade-rr"
+      (item.report_type || "developmental") as ReportType
     );
     setShowTeacherChecklist(true);
     setShowTeacherSavedReports(true);
@@ -1710,7 +1712,7 @@ export default function ProgressReportsPage() {
       assessmentRows.find((assessment: AssessmentRow) => assessment.report_type)
         ?.report_type || assessmentReportType;
 
-    setReportType(resolvedReportType as "developmental" | "grade-rr");
+    setReportType(resolvedReportType as ReportType);
 
     const latestAssessments = normalizeLatestAssessments(assessmentRows);
 
@@ -2149,9 +2151,11 @@ export default function ProgressReportsPage() {
       const learnerName =
         selectedLearner?.name?.replace(/\s+/g, "_") || "Learner";
       const fileLabel =
-        reportType === "grade-rr"
-          ? "Grade_RR_Progress_Report"
-          : "Developmental_Progress_Report";
+        reportType === "grade-r"
+          ? "Grade_R_Learner_Report"
+          : reportType === "grade-rr"
+            ? "Grade_RR_Progress_Report"
+            : "Developmental_Progress_Report";
 
       pdf.save(`${learnerName}_${fileLabel}.pdf`);
     } catch (error) {
@@ -2481,7 +2485,7 @@ export default function ProgressReportsPage() {
               value={newReportTemplate}
               onChange={(e) =>
                 setNewReportTemplate(
-                  e.target.value as "developmental" | "grade-rr"
+                  e.target.value as ReportType
                 )
               }
             >
@@ -2489,6 +2493,7 @@ export default function ProgressReportsPage() {
                 Developmental Progress Report
               </option>
               <option value="grade-rr">Grade RR Progress Report</option>
+              <option value="grade-r">Grade R Learner Report</option>
             </select>
 
             <select
@@ -2640,9 +2645,7 @@ export default function ProgressReportsPage() {
 
                 if (selectedReportPeriod?.report_template) {
                   setReportType(
-                    selectedReportPeriod.report_template as
-                      | "developmental"
-                      | "grade-rr"
+                    selectedReportPeriod.report_template as ReportType
                   );
                 }
                 setOpeningDate(selectedReportPeriod?.opening_date || "");
@@ -3603,6 +3606,24 @@ export default function ProgressReportsPage() {
               overflow: "hidden",
             }}
           >
+            {reportType === "grade-r" && school?.logo_url ? (
+              <img
+                aria-hidden="true"
+                src={school.logo_url}
+                alt=""
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  width: "52%",
+                  maxWidth: "560px",
+                  transform: "translate(-50%, -50%)",
+                  opacity: 0.055,
+                  objectFit: "contain",
+                  pointerEvents: "none",
+                }}
+              />
+            ) : null}
             <div className="booklet-page">
               <div style={bookletPanel}>
                 <h3 style={bookletSectionTitle}>National Codes</h3>
@@ -3610,7 +3631,9 @@ export default function ProgressReportsPage() {
                 <div style={codesBox}>
                   <strong>Codes / Level of Competence</strong>
                   <br />
-                  {reportType === "grade-rr"
+                  {reportType === "grade-r"
+                    ? "1 = Not Achieved | 2 = Elementary | 3 = Moderate | 4 = Adequate | 5 = Substantial | 6 = Meritorious | 7 = Outstanding"
+                    : reportType === "grade-rr"
                     ? "1 = Not Achieved | 2 = Partially Achieved | 3 = Achieved | 4 = Outstanding Achievement"
                     : "NP = Needs Practice | PA = Partially Achieved | A = Achieved | G = Good | VG = Very Good"}
                 </div>
@@ -3763,7 +3786,7 @@ export default function ProgressReportsPage() {
                     <strong>Class:</strong> {selectedClassroom.classroom_name}
                   </p>
 
-                  {reportType === "grade-rr" ? (
+                  {reportType === "grade-rr" || reportType === "grade-r" ? (
                     <>
                       <p style={bookletText}>
                         <strong>Opening Date:</strong>{" "}
@@ -3774,6 +3797,12 @@ export default function ProgressReportsPage() {
                         <strong>Closing Date:</strong>{" "}
                         {closingDate || "Not added"}
                       </p>
+                      {reportType === "grade-r" ? (
+                        <p style={bookletText}>
+                          <strong>Admission No:</strong>{" "}
+                          {selectedLearner.admission_number || "Not assigned"}
+                        </p>
+                      ) : null}
                     </>
                   ) : null}
                 </div>
@@ -3827,7 +3856,9 @@ export default function ProgressReportsPage() {
               }}
             >
               Generated securely by DailyBloom.{" "}
-              {reportType === "grade-rr"
+              {reportType === "grade-r"
+                ? "DBE-aligned Grade R reporting with evidence-backed practitioner assessment."
+                : reportType === "grade-rr"
                 ? "Aligned to Grade RR reporting domains."
                 : "Aligned to the six recognised DBE National Curriculum Framework developmental and learning areas."}
             </p>

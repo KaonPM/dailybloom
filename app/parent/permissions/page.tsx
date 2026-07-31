@@ -47,7 +47,7 @@ export default function ParentPermissionsPage() {
   async function loadRequests(learner: Learner) {
     const response = await fetch(`/api/parent-permissions/respond?learner_id=${encodeURIComponent(String(learner.id))}&school_id=${Number(learner.school_id)}`, { cache: "no-store" });
     const body = await response.json();
-    if (!response.ok) return setMessage(body.error || "Permission requests could not be loaded.");
+    if (!response.ok) return setMessage(body.error || "Consent requests could not be loaded.");
     setRows(body.requests || []);
   }
 
@@ -82,7 +82,7 @@ export default function ParentPermissionsPage() {
       setSavingId(null);
       return setMessage(body.error || "Your response could not be saved.");
     }
-    setMessage("Your permission response has been recorded.");
+    setMessage("Your consent response has been recorded.");
     await loadRequests(selectedLearner);
     setSavingId(null);
   }
@@ -92,8 +92,8 @@ export default function ParentPermissionsPage() {
       <ParentPageActions />
       <section className="db-page-header db-card-blue">
         <div>
-          <h1 className="db-page-title">✅ Permissions</h1>
-          <p className="db-page-subtitle">Review and respond to requests from your preschool.</p>
+          <h1 className="db-page-title">✅ Parent Consent</h1>
+          <p className="db-page-subtitle">Review and respond to consent requests from your preschool.</p>
         </div>
       </section>
 
@@ -128,19 +128,19 @@ export default function ParentPermissionsPage() {
               <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{request.description}</p>
               {savedResponse ? (
                 <div className="db-soft-card" style={{ padding: 14 }}>
-                  <strong>{savedResponse.response === "granted" ? "Permission granted" : "Permission declined"}</strong>
+                  <strong>{savedResponse.response === "granted" ? "Consent granted" : "Consent declined"}</strong>
                   <p className="db-helper" style={{ margin: "4px 0 0" }}>Recorded for {selectedLearner?.name}. You may update this response before the deadline.</p>
                 </div>
               ) : (
-                <p className="db-helper" style={{ margin: 0 }}>No response is treated as permission not granted.</p>
+                <p className="db-helper" style={{ margin: 0 }}>No response is treated as consent not granted.</p>
               )}
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button className="db-button-primary" type="button" disabled={savingId === request.id} onClick={() => void respond(request.id, "granted")}>I Give Permission</button>
-                <button className="db-button-secondary" type="button" disabled={savingId === request.id} onClick={() => void respond(request.id, "declined")}>I Do Not Give Permission</button>
+                <button className="db-button-primary" type="button" disabled={savingId === request.id} onClick={() => void respond(request.id, "granted")}>I Give Consent</button>
+                <button className="db-button-secondary" type="button" disabled={savingId === request.id} onClick={() => void respond(request.id, "declined")}>I Do Not Give Consent</button>
               </div>
             </article>
           );
-        }) : <div className="db-card" style={{ padding: 32, textAlign: "center" }}><div style={{ fontSize: 36 }}>✅</div><h2 style={{ marginBottom: 6 }}>You are all caught up</h2><p className="db-helper" style={{ margin: 0 }}>No permission requests are waiting for this learner.</p></div>}
+        }) : <div className="db-card" style={{ padding: 32, textAlign: "center" }}><div style={{ fontSize: 36 }}>✅</div><h2 style={{ marginBottom: 6 }}>You are all caught up</h2><p className="db-helper" style={{ margin: 0 }}>No consent requests are waiting for this learner.</p></div>}
       </div>
     </div>
   );

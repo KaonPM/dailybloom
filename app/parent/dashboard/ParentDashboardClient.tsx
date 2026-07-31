@@ -921,7 +921,7 @@ export default function ParentDashboardClient({
       ? [{ type: "homework", text: "New homework is ready to view and print" }]
       : []),
     ...(permissionCount > 0 && !seenUpdateTypes.permissions
-      ? [{ type: "permissions", text: `${permissionCount} permission request${permissionCount === 1 ? "" : "s"} need${permissionCount === 1 ? "s" : ""} your response` }]
+      ? [{ type: "permissions", text: `${permissionCount} consent request${permissionCount === 1 ? "" : "s"} need${permissionCount === 1 ? "s" : ""} your response` }]
       : []),
   ];
 
@@ -1022,7 +1022,7 @@ export default function ParentDashboardClient({
         />
       </Section>
 
-      <Section id="permissions" title={`✅ Permissions${permissionCount ? ` (${permissionCount} new)` : ""}`}>
+      <Section id="permissions" title={`✅ Parent Consent${permissionCount ? ` (${permissionCount} new)` : ""}`}>
         <PermissionsCard
           learnerId={String(child.id)}
           schoolId={Number(child.school_id)}

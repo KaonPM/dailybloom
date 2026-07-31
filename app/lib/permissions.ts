@@ -68,7 +68,7 @@ export const PERMISSION_OPTIONS: readonly PermissionOption[] = [
   { permission: PERMISSIONS.COMMUNICATIONS_MANAGE, label: "Communication centre", description: "Access the school communication centre.", group: "Communication" },
   { permission: PERMISSIONS.PARENT_NOTIFY, label: "Notify parents", description: "Send parent notifications for supported workflows.", group: "Communication" },
   { permission: PERMISSIONS.PARENT_ACCESS_MANAGE, label: "Manage parent access", description: "Create, resend and reset parent portal access.", group: "Learners" },
-  { permission: PERMISSIONS.PARENT_PERMISSIONS_MANAGE, label: "Parent permissions", description: "Create consent requests and review parent responses.", group: "Communication" },
+  { permission: PERMISSIONS.PARENT_PERMISSIONS_MANAGE, label: "Parent consent", description: "Create consent requests and review parent responses.", group: "Communication" },
   { permission: PERMISSIONS.REQUIREMENTS_VIEW, label: "View requirements", description: "View learner requirements and outstanding items.", group: "Learners" },
   { permission: PERMISSIONS.REQUIREMENTS_TRACK, label: "Record requirements", description: "Record stationery, hygiene and document progress.", group: "Learners" },
   { permission: PERMISSIONS.REQUIREMENTS_MANAGE, label: "Manage requirement lists", description: "Add, archive and configure required items.", group: "Learners" },

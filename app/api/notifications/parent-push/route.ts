@@ -152,7 +152,7 @@ export async function POST(request: Request) {
         ? uniqueValues(body.parent_phones).filter((phone) => allowedParentPhones.includes(phone))
         : [];
       title = schoolName;
-      message = body.title || "A parent permission request needs your response.";
+      message = body.title || "A parent consent request needs your response.";
       url = `${siteUrl}/parent/permissions`;
     }
 

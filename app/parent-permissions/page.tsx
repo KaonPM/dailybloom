@@ -24,7 +24,7 @@ type PermissionRequest = {
 
 const typeOptions = [
   { value: "photos_videos", label: "Photos & Videos" },
-  { value: "general", label: "General Permission" },
+  { value: "general", label: "General Consent" },
   { value: "school_excursion", label: "School Excursion" },
 ];
 
@@ -38,7 +38,7 @@ export default function ParentPermissionsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [audience, setAudience] = useState("all");
   const [permissionType, setPermissionType] = useState("photos_videos");
-  const [title, setTitle] = useState("Permission to use photos and videos");
+  const [title, setTitle] = useState("Consent to use photos and videos");
   const [description, setDescription] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -64,7 +64,7 @@ export default function ParentPermissionsPage() {
   async function loadRequests(currentSchoolId: number) {
     const response = await authenticatedFetch(`/api/parent-permissions?school_id=${currentSchoolId}`, { cache: "no-store" });
     const body = await response.json();
-    if (!response.ok) return setMessage(body.error || "Permission requests could not be loaded.");
+    if (!response.ok) return setMessage(body.error || "Consent requests could not be loaded.");
     setRequests(body.requests || []);
   }
 
@@ -88,9 +88,9 @@ export default function ParentPermissionsPage() {
 
   function updateType(value: string) {
     setPermissionType(value);
-    if (value === "photos_videos") setTitle("Permission to use photos and videos");
-    if (value === "general") setTitle("General parent permission");
-    if (value === "school_excursion") setTitle("School excursion permission");
+    if (value === "photos_videos") setTitle("Consent to use photos and videos");
+    if (value === "general") setTitle("General parent consent");
+    if (value === "school_excursion") setTitle("School excursion consent");
   }
 
   async function submitRequest() {
@@ -113,7 +113,7 @@ export default function ParentPermissionsPage() {
     const body = await response.json();
     if (!response.ok) {
       setSaving(false);
-      return setMessage(body.error || "Permission request could not be sent.");
+      return setMessage(body.error || "Consent request could not be sent.");
     }
     authenticatedFetch("/api/notifications/parent-push", {
       method: "POST",
@@ -121,7 +121,7 @@ export default function ParentPermissionsPage() {
       body: JSON.stringify({
         type: "parent_permission",
         school_id: schoolId,
-        title: "A permission request needs your response",
+        title: "A consent request needs your response",
         parent_phones: body.parent_phones || [],
       }),
     }).catch(console.error);
@@ -129,7 +129,7 @@ export default function ParentPermissionsPage() {
     setDescription("");
     setEventDate("");
     setDeadline("");
-    setMessage("Permission request sent to the selected parents.");
+    setMessage("Consent request sent to the selected parents.");
     await loadRequests(schoolId);
     setSaving(false);
   }
@@ -150,13 +150,13 @@ export default function ParentPermissionsPage() {
     <div style={{ display: "grid", gap: 18 }}>
       <section className="db-page-header db-card-blue">
         <div>
-          <h1 className="db-page-title">✅ Parent Permissions</h1>
+          <h1 className="db-page-title">✅ Parent Consent</h1>
           <p className="db-page-subtitle">Request and track learner-specific consent securely.</p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button className="db-main-pill db-main-pill-yellow" type="button" onClick={() => router.push(schoolId ? `/dashboard?school=${schoolId}` : "/dashboard")}>🏠 Dashboard</button>
           <button className="db-button-primary" type="button" onClick={() => setShowCreate((value) => !value)}>
-            {showCreate ? "Close" : "+ New Permission Request"}
+            {showCreate ? "Close" : "+ New Consent Request"}
           </button>
         </div>
       </section>
@@ -165,9 +165,9 @@ export default function ParentPermissionsPage() {
 
       {showCreate ? (
         <section className="db-card db-card-blue" style={{ padding: 22, display: "grid", gap: 18 }}>
-          <div><h2 style={{ margin: 0 }}>📝 Create permission request</h2><p className="db-helper" style={{ marginBottom: 0 }}>Choose who should respond and explain clearly what permission is needed.</p></div>
+          <div><h2 style={{ margin: 0 }}>📝 Create consent request</h2><p className="db-helper" style={{ marginBottom: 0 }}>Choose who should respond and explain clearly what consent is needed.</p></div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 16 }}>
-            <label style={{ display: "grid", gap: 7 }}><strong>Permission type</strong><select className="db-input" value={permissionType} onChange={(event) => updateType(event.target.value)}>
+            <label style={{ display: "grid", gap: 7 }}><strong>Consent type</strong><select className="db-input" value={permissionType} onChange={(event) => updateType(event.target.value)}>
               {typeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select></label>
             <label style={{ display: "grid", gap: 7 }}><strong>Recipients</strong><select className="db-input" value={audience} onChange={(event) => updateAudience(event.target.value)}>
@@ -181,16 +181,16 @@ export default function ParentPermissionsPage() {
             ) : null}
           </div>
           <label style={{ display: "grid", gap: 7 }}><strong>Clear explanation</strong><textarea className="db-input" rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Explain exactly what the parent is agreeing to." /></label>
-          <div className="db-soft-card" style={{ padding: 14 }}>👨‍👩‍👧 <strong>{selectedLearners.length} learners selected.</strong> <span className="db-helper">No response is treated as permission not granted.</span></div>
+          <div className="db-soft-card" style={{ padding: 14 }}>👨‍👩‍👧 <strong>{selectedLearners.length} learners selected.</strong> <span className="db-helper">No response is treated as consent not granted.</span></div>
           <button className="db-button-primary" type="button" disabled={saving || selectedIds.length === 0} onClick={() => void submitRequest()}>
-            {saving ? "Sending..." : "Send Permission Request"}
+            {saving ? "Sending..." : "Send Consent Request"}
           </button>
         </section>
       ) : null}
 
       <section className="db-card" style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <div><h2 style={{ margin: 0 }}>📋 Permission request history</h2><p className="db-helper" style={{ margin: "5px 0 16px" }}>Track responses and reopen or close requests.</p></div>
+          <div><h2 style={{ margin: 0 }}>📋 Consent request history</h2><p className="db-helper" style={{ margin: "5px 0 16px" }}>Track responses and reopen or close requests.</p></div>
           <span className="db-main-pill db-main-pill-yellow">{requests.length} request{requests.length === 1 ? "" : "s"}</span>
         </div>
         <div style={{ display: "grid", gap: 12 }}>
@@ -208,11 +208,11 @@ export default function ParentPermissionsPage() {
                 <p style={{ margin: 0 }}>{request.description}</p>
                 <p className="db-helper" style={{ margin: 0 }}>{granted} granted · {declined} declined · {Math.max(0, targets - responses.length)} awaiting</p>
                 <button className="db-button-secondary" type="button" onClick={() => void setRequestStatus(request.id, request.status === "closed" ? "sent" : "closed")}>
-                  {request.status === "closed" ? "Reopen" : "Close Request"}
+                  {request.status === "closed" ? "Reopen" : "Close Consent Request"}
                 </button>
               </article>
             );
-          }) : <div style={{ padding: "34px 16px", textAlign: "center" }}><div style={{ fontSize: 38 }}>📭</div><h3 style={{ marginBottom: 6 }}>No permission requests yet</h3><p className="db-helper" style={{ margin: 0 }}>Select “New Permission Request” when consent is needed.</p></div>}
+          }) : <div style={{ padding: "34px 16px", textAlign: "center" }}><div style={{ fontSize: 38 }}>📭</div><h3 style={{ marginBottom: 6 }}>No consent requests yet</h3><p className="db-helper" style={{ margin: 0 }}>Select “New Consent Request” when consent is needed.</p></div>}
         </div>
       </section>
     </div>

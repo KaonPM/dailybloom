@@ -72,7 +72,7 @@ export async function PATCH(request: Request) {
     .eq("school_id", schoolId)
     .eq("parent_permission_requests.status", "sent")
     .maybeSingle();
-  if (!target) return NextResponse.json({ error: "Permission request is no longer available." }, { status: 404 });
+  if (!target) return NextResponse.json({ error: "Consent request is no longer available." }, { status: 404 });
 
   const requestRecord = Array.isArray(target.parent_permission_requests)
     ? target.parent_permission_requests[0]

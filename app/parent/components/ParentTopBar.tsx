@@ -10,7 +10,7 @@ const menuItems = [
   { label: "📚 Homework", href: "/parent/homework" },
   { label: "🧾 Fee Statement", href: "/parent/fees" },
   { label: "⚠️ Incident Reports", href: "/parent/incidents" },
-  { label: "✅ Permissions", href: "/parent/permissions" },
+  { label: "✅ Parent Consent", href: "/parent/permissions" },
 ];
 
 export default function ParentTopBar({

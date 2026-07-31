@@ -35,10 +35,10 @@ export default function PermissionsCard({ learnerId, schoolId, onPendingChange }
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
       <div>
-        <strong>{loading ? "Loading permissions..." : pending ? `${pending} request${pending === 1 ? "" : "s"} waiting for your response` : "No permission requests are waiting."}</strong>
+        <strong>{loading ? "Loading consent requests..." : pending ? `${pending} consent request${pending === 1 ? "" : "s"} waiting for your response` : "No consent requests are waiting."}</strong>
         <p className="db-helper" style={{ margin: "5px 0 0" }}>Photos, videos, general consent and school excursions</p>
       </div>
-      <a href="/parent/permissions" className="db-button-primary" style={{ textDecoration: "none", width: "auto", padding: "10px 16px" }}>Open Permissions</a>
+      <a href="/parent/permissions" className="db-button-primary" style={{ textDecoration: "none", width: "auto", padding: "10px 16px" }}>Open Parent Consent</a>
     </div>
   );
 }

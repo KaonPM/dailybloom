@@ -226,7 +226,7 @@ export default function Sidebar() {
       },
       { label: "Broadcasts", href: "/broadcasts", match: ["/broadcasts"], permission: PERMISSIONS.BROADCASTS_MANAGE },
       {
-        label: "Parent Permissions",
+        label: "Parent Consent",
         href: "/parent-permissions",
         match: ["/parent-permissions"],
         permission: PERMISSIONS.PARENT_PERMISSIONS_MANAGE,

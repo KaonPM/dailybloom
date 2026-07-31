@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
   if (!permissionTypes.has(permissionType) || !title || !description || learnerIds.length === 0) {
     return NextResponse.json(
-      { error: "Select a permission type and learners, then add a title and explanation." },
+      { error: "Select a consent type and learners, then add a title and explanation." },
       { status: 400 }
     );
   }
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     .select("id")
     .single();
   if (createError || !created) {
-    return NextResponse.json({ error: createError?.message || "Could not create permission request." }, { status: 500 });
+    return NextResponse.json({ error: createError?.message || "Could not create consent request." }, { status: 500 });
   }
 
   const { error: targetError } = await supabaseAdmin

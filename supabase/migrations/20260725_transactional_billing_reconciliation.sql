@@ -334,7 +334,7 @@ security definer
 set search_path = public
 as $$
 declare
-  payment_id bigint;
+  recorded_payment_id bigint;
   repair_result jsonb;
   credit_total numeric(12,2);
   outstanding_total numeric(12,2);
@@ -388,7 +388,7 @@ begin
     nullif(trim(coalesce(payment_notes, '')), ''),
     payment_receipt_number
   )
-  returning id into payment_id;
+  returning id into recorded_payment_id;
 
   repair_result := public.reconcile_school_billing_account(
     target_school_id,
@@ -408,7 +408,7 @@ begin
   select coalesce(payment.unapplied_amount, 0)
   into credit_total
   from public.subscription_payments payment
-  where payment.id = payment_id;
+  where payment.id = recorded_payment_id;
 
   select coalesce(sum(invoice.balance_due), 0)
   into outstanding_total
@@ -420,12 +420,12 @@ begin
   into first_invoice_id, first_invoice_token
   from public.billing_payment_allocations allocation
   join public.billing_invoices invoice on invoice.id = allocation.invoice_id
-  where allocation.payment_id = payment_id
+  where allocation.payment_id = recorded_payment_id
   order by invoice.issue_date asc, allocation.id asc
   limit 1;
 
   return jsonb_build_object(
-    'payment_id', payment_id,
+    'payment_id', recorded_payment_id,
     'receipt_number', payment_receipt_number,
     'payment_date', received_on,
     'credit_balance', coalesce(credit_total, 0),

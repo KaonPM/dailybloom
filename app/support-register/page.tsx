@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import { supportSuggestionsFor } from "./support-suggestions";
 
 const PAGE_SIZE = 10;
 
@@ -60,6 +61,7 @@ type SupportUpdateRow = {
   id: number;
   outcome_id: number;
   support_status: string;
+  support_identified: string | null;
   intervention: string | null;
   progress_note: string | null;
   parent_summary: string | null;
@@ -94,6 +96,9 @@ export default function SupportRegisterPage() {
   const [supportUpdates, setSupportUpdates] = useState<SupportUpdateRow[]>([]);
   const [updateOutcomeId, setUpdateOutcomeId] = useState("");
   const [updateStatus, setUpdateStatus] = useState("active");
+  const [supportIdentified, setSupportIdentified] = useState("");
+  const [customSupportIdentified, setCustomSupportIdentified] = useState("");
+  const [interventionSuggestion, setInterventionSuggestion] = useState("");
   const [intervention, setIntervention] = useState("");
   const [progressNote, setProgressNote] = useState("");
   const [parentSummary, setParentSummary] = useState("");
@@ -102,6 +107,19 @@ export default function SupportRegisterPage() {
   const role = String(profile?.role || "").toLowerCase();
   const isTeacher = role === "teacher";
   const isMaster = role === "master";
+
+  const selectedUpdateOutcome = useMemo(
+    () => profileOutcomes.find((item) => String(item.id) === updateOutcomeId) || null,
+    [profileOutcomes, updateOutcomeId]
+  );
+  const supportNeedSuggestions = useMemo(
+    () => supportSuggestionsFor(selectedUpdateOutcome?.developmental_area, selectedUpdateOutcome?.activity_name),
+    [selectedUpdateOutcome]
+  );
+  const selectedSupportNeed = useMemo(
+    () => supportNeedSuggestions.find((item) => item.label === supportIdentified) || null,
+    [supportNeedSuggestions, supportIdentified]
+  );
 
   useEffect(() => {
     loadPage();
@@ -300,6 +318,21 @@ export default function SupportRegisterPage() {
 
   async function saveSupportUpdate() {
     if (!schoolId || !selectedLearnerId || !updateOutcomeId) return;
+    const savedSupportIdentified = supportIdentified === "Other support need"
+      ? customSupportIdentified.trim()
+      : supportIdentified;
+    const savedIntervention = [
+      interventionSuggestion === "Other intervention" ? "" : interventionSuggestion,
+      intervention.trim(),
+    ].filter(Boolean).join(" · ");
+    if (!savedSupportIdentified) {
+      alert("Select the support identified, or describe another support need.");
+      return;
+    }
+    if (!savedIntervention) {
+      alert("Select an intervention suggestion, or add your own intervention.");
+      return;
+    }
     setSaving(true);
     try {
       const response = await authenticatedFetch("/api/classroom-support", {
@@ -310,7 +343,8 @@ export default function SupportRegisterPage() {
           learner_id: selectedLearnerId,
           outcome_id: Number(updateOutcomeId),
           support_status: updateStatus,
-          intervention,
+          support_identified: savedSupportIdentified,
+          intervention: savedIntervention,
           progress_note: progressNote,
           parent_summary: parentSummary,
           next_review_date: nextReviewDate || null,
@@ -318,6 +352,9 @@ export default function SupportRegisterPage() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Support update could not be saved.");
+      setSupportIdentified("");
+      setCustomSupportIdentified("");
+      setInterventionSuggestion("");
       setIntervention("");
       setProgressNote("");
       setParentSummary("");
@@ -354,6 +391,10 @@ export default function SupportRegisterPage() {
     setProfileOutcomes([]);
     setSupportUpdates([]);
     setUpdateOutcomeId("");
+    setSupportIdentified("");
+    setCustomSupportIdentified("");
+    setInterventionSuggestion("");
+    setIntervention("");
   }
 
   if (loading) {
@@ -518,6 +559,10 @@ export default function SupportRegisterPage() {
                       setUpdateOutcomeId(nextId);
                       const selected = profileOutcomes.find((item) => String(item.id) === nextId);
                       if (selected) setUpdateStatus(supportStatusValue(selected));
+                      setSupportIdentified("");
+                      setCustomSupportIdentified("");
+                      setInterventionSuggestion("");
+                      setIntervention("");
                     }}>
                       <option value="">Select support area</option>
                       {profileOutcomes.map((item) => (
@@ -539,8 +584,36 @@ export default function SupportRegisterPage() {
                   </label>
                 </div>
                 <label style={fieldLabel}>
-                  Intervention used
-                  <textarea className="db-input" rows={3} value={intervention} onChange={(event) => setIntervention(event.target.value)} placeholder="What support, adaptation or practice was provided?" />
+                  Support identified
+                  <select className="db-input" value={supportIdentified} onChange={(event) => {
+                    setSupportIdentified(event.target.value);
+                    setCustomSupportIdentified("");
+                    setInterventionSuggestion("");
+                  }}>
+                    <option value="">Select what was observed</option>
+                    {supportNeedSuggestions.map((item) => (
+                      <option key={item.label} value={item.label}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+                {supportIdentified === "Other support need" ? (
+                  <label style={fieldLabel}>
+                    Describe the support identified
+                    <input className="db-input" value={customSupportIdentified} onChange={(event) => setCustomSupportIdentified(event.target.value)} placeholder="Describe what was observed without diagnosing the learner" />
+                  </label>
+                ) : null}
+                <label style={fieldLabel}>
+                  Suggested intervention
+                  <select className="db-input" value={interventionSuggestion} onChange={(event) => setInterventionSuggestion(event.target.value)} disabled={!selectedSupportNeed}>
+                    <option value="">{selectedSupportNeed ? "Select an intervention" : "Select the support identified first"}</option>
+                    {(selectedSupportNeed?.interventions || []).map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                </label>
+                <label style={fieldLabel}>
+                  {interventionSuggestion === "Other intervention" ? "Describe the intervention used" : "Additional intervention detail (optional)"}
+                  <textarea className="db-input" rows={3} value={intervention} onChange={(event) => setIntervention(event.target.value)} placeholder="Add any adaptation or learner-specific support provided" />
                 </label>
                 <label style={fieldLabel}>
                   Detailed progress note
@@ -578,6 +651,7 @@ export default function SupportRegisterPage() {
                     return (
                       <div key={update.id} className="db-list-card">
                         <strong>{outcome?.developmental_area || "Support area"} · {supportStatusLabel(update.support_status)}</strong>
+                        {update.support_identified ? <p style={textStyle}><b>Support identified:</b> {update.support_identified}</p> : null}
                         {update.intervention ? <p style={textStyle}><b>Intervention:</b> {update.intervention}</p> : null}
                         {update.progress_note ? <p className="support-no-print" style={textStyle}><b>Detailed note:</b> {update.progress_note}</p> : null}
                         {update.parent_summary ? <p style={textStyle}><b>Progress summary:</b> {update.parent_summary}</p> : null}

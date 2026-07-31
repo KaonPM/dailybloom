@@ -29,6 +29,12 @@ const communicationTypes = [
   "Daily Summary",
   "Broadcast",
   "Payment Reminder",
+  "Learner Requirements",
+  "Homework",
+  "Incident Report",
+  "Parent Permission",
+  "Achievement Award",
+  "Fee Payment Receipt",
   "General Message",
 ];
 

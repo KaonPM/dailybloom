@@ -7,7 +7,7 @@ import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
 
 type Learner = {
-  id: number;
+  id: string | number;
   name: string;
   class?: string | null;
   classroom_id?: number | null;
@@ -78,10 +78,17 @@ const reportTypes = [
   "Learner Register",
   "Daily Summaries",
   "Classroom Activities",
+  "Homework",
+  "Learner Support",
+  "Achievement Awards",
+  "Learner Requirements",
+  "Parent Consent",
+  "Communications",
   "Events",
   "Incident Reports",
   "Payments",
   "Outstanding Fees",
+  "Learner Fee Account",
 ];
 
 const scopeOptions = ["Entire School", "Classroom", "Learner"];
@@ -247,6 +254,10 @@ export default function ReportsPage() {
       return "Incident Reports uses submitted and acknowledged incident report records.";
     }
 
+    if (reportType === "Communications") {
+      return "Communications includes broadcasts, reminders and generated parent communication recorded by DailyBloom. Private Messages remain private and are not included.";
+    }
+
     return "Choose a report type, run the report, then open the results when you need to review the output.";
   }
 
@@ -276,13 +287,65 @@ export default function ReportsPage() {
     if (reportType === "Learner Register") await runLearnerRegisterReport();
     if (reportType === "Daily Summaries") await runSummariesReport();
     if (reportType === "Classroom Activities") await runActivitiesReport();
+    if (reportType === "Homework") await runLatestWorkflowReport("homework");
+    if (reportType === "Learner Support") await runLatestWorkflowReport("learner_support");
+    if (reportType === "Achievement Awards") await runLatestWorkflowReport("achievement_awards");
+    if (reportType === "Learner Requirements") await runLatestWorkflowReport("learner_requirements");
+    if (reportType === "Parent Consent") await runLatestWorkflowReport("parent_permissions");
+    if (reportType === "Communications") await runLatestWorkflowReport("communications");
     if (reportType === "Incident Reports") await runIncidentsReport();
     if (reportType === "Payments") await runPaymentsReport();
     if (reportType === "Outstanding Fees") await runOutstandingFeesReport();
+    if (reportType === "Learner Fee Account") await runLatestWorkflowReport("learner_fees");
     if (reportType === "Events") await runEventsReport();
 
     setShowReportResults(true);
     setRunning(false);
+  }
+
+  async function runLatestWorkflowReport(workflow: string) {
+    if (!schoolId) return;
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      alert("Your session has expired. Please sign in again.");
+      setReportRows([]);
+      return;
+    }
+
+    const params = new URLSearchParams({
+      school_id: String(schoolId),
+      workflow,
+      from: fromDate,
+      to: toDate,
+    });
+    const response = await fetch(`/api/reports/latest?${params.toString()}`, {
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "The report could not be generated.");
+      setReportRows([]);
+      return;
+    }
+
+    const rows = ((result.rows || []) as ReportRow[]).filter((row) => {
+      if (scope === "Learner") {
+        return row.learner.trim().toLowerCase() === selectedLearner.trim().toLowerCase();
+      }
+      if (scope === "Classroom") {
+        return row.classroom.trim().toLowerCase() === selectedClassroom.trim().toLowerCase();
+      }
+      return true;
+    });
+
+    setReportRows(rows);
   }
 
   async function runAttendanceReport() {

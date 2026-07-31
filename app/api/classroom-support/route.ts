@@ -73,6 +73,7 @@ export async function POST(request: Request) {
   const learnerId = String(body.learner_id || "").trim();
   const outcomeId = Number(body.outcome_id);
   const supportStatus = String(body.support_status || "");
+  const supportIdentified = cleanText(body.support_identified, 500);
   const intervention = cleanText(body.intervention, 2000);
   const progressNote = cleanText(body.progress_note, 2000);
   const parentSummary = cleanText(body.parent_summary, 2000);
@@ -80,6 +81,9 @@ export async function POST(request: Request) {
 
   if (!schoolId || !learnerId || !outcomeId || !VALID_STATUSES.has(supportStatus)) {
     return NextResponse.json({ error: "A valid learner, support area and status are required." }, { status: 400 });
+  }
+  if (!supportIdentified) {
+    return NextResponse.json({ error: "Select the support identified for this activity." }, { status: 400 });
   }
   if (!intervention && !progressNote && !parentSummary) {
     return NextResponse.json({ error: "Add an intervention, progress note or parent-friendly summary." }, { status: 400 });
@@ -106,6 +110,7 @@ export async function POST(request: Request) {
     learner_id: learnerId,
     outcome_id: outcomeId,
     support_status: supportStatus,
+    support_identified: supportIdentified,
     intervention,
     progress_note: progressNote,
     parent_summary: parentSummary,
@@ -135,6 +140,7 @@ export async function POST(request: Request) {
     learner_id: learnerId,
     outcome_id: outcomeId,
     developmental_area: outcome.developmental_area,
+    support_identified: supportIdentified,
     support_status: supportStatus,
     next_review_date: nextReviewDate,
   });

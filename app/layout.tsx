@@ -23,7 +23,7 @@ export const metadata = {
   openGraph: {
     title: "DailyBloom",
     description:
-      "Preschool management platform for schools, teachers and parents.",
+      "Preschool management platform for schools, practitioners and parents.",
     url: "https://dailybloom.co.za",
     siteName: "DailyBloom",
     images: [
@@ -42,7 +42,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "DailyBloom",
     description:
-      "Preschool management platform for schools, teachers and parents.",
+      "Preschool management platform for schools, practitioners and parents.",
     images: ["https://dailybloom.co.za/thumbnail.png"],
   },
 };

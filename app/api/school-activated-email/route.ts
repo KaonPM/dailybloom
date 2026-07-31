@@ -115,7 +115,7 @@ export async function POST(req: Request) {
 
             <ul style="color:#5B5675; line-height:1.8; padding-left:20px;">
               <li>Add classrooms</li>
-              <li>Add teachers</li>
+              <li>Add practitioners</li>
               <li>Add learners</li>
               <li>Configure school settings</li>
               <li>Start using attendance and communication tools</li>

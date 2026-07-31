@@ -49,15 +49,15 @@ export type PermissionOption = {
 };
 
 export const PERMISSION_OPTIONS: readonly PermissionOption[] = [
-  { permission: PERMISSIONS.STAFF_VIEW, label: "View teachers and staff", description: "View staff members and their assigned roles.", group: "Staff" },
-  { permission: PERMISSIONS.STAFF_MANAGE, label: "Manage teachers and staff", description: "Invite, update and deactivate school staff.", group: "Staff" },
+  { permission: PERMISSIONS.STAFF_VIEW, label: "View practitioners and staff", description: "View staff members and their assigned roles.", group: "Staff" },
+  { permission: PERMISSIONS.STAFF_MANAGE, label: "Manage practitioners and staff", description: "Invite, update and deactivate school staff.", group: "Staff" },
   { permission: PERMISSIONS.CLASSROOM_ASSIGN, label: "Manage classrooms", description: "Create classrooms and assign practitioners.", group: "Staff" },
   { permission: PERMISSIONS.SCHOOL_MANAGE, label: "Manage school details", description: "Update school settings and operational information.", group: "Staff" },
   { permission: PERMISSIONS.LEARNERS_MANAGE, label: "Manage learners", description: "Add, view and update learner records.", group: "Learners" },
   { permission: PERMISSIONS.ATTENDANCE_MANAGE, label: "Learner attendance", description: "Capture and review learner attendance.", group: "Daily operations" },
-  { permission: PERMISSIONS.TEACHER_ATTENDANCE_MANAGE, label: "Teacher attendance", description: "Capture and review teacher attendance.", group: "Daily operations" },
+  { permission: PERMISSIONS.TEACHER_ATTENDANCE_MANAGE, label: "Practitioner attendance", description: "Capture and review practitioner attendance.", group: "Daily operations" },
   { permission: PERMISSIONS.ACTIVITIES_MANAGE, label: "Classroom activities", description: "Plan and review classroom activities.", group: "Daily operations" },
-  { permission: PERMISSIONS.HOMEWORK_MANAGE, label: "Manage homework uploads", description: "Upload, rename and archive printable homework for teachers to allocate.", group: "Daily operations" },
+  { permission: PERMISSIONS.HOMEWORK_MANAGE, label: "Manage homework uploads", description: "Upload, rename and archive printable homework for practitioners to allocate.", group: "Daily operations" },
   { permission: PERMISSIONS.EVENTS_MANAGE, label: "Events", description: "Create and manage school events.", group: "Daily operations" },
   { permission: PERMISSIONS.SUMMARIES_MANAGE, label: "Daily summaries", description: "Create and review learner daily summaries.", group: "Daily operations" },
   { permission: PERMISSIONS.PROGRESS_REPORTS_MANAGE, label: "Progress reports", description: "Prepare and review learner progress reports.", group: "Learners" },

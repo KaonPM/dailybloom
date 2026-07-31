@@ -363,7 +363,7 @@ export default function MessagesClient({
         learner_id: child.id,
         learner_name: child.name,
         classroom_name: classroom?.classroom_name || null,
-        subtitle: `${classroom?.classroom_name || "Class"} teacher`,
+        subtitle: `${classroom?.classroom_name || "Class"} practitioner`,
       });
     }
 
@@ -527,13 +527,13 @@ export default function MessagesClient({
     const teacherList: Contact[] = ((teachers || []) as TeacherOption[]).map(
       (teacher) => ({
         id: String(teacher.id),
-        name: String(teacher.full_name || "Teacher"),
+        name: String(teacher.full_name || "Practitioner"),
         role: "teacher",
         learner_id: null,
         classroom_name: teacher.classroom_name || null,
         subtitle: teacher.classroom_name
-          ? `${teacher.classroom_name} teacher`
-          : "Teacher",
+          ? `${teacher.classroom_name} practitioner`
+          : "Practitioner",
       })
     );
     const leadershipContacts: Contact[] = (principals || [])
@@ -767,7 +767,7 @@ export default function MessagesClient({
 
   function getRoleLabel(value?: string | null) {
     if (value === "parent") return "Parent";
-    if (value === "teacher") return "Teacher";
+    if (value === "teacher") return "Practitioner";
     if (value === "principal") return "Principal";
     if (value === "master") return "Principal";
     if (value === "owner") return "Principal";
@@ -811,7 +811,7 @@ export default function MessagesClient({
 
         {teacherContacts.length > 0 ? (
           <div style={groupBox}>
-            <p style={groupTitle}>Teacher</p>
+            <p style={groupTitle}>Practitioner</p>
             {teacherContacts.map((contact) => renderContactButton(contact))}
           </div>
         ) : null}
@@ -876,7 +876,7 @@ export default function MessagesClient({
 
         {teacherContacts.length > 0 ? (
           <div style={groupBox}>
-            <p style={groupTitle}>Teachers</p>
+            <p style={groupTitle}>Practitioners</p>
             <div style={{ display: "grid", gap: 8 }}>
               {teacherContacts.map((contact) => renderContactButton(contact))}
             </div>
@@ -981,7 +981,7 @@ export default function MessagesClient({
           <div>
             <h2 className="db-page-title">Messages</h2>
             <p className="db-page-subtitle">
-              Send and receive messages with parents, teachers and the principal.
+              Send and receive messages with parents, practitioners and the principal.
             </p>
           </div>
 

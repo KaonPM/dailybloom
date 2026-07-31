@@ -45,7 +45,7 @@ export default function ParentHeader({
           </p>
 
           <p style={{ margin: "6px 0", color: "#666" }}>
-            Teacher: {classroom?.teacher_name || "Not assigned"}
+            Practitioner: {classroom?.teacher_name || "Not assigned"}
           </p>
         </div>
 

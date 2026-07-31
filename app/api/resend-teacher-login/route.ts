@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
     if (!email) {
       return NextResponse.json(
-        { error: "Teacher email is required." },
+        { error: "Practitioner email is required." },
         { status: 400 }
       );
     }
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
     if (!profile) {
       return NextResponse.json(
-        { error: "Teacher profile not found." },
+        { error: "Practitioner profile not found." },
         { status: 404 }
       );
     }
@@ -99,17 +99,17 @@ export async function POST(request: Request) {
       toEmail: profile.email,
       fullName: profile.full_name,
       temporaryPassword: newPassword,
-      roleLabel: "teacher",
+      roleLabel: "practitioner",
     });
     await writeSecurityAudit(authorization.staff, "teacher.login_reset", { teacher_id: profile.id, school_id: schoolId });
 
     return NextResponse.json({
       success: true,
-      message: "Teacher login email resent with a new temporary password.",
+      message: "Practitioner login email resent with a new temporary password.",
     });
   } catch (error: unknown) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not resend teacher login email." },
+      { error: error instanceof Error ? error.message : "Could not resend practitioner login email." },
       { status: 500 }
     );
   }

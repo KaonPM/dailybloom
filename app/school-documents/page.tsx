@@ -234,7 +234,7 @@ export default function SchoolDocumentsPage() {
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">School Printable Documents</h2>
         <p className="db-page-subtitle">
-          Store blank printable documents that principals can download and print for parents or teachers.
+          Store blank printable documents that principals can download and print for parents or practitioners.
         </p>
       </div>
 

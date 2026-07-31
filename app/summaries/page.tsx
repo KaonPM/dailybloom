@@ -504,7 +504,7 @@ export default function SummariesPage() {
           {!selectedClassroom ? (
             <p className="db-helper" style={{ marginTop: 10, marginBottom: 0 }}>
               {role === "teacher"
-                ? "No classroom assigned to this teacher."
+                ? "No classroom assigned to this practitioner."
                 : "Please select a classroom to view learners."}
             </p>
           ) : visibleLearners.length === 0 ? (

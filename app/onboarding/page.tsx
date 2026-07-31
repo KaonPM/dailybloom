@@ -77,7 +77,7 @@ const onboardingDocumentFields: Array<[OnboardingBooleanField, string]> = [
   ["logo_received", "Logo received"],
   ["brand_colours_received", "Brand colours received"],
   ["learner_list_received", "Learner list received"],
-  ["teacher_list_received", "Teacher list received"],
+  ["teacher_list_received", "Practitioner list received"],
   ["classroom_list_received", "Classroom list received"],
   ["year_planner_received", "Year planner received"],
 ];

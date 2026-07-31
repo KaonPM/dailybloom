@@ -183,7 +183,7 @@ export default function LandingPage() {
 
             <FeatureCard
               title="School Operations"
-              body="Give principals better visibility across teachers, classrooms, payments, school records and daily workflows."
+              body="Give principals better visibility across practitioners, classrooms, payments, school records and daily workflows."
               accent="#F66BA0"
               isMobile={isMobile}
             />
@@ -250,7 +250,7 @@ export default function LandingPage() {
                 items={[
                   "Everything in Bloom",
                   "Multiple classrooms",
-                  "Teacher management",
+                  "Practitioner management",
                   "Advanced reporting dashboard",
                   "Saved summaries",
                   "Summary history",

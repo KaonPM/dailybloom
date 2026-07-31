@@ -27,7 +27,7 @@ async function authorizeLearner(request: Request, schoolId: number, learnerId: s
 
   const mayAccess = await authenticatedRoleCanAccessLearner(authorization.staff, Number(learner.classroom_id || 0));
   if (!mayAccess) {
-    return { ok: false as const, response: NextResponse.json({ error: "Teachers may only view support records for their assigned classroom." }, { status: 403 }) };
+    return { ok: false as const, response: NextResponse.json({ error: "Practitioners may only view support records for their assigned classroom." }, { status: 403 }) };
   }
 
   return { ok: true as const, staff: authorization.staff, learner };

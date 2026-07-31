@@ -18,7 +18,7 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="2. Information We Collect">
-          We may collect school details, principal details, teacher details,
+          We may collect school details, principal details, practitioner details,
           learner records, parent or guardian contact details, attendance records,
           daily summaries, event information, payment reminder records and
           communication records.
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
 
         <Section title="5. Access to Information">
           Access is limited according to user roles. Principals may access
-          school-level information. Teachers may access information linked to
+          school-level information. Practitioners may access information linked to
           assigned classrooms. DailyBloom administrators may access information
           needed for setup, support and account management.
         </Section>

@@ -460,7 +460,7 @@ export default function ActivitiesPage() {
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">Activities</h2>
         <p className="db-page-subtitle">
-          Teachers capture daily activities. Principals manage the activity library and view support needs.
+          Practitioners capture daily activities. Principals manage the activity library and view support needs.
         </p>
 
         {schoolParam && schoolId ? (
@@ -470,7 +470,7 @@ export default function ActivitiesPage() {
         ) : null}
 
         {isTeacher && classroomName ? (
-          <p style={smallText}>Teacher view: {classroomName}</p>
+          <p style={smallText}>Practitioner view: {classroomName}</p>
         ) : canManageLibrary ? (
           <p style={smallText}>Principal view: activity library and school activities</p>
         ) : null}
@@ -482,7 +482,7 @@ export default function ActivitiesPage() {
             <div>
               <h3 style={sectionTitle}>Activity Library</h3>
               <p style={smallText}>
-                Add, edit, or delete the activities teachers can select.
+                Add, edit, or delete the activities practitioners can select.
               </p>
             </div>
 
@@ -523,7 +523,7 @@ export default function ActivitiesPage() {
               <textarea
                 className="db-input"
                 rows={3}
-                placeholder="Description that will auto-fill for teachers"
+                placeholder="Description that will auto-fill for practitioners"
                 value={libraryDescription}
                 onChange={(e) => setLibraryDescription(e.target.value)}
                 style={{ width: "100%", resize: "vertical" }}

@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
     if (!schoolId || !fullName || !email || !password) {
       return NextResponse.json(
-        { error: "Please complete teacher name, email, password, and school." },
+        { error: "Please complete practitioner name, email, password, and school." },
         { status: 400 }
       );
     }
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
     if (authError || !authData.user) {
       return NextResponse.json(
-        { error: authError?.message || "Could not create teacher login." },
+        { error: authError?.message || "Could not create practitioner login." },
         { status: 400 }
       );
     }
@@ -112,17 +112,17 @@ export async function POST(request: Request) {
       toEmail: email,
       fullName,
       temporaryPassword: password,
-      roleLabel: "teacher",
+      roleLabel: "practitioner",
     });
     await writeSecurityAudit(authorization.staff, "teacher.created", { teacher_id: userId, school_id: schoolId });
 
     return NextResponse.json({
       success: true,
-      message: "Teacher created successfully. Login email sent.",
+      message: "Practitioner created successfully. Login email sent.",
     });
   } catch (error: unknown) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not create teacher." },
+      { error: error instanceof Error ? error.message : "Could not create practitioner." },
       { status: 500 }
     );
   }

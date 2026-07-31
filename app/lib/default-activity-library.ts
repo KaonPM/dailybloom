@@ -79,7 +79,7 @@ export const defaultActivityLibrary: DefaultActivityLibraryItem[] = [
   // MY SCHOOL
   { theme: "My School", activity_name: "School Tour", description: "Learners walk around the school and identify important places.", developmental_area: "Outdoor Play" },
   { theme: "My School", activity_name: "Classroom Rules", description: "Learners discuss simple classroom rules and routines.", developmental_area: "Life Skills" },
-  { theme: "My School", activity_name: "Meet My Teacher", description: "Learners talk about their teacher and classroom helpers.", developmental_area: "Language" },
+  { theme: "My School", activity_name: "Meet My Practitioner", description: "Learners talk about their practitioner and classroom helpers.", developmental_area: "Language" },
   { theme: "My School", activity_name: "School Helpers", description: "Learners identify people who help at school.", developmental_area: "Life Skills" },
   { theme: "My School", activity_name: "Caring For School Property", description: "Learners discuss how to care for books, toys and classroom materials.", developmental_area: "Life Skills" },
 
@@ -122,7 +122,7 @@ export const defaultActivityLibrary: DefaultActivityLibraryItem[] = [
   { theme: "Community Helpers", activity_name: "Doctors And Nurses", description: "Learners discuss how doctors and nurses help people.", developmental_area: "Language" },
   { theme: "Community Helpers", activity_name: "Police Officers", description: "Learners discuss how police officers help keep people safe.", developmental_area: "Life Skills" },
   { theme: "Community Helpers", activity_name: "Firefighters", description: "Learners discuss firefighters and fire safety.", developmental_area: "Life Skills" },
-  { theme: "Community Helpers", activity_name: "Teachers", description: "Learners talk about how teachers help children learn.", developmental_area: "Language" },
+  { theme: "Community Helpers", activity_name: "Practitioners", description: "Learners talk about how practitioners help children learn.", developmental_area: "Language" },
   { theme: "Community Helpers", activity_name: "Community Helper Dress Up", description: "Learners dress up or role play different community helpers.", developmental_area: "Creative Art" },
 
   // TRANSPORT
@@ -177,7 +177,7 @@ export const defaultActivityLibrary: DefaultActivityLibraryItem[] = [
   // INSECTS
   { theme: "Insects", activity_name: "Butterfly Life Cycle", description: "Learners are introduced to the butterfly life cycle using pictures.", developmental_area: "Life Skills" },
   { theme: "Insects", activity_name: "Ant Investigation", description: "Learners observe ants safely and discuss what ants do.", developmental_area: "Outdoor Play" },
-  { theme: "Insects", activity_name: "Insect Hunt", description: "Learners look for insects outdoors with teacher guidance.", developmental_area: "Outdoor Play" },
+  { theme: "Insects", activity_name: "Insect Hunt", description: "Learners look for insects outdoors with practitioner guidance.", developmental_area: "Outdoor Play" },
   { theme: "Insects", activity_name: "Ladybird Art", description: "Learners create a ladybird picture using dots and colour.", developmental_area: "Creative Art" },
   { theme: "Insects", activity_name: "Insect Sorting", description: "Learners sort insects by colour, size or number of legs.", developmental_area: "Mathematics" },
 

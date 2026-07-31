@@ -50,7 +50,7 @@ const reportTypes = [
   "Schools Report",
   "School Growth",
   "Learners by School",
-  "Teachers by School",
+  "Practitioners by School",
   "School Activity Report",
   "School Usage Report",
 
@@ -72,7 +72,7 @@ const reportTypes = [
   "Sponsored Schools",
   "Sponsor Impact Report",
   "Learners Supported",
-  "Teachers Supported",
+  "Practitioners Supported",
   "Attendance Impact",
   "Parent Engagement Impact",
 
@@ -81,7 +81,7 @@ const reportTypes = [
   "User Activity",
   "Adoption Trends",
   "Active Schools",
-  "Active Teachers",
+  "Active Practitioners",
   "Active Parents",
   "Active Learners",
 
@@ -215,7 +215,7 @@ export default function MasterReportsPage() {
       if (reportType === "Schools Report") await runSchoolsReport();
       if (reportType === "School Growth") await runSchoolGrowthReport();
       if (reportType === "Learners by School") await runLearnersBySchoolReport();
-      if (reportType === "Teachers by School") await runTeachersBySchoolReport();
+      if (reportType === "Practitioners by School") await runTeachersBySchoolReport();
       if (reportType === "School Activity Report") await runSchoolActivityReport();
       if (reportType === "School Usage Report") await runSchoolUsageReport();
 
@@ -237,7 +237,7 @@ export default function MasterReportsPage() {
       if (reportType === "Sponsored Schools") await runSponsoredSchoolsReport();
       if (reportType === "Sponsor Impact Report") await runSponsorImpactReport();
       if (reportType === "Learners Supported") await runLearnersBySchoolReport();
-      if (reportType === "Teachers Supported") await runTeachersBySchoolReport();
+      if (reportType === "Practitioners Supported") await runTeachersBySchoolReport();
       if (reportType === "Attendance Impact") await runGenericTableReport("attendance", "Attendance Impact", "created_at");
       if (reportType === "Parent Engagement Impact") await runGenericTableReport("broadcasts", "Parent Engagement", "created_at");
 
@@ -246,7 +246,7 @@ export default function MasterReportsPage() {
       if (reportType === "User Activity") await runGenericTableReport("profiles", "User Activity", "created_at");
       if (reportType === "Adoption Trends") await runSchoolGrowthReport();
       if (reportType === "Active Schools") await runActiveSchoolsReport();
-      if (reportType === "Active Teachers") await runTeachersBySchoolReport();
+      if (reportType === "Active Practitioners") await runTeachersBySchoolReport();
       if (reportType === "Active Parents") await runGenericTableReport("parents", "Active Parents", "created_at");
       if (reportType === "Active Learners") await runLearnersBySchoolReport();
 
@@ -281,7 +281,7 @@ export default function MasterReportsPage() {
       { school: "All Selected Schools", type: "Executive", detail: "Total Schools", value: String(totalSchools), status: "Current" },
       { school: "All Selected Schools", type: "Executive", detail: "Active Schools", value: String(activeSchools), status: "Current" },
       { school: "All Selected Schools", type: "Executive", detail: "Total Learners", value: String(learners), status: "Current" },
-      { school: "All Selected Schools", type: "Executive", detail: "Total Teachers", value: String(teachers), status: "Current" },
+      { school: "All Selected Schools", type: "Executive", detail: "Total Practitioners", value: String(teachers), status: "Current" },
       { school: "All Selected Schools", type: "Executive", detail: "Daily Summaries Generated", value: String(summaries), status: "Period" },
       { school: "All Selected Schools", type: "Executive", detail: "Payment Reminders Sent", value: String(reminders), status: "Period" },
       { school: "All Selected Schools", type: "Executive", detail: "Broadcasts Created", value: String(broadcasts), status: "Period" },
@@ -377,8 +377,8 @@ export default function MasterReportsPage() {
     setRows(
       Array.from(schoolMap.entries()).map(([school, count]) => ({
         school,
-        type: "Teachers",
-        detail: "Teacher profiles",
+        type: "Practitioners",
+        detail: "Practitioner profiles",
         value: String(count),
         status: "Current",
       }))
@@ -610,7 +610,7 @@ export default function MasterReportsPage() {
     setRows([
       { school: "Sponsored Schools", type: "Impact", detail: "Schools funded", value: String(sponsoredSchools.length), status: "Current" },
       { school: "Sponsored Schools", type: "Impact", detail: "Learners supported", value: String(learners), status: "Current" },
-      { school: "Sponsored Schools", type: "Impact", detail: "Teachers supported", value: String(teachers), status: "Current" },
+      { school: "Sponsored Schools", type: "Impact", detail: "Practitioners supported", value: String(teachers), status: "Current" },
       { school: "Sponsored Schools", type: "Impact", detail: "Payment reminders", value: String(reminders), status: "Period" },
       { school: "Sponsored Schools", type: "Impact", detail: "Broadcasts", value: String(broadcasts), status: "Period" },
     ]);
@@ -654,7 +654,7 @@ export default function MasterReportsPage() {
 
     setRows([
       { school: "All Selected Schools", type: "Feature Usage", detail: "Learners", value: String(learners), status: "Current" },
-      { school: "All Selected Schools", type: "Feature Usage", detail: "Teachers", value: String(teachers), status: "Current" },
+      { school: "All Selected Schools", type: "Feature Usage", detail: "Practitioners", value: String(teachers), status: "Current" },
       { school: "All Selected Schools", type: "Feature Usage", detail: "Daily summaries", value: String(summaries), status: "Period" },
       { school: "All Selected Schools", type: "Feature Usage", detail: "Payment reminders", value: String(reminders), status: "Period" },
       { school: "All Selected Schools", type: "Feature Usage", detail: "Broadcasts", value: String(broadcasts), status: "Period" },

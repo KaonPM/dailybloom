@@ -88,7 +88,7 @@ export default function TeachersPage() {
     const result = await response.json();
 
     if (!response.ok) {
-      alert(result.error || "Could not load teachers.");
+      alert(result.error || "Could not load practitioners.");
       return;
     }
 
@@ -156,7 +156,7 @@ export default function TeachersPage() {
       });
       const emailResult = await emailResponse.json();
       if (!emailResponse.ok) {
-        alert(emailResult.error || "Could not update the teacher email.");
+        alert(emailResult.error || "Could not update the practitioner email.");
         setSaving(false);
         return;
       }
@@ -179,7 +179,7 @@ export default function TeachersPage() {
       await loadTeachers(schoolId);
 
       setSaving(false);
-      alert("Teacher updated.");
+      alert("Practitioner updated.");
       return;
     }
 
@@ -206,7 +206,7 @@ export default function TeachersPage() {
     const result = await response.json();
 
     if (!response.ok) {
-      alert(result.error || "Could not create teacher.");
+      alert(result.error || "Could not create practitioner.");
       setSaving(false);
       return;
     }
@@ -216,12 +216,12 @@ export default function TeachersPage() {
     await loadTeachers(schoolId);
 
     setSaving(false);
-    alert(result.message || "Teacher created. Login email sent.");
+    alert(result.message || "Practitioner created. Login email sent.");
   }
 
   async function resendTeacherLogin(teacher: TeacherRow) {
     if (!teacher.email) {
-      alert("This teacher does not have an email address.");
+      alert("This practitioner does not have an email address.");
       return;
     }
 
@@ -247,13 +247,13 @@ export default function TeachersPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        alert(result.error || "Could not resend teacher login email.");
+        alert(result.error || "Could not resend practitioner login email.");
         return;
       }
 
-      alert(result.message || "Teacher login email resent.");
+      alert(result.message || "Practitioner login email resent.");
     } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : "Could not resend teacher login email.");
+      alert(error instanceof Error ? error.message : "Could not resend practitioner login email.");
     } finally {
       setResendingId(null);
     }
@@ -281,7 +281,7 @@ export default function TeachersPage() {
 
   async function deleteTeacher(teacher: TeacherRow) {
     const confirmed = confirm(
-      `Delete ${teacher.full_name || "this teacher"}? This will remove their login access.`
+      `Delete ${teacher.full_name || "this practitioner"}? This will remove their login access.`
     );
 
     if (!confirmed) return;
@@ -299,7 +299,7 @@ export default function TeachersPage() {
     const result = await response.json();
 
     if (!response.ok) {
-      alert(result.error || "Could not delete teacher.");
+      alert(result.error || "Could not delete practitioner.");
       return;
     }
 
@@ -309,10 +309,10 @@ export default function TeachersPage() {
       await loadTeachers(schoolId);
     }
 
-    alert("Teacher deleted.");
+    alert("Practitioner deleted.");
   }
 
-  if (loading) return <p>Loading teachers...</p>;
+  if (loading) return <p>Loading practitioners...</p>;
 
   return (
     <div>
@@ -327,9 +327,9 @@ export default function TeachersPage() {
           }}
         >
           <div>
-            <h2 className="db-page-title">Teachers</h2>
+            <h2 className="db-page-title">Practitioners</h2>
             <p className="db-page-subtitle">
-              Manage teachers, classroom assignments, and access.
+              Manage practitioners, classroom assignments, and access.
             </p>
 
             <Link
@@ -353,7 +353,7 @@ export default function TeachersPage() {
               }
             }}
           >
-            {showForm ? "Close" : "Add Teacher"}
+            {showForm ? "Close" : "Add Practitioner"}
           </button>
         </div>
       </div>
@@ -365,7 +365,7 @@ export default function TeachersPage() {
         >
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <h3 style={sectionTitle}>
-              {editingId ? "Edit Teacher" : "Add Teacher"}
+              {editingId ? "Edit Practitioner" : "Add Practitioner"}
             </h3>
             <button type="button" className="db-button-secondary" onClick={closeForm} disabled={saving}>
               Close
@@ -377,7 +377,7 @@ export default function TeachersPage() {
               <p style={labelText}>Full Name</p>
               <input
                 className="db-input"
-                placeholder="Teacher full name"
+                placeholder="Practitioner full name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
               />
@@ -387,14 +387,14 @@ export default function TeachersPage() {
               <p style={labelText}>Email</p>
               <input
                 className="db-input"
-                placeholder="teacher@email.com"
+                placeholder="practitioner@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
 
               {editingId ? (
                 <p style={hintText}>
-                  Updating this changes the email the teacher uses to sign in.
+                  Updating this changes the email the practitioner uses to sign in.
                 </p>
               ) : null}
             </div>
@@ -439,17 +439,17 @@ export default function TeachersPage() {
             {saving
               ? "Saving..."
               : editingId
-              ? "Update Teacher"
-              : "Create Teacher"}
+              ? "Update Practitioner"
+              : "Create Practitioner"}
           </button>
         </div>
       ) : null}
 
       <div className="db-card db-card-green" style={{ padding: 16 }}>
-        <h3 style={sectionTitle}>Teachers ({teachers.length})</h3>
+        <h3 style={sectionTitle}>Practitioners ({teachers.length})</h3>
 
         {teachers.length === 0 ? (
-          <p className="db-helper">No teachers added yet.</p>
+          <p className="db-helper">No practitioners added yet.</p>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
             {teachers.map((teacher) => {
@@ -477,7 +477,7 @@ export default function TeachersPage() {
                       textAlign: "left",
                     }}
                   >
-                    <strong>{teacher.full_name || "Unnamed teacher"}</strong>
+                    <strong>{teacher.full_name || "Unnamed practitioner"}</strong>
 
                     <span style={pillNeutral}>
                       {teacher.classroom_name || "No class"}

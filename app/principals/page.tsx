@@ -184,7 +184,7 @@ export default function PrincipalsPage() {
     }
 
     const confirmed = window.confirm(
-      "Deactivate this principal and the whole school? This will also deactivate all teachers linked to that school."
+      "Deactivate this principal and the whole school? This will also deactivate all practitioners linked to that school."
     );
 
     if (!confirmed) return;
@@ -201,7 +201,7 @@ export default function PrincipalsPage() {
 
     await Promise.all([fetchSchools(), fetchPrincipals()]);
     setActionLoadingId(null);
-    alert("School access has been deactivated for the principal and all teachers.");
+    alert("School access has been deactivated for the principal and all practitioners.");
   }
 
   async function reactivateSchoolAccess(principal: PrincipalProfile) {
@@ -211,7 +211,7 @@ export default function PrincipalsPage() {
     }
 
     const confirmed = window.confirm(
-      "Reactivate this school? This will reactivate the principal and all teachers linked to the school."
+      "Reactivate this school? This will reactivate the principal and all practitioners linked to the school."
     );
 
     if (!confirmed) return;
@@ -228,7 +228,7 @@ export default function PrincipalsPage() {
 
     await Promise.all([fetchSchools(), fetchPrincipals()]);
     setActionLoadingId(null);
-    alert("School access has been reactivated for the principal and all teachers.");
+    alert("School access has been reactivated for the principal and all practitioners.");
   }
 
   async function removePrincipalFromSchool(principal: PrincipalProfile) {

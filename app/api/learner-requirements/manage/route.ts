@@ -48,7 +48,7 @@ export async function POST(request: Request) {
         .eq("id", classroomId).eq("school_id", schoolId).maybeSingle();
       const assignedName = String(authorization.staff.profile.classroom_name || "").trim().toLowerCase();
       if (!assignedClassroom || String(assignedClassroom.classroom_name || "").trim().toLowerCase() !== assignedName) {
-        return NextResponse.json({ error: "Teachers may only update requirements for their assigned classroom." }, { status: 403 });
+        return NextResponse.json({ error: "Practitioners may only update requirements for their assigned classroom." }, { status: 403 });
       }
     }
     const learnerIds = [...new Set((body.learner_ids || []).map(String).filter(Boolean))] as string[];
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       const { data: assignedClassroom } = await supabaseAdmin.from("classrooms").select("classroom_name").eq("id", classroomId).eq("school_id", schoolId).maybeSingle();
       const assignedName = String(authorization.staff.profile.classroom_name || "").trim().toLowerCase();
       if (!assignedClassroom || String(assignedClassroom.classroom_name || "").trim().toLowerCase() !== assignedName) {
-        return NextResponse.json({ error: "Teachers may only update requirements for their assigned classroom." }, { status: 403 });
+        return NextResponse.json({ error: "Practitioners may only update requirements for their assigned classroom." }, { status: 403 });
       }
     }
     const { data: learner } = await supabaseAdmin.from("learners").select("id").eq("id", learnerId).eq("school_id", schoolId).eq("classroom_id", classroomId).maybeSingle();

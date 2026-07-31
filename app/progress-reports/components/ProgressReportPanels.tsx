@@ -251,7 +251,7 @@ export function PrincipalReviewList({
                       Class: {getClassroomName(item.classroom_id)}
                     </p>
                     <p style={textStyle}>
-                      Practitioner/Teacher: {getTeacherName(item.teacher_id)}
+                      Practitioner: {getTeacherName(item.teacher_id)}
                     </p>
                     <p style={textStyle}>
                       Period: {getPeriodTitle(item.report_period_id)}

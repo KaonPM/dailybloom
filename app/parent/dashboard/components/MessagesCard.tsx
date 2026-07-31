@@ -4,7 +4,7 @@ export default function MessagesCard() {
       <h2>💬 Messages (3)</h2>
 
       <div style={messageStyle}>
-        <strong>Teacher Sarah</strong>
+        <strong>Practitioner Sarah</strong>
         <p>Please remember to bring crayons.</p>
         <small>Today, 09:15 · Unread</small>
         <br />

@@ -56,7 +56,7 @@ export async function GET(request: Request) {
   const authorization = await requireStaffPermission(request, PERMISSIONS.ACTIVITIES_MANAGE, schoolId);
   if (!authorization.ok) return authorization.response;
   if (classroomId && !(await authenticatedRoleCanAccessLearner(authorization.staff, classroomId))) {
-    return NextResponse.json({ error: "Teachers can only allocate homework to their assigned classroom." }, { status: 403 });
+    return NextResponse.json({ error: "Practitioners can only allocate homework to their assigned classroom." }, { status: 403 });
   }
 
   if (homeworkId) {
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     classroomId &&
     !(await authenticatedRoleCanAccessLearner(authorization.staff, classroomId))
   ) {
-    return NextResponse.json({ error: "Teachers can only upload homework for their assigned classroom." }, { status: 403 });
+    return NextResponse.json({ error: "Practitioners can only upload homework for their assigned classroom." }, { status: 403 });
   }
   if (
     !classroomId &&
@@ -226,7 +226,7 @@ export async function PATCH(request: Request) {
     );
   }
   if (!(await authenticatedRoleCanAccessLearner(authorization.staff, classroomId))) {
-    return NextResponse.json({ error: "Teachers can only allocate homework to their assigned classroom." }, { status: 403 });
+    return NextResponse.json({ error: "Practitioners can only allocate homework to their assigned classroom." }, { status: 403 });
   }
 
   const seenHomeworkIds = new Set<number>();

@@ -971,7 +971,7 @@ export default function ParentDashboardClient({
               Class: {classroom?.classroom_name || "Not assigned"}
             </p>
 
-            <p style={styles.muted}>Teacher: {getTeacherName(classroom)}</p>
+            <p style={styles.muted}>Practitioner: {getTeacherName(classroom)}</p>
           </div>
 
           <img
@@ -1068,7 +1068,7 @@ export default function ParentDashboardClient({
           <div style={styles.emptyState}>
             <p style={styles.emptyTitle}>No summary shared yet.</p>
             <p style={styles.emptyText}>
-              When the teacher sends a summary for {child.name}, it will appear
+              When the practitioner sends a summary for {child.name}, it will appear
               here.
             </p>
           </div>
@@ -1098,7 +1098,7 @@ export default function ParentDashboardClient({
             </>
           ) : (
             <p style={styles.parentContactText}>
-              New messages from the teacher or principal will appear here.
+              New messages from the practitioner or principal will appear here.
             </p>
           )}
         </div>

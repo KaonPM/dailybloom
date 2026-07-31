@@ -8,7 +8,7 @@ export default function NotificationsCard() {
   const notifications = [
     "Daily summary posted",
     "Attendance marked Present",
-    "Teacher sent a message",
+    "Practitioner sent a message",
     "New broadcast",
     "Event added",
     "Another daily summary",

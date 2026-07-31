@@ -289,10 +289,10 @@ export default function MasterSchoolOverviewPage() {
         helper: "Learners should be added after school setup.",
       },
       {
-        label: "At least one teacher added",
+        label: "At least one practitioner added",
         complete: stats.teachers > 0,
         href: `/teachers?school=${school.id}`,
-        helper: "Teachers are part of the operational setup.",
+        helper: "Practitioners are part of the operational setup.",
       },
       {
         label: "At least one event added",
@@ -304,7 +304,7 @@ export default function MasterSchoolOverviewPage() {
         label: "At least one classroom activity added",
         complete: stats.activities > 0,
         href: `/classroom-activities?school=${school.id}`,
-        helper: "Activities help track classroom learning and teacher execution.",
+        helper: "Activities help track classroom learning and practitioner execution.",
       },
     ];
   }, [school, principalCount, stats]);
@@ -431,7 +431,7 @@ export default function MasterSchoolOverviewPage() {
         }}
       >
         <StatCard label="Learners" value={stats.learners} />
-        <StatCard label="Teachers" value={stats.teachers} />
+        <StatCard label="Practitioners" value={stats.teachers} />
         <StatCard label="Classrooms" value={stats.classrooms} />
         <StatCard label="Events" value={stats.events} />
         <StatCard label="Activities" value={stats.activities} />

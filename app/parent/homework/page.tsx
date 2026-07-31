@@ -62,7 +62,7 @@ export default function ParentHomeworkPage() {
       <div className="db-soft-card" style={{ padding: 20 }}>
         <h1 className="db-page-title">📚 Homework</h1>
         <p className="db-page-subtitle">
-          View the teacher&apos;s instructions and open or print any attached worksheet.
+          View the practitioner&apos;s instructions and open or print any attached worksheet.
         </p>
         {learners.length > 1 ? (
           <select className="db-input" value={selected} onChange={(event) => setSelected(event.target.value)} style={{ marginTop: 12 }}>

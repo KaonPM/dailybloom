@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         ? "There were no health or safety concerns reported."
         : `Health and safety note: ${healthSafety}.`;
 
-    const noteLine = teacherNotes ? `Teacher note: ${teacherNotes}.` : "";
+    const noteLine = teacherNotes ? `Practitioner note: ${teacherNotes}.` : "";
 
     const messageParts = [
       `Good day from ${schoolName}.`,

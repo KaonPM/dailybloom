@@ -243,7 +243,7 @@ export default function MasterAnalyticsPage() {
             <InsightCard title="Monthly Revenue" value={`R${analytics.expectedMonthlyRevenue.toFixed(2)}`} helper="Expected monthly revenue" />
             <InsightCard title="Annual Revenue" value={`R${analytics.annualRevenue.toFixed(2)}`} helper="Projected annual revenue" />
             <InsightCard title="Total Learners" value={learnersCount} helper="Across all schools" />
-            <InsightCard title="Total Teachers" value={teachersCount} helper="Across all schools" />
+            <InsightCard title="Total Practitioners" value={teachersCount} helper="Across all schools" />
             <InsightCard title="Classrooms" value={classroomsCount} helper="Across all schools" />
             <InsightCard title="Payment Records" value={paymentsCount} helper="Total payment entries" />
             <InsightCard title="Daily Summaries" value={summariesCount} helper="Total summaries saved" />

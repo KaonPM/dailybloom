@@ -2586,7 +2586,7 @@ export default function ProgressReportsPage() {
                   setAssessmentPage(1);
                 }}
               >
-                <option value="">All Practitioners / Teachers</option>
+                <option value="">All Practitioners</option>
                 {teachers.map((teacher) => (
                   <option key={teacher.id} value={teacher.id}>
                     {teacher.full_name || teacher.name || teacher.email}
@@ -3157,7 +3157,7 @@ export default function ProgressReportsPage() {
                 value={selectedAwardTeacherId}
                 onChange={(e) => setSelectedAwardTeacherId(e.target.value)}
               >
-                <option value="">Select Teacher</option>
+                <option value="">Select Practitioner</option>
 
                 {teachers.map((teacher) => (
                   <option key={teacher.id} value={teacher.id}>
@@ -3536,7 +3536,7 @@ export default function ProgressReportsPage() {
                     {getAwardTeacherName(selectedAward.learner_id, selectedAward)}
                   </p>
                   <p style={{ margin: 0, fontSize: "14px", color: "#111" }}>
-                    CLASS TEACHER
+                    CLASS PRACTITIONER
                   </p>
                 </div>
 
@@ -3675,14 +3675,14 @@ export default function ProgressReportsPage() {
                 )}
 
                 <div style={signatureGrid}>
-                  <p style={bookletLine}>Teacher&apos;s Name: {teacherName}</p>
+                  <p style={bookletLine}>Practitioner&apos;s Name: {teacherName}</p>
                   <p style={bookletLine}>
                     Opening Date: {openingDate || "__________________"}
                   </p>
                   <p style={bookletLine}>
                     Closing Date: {closingDate || "__________________"}
                   </p>
-                  <p style={bookletLine}>Teacher&apos;s Signature: ___________</p>
+                  <p style={bookletLine}>Practitioner&apos;s Signature: ___________</p>
                   <p style={bookletLine}>Principal&apos;s Signature: __________</p>
                 </div>
               </div>

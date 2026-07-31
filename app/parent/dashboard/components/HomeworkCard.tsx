@@ -92,7 +92,7 @@ export default function HomeworkCard({
               <span style={noteStyle}>For {row.activity_date}</span>
               <span style={noteStyle}>Due {row.due_date || row.activity_date}</span>
               <span style={noteStyle}>
-                {row.instruction_note || "Open homework for the teacher's instructions."}
+                {row.instruction_note || "Open homework for the practitioner's instructions."}
               </span>
             </a>
           ))}

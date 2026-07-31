@@ -36,6 +36,12 @@ type NavItem = {
   permission?: Permission;
 };
 
+function displayRole(role?: string | null) {
+  if (!role) return "";
+  if (role.toLowerCase() === "teacher") return "Practitioner";
+  return role.replaceAll("_", " ");
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -114,7 +120,7 @@ export default function Sidebar() {
   const quickActionsNav = useMemo<NavItem[]>(
     () => [
       { label: "➕ Add Learner", href: "/children", match: ["/children"], permission: PERMISSIONS.LEARNERS_MANAGE },
-      { label: "👩‍🏫 Add Teacher", href: "/teachers", match: ["/teachers"], permission: PERMISSIONS.STAFF_MANAGE },
+      { label: "👩‍🏫 Add Practitioner", href: "/teachers", match: ["/teachers"], permission: PERMISSIONS.STAFF_MANAGE },
       { label: "📅 Add Event", href: "/events", match: ["/events"], permission: PERMISSIONS.EVENTS_MANAGE },
       {
         label: "💬 Create Broadcast",
@@ -199,7 +205,7 @@ export default function Sidebar() {
         permission: PERMISSIONS.ATTENDANCE_MANAGE,
       },
       {
-        label: "Teacher Attendance",
+        label: "Practitioner Attendance",
         href: "/teacher-attendance",
         match: ["/teacher-attendance"],
         permission: PERMISSIONS.TEACHER_ATTENDANCE_MANAGE,
@@ -660,7 +666,7 @@ export default function Sidebar() {
         <div>
           <p className="db-sidebar-brand-mini">DAILYBLOOM</p>
           <p className="db-sidebar-role-mini">
-            {profile?.role ? `Role: ${profile.role}` : "Menu"}
+            {profile?.role ? `Role: ${displayRole(profile.role)}` : "Menu"}
           </p>
         </div>
 
@@ -715,7 +721,7 @@ export default function Sidebar() {
                 fontWeight: 500,
               }}
             >
-              Role: {profile.role}
+              Role: {displayRole(profile.role)}
             </p>
           ) : null}
         </div>
@@ -992,12 +998,12 @@ export default function Sidebar() {
                     <Link
                       href={withSchoolContext("/teachers")}
                       style={navStyle({
-                        label: "Teachers",
+                        label: "Practitioners",
                         href: "/teachers",
                         match: ["/teachers"],
                       })}
                     >
-                      Teachers
+                      Practitioners
                     </Link>
                   ) : null}
                 </>
@@ -1096,7 +1102,7 @@ export default function Sidebar() {
               fontWeight: 400,
             }}
           >
-            Manage learners, events, attendance, summaries, classrooms, teachers,
+            Manage learners, events, attendance, summaries, classrooms, practitioners,
             reports, and school activity without losing school context.
           </p>
         </div>

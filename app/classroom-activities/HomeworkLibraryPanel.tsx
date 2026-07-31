@@ -162,7 +162,7 @@ export default function HomeworkLibraryPanel({
       </summary>
       <p className="db-helper">
         Principals and authorised preschool administrators upload worksheets
-        here. Teachers select them inside each daily plan.
+        here. Practitioners select them inside each daily plan.
       </p>
 
       <div style={{ display: "grid", gap: 10 }}>

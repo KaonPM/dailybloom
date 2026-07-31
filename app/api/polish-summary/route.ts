@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     }
 
     const prompt = `
-Write one polished WhatsApp message from a preschool teacher to a parent.
+Write one polished WhatsApp message from a preschool practitioner to a parent.
 
 Rules:
 - Write only the final message.
@@ -64,7 +64,7 @@ Meals: ${meals}
 Rest: ${rest}
 Health and safety: ${healthSafety}
 Today's highlight: ${todayHighlight}
-Teacher notes: ${teacherNotes || "None"}
+Practitioner notes: ${teacherNotes || "None"}
 `;
 
     const response = await fetch("https://api.openai.com/v1/responses", {

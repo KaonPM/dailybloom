@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ teachers: data || [] });
   } catch (error: unknown) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not load teachers." },
+      { error: error instanceof Error ? error.message : "Could not load practitioners." },
       { status: 500 }
     );
   }

@@ -339,7 +339,7 @@ export default function TeacherAssessmentsPage() {
     }
 
     if (!profile?.id) {
-      alert("Teacher profile is not loaded.");
+      alert("Practitioner profile is not loaded.");
       return;
     }
 
@@ -438,7 +438,7 @@ export default function TeacherAssessmentsPage() {
   }
 
   const teacherName =
-    profile?.full_name || profile?.name || profile?.email || "Teacher";
+    profile?.full_name || profile?.name || profile?.email || "Practitioner";
 
   const canShowAssessmentForm =
     selectedClassroomId && selectedLearnerId && selectedPeriodId;
@@ -461,7 +461,7 @@ export default function TeacherAssessmentsPage() {
 
       <div className="db-card db-card-blue" style={{ padding: 20, marginBottom: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-          <h3 style={sectionTitle}>Class, Teacher and Learner</h3>
+          <h3 style={sectionTitle}>Class, Practitioner and Learner</h3>
 
           {currentStatus ? (
             <span style={currentStatus === "submitted" ? pillGreen : pillNeutral}>
@@ -501,7 +501,7 @@ export default function TeacherAssessmentsPage() {
         </select>
 
         <div className="db-list-card" style={{ marginBottom: 14 }}>
-          <strong>Teacher</strong>
+          <strong>Practitioner</strong>
           <p style={textStyle}>{teacherName}</p>
         </div>
 
@@ -609,11 +609,11 @@ export default function TeacherAssessmentsPage() {
           </div>
 
           <div className="db-list-card" style={{ marginTop: 20 }}>
-            <strong>Teacher Observation</strong>
+            <strong>Practitioner Observation</strong>
             <textarea
               className="db-input"
               rows={3}
-              placeholder="Teacher observation"
+              placeholder="Practitioner observation"
               value={overallComment}
               onChange={(e) => setOverallComment(e.target.value)}
             />

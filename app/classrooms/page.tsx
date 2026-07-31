@@ -151,7 +151,7 @@ export default function ClassroomsPage() {
     const result = await response.json();
 
     if (!response.ok) {
-      alert(result.error || "Could not load teachers.");
+      alert(result.error || "Could not load practitioners.");
       return;
     }
 
@@ -350,7 +350,7 @@ export default function ClassroomsPage() {
 
   async function assignTeacherToClassroom() {
     if (!schoolId || !selectedClassroom || !teacherToAssign) {
-      alert("Please select a teacher.");
+      alert("Please select a practitioner.");
       return;
     }
 
@@ -371,20 +371,20 @@ export default function ClassroomsPage() {
     const result = await response.json();
 
     if (!response.ok) {
-      alert(result.error || "Could not assign teacher.");
+      alert(result.error || "Could not assign practitioner.");
       return;
     }
 
     setTeacherToAssign("");
     await fetchTeachers(schoolId);
 
-    alert("Teacher assigned.");
+    alert("Practitioner assigned.");
   }
 
   async function removeTeacherFromClassroom(teacherId: string) {
     if (!schoolId) return;
 
-    const confirmed = confirm("Remove this teacher from this classroom?");
+    const confirmed = confirm("Remove this practitioner from this classroom?");
     if (!confirmed) return;
 
     const { error } = await supabase
@@ -398,7 +398,7 @@ export default function ClassroomsPage() {
     }
 
     await fetchTeachers(schoolId);
-    alert("Teacher removed from classroom.");
+    alert("Practitioner removed from classroom.");
   }
 
   async function moveLearnerToClassroom() {
@@ -490,7 +490,7 @@ export default function ClassroomsPage() {
 
     if (linkedTeachers.length > 0) {
       alert(
-        "Please remove or reassign teachers from this classroom before deleting it."
+        "Please remove or reassign practitioners from this classroom before deleting it."
       );
       return;
     }
@@ -543,7 +543,7 @@ export default function ClassroomsPage() {
 
     if (hasTeachers) {
       alert(
-        "This classroom has teachers assigned. Please remove or reassign teachers first."
+        "This classroom has practitioners assigned. Please remove or reassign practitioners first."
       );
       return;
     }
@@ -612,7 +612,7 @@ export default function ClassroomsPage() {
           <div>
             <h2 className="db-page-title">Classrooms</h2>
             <p className="db-page-subtitle">
-              Manage classrooms, age groups, assigned teachers, and learner placement.
+              Manage classrooms, age groups, assigned practitioners, and learner placement.
             </p>
 
             <Link
@@ -824,7 +824,7 @@ export default function ClassroomsPage() {
                     <strong>{item.roomName}</strong>
                     <span style={pillAge}>{getAgeGroupsLabel(item.room)}</span>
                     <span style={pillBlue}>{item.learnerCount} learners</span>
-                    <span style={pillNeutral}>{item.teacherCount} teachers</span>
+                    <span style={pillNeutral}>{item.teacherCount} practitioners</span>
                   </button>
 
                   {active && selectedStats ? (
@@ -846,7 +846,7 @@ export default function ClassroomsPage() {
 
                       <div style={miniGrid}>
                         <MiniBlock label="Learners" value={selectedStats.learnerCount} />
-                        <MiniBlock label="Teachers" value={selectedStats.teacherCount} />
+                        <MiniBlock label="Practitioners" value={selectedStats.teacherCount} />
                       </div>
 
                       <div style={{ marginTop: 14 }}>
@@ -864,7 +864,7 @@ export default function ClassroomsPage() {
                       </div>
 
                       <div style={{ marginTop: 14 }}>
-                        <p style={labelText}>Assign Teacher</p>
+                        <p style={labelText}>Assign Practitioner</p>
 
                         <div style={actionGrid}>
                           <select
@@ -872,10 +872,10 @@ export default function ClassroomsPage() {
                             value={teacherToAssign}
                             onChange={(e) => setTeacherToAssign(e.target.value)}
                           >
-                            <option value="">Select teacher</option>
+                            <option value="">Select practitioner</option>
                             {availableTeachers.map((teacher) => (
                               <option key={teacher.id} value={teacher.id}>
-                                {teacher.full_name || teacher.email || "Unnamed teacher"}
+                                {teacher.full_name || teacher.email || "Unnamed practitioner"}
                               </option>
                             ))}
                           </select>
@@ -891,15 +891,15 @@ export default function ClassroomsPage() {
                       </div>
 
                       <div style={{ marginTop: 14 }}>
-                        <p style={labelText}>Assigned Teachers</p>
+                        <p style={labelText}>Assigned Practitioners</p>
 
                         {selectedTeachers.length === 0 ? (
-                          <p className="db-helper">No teacher assigned.</p>
+                          <p className="db-helper">No practitioner assigned.</p>
                         ) : (
                           <div style={{ display: "grid", gap: 6 }}>
                             {selectedTeachers.map((teacher) => (
                               <div key={teacher.id} style={compactRowWithAction}>
-                                <span>{teacher.full_name || "Unnamed teacher"}</span>
+                                <span>{teacher.full_name || "Unnamed practitioner"}</span>
 
                                 <button
                                   type="button"

@@ -101,7 +101,7 @@ export function getUpgradeMessage(
   }
 
   if (limitType === "teachers") {
-    return `Your ${rules.planName} plan allows up to ${rules.teacherLimit} teachers. Please upgrade to continue adding teachers.`;
+    return `Your ${rules.planName} plan allows up to ${rules.teacherLimit} practitioners. Please upgrade to continue adding practitioners.`;
   }
 
   return `Your ${rules.planName} plan allows up to ${rules.classroomLimit} classrooms. Please upgrade to continue adding classrooms.`;

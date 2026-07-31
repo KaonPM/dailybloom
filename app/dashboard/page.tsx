@@ -667,7 +667,7 @@ export default function PrincipalDashboardPage() {
           />
 
           <OverviewCard
-            label="Teachers Present Today"
+            label="Practitioners Present Today"
             value={consolidated.teachersPresentToday}
             helper="Staff marked present"
             background="#EEF9EE"
@@ -675,7 +675,7 @@ export default function PrincipalDashboardPage() {
           />
 
           <OverviewCard
-            label="Teachers Absent Today"
+            label="Practitioners Absent Today"
             value={consolidated.teachersAbsentToday}
             helper="Staff marked absent"
             background="#FFF7D9"
@@ -716,7 +716,7 @@ export default function PrincipalDashboardPage() {
           />
 
           <StatLinkCard
-            label="Teachers"
+            label="Practitioners"
             value={stats.teachers}
             href="/teachers"
             background="#EEF9EE"

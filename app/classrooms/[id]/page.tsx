@@ -250,7 +250,7 @@ export default function ClassroomDetailPage() {
           marginBottom: "24px",
         }}
       >
-        <StatCard label="Teachers" value={teachers.length} />
+        <StatCard label="Practitioners" value={teachers.length} />
         <StatCard label="Learners" value={learners.length} />
         <StatCard label="Present Today" value={attendanceStats.present} />
         <StatCard label="Absent Today" value={attendanceStats.absent} />
@@ -290,7 +290,7 @@ export default function ClassroomDetailPage() {
           </Link>
 
           <Link href={teachersHref} style={secondaryButton}>
-            Add Teacher
+            Add Practitioner
           </Link>
 
           <Link href={attendanceHref} style={secondaryButton}>
@@ -315,13 +315,13 @@ export default function ClassroomDetailPage() {
           marginBottom: "24px",
         }}
       >
-        <Panel title="Teachers">
+        <Panel title="Practitioners">
           {teachers.length === 0 ? (
-            <EmptyText text="No teachers assigned." />
+            <EmptyText text="No practitioners assigned." />
           ) : (
             teachers.map((teacher) => (
               <MiniCard key={teacher.id}>
-                <strong>{teacher.full_name || "Unnamed teacher"}</strong>
+                <strong>{teacher.full_name || "Unnamed practitioner"}</strong>
                 <p style={miniText}>{teacher.email || "No email"}</p>
                 <p style={miniText}>{teacher.phone || "No phone"}</p>
               </MiniCard>

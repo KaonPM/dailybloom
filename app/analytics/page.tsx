@@ -507,7 +507,7 @@ export default function AnalyticsPage() {
         <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
           <h2 className="db-page-title">School Analytics</h2>
           <p className="db-page-subtitle">
-            View school health, learner attendance, teacher attendance, payments,
+            View school health, learner attendance, practitioner attendance, payments,
             parent communication, broadcasts, incident reports and learner requirement insights.
           </p>
         </div>
@@ -576,16 +576,16 @@ export default function AnalyticsPage() {
           <h3 style={sectionTitle}>School Health Score</h3>
           <p style={healthScore}>{analytics.schoolHealthScore}%</p>
           <p style={smallText}>
-            {periodLabel} view based on learner attendance, teacher attendance,
+            {periodLabel} view based on learner attendance, practitioner attendance,
             fee collection, parent communication, incident reporting and document completion.
           </p>
         </div>
 
         <div style={grid}>
           <InsightCard title="Learners" value={analytics.totalLearners} helper="Current active learners" />
-          <InsightCard title="Teachers" value={analytics.totalTeachers} helper="Current active teachers" />
+          <InsightCard title="Practitioners" value={analytics.totalTeachers} helper="Current active practitioners" />
           <InsightCard title="Learner Attendance Rate" value={`${analytics.learnerAttendanceRate}%`} helper={`${periodLabel} learner attendance records`} />
-          <InsightCard title="Teacher Attendance Rate" value={`${analytics.teacherAttendanceRate}%`} helper={`${periodLabel} teacher attendance records`} />
+          <InsightCard title="Practitioner Attendance Rate" value={`${analytics.teacherAttendanceRate}%`} helper={`${periodLabel} practitioner attendance records`} />
           <InsightCard title="Collection Rate" value={`${analytics.collectionRate}%`} helper={`${periodLabel} paid payment records`} />
           <InsightCard title="Daily Summary Send Rate" value={`${analytics.summarySendRate}%`} helper={`${periodLabel} summaries marked as sent`} />
           <InsightCard title="Broadcasts Sent" value={analytics.sentBroadcasts} helper={`${periodLabel} broadcasts sent to parents`} />
@@ -597,7 +597,7 @@ export default function AnalyticsPage() {
           <InsightCard title="Outstanding Fees" value={`R${analytics.totalOutstanding.toFixed(2)}`} helper={`${periodLabel} pending, partial and overdue records`} />
           <InsightCard title="Unpaid Records" value={analytics.unpaidCount} helper={`${periodLabel} payment records needing follow-up`} />
           <InsightCard title="Learner Absence Records" value={analytics.learnerAbsent} helper={`${periodLabel} learner absence records`} />
-          <InsightCard title="Teacher Absence Records" value={analytics.teacherAbsent} helper={`${periodLabel} teacher absence records`} />
+          <InsightCard title="Practitioner Absence Records" value={analytics.teacherAbsent} helper={`${periodLabel} practitioner absence records`} />
           <InsightCard title="Outstanding Stationery" value={analytics.outstandingStationery} helper="Current items not yet received" />
           <InsightCard title="Missing Documents" value={analytics.missingDocuments} helper="Current required learner documents missing" />
         </div>
@@ -607,7 +607,7 @@ export default function AnalyticsPage() {
 
           <div style={chartGrid}>
             <AnalyticsChart title="Learner Attendance Trend" data={learnerAttendanceTrend} suffix="%" />
-            <AnalyticsChart title="Teacher Attendance Trend" data={teacherAttendanceTrend} suffix="%" />
+            <AnalyticsChart title="Practitioner Attendance Trend" data={teacherAttendanceTrend} suffix="%" />
           </div>
         </div>
 
@@ -638,7 +638,7 @@ export default function AnalyticsPage() {
               <li>{analytics.learnerAbsent} learner absence record(s) captured for {periodLabel.toLowerCase()}.</li>
             )}
             {analytics.teacherAbsent > 0 && (
-              <li>{analytics.teacherAbsent} teacher absence record(s) captured for {periodLabel.toLowerCase()}.</li>
+              <li>{analytics.teacherAbsent} practitioner absence record(s) captured for {periodLabel.toLowerCase()}.</li>
             )}
             {analytics.incidentReportCount > analytics.acknowledgedIncidentReports && (
               <li>{analytics.incidentReportCount - analytics.acknowledgedIncidentReports} incident report(s) still need principal acknowledgement.</li>

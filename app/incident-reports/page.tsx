@@ -499,7 +499,7 @@ export default function IncidentReportsPage() {
               {active ? (
                 <div style={reportDetail}>
                   <p style={detailText}><strong>Reference:</strong> {report.report_reference || "Not set"}</p>
-                  <p style={detailText}><strong>Teacher:</strong> {report.teacher_name || "Not set"}</p>
+                  <p style={detailText}><strong>Practitioner:</strong> {report.teacher_name || "Not set"}</p>
                   <p style={detailText}><strong>Classroom:</strong> {report.classroom_name || "Not set"}</p>
                   <p style={detailText}><strong>Location:</strong> {report.incident_location || "Not set"}</p>
                   <p style={detailText}><strong>Description:</strong> {report.description || "Not set"}</p>

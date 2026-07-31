@@ -28,7 +28,7 @@ test("preschool admin can be delegated every school-level module", () => {
   assert.equal(ROLE_PERMISSIONS.admin.includes(PERMISSIONS.PLATFORM_ADMIN_MANAGE), false);
 });
 
-test("teacher cannot manage staff or classrooms", () => {
+test("practitioner cannot manage staff or classrooms", () => {
   assert.equal(ROLE_PERMISSIONS.teacher.includes(PERMISSIONS.STAFF_MANAGE), false);
   assert.equal(ROLE_PERMISSIONS.teacher.includes(PERMISSIONS.CLASSROOM_ASSIGN), false);
   assert.equal(ROLE_PERMISSIONS.teacher.includes(PERMISSIONS.REQUIREMENTS_TRACK), true);

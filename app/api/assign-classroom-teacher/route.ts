@@ -15,7 +15,7 @@ export async function POST(request: Request) {
 
     if (!schoolId || !classroomName || !teacherId) {
       return NextResponse.json(
-        { error: "School, classroom, and teacher are required." },
+        { error: "School, classroom, and practitioner are required." },
         { status: 400 }
       );
     }
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not assign teacher." },
+      { error: error instanceof Error ? error.message : "Could not assign practitioner." },
       { status: 500 }
     );
   }

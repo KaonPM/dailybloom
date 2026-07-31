@@ -1739,7 +1739,7 @@ export default function ClassroomActivitiesPage() {
               </button>
             ) : null}
 
-            <label style={labelStyle}>Teacher Notes</label>
+            <label style={labelStyle}>Practitioner Notes</label>
             <textarea className="db-input" value={observation} onChange={(e) => setObservation(e.target.value)} placeholder="Optional note for the selected learners needing support" style={{ minHeight: "72px" }} />
 
             <button type="button" className="db-button-primary" style={{ width: "100%", marginTop: "10px" }} onClick={markComplete} disabled={saving}>
@@ -1843,7 +1843,7 @@ export default function ClassroomActivitiesPage() {
                   <p style={textStyle}>Activity: {item.activity_name || "Activity not recorded"}</p>
                   <p style={textStyle}>Status: {supportStatusLabel(supportStatusValue(item))}</p>
                   {supportFollowUpDue(item) ? <p style={{ ...smallHint, color: "#b45309", fontWeight: 700 }}>No update for 14 days — follow-up due</p> : null}
-                  {item.observation ? <p style={textStyle}>Teacher notes: {item.observation}</p> : null}
+                  {item.observation ? <p style={textStyle}>Practitioner notes: {item.observation}</p> : null}
                   <p style={smallHint}>Date identified: {item.activity_date || formatShortDate(item.created_at || "")}</p>
 
                   <Link

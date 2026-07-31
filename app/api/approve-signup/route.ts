@@ -271,7 +271,7 @@ async function sendPrincipalOnboardingEmail({
         <li>Secondary school colour</li>
         <li>School contact details, including address, telephone number and email address</li>
         <li>Learner list or learner register, in Excel, PDF or register copy format</li>
-        <li>Teacher list</li>
+        <li>Practitioner list</li>
         <li>Classroom list</li>
         <li>Year planner or school events calendar</li>
       </ul>
@@ -284,7 +284,7 @@ async function sendPrincipalOnboardingEmail({
         <li>School branding setup</li>
         <li>Classroom setup</li>
         <li>Learner setup or import support</li>
-        <li>Teacher setup</li>
+        <li>Practitioner setup</li>
         <li>Principal onboarding</li>
         <li>Staff training and onboarding support</li>
       </ul>

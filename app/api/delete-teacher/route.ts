@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
     if (!teacherId) {
       return NextResponse.json(
-        { error: "Teacher ID is required." },
+        { error: "Practitioner ID is required." },
         { status: 400 }
       );
     }
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
     const { data: targetTeacher } = await admin.from("profiles").select("id")
       .eq("id", teacherId).eq("school_id", schoolId).eq("role", "teacher").maybeSingle();
-    if (!targetTeacher) return NextResponse.json({ error: "Teacher not found in this school." }, { status: 404 });
+    if (!targetTeacher) return NextResponse.json({ error: "Practitioner not found in this school." }, { status: 404 });
 
     const { error: profileError } = await admin
       .from("profiles")
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not delete teacher." },
+      { error: error instanceof Error ? error.message : "Could not delete practitioner." },
       { status: 500 }
     );
   }

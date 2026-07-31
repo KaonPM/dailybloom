@@ -74,7 +74,7 @@ type ReportSourceRow = {
 const reportTypes = [
   "School Analytics",
   "Learner Attendance",
-  "Teacher Attendance",
+  "Practitioner Attendance",
   "Learner Register",
   "Daily Summaries",
   "Classroom Activities",
@@ -272,7 +272,7 @@ export default function ReportsPage() {
 
     if (reportType === "School Analytics") await runSchoolAnalyticsReport();
     if (reportType === "Learner Attendance") await runAttendanceReport();
-    if (reportType === "Teacher Attendance") await runTeacherAttendanceReport();
+    if (reportType === "Practitioner Attendance") await runTeacherAttendanceReport();
     if (reportType === "Learner Register") await runLearnerRegisterReport();
     if (reportType === "Daily Summaries") await runSummariesReport();
     if (reportType === "Classroom Activities") await runActivitiesReport();
@@ -329,9 +329,9 @@ export default function ReportsPage() {
 
     const rows: ReportRow[] = ((data || []) as ReportSourceRow[]).map((item) => ({
       date: item.attendance_date || "",
-      learner: item.teacher_name || "Unnamed teacher",
+      learner: item.teacher_name || "Unnamed practitioner",
       classroom: "Staff",
-      type: "Teacher Attendance",
+      type: "Practitioner Attendance",
       detail: item.status || "",
       extra: item.notes || "",
     }));
@@ -538,7 +538,7 @@ export default function ReportsPage() {
         classroom: item.classroom_name || getLearnerClass(item.learner_name || ""),
         type: "Incident Report",
         detail: `${item.incident_type || "Incident"} | ${item.status || "Submitted"}`,
-        extra: `Location: ${item.incident_location || "Not added"} | Teacher: ${item.teacher_name || "Not added"} | Principal: ${item.principal_acknowledged_by || "Not acknowledged"}`,
+        extra: `Location: ${item.incident_location || "Not added"} | Practitioner: ${item.teacher_name || "Not added"} | Principal: ${item.principal_acknowledged_by || "Not acknowledged"}`,
       }));
 
     setReportRows(rows);
@@ -851,10 +851,10 @@ export default function ReportsPage() {
       },
       {
         date: `${fromDate} to ${toDate}`,
-        learner: "Teachers",
+        learner: "Practitioners",
         classroom: "Staff",
-        type: "Teacher Attendance",
-        detail: "Teacher Attendance Rate",
+        type: "Practitioner Attendance",
+        detail: "Practitioner Attendance Rate",
         extra: `${teacherAttendanceRate}% | Present: ${teacherPresent} | Absent: ${teacherAbsent}`,
       },
       {

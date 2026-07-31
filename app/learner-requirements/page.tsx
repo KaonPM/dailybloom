@@ -858,7 +858,7 @@ export default function LearnerRequirementsPage() {
           {isTeacher ? (
             <div style={templateSummaryBox}>
               <strong>{selectedClassroom?.classroom_name || "No classroom assigned"}</strong>
-              <p style={smallText}>{selectedClassroom ? "Showing requirements for your classroom." : "Ask your principal to assign your teacher profile to a classroom."}</p>
+              <p style={smallText}>{selectedClassroom ? "Showing requirements for your classroom." : "Ask your principal to assign your practitioner profile to a classroom."}</p>
             </div>
           ) : (
             <select

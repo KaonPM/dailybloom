@@ -608,7 +608,7 @@ export default function SupportRegisterPage() {
                 <p style={textStyle}>Activity: {item.activity_name || "Activity not recorded"}</p>
                 <p style={textStyle}>Theme: {item.theme || "Not recorded"}</p>
                 <p style={textStyle}>Status: {supportStatusLabel(supportStatusValue(item))}</p>
-                {item.observation ? <p style={textStyle}>Teacher notes: {item.observation}</p> : null}
+                {item.observation ? <p style={textStyle}>Practitioner notes: {item.observation}</p> : null}
                 <p style={smallHint}>Date identified: {item.activity_date || formatShortDate(item.created_at || "")}</p>
 
                 <button type="button" className="db-button-primary" style={{ ...smallButton, marginTop: "10px" }} onClick={() => openSupportProfile(item.learner_id)}>

@@ -137,7 +137,7 @@ export default function TeacherAttendancePage() {
       attendance[teacher.id] || {
         school_id: Number(schoolId),
         teacher_id: teacher.id,
-        teacher_name: teacher.full_name || teacher.email || "Unnamed teacher",
+        teacher_name: teacher.full_name || teacher.email || "Unnamed practitioner",
         attendance_date: today,
         status: "",
         notes: "",
@@ -176,7 +176,7 @@ export default function TeacherAttendancePage() {
     const payload = {
       school_id: schoolId,
       teacher_id: teacher.id,
-      teacher_name: teacher.full_name || teacher.email || "Unnamed teacher",
+      teacher_name: teacher.full_name || teacher.email || "Unnamed practitioner",
       attendance_date: today,
       status: record.status,
       notes: record.notes?.trim() || null,
@@ -204,25 +204,25 @@ export default function TeacherAttendancePage() {
     }));
 
     setSavingTeacherId(null);
-    alert("Teacher attendance saved.");
+    alert("Practitioner attendance saved.");
   }
 
   async function markAllPresent() {
     if (!schoolId) return;
 
     if (teachers.length === 0) {
-      alert("No teachers found for this school.");
+      alert("No practitioners found for this school.");
       return;
     }
 
-    const confirmed = confirm(`Mark all teachers as Present for ${today}?`);
+    const confirmed = confirm(`Mark all practitioners as Present for ${today}?`);
 
     if (!confirmed) return;
 
     const payload = teachers.map((teacher) => ({
       school_id: schoolId,
       teacher_id: teacher.id,
-      teacher_name: teacher.full_name || teacher.email || "Unnamed teacher",
+      teacher_name: teacher.full_name || teacher.email || "Unnamed practitioner",
       attendance_date: today,
       status: "Present",
       notes: null,
@@ -256,7 +256,7 @@ export default function TeacherAttendancePage() {
       ...collapsedTeachers,
     }));
 
-    alert("All teachers marked present.");
+    alert("All practitioners marked present.");
   }
 
   async function viewAttendanceHistory() {
@@ -336,13 +336,13 @@ export default function TeacherAttendancePage() {
   }, [attendance]);
 
   if (loading) {
-    return <p>Loading teacher attendance...</p>;
+    return <p>Loading practitioner attendance...</p>;
   }
 
   return (
     <div>
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
-        <h2 className="db-page-title">Teacher Attendance</h2>
+        <h2 className="db-page-title">Practitioner Attendance</h2>
         <p className="db-page-subtitle">Today: {today}</p>
       </div>
 
@@ -369,7 +369,7 @@ export default function TeacherAttendancePage() {
         </div>
 
         {teachers.length === 0 ? (
-          <p className="db-helper">No teachers found for this school.</p>
+          <p className="db-helper">No practitioners found for this school.</p>
         ) : (
           <div style={{ display: "grid", gap: 10 }}>
             {teachers.map((teacher) => {
@@ -384,7 +384,7 @@ export default function TeacherAttendancePage() {
                   <div style={teacherRow}>
                     <div>
                       <strong style={{ fontSize: 16 }}>
-                        {teacher.full_name || "Unnamed teacher"}
+                        {teacher.full_name || "Unnamed practitioner"}
                       </strong>
 
                       {!isOpen && record.notes ? (
@@ -495,7 +495,7 @@ export default function TeacherAttendancePage() {
         style={{ padding: 16, marginTop: 18 }}
       >
         <h3 style={sectionTitle}>Attendance History</h3>
-        <p style={smallText}>View and export teacher attendance records.</p>
+        <p style={smallText}>View and export practitioner attendance records.</p>
 
         <div style={dateGrid}>
           <div>

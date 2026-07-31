@@ -519,11 +519,11 @@ export default function TeacherDashboardPage() {
   }
 
   if (loading) {
-    return <p>Loading teacher dashboard...</p>;
+    return <p>Loading practitioner dashboard...</p>;
   }
 
   if (!profile || !school) {
-    return <p>Teacher dashboard unavailable.</p>;
+    return <p>Practitioner dashboard unavailable.</p>;
   }
 
   return (
@@ -552,7 +552,7 @@ export default function TeacherDashboardPage() {
             fontWeight: 600,
           }}
         >
-          Teacher Dashboard
+          Practitioner Dashboard
         </p>
 
         <h1

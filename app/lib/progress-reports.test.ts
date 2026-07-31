@@ -75,7 +75,7 @@ test("uses the correct rating scale and print split for each report", () => {
   );
 });
 
-test("keeps principal review filters stricter than teacher filters", () => {
+test("keeps principal review filters stricter than practitioner filters", () => {
   assert.ok(teacherAssessmentStatusFilters.includes("draft"));
   assert.ok(!principalAssessmentStatusFilters.includes("draft"));
   assert.deepEqual(

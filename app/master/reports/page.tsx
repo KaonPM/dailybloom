@@ -5,19 +5,29 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { getCurrentProfile } from "../../lib/auth";
 import { PERMISSIONS } from "../../lib/permissions";
-
-type ReportRow = {
-  school: string;
-  type: string;
-  detail: string;
-  value: string;
-  status: string;
-};
+import ExecutiveStakeholderReport from "./components/ExecutiveStakeholderReport";
+import { buildExecutivePrintHtml } from "./export-utils";
+import { reportGroups } from "./report-config";
+import type { ReportRow, StakeholderPresetKey } from "./types";
 
 type SchoolOption = {
   id: number;
   school_name: string;
   sponsor_programme_id?: number | null;
+  is_active?: boolean | null;
+  billing_status?: string | null;
+  status?: string | null;
+  package_name?: string | null;
+  registration_status?: string | null;
+  province?: string | null;
+  district?: string | null;
+  is_sponsored?: boolean | null;
+};
+
+type SponsorOption = {
+  id: number;
+  sponsor_name: string;
+  programme_name: string;
 };
 
 type ReportSourceRow = {
@@ -63,58 +73,24 @@ type SmsImpactCounts = {
   parentPortalInviteSmsSent: number;
 };
 
-const reportTypes = [
-  "Executive Dashboard Report",
+type MetricResult<T> = {
+  value: T | null;
+  warning?: string;
+};
 
-  "Schools Report",
-  "School Growth",
-  "Learners by School",
-  "Practitioners by School",
-  "School Activity Report",
-  "School Usage Report",
+type SchoolActivityRow = {
+  school_id?: number | null;
+};
 
-  "Revenue Report",
-  "Subscriptions Report",
-  "Package Breakdown",
-  "Overdue Schools",
+type SubscriptionValueRow = {
+  monthly_price?: number | string | null;
+  status?: string | null;
+};
 
-  "Daily Summaries Report",
-  "Broadcast Report",
-  "Payment Reminder Report",
-  "SMS Delivery Report",
-  "Homework Activity Report",
-  "Learner Support Activity Report",
-  "Achievement Awards Report",
-  "Learner Requirements Report",
-  "Parent Consent Report",
-  "Incident Report Activity",
-
-  "Progress Report Analytics",
-  "Grade R Learner Reports",
-  "Grade RR Progress Reports",
-  "Developmental Progress Reports",
-
-  "Sponsored Schools",
-  "Sponsor Impact Report",
-  "Learners Supported",
-  "Practitioners Supported",
-  "Attendance Impact",
-  "Parent Engagement Impact",
-
-  "Platform Overview",
-  "Feature Usage",
-  "User Activity",
-  "Adoption Trends",
-  "Active Schools",
-  "Active Practitioners",
-  "Active Parents",
-  "Active Learners",
-
-  "WageFlow Enabled Schools",
-  "WageFlow Activity",
-  "WageFlow Usage Trends",
-  "WageFlow Adoption Report",
-];
+type BillingAmountRow = {
+  total_amount?: number | string | null;
+  amount?: number | string | null;
+};
 
 export default function MasterReportsPage() {
   const router = useRouter();
@@ -127,10 +103,16 @@ export default function MasterReportsPage() {
   const [customEndDate, setCustomEndDate] = useState("");
 
   const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [sponsors, setSponsors] = useState<SponsorOption[]>([]);
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [showResults, setShowResults] = useState(true);
+  const [stakeholderPreset, setStakeholderPreset] =
+    useState<StakeholderPresetKey>("executive");
+  const [lastRefreshed, setLastRefreshed] = useState("");
+  const [dataWarnings, setDataWarnings] = useState<string[]>([]);
+  const [pageError, setPageError] = useState("");
 
   useEffect(() => {
     async function checkAccess() {
@@ -153,18 +135,38 @@ export default function MasterReportsPage() {
         return;
       }
 
-      const { data, error: schoolsError } = await supabase
-        .from("schools")
-        .select("id, school_name, sponsor_programme_id")
-        .is("deleted_at", null)
-        .order("school_name", { ascending: true });
+      const [schoolResult, sponsorResult] = await Promise.all([
+        supabase
+          .from("schools")
+          .select(
+            "id, school_name, sponsor_programme_id, is_active, billing_status, status, package_name, registration_status, province, district, is_sponsored"
+          )
+          .is("deleted_at", null)
+          .order("school_name", { ascending: true }),
+        supabase
+          .from("sponsor_programmes")
+          .select("id, sponsor_name, programme_name")
+          .order("sponsor_name", { ascending: true }),
+      ]);
 
-      if (schoolsError) {
-        alert(schoolsError.message);
+      if (schoolResult.error) {
+        setPageError(
+          `School reporting data could not be loaded: ${schoolResult.error.message}`
+        );
+        setLoading(false);
         return;
       }
 
-      setSchools(data || []);
+      setSchools((schoolResult.data || []) as SchoolOption[]);
+
+      if (sponsorResult.error) {
+        setDataWarnings([
+          `Sponsor names are unavailable: ${sponsorResult.error.message}`,
+        ]);
+      } else {
+        setSponsors((sponsorResult.data || []) as SponsorOption[]);
+      }
+
       setLoading(false);
     }
 
@@ -211,6 +213,15 @@ export default function MasterReportsPage() {
     return schools.find((school) => Number(school.id) === Number(schoolId))?.school_name || `School ID ${schoolId}`;
   }
 
+  function getSponsorName(sponsorId: number | null | undefined) {
+    if (!sponsorId) return "Not linked";
+    const sponsor = sponsors.find(
+      (item) => Number(item.id) === Number(sponsorId)
+    );
+    if (!sponsor) return `Sponsor programme ${sponsorId}`;
+    return `${sponsor.sponsor_name} - ${sponsor.programme_name}`;
+  }
+
   function getFilteredSchoolIds() {
     let filtered = schools;
 
@@ -229,6 +240,8 @@ export default function MasterReportsPage() {
 
   async function runReport() {
     setRunning(true);
+    setPageError("");
+    setDataWarnings([]);
 
     try {
       if (reportType === "Executive Dashboard Report") await runExecutiveDashboardReport();
@@ -283,6 +296,26 @@ export default function MasterReportsPage() {
       if (reportType === "WageFlow Adoption Report") await runWageFlowReport();
 
       setShowResults(true);
+      setLastRefreshed(
+        new Intl.DateTimeFormat("en-ZA", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date())
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "The report could not be generated.";
+      setPageError(message);
+      setRows([
+        {
+          school: "DailyBloom reporting",
+          type: "Data quality",
+          detail: "Report unavailable",
+          value: "Data unavailable",
+          status: "Please retry or check the affected data source",
+        },
+      ]);
+      setShowResults(true);
     } finally {
       setRunning(false);
     }
@@ -290,35 +323,487 @@ export default function MasterReportsPage() {
 
   async function runExecutiveDashboardReport() {
     const schoolIds = getFilteredSchoolIds();
-
-    const totalSchools = schoolIds.length;
-    const schoolsInScope = schools.filter((school) => schoolIds.includes(Number(school.id))).length;
-
-    const [learners, teachers, sms, broadcasts, summaries, progressReports] = await Promise.all([
-      countTable("learners", schoolIds),
-      countProfiles("teacher", schoolIds),
-      getSmsImpactCounts(schoolIds),
-      countTable("broadcasts", schoolIds, "created_at"),
-      countTable("summaries", schoolIds, "created_at"),
-      countTable("generated_reports", schoolIds, "generated_at"),
-    ]);
-    const sponsoredSchools = schools.filter(
-      (school) => schoolIds.includes(Number(school.id)) && school.sponsor_programme_id
+    const selectedSchools = schools.filter((school) =>
+      schoolIds.includes(Number(school.id))
+    );
+    const totalSchools = selectedSchools.length;
+    const sponsoredSchools = selectedSchools.filter(
+      (school) => school.is_sponsored || school.sponsor_programme_id
     ).length;
+    const completeSchools = selectedSchools.filter(
+      (school) =>
+        school.package_name &&
+        school.registration_status &&
+        school.province &&
+        school.district
+    ).length;
+    const attentionSchoolRecords = selectedSchools.filter(
+      (school) =>
+        school.is_active === false ||
+        ["overdue", "cancelled"].includes(
+          String(school.billing_status || "").toLowerCase()
+        ) ||
+        ["incomplete", "pending"].includes(
+          String(school.registration_status || "").toLowerCase()
+        )
+    );
+    const attentionSchools = attentionSchoolRecords.length;
+    const attentionSchoolSummary =
+      attentionSchools === 0
+        ? "No schools currently flagged"
+        : `${attentionSchoolRecords
+            .slice(0, 3)
+            .map((school) => school.school_name)
+            .join(", ")}${
+            attentionSchools > 3 ? ` +${attentionSchools - 3} more` : ""
+          }`;
 
-    setRows([
-      { school: "All Selected Schools", type: "Executive", detail: "Total Schools", value: String(totalSchools), status: "Current" },
-      { school: "All Selected Schools", type: "Executive", detail: "Schools in scope", value: String(schoolsInScope), status: "Current" },
-      { school: "All Selected Schools", type: "Executive", detail: "Total Learners", value: String(learners), status: "Current" },
-      { school: "All Selected Schools", type: "Executive", detail: "Total Practitioners", value: String(teachers), status: "Current" },
-      { school: "All Selected Schools", type: "Executive", detail: "Daily Summaries Generated", value: String(summaries), status: "Period" },
-      { school: "All Selected Schools", type: "Executive", detail: "Payment reminder campaigns scheduled", value: String(sms.paymentReminderCampaigns), status: "Period" },
-      { school: "All Selected Schools", type: "Executive", detail: "Payment reminder SMS sent", value: String(sms.paymentReminderSmsSent), status: "Period" },
-      { school: "All Selected Schools", type: "Executive", detail: "Parent portal invitation SMS sent", value: String(sms.parentPortalInviteSmsSent), status: "Period" },
-      { school: "All Selected Schools", type: "Executive", detail: "Broadcasts Created", value: String(broadcasts), status: "Period" },
-      { school: "All Selected Schools", type: "Executive", detail: "Progress Reports Generated", value: String(progressReports), status: "Period" },
-      { school: "All Selected Schools", type: "Executive", detail: "Sponsored Schools", value: String(sponsoredSchools), status: "Current" },
+    const [
+      learners,
+      practitioners,
+      classrooms,
+      attendanceRecords,
+      presentAttendance,
+      assessments,
+      reports,
+      supportUpdates,
+      resolvedSupport,
+      homework,
+      awards,
+      consentRequests,
+      consentResponses,
+      incidents,
+      resolvedIncidents,
+      summaries,
+      broadcasts,
+      sms,
+      activeSchools,
+      expectedRevenue,
+      invoicedAmount,
+      paymentAmount,
+    ] = await Promise.all([
+      captureMetric("Learners", countTable("learners", schoolIds)),
+      captureMetric("Practitioners", countProfiles("teacher", schoolIds)),
+      captureMetric("Classrooms", countTable("classrooms", schoolIds)),
+      captureMetric(
+        "Attendance records",
+        countTable("attendance", schoolIds, "attendance_date", true)
+      ),
+      captureMetric(
+        "Present attendance",
+        countFilteredTable(
+          "attendance",
+          schoolIds,
+          "attendance_date",
+          true,
+          "status",
+          ["present"]
+        )
+      ),
+      captureMetric(
+        "Learner assessments",
+        countTable("learner_assessments", schoolIds, "updated_at")
+      ),
+      captureMetric(
+        "Learner reports",
+        countTable("generated_reports", schoolIds, "generated_at")
+      ),
+      captureMetric(
+        "Learner support updates",
+        countTable("learner_support_updates", schoolIds, "recorded_at")
+      ),
+      captureMetric(
+        "Resolved learner support",
+        countFilteredTable(
+          "learner_support_updates",
+          schoolIds,
+          "recorded_at",
+          false,
+          "support_status",
+          ["resolved"]
+        )
+      ),
+      captureMetric(
+        "Homework assignments",
+        countTable("homework_assignments", schoolIds, "assigned_at")
+      ),
+      captureMetric(
+        "Achievement awards",
+        countFilteredTable(
+          "achievement_awards",
+          schoolIds,
+          "issued_at",
+          false,
+          "workflow_status",
+          ["issued"]
+        )
+      ),
+      captureMetric(
+        "Parent consent requests",
+        countTable("parent_permission_requests", schoolIds, "created_at")
+      ),
+      captureMetric(
+        "Parent consent responses",
+        countTable("parent_permission_responses", schoolIds, "responded_at")
+      ),
+      captureMetric(
+        "Incident reports",
+        countTable("incident_reports", schoolIds, "incident_date", true)
+      ),
+      captureMetric(
+        "Resolved incidents",
+        countFilteredTable(
+          "incident_reports",
+          schoolIds,
+          "incident_date",
+          true,
+          "status",
+          ["resolved", "closed"]
+        )
+      ),
+      captureMetric(
+        "Daily summaries",
+        countTable("summaries", schoolIds, "created_at")
+      ),
+      captureMetric(
+        "Broadcasts",
+        countTable("broadcasts", schoolIds, "created_at")
+      ),
+      captureMetric("SMS activity", getSmsImpactCounts(schoolIds)),
+      captureMetric(
+        "Active school coverage",
+        getActiveSchoolCount(schoolIds)
+      ),
+      captureMetric(
+        "Expected monthly revenue",
+        getExpectedMonthlyRevenue(schoolIds)
+      ),
+      captureMetric(
+        "Invoice value issued",
+        getBillingAmount(
+          "billing_invoices",
+          "total_amount",
+          "issue_date",
+          schoolIds
+        )
+      ),
+      captureMetric(
+        "Payments received",
+        getBillingAmount(
+          "subscription_payments",
+          "amount",
+          "payment_date",
+          schoolIds
+        )
+      ),
     ]);
+
+    const warnings = [
+      learners,
+      practitioners,
+      classrooms,
+      attendanceRecords,
+      presentAttendance,
+      assessments,
+      reports,
+      supportUpdates,
+      resolvedSupport,
+      homework,
+      awards,
+      consentRequests,
+      consentResponses,
+      incidents,
+      resolvedIncidents,
+      summaries,
+      broadcasts,
+      sms,
+      activeSchools,
+      expectedRevenue,
+      invoicedAmount,
+      paymentAmount,
+    ]
+      .map((metric) => metric.warning)
+      .filter((warning): warning is string => Boolean(warning));
+
+    const attendanceRate = formatRate(
+      presentAttendance.value,
+      attendanceRecords.value
+    );
+    const supportResolutionRate = formatRate(
+      resolvedSupport.value,
+      supportUpdates.value
+    );
+    const incidentResolutionRate = formatRate(
+      resolvedIncidents.value,
+      incidents.value
+    );
+    const adoptionRate = formatRate(activeSchools.value, totalSchools);
+    const dataCompletenessRate = formatRate(completeSchools, totalSchools);
+    const practitionerRatio =
+      learners.value !== null &&
+      practitioners.value !== null &&
+      practitioners.value > 0
+        ? `1 : ${Math.round(learners.value / practitioners.value)}`
+        : "Data unavailable";
+    const smsValue = sms.value;
+
+    setDataWarnings((current) => [...current, ...warnings]);
+    setRows([
+      executiveRow(
+        "Reach & Capacity",
+        "Schools in scope",
+        totalSchools,
+        "Current"
+      ),
+      executiveRow(
+        "Reach & Capacity",
+        "Learners reached",
+        learners.value,
+        "Current"
+      ),
+      executiveRow(
+        "Reach & Capacity",
+        "Practitioners on platform",
+        practitioners.value,
+        "Current"
+      ),
+      executiveRow(
+        "Reach & Capacity",
+        "Classrooms represented",
+        classrooms.value,
+        "Current"
+      ),
+      executiveRow(
+        "Reach & Capacity",
+        "Practitioner-to-learner ratio",
+        practitionerRatio,
+        "Current"
+      ),
+
+      executiveRow(
+        "Learning & Readiness",
+        "Learner attendance rate",
+        attendanceRate.value,
+        attendanceRate.status
+      ),
+      executiveRow(
+        "Learning & Readiness",
+        "Assessments updated",
+        assessments.value,
+        "Period"
+      ),
+      executiveRow(
+        "Learning & Readiness",
+        "Learner reports generated",
+        reports.value,
+        "Period"
+      ),
+      executiveRow(
+        "Learning & Readiness",
+        "Homework assignments shared",
+        homework.value,
+        "Period"
+      ),
+      executiveRow(
+        "Learning & Readiness",
+        "Achievement awards issued",
+        awards.value,
+        "Period"
+      ),
+
+      executiveRow(
+        "Parent Engagement",
+        "Daily summaries generated",
+        summaries.value,
+        "Period"
+      ),
+      executiveRow(
+        "Parent Engagement",
+        "Parent communications sent",
+        broadcasts.value,
+        "Period"
+      ),
+      executiveRow(
+        "Parent Engagement",
+        "Parent consent requests",
+        consentRequests.value,
+        "Period"
+      ),
+      executiveRow(
+        "Parent Engagement",
+        "Parent consent responses",
+        consentResponses.value,
+        "Period"
+      ),
+      executiveRow(
+        "Parent Engagement",
+        "Parent portal invitation SMS",
+        smsValue?.parentPortalInviteSmsSent ?? null,
+        "Period"
+      ),
+
+      executiveRow(
+        "Safeguarding & Support",
+        "Learner support updates",
+        supportUpdates.value,
+        "Period"
+      ),
+      executiveRow(
+        "Safeguarding & Support",
+        "Support resolution rate",
+        supportResolutionRate.value,
+        supportResolutionRate.status
+      ),
+      executiveRow(
+        "Safeguarding & Support",
+        "Incident reports recorded",
+        incidents.value,
+        "Period"
+      ),
+      executiveRow(
+        "Safeguarding & Support",
+        "Incident resolution rate",
+        incidentResolutionRate.value,
+        incidentResolutionRate.status
+      ),
+
+      executiveRow(
+        "Adoption & Data Quality",
+        "Schools using DailyBloom",
+        activeSchools.value,
+        adoptionRate.status
+      ),
+      executiveRow(
+        "Adoption & Data Quality",
+        "Portfolio adoption rate",
+        adoptionRate.value,
+        adoptionRate.status
+      ),
+      executiveRow(
+        "Adoption & Data Quality",
+        "School profile completeness",
+        dataCompletenessRate.value,
+        dataCompletenessRate.status
+      ),
+      executiveRow(
+        "Adoption & Data Quality",
+        "Schools needing attention",
+        attentionSchools,
+        attentionSchoolSummary
+      ),
+
+      executiveRow(
+        "Financial Sustainability",
+        "Expected monthly subscription revenue",
+        formatCurrency(expectedRevenue.value),
+        "Projection - not cash received"
+      ),
+      executiveRow(
+        "Financial Sustainability",
+        "Invoice value issued",
+        formatCurrency(invoicedAmount.value),
+        "Period"
+      ),
+      executiveRow(
+        "Financial Sustainability",
+        "Payments received",
+        formatCurrency(paymentAmount.value),
+        "Period"
+      ),
+      executiveRow(
+        "Financial Sustainability",
+        "Payment reminder SMS",
+        smsValue?.paymentReminderSmsSent ?? null,
+        "Period"
+      ),
+
+      executiveRow(
+        "Sponsorship & Impact",
+        "Sponsored schools",
+        sponsoredSchools,
+        "Current"
+      ),
+      executiveRow(
+        "Sponsorship & Impact",
+        "Sponsored share of portfolio",
+        formatRate(sponsoredSchools, totalSchools).value,
+        `${sponsoredSchools} of ${totalSchools} schools`
+      ),
+    ]);
+  }
+
+  async function captureMetric<T>(
+    label: string,
+    promise: Promise<T>
+  ): Promise<MetricResult<T>> {
+    try {
+      return { value: await promise };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown data error";
+      return {
+        value: null,
+        warning: `${label}: ${message}`,
+      };
+    }
+  }
+
+  function executiveRow(
+    type: string,
+    detail: string,
+    value: string | number | null,
+    status: string
+  ): ReportRow {
+    return {
+      school: "Selected portfolio",
+      type,
+      detail,
+      value: value === null ? "Data unavailable" : String(value),
+      status,
+    };
+  }
+
+  function getPeriodLabel() {
+    const { startDate, endDate } = getDateRange();
+    if (!startDate || !endDate) return "Date range not set";
+
+    const formatDate = (value: string) =>
+      new Intl.DateTimeFormat("en-ZA", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(new Date(`${value}T12:00:00`));
+
+    return `${formatDate(startDate)} to ${formatDate(endDate)}`;
+  }
+
+  function formatRate(
+    numerator: number | null,
+    denominator: number | null
+  ) {
+    if (
+      numerator === null ||
+      denominator === null ||
+      denominator === 0
+    ) {
+      return {
+        value: "Data unavailable",
+        status: "A reliable denominator is not available",
+      };
+    }
+
+    return {
+      value: `${Math.round((numerator / denominator) * 100)}%`,
+      status: `${numerator} of ${denominator}`,
+    };
+  }
+
+  function formatCurrency(value: number | null) {
+    if (value === null) return "Data unavailable";
+    return new Intl.NumberFormat("en-ZA", {
+      style: "currency",
+      currency: "ZAR",
+    }).format(value);
   }
 
   async function runSchoolsReport() {
@@ -651,7 +1136,7 @@ export default function MasterReportsPage() {
       ((data || []) as ReportSourceRow[]).map((school) => ({
         school: school.school_name || "Unnamed school",
         type: "Sponsored School",
-        detail: `Sponsor Programme ID: ${school.sponsor_programme_id || "Not linked"}`,
+        detail: getSponsorName(school.sponsor_programme_id),
         value: `${school.province || "Province not set"} | ${school.district || "District not set"}`,
         status: school.is_sponsored ? "Sponsored" : "Not sponsored",
       }))
@@ -1004,7 +1489,41 @@ export default function MasterReportsPage() {
 
     const { count, error } = await query;
 
-    if (error) return 0;
+    if (error) {
+      throw new Error(`${tableName}: ${error.message}`);
+    }
+    return count || 0;
+  }
+
+  async function countFilteredTable(
+    tableName: string,
+    schoolIds: number[],
+    dateColumn: string,
+    dateOnly: boolean,
+    filterColumn: string,
+    filterValues: string[]
+  ) {
+    if (schoolIds.length === 0) return 0;
+
+    let query = supabase
+      .from(tableName)
+      .select("id", { count: "exact", head: true })
+      .in("school_id", schoolIds)
+      .in(filterColumn, filterValues);
+
+    const { startDate, endDate } = getDateRange();
+    if (startDate) query = query.gte(dateColumn, startDate);
+    if (endDate) {
+      query = query.lte(
+        dateColumn,
+        dateOnly ? endDate : `${endDate}T23:59:59`
+      );
+    }
+
+    const { count, error } = await query;
+    if (error) {
+      throw new Error(`${tableName}: ${error.message}`);
+    }
     return count || 0;
   }
 
@@ -1017,8 +1536,102 @@ export default function MasterReportsPage() {
       .eq("role", role)
       .in("school_id", schoolIds);
 
-    if (error) return 0;
+    if (error) {
+      throw new Error(`profiles: ${error.message}`);
+    }
     return count || 0;
+  }
+
+  async function getActiveSchoolCount(schoolIds: number[]) {
+    if (schoolIds.length === 0) return 0;
+
+    const { startDate, endDate } = getDateRange();
+    const activitySources = [
+      { table: "attendance", dateColumn: "attendance_date", dateOnly: true },
+      { table: "summaries", dateColumn: "created_at", dateOnly: false },
+      { table: "broadcasts", dateColumn: "created_at", dateOnly: false },
+      { table: "generated_reports", dateColumn: "generated_at", dateOnly: false },
+    ];
+
+    const results = await Promise.all(
+      activitySources.map(async (source) => {
+        let query = supabase
+          .from(source.table)
+          .select("school_id")
+          .in("school_id", schoolIds);
+
+        if (startDate) query = query.gte(source.dateColumn, startDate);
+        if (endDate) {
+          query = query.lte(
+            source.dateColumn,
+            source.dateOnly ? endDate : `${endDate}T23:59:59`
+          );
+        }
+
+        const { data, error } = await query;
+        if (error) {
+          throw new Error(`${source.table}: ${error.message}`);
+        }
+        return (data || []) as SchoolActivityRow[];
+      })
+    );
+
+    const activeSchoolIds = new Set(
+      results
+        .flat()
+        .map((row) => row.school_id)
+        .filter((schoolId): schoolId is number => schoolId !== null && schoolId !== undefined)
+    );
+    return activeSchoolIds.size;
+  }
+
+  async function getExpectedMonthlyRevenue(schoolIds: number[]) {
+    if (schoolIds.length === 0) return 0;
+
+    const { data, error } = await supabase
+      .from("school_subscriptions")
+      .select("monthly_price, status")
+      .in("school_id", schoolIds)
+      .in("status", ["active", "trial"]);
+
+    if (error) {
+      throw new Error(`school_subscriptions: ${error.message}`);
+    }
+
+    return ((data || []) as SubscriptionValueRow[]).reduce(
+      (total, subscription) =>
+        total + Number(subscription.monthly_price || 0),
+      0
+    );
+  }
+
+  async function getBillingAmount(
+    tableName: "billing_invoices" | "subscription_payments",
+    amountColumn: "total_amount" | "amount",
+    dateColumn: "issue_date" | "payment_date",
+    schoolIds: number[]
+  ) {
+    if (schoolIds.length === 0) return 0;
+
+    const { startDate, endDate } = getDateRange();
+    let query = supabase
+      .from(tableName)
+      .select(amountColumn)
+      .in("school_id", schoolIds);
+
+    if (startDate) query = query.gte(dateColumn, startDate);
+    if (endDate) query = query.lte(dateColumn, endDate);
+
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(`${tableName}: ${error.message}`);
+    }
+
+    return ((data || []) as BillingAmountRow[]).reduce(
+      (total, row) =>
+        total + Number(row.total_amount ?? row.amount ?? 0),
+      0
+    );
   }
 
   function isInSelectedDateRange(value?: string | null) {
@@ -1069,6 +1682,18 @@ export default function MasterReportsPage() {
       supabase.from("learners").select("id").in("school_id", schoolIds),
     ]);
 
+    if (campaignResult.error) {
+      throw new Error(
+        `payment_reminders: ${campaignResult.error.message}`
+      );
+    }
+    if (reminderSmsResult.error) {
+      throw new Error(`message_logs: ${reminderSmsResult.error.message}`);
+    }
+    if (learnersResult.error) {
+      throw new Error(`learners: ${learnersResult.error.message}`);
+    }
+
     const learnerIds = ((learnersResult.data || []) as LearnerIdRow[])
       .map((learner) => learner.id)
       .filter((id): id is string => Boolean(id));
@@ -1081,10 +1706,14 @@ export default function MasterReportsPage() {
       };
     }
 
-    const { data: parentAccessRows } = await supabase
+    const { data: parentAccessRows, error: parentAccessError } = await supabase
       .from("parent_access")
       .select("phone, learner_id, invite_sent_at, invite_delivery_status")
       .in("learner_id", learnerIds);
+
+    if (parentAccessError) {
+      throw new Error(`parent_access: ${parentAccessError.message}`);
+    }
 
     const sentInvites = new Set(
       ((parentAccessRows || []) as ParentAccessInviteRow[])
@@ -1182,6 +1811,27 @@ export default function MasterReportsPage() {
       return;
     }
 
+    const printWindow = window.open("", "_blank");
+
+    if (!printWindow) {
+      alert("Could not open print window. Please allow pop-ups and try again.");
+      return;
+    }
+
+    if (reportType === "Executive Dashboard Report") {
+      printWindow.document.write(
+        buildExecutivePrintHtml({
+          rows,
+          preset: stakeholderPreset,
+          periodLabel: getPeriodLabel(),
+          lastRefreshed: lastRefreshed || "Not recorded",
+          unavailableIndicatorCount: dataWarnings.length,
+        })
+      );
+      printWindow.document.close();
+      return;
+    }
+
     const tableRows = rows
       .map(
         (row) => `
@@ -1195,13 +1845,6 @@ export default function MasterReportsPage() {
         `
       )
       .join("");
-
-    const printWindow = window.open("", "_blank");
-
-    if (!printWindow) {
-      alert("Could not open print window. Please allow pop-ups and try again.");
-      return;
-    }
 
     printWindow.document.write(`
       <html>
@@ -1306,7 +1949,8 @@ export default function MasterReportsPage() {
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">Platform Reports</h2>
         <p className="db-page-subtitle">
-          Generate master-level reports across all DailyBloom schools.
+          Generate operational and stakeholder-ready reports across DailyBloom
+          schools.
         </p>
       </div>
 
@@ -1321,8 +1965,12 @@ export default function MasterReportsPage() {
               value={reportType}
               onChange={(event) => setReportType(event.target.value)}
             >
-              {reportTypes.map((type) => (
-                <option key={type}>{type}</option>
+              {reportGroups.map((group) => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.reports.map((type) => (
+                    <option key={type}>{type}</option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
@@ -1368,7 +2016,7 @@ export default function MasterReportsPage() {
               <option value="all">All Sponsors</option>
               {sponsorOptions.map((sponsorId) => (
                 <option key={String(sponsorId)} value={String(sponsorId)}>
-                  Sponsor Programme {String(sponsorId)}
+                  {getSponsorName(Number(sponsorId))}
                 </option>
               ))}
             </select>
@@ -1410,6 +2058,23 @@ export default function MasterReportsPage() {
           </button>
         </div>
       </div>
+
+      {pageError ? (
+        <div
+          role="alert"
+          style={{
+            marginBottom: 18,
+            border: "1px solid #E8A9B8",
+            background: "#FFF1F4",
+            color: "#8B324A",
+            borderRadius: 14,
+            padding: "12px 14px",
+          }}
+        >
+          <strong>Reporting data needs attention</strong>
+          <p style={{ margin: "5px 0 0", fontSize: 13 }}>{pageError}</p>
+        </div>
+      ) : null}
 
       <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
         <h3 style={sectionTitle}>Export Center</h3>
@@ -1455,6 +2120,15 @@ export default function MasterReportsPage() {
             <p className="db-helper" style={{ marginTop: 12 }}>
               No report results yet.
             </p>
+          ) : reportType === "Executive Dashboard Report" ? (
+            <ExecutiveStakeholderReport
+              rows={rows}
+              preset={stakeholderPreset}
+              onPresetChange={setStakeholderPreset}
+              periodLabel={getPeriodLabel()}
+              lastRefreshed={lastRefreshed || "Run the report to refresh"}
+              warnings={dataWarnings}
+            />
           ) : (
             <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
               {rows.map((row, index) => (

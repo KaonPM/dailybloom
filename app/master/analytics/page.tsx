@@ -25,6 +25,11 @@ type SubscriptionRow = {
   next_billing_date?: string | null;
 };
 
+function registrationNeedsFollowUp(status?: string | null) {
+  const normalized = String(status || "").trim().toLowerCase();
+  return normalized === "registration in progress" || normalized === "unregistered";
+}
+
 export default function MasterAnalyticsPage() {
   const router = useRouter();
 
@@ -39,78 +44,78 @@ export default function MasterAnalyticsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadPage();
-  }, []);
+    async function loadPage() {
+      const { profile, error } = await getCurrentProfile();
 
-  async function loadPage() {
-    const { profile, error } = await getCurrentProfile();
+      if (error || !profile) {
+        router.push("/login");
+        return;
+      }
 
-    if (error || !profile) {
-      router.push("/login");
-      return;
+      if (
+        profile.role !== "master" &&
+        !(
+          profile.role === "master_admin" &&
+          Array.isArray(profile.permissions) &&
+          profile.permissions.includes(PERMISSIONS.PLATFORM_ANALYTICS_VIEW)
+        )
+      ) {
+        router.push("/dashboard");
+        return;
+      }
+
+      const [
+        schoolsResult,
+        subscriptionsResult,
+        learnersResult,
+        teachersResult,
+        classroomsResult,
+        paymentsResult,
+        summariesResult,
+      ] = await Promise.all([
+        supabase
+          .from("schools")
+          .select("id, school_name, is_active, billing_status, status, package_name, registration_status, wageflow_enabled"),
+
+        supabase
+          .from("school_subscriptions")
+          .select("school_id, plan_name, monthly_price, status, next_billing_date"),
+
+        supabase.from("learners").select("id", { count: "exact", head: true }),
+
+        supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("role", "teacher"),
+
+        supabase.from("classrooms").select("id", { count: "exact", head: true }),
+
+        supabase.from("payments").select("id", { count: "exact", head: true }),
+
+        supabase.from("summaries").select("id", { count: "exact", head: true }),
+      ]);
+
+      if (schoolsResult.error) alert(schoolsResult.error.message);
+      if (subscriptionsResult.error) alert(subscriptionsResult.error.message);
+      if (learnersResult.error) alert(learnersResult.error.message);
+      if (teachersResult.error) alert(teachersResult.error.message);
+      if (classroomsResult.error) alert(classroomsResult.error.message);
+      if (paymentsResult.error) alert(paymentsResult.error.message);
+      if (summariesResult.error) alert(summariesResult.error.message);
+
+      setSchools((schoolsResult.data || []) as SchoolRow[]);
+      setSubscriptions((subscriptionsResult.data || []) as SubscriptionRow[]);
+      setLearnersCount(learnersResult.count || 0);
+      setTeachersCount(teachersResult.count || 0);
+      setClassroomsCount(classroomsResult.count || 0);
+      setPaymentsCount(paymentsResult.count || 0);
+      setSummariesCount(summariesResult.count || 0);
+
+      setLoading(false);
     }
 
-    if (
-      profile.role !== "master" &&
-      !(
-        profile.role === "master_admin" &&
-        Array.isArray(profile.permissions) &&
-        profile.permissions.includes(PERMISSIONS.PLATFORM_ANALYTICS_VIEW)
-      )
-    ) {
-      router.push("/dashboard");
-      return;
-    }
-
-    const [
-      schoolsResult,
-      subscriptionsResult,
-      learnersResult,
-      teachersResult,
-      classroomsResult,
-      paymentsResult,
-      summariesResult,
-    ] = await Promise.all([
-      supabase
-        .from("schools")
-        .select("id, school_name, is_active, billing_status, status, package_name, registration_status, wageflow_enabled"),
-
-      supabase
-        .from("school_subscriptions")
-        .select("school_id, plan_name, monthly_price, status, next_billing_date"),
-
-      supabase.from("learners").select("id", { count: "exact", head: true }),
-
-      supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("role", "teacher"),
-
-      supabase.from("classrooms").select("id", { count: "exact", head: true }),
-
-      supabase.from("payments").select("id", { count: "exact", head: true }),
-
-      supabase.from("summaries").select("id", { count: "exact", head: true }),
-    ]);
-
-    if (schoolsResult.error) alert(schoolsResult.error.message);
-    if (subscriptionsResult.error) alert(subscriptionsResult.error.message);
-    if (learnersResult.error) alert(learnersResult.error.message);
-    if (teachersResult.error) alert(teachersResult.error.message);
-    if (classroomsResult.error) alert(classroomsResult.error.message);
-    if (paymentsResult.error) alert(paymentsResult.error.message);
-    if (summariesResult.error) alert(summariesResult.error.message);
-
-    setSchools((schoolsResult.data || []) as SchoolRow[]);
-    setSubscriptions((subscriptionsResult.data || []) as SubscriptionRow[]);
-    setLearnersCount(learnersResult.count || 0);
-    setTeachersCount(teachersResult.count || 0);
-    setClassroomsCount(classroomsResult.count || 0);
-    setPaymentsCount(paymentsResult.count || 0);
-    setSummariesCount(summariesResult.count || 0);
-
-    setLoading(false);
-  }
+    void loadPage();
+  }, [router]);
 
   const analytics = useMemo(() => {
     const totalSchools = schools.length;
@@ -153,10 +158,9 @@ export default function MasterAnalyticsPage() {
       (school) => school.wageflow_enabled
     ).length;
 
-    const incompleteRegistrations = schools.filter((school) => {
-      const status = String(school.registration_status || "").toLowerCase();
-      return status && status !== "complete" && status !== "completed";
-    }).length;
+    const incompleteRegistrations = schools.filter((school) =>
+      registrationNeedsFollowUp(school.registration_status)
+    ).length;
 
     return {
       totalSchools,
@@ -188,16 +192,10 @@ export default function MasterAnalyticsPage() {
       })
       .filter((entry) => {
         const subStatus = String(entry.subscription?.status || "").toLowerCase();
-        const registrationStatus = String(
-          entry.school.registration_status || ""
-        ).toLowerCase();
-
         return (
           subStatus === "overdue" ||
           subStatus === "cancelled" ||
-          (registrationStatus &&
-            registrationStatus !== "complete" &&
-            registrationStatus !== "completed")
+          registrationNeedsFollowUp(entry.school.registration_status)
         );
       });
   }, [schools, subscriptions]);

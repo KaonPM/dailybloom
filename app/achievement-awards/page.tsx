@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import html2canvas from "html2canvas";
@@ -72,57 +72,7 @@ export default function AchievementAwardsPage() {
   const selectedTeacher = teachers.find((item) => String(item.id) === teacherId);
   const academicYear = selectedPeriod?.academic_year || yearFromPeriod(selectedPeriod) || new Date().getFullYear();
 
-  useEffect(() => {
-    loadPage();
-  }, []);
-
-  useEffect(() => {
-    if (!profile?.school_id || tab === "create") return;
-    fetchAwards(Number(profile.school_id));
-  }, [tab, page, filterLearner, filterClassroom, filterPeriod, filterCategory, filterAwardName, filterYear, filterIssuedBy, profile?.school_id]);
-
-  async function loadPage() {
-    const { profile: currentProfile, error } = await getCurrentProfile();
-    if (error || !currentProfile) {
-      router.push("/login");
-      return;
-    }
-
-    setProfile(currentProfile as ProfileRow);
-    if (String(currentProfile.role).toLowerCase() === "teacher") setTab("create");
-    const schoolId = Number(currentProfile.school_id);
-    if (!schoolId) {
-      router.push("/dashboard");
-      return;
-    }
-
-    const [schoolResult, classroomResult, learnerResult, teacherResult, periodResult] = await Promise.all([
-      supabase.from("schools").select("*").eq("id", schoolId).single(),
-      supabase.from("classrooms").select("*").eq("school_id", schoolId).order("classroom_name"),
-      supabase.from("learners").select("*").eq("school_id", schoolId).or("is_deleted.is.null,is_deleted.eq.false").order("name"),
-      supabase.from("profiles").select("*").eq("school_id", schoolId).order("full_name"),
-      supabase.from("report_periods").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }),
-    ]);
-
-    const firstError = [schoolResult.error, classroomResult.error, learnerResult.error, teacherResult.error, periodResult.error].find(Boolean);
-    if (firstError) alert(firstError.message);
-    setSchool((schoolResult.data as SchoolRow | null) || null);
-    setClassrooms((classroomResult.data || []) as ClassroomRow[]);
-    setLearners((learnerResult.data || []) as LearnerRow[]);
-    const staff = (teacherResult.data || []) as ProfileRow[];
-    setTeachers(staff.filter((item) => ["teacher", "practitioner", "educator"].includes(String(item.role).toLowerCase())));
-    setApprovers(staff.filter((item) => ["principal", "admin", "master"].includes(String(item.role).toLowerCase())));
-    setPeriods((periodResult.data || []) as PeriodRow[]);
-
-    if (currentProfile.role === "teacher") {
-      setTeacherId(String(currentProfile.id));
-      if (currentProfile.classroom_id) setClassroomId(String(currentProfile.classroom_id));
-    }
-    await fetchAwards(schoolId);
-    setLoading(false);
-  }
-
-  async function fetchAwards(schoolId: number) {
+  const fetchAwards = useCallback(async (schoolId: number) => {
     const desiredStatus = tab === "nominations"
       ? isTeacher ? "" : "nominated"
       : tab === "issued" || tab === "reprints" ? "issued" : "";
@@ -146,18 +96,102 @@ export default function AchievementAwardsPage() {
     const { data, error, count } = await query.range(from, from + PAGE_SIZE - 1);
     if (error) {
       alert(error.message);
-      return;
+      return null;
     }
-    setAwards((data || []) as AwardRow[]);
-    setTotalAwards(count || 0);
 
+    const nextReprintCounts: Record<string, number> = {};
     if (tab === "reprints" && (data || []).length > 0) {
       const ids = ((data || []) as AwardRow[]).map((item) => item.id);
       const { data: prints } = await supabase.from("certificate_reprints").select("certificate_id").in("certificate_id", ids);
-      const counts: Record<string, number> = {};
-      ((prints || []) as ReprintRow[]).forEach((item) => { counts[String(item.certificate_id)] = (counts[String(item.certificate_id)] || 0) + 1; });
-      setReprintCounts(counts);
+      ((prints || []) as ReprintRow[]).forEach((item) => {
+        const certificateId = String(item.certificate_id);
+        nextReprintCounts[certificateId] = (nextReprintCounts[certificateId] || 0) + 1;
+      });
     }
+
+    return {
+      awards: (data || []) as AwardRow[],
+      total: count || 0,
+      reprintCounts: nextReprintCounts,
+    };
+  }, [
+    filterAwardName,
+    filterCategory,
+    filterClassroom,
+    filterIssuedBy,
+    filterLearner,
+    filterPeriod,
+    filterYear,
+    isTeacher,
+    page,
+    profile,
+    tab,
+  ]);
+
+  useEffect(() => {
+    async function loadPage() {
+      const { profile: currentProfile, error } = await getCurrentProfile();
+      if (error || !currentProfile) {
+        router.push("/login");
+        return;
+      }
+
+      setProfile(currentProfile as ProfileRow);
+      if (String(currentProfile.role).toLowerCase() === "teacher") setTab("create");
+      const schoolId = Number(currentProfile.school_id);
+      if (!schoolId) {
+        router.push("/dashboard");
+        return;
+      }
+
+      const [schoolResult, classroomResult, learnerResult, teacherResult, periodResult] = await Promise.all([
+        supabase.from("schools").select("*").eq("id", schoolId).single(),
+        supabase.from("classrooms").select("*").eq("school_id", schoolId).order("classroom_name"),
+        supabase.from("learners").select("*").eq("school_id", schoolId).or("is_deleted.is.null,is_deleted.eq.false").order("name"),
+        supabase.from("profiles").select("*").eq("school_id", schoolId).order("full_name"),
+        supabase.from("report_periods").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }),
+      ]);
+
+      const firstError = [schoolResult.error, classroomResult.error, learnerResult.error, teacherResult.error, periodResult.error].find(Boolean);
+      if (firstError) alert(firstError.message);
+      setSchool((schoolResult.data as SchoolRow | null) || null);
+      setClassrooms((classroomResult.data || []) as ClassroomRow[]);
+      setLearners((learnerResult.data || []) as LearnerRow[]);
+      const staff = (teacherResult.data || []) as ProfileRow[];
+      setTeachers(staff.filter((item) => ["teacher", "practitioner", "educator"].includes(String(item.role).toLowerCase())));
+      setApprovers(staff.filter((item) => ["principal", "admin", "master"].includes(String(item.role).toLowerCase())));
+      setPeriods((periodResult.data || []) as PeriodRow[]);
+
+      if (currentProfile.role === "teacher") {
+        setTeacherId(String(currentProfile.id));
+        if (currentProfile.classroom_id) setClassroomId(String(currentProfile.classroom_id));
+      }
+      setLoading(false);
+    }
+
+    void loadPage();
+  }, [router]);
+
+  useEffect(() => {
+    if (!profile?.school_id || tab === "create") return;
+    let cancelled = false;
+    void fetchAwards(Number(profile.school_id)).then((result) => {
+      if (cancelled || !result) return;
+      setAwards(result.awards);
+      setTotalAwards(result.total);
+      setReprintCounts(result.reprintCounts);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchAwards, profile?.school_id, tab]);
+
+  async function refreshAwards(schoolId: number) {
+    const result = await fetchAwards(schoolId);
+    if (!result) return;
+    setAwards(result.awards);
+    setTotalAwards(result.total);
+    setReprintCounts(result.reprintCounts);
   }
 
   function selectLearner(nextLearnerId: string) {
@@ -239,7 +273,7 @@ export default function AchievementAwardsPage() {
     if (!canIssue || !profile?.school_id) return;
     const { error } = await supabase.from("achievement_awards").update({ workflow_status: "issued", approved_by: profile.id, principal_name: profile.full_name || profile.name || "Principal", issued_at: new Date().toISOString(), certificate_generated: true }).eq("id", item.id);
     if (error) return alert(error.message);
-    await fetchAwards(Number(profile.school_id));
+    await refreshAwards(Number(profile.school_id));
     alert("Nomination approved and certificate issued.");
   }
 
@@ -252,7 +286,7 @@ export default function AchievementAwardsPage() {
       .update({ workflow_status: "declined", revoke_reason: reasonText.trim() })
       .eq("id", item.id);
     if (error) return alert(error.message);
-    await fetchAwards(Number(profile.school_id));
+    await refreshAwards(Number(profile.school_id));
     alert("Nomination declined.");
   }
 
@@ -262,7 +296,7 @@ export default function AchievementAwardsPage() {
     if (!reasonText?.trim()) return;
     const { error } = await supabase.from("achievement_awards").update({ workflow_status: "revoked", deleted_at: new Date().toISOString(), revoked_at: new Date().toISOString(), revoked_by: profile.id, revoke_reason: reasonText.trim() }).eq("id", item.id);
     if (error) return alert(error.message);
-    await fetchAwards(Number(profile.school_id));
+    await refreshAwards(Number(profile.school_id));
     alert("Certificate revoked.");
   }
 

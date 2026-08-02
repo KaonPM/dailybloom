@@ -62,7 +62,7 @@ type PaymentRow = {
 
 type SummaryRow = {
   id: number;
-  whatsapp_sent?: boolean | null;
+  status?: string | null;
   created_at?: string | null;
 };
 
@@ -121,113 +121,113 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadPage();
-  }, []);
+    async function loadPage() {
+      const context = await resolveSchoolContext(schoolParam);
 
-  async function loadPage() {
-    const context = await resolveSchoolContext(schoolParam);
+      if (context.error) {
+        router.push("/login");
+        return;
+      }
 
-    if (context.error) {
-      router.push("/login");
-      return;
+      if (context.shouldReturnToMaster || !context.schoolId) {
+        router.push("/master");
+        return;
+      }
+
+      setSchoolId(context.schoolId);
+
+      const [
+        learnersResult,
+        teachersResult,
+        attendanceResult,
+        teacherAttendanceResult,
+        paymentsResult,
+        summariesResult,
+        broadcastsResult,
+        incidentReportsResult,
+        requirementsResult,
+        documentsResult,
+      ] = await Promise.all([
+        supabase
+          .from("learners")
+          .select("id, name, class, classroom_id, created_at")
+          .eq("school_id", context.schoolId)
+          .or("is_deleted.is.null,is_deleted.eq.false"),
+
+        supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .eq("school_id", context.schoolId)
+          .eq("role", "teacher"),
+
+        supabase
+          .from("attendance")
+          .select("id, learner_name, status, attendance_date")
+          .eq("school_id", context.schoolId),
+
+        supabase
+          .from("teacher_attendance")
+          .select("id, teacher_id, attendance_date, status")
+          .eq("school_id", context.schoolId),
+
+        supabase
+          .from("payments")
+          .select("id, amount, status, payment_month, payment_year, payment_date")
+          .eq("school_id", context.schoolId),
+
+        supabase
+          .from("summaries")
+          .select("id, status, created_at")
+          .eq("school_id", context.schoolId),
+
+        supabase
+          .from("broadcasts")
+          .select("id, status, recipient_count, created_at")
+          .eq("school_id", context.schoolId),
+
+        supabase
+          .from("incident_reports")
+          .select("id, status, created_at")
+          .eq("school_id", context.schoolId),
+
+        supabase
+          .from("learner_stationery_checklist")
+          .select("id, learner_id, received")
+          .eq("school_id", context.schoolId),
+
+        supabase
+          .from("learner_documents")
+          .select("id, learner_id, document_type, file_url")
+          .eq("school_id", context.schoolId),
+      ]);
+
+      if (learnersResult.error) alert(learnersResult.error.message);
+      if (teachersResult.error) alert(teachersResult.error.message);
+      if (attendanceResult.error) alert(attendanceResult.error.message);
+      if (teacherAttendanceResult.error) alert(teacherAttendanceResult.error.message);
+      if (paymentsResult.error) alert(paymentsResult.error.message);
+      if (summariesResult.error) alert(summariesResult.error.message);
+      if (broadcastsResult.error) alert(broadcastsResult.error.message);
+      if (incidentReportsResult.error) alert(incidentReportsResult.error.message);
+      if (requirementsResult.error) alert(requirementsResult.error.message);
+      if (documentsResult.error) alert(documentsResult.error.message);
+
+      setLearners((learnersResult.data || []) as LearnerRow[]);
+      setTeachers((teachersResult.data || []) as TeacherRow[]);
+      setAttendance((attendanceResult.data || []) as AttendanceRow[]);
+      setTeacherAttendance((teacherAttendanceResult.data || []) as TeacherAttendanceRow[]);
+      setPayments((paymentsResult.data || []) as PaymentRow[]);
+      setSummaries((summariesResult.data || []) as SummaryRow[]);
+      setBroadcasts((broadcastsResult.data || []) as BroadcastRow[]);
+      setIncidentReports((incidentReportsResult.data || []) as IncidentReportRow[]);
+      setRequirements((requirementsResult.data || []) as RequirementRow[]);
+      setDocuments((documentsResult.data || []) as DocumentRow[]);
+
+      setLoading(false);
     }
 
-    if (context.shouldReturnToMaster || !context.schoolId) {
-      router.push("/master");
-      return;
-    }
-
-    setSchoolId(context.schoolId);
-
-    const [
-      learnersResult,
-      teachersResult,
-      attendanceResult,
-      teacherAttendanceResult,
-      paymentsResult,
-      summariesResult,
-      broadcastsResult,
-      incidentReportsResult,
-      requirementsResult,
-      documentsResult,
-    ] = await Promise.all([
-      supabase
-        .from("learners")
-        .select("id, name, class, classroom_id, created_at")
-        .eq("school_id", context.schoolId)
-        .or("is_deleted.is.null,is_deleted.eq.false"),
-
-      supabase
-        .from("profiles")
-        .select("id, full_name, email")
-        .eq("school_id", context.schoolId)
-        .eq("role", "teacher"),
-
-      supabase
-        .from("attendance")
-        .select("id, learner_name, status, attendance_date")
-        .eq("school_id", context.schoolId),
-
-      supabase
-        .from("teacher_attendance")
-        .select("id, teacher_id, attendance_date, status")
-        .eq("school_id", context.schoolId),
-
-      supabase
-        .from("payments")
-        .select("id, amount, status, payment_month, payment_year, payment_date")
-        .eq("school_id", context.schoolId),
-
-      supabase
-        .from("summaries")
-        .select("id, whatsapp_sent, created_at")
-        .eq("school_id", context.schoolId),
-
-      supabase
-        .from("broadcasts")
-        .select("id, status, recipient_count, created_at")
-        .eq("school_id", context.schoolId),
-
-      supabase
-        .from("incident_reports")
-        .select("id, status, created_at")
-        .eq("school_id", context.schoolId),
-
-      supabase
-        .from("learner_stationery_checklist")
-        .select("id, learner_id, received")
-        .eq("school_id", context.schoolId),
-
-      supabase
-        .from("learner_documents")
-        .select("id, learner_id, document_type, file_url")
-        .eq("school_id", context.schoolId),
-    ]);
-
-    if (learnersResult.error) alert(learnersResult.error.message);
-    if (teachersResult.error) alert(teachersResult.error.message);
-    if (attendanceResult.error) alert(attendanceResult.error.message);
-    if (teacherAttendanceResult.error) alert(teacherAttendanceResult.error.message);
-    if (paymentsResult.error) alert(paymentsResult.error.message);
-    if (summariesResult.error) alert(summariesResult.error.message);
-    if (broadcastsResult.error) alert(broadcastsResult.error.message);
-    if (incidentReportsResult.error) alert(incidentReportsResult.error.message);
-    if (requirementsResult.error) alert(requirementsResult.error.message);
-    if (documentsResult.error) alert(documentsResult.error.message);
-
-    setLearners((learnersResult.data || []) as LearnerRow[]);
-    setTeachers((teachersResult.data || []) as TeacherRow[]);
-    setAttendance((attendanceResult.data || []) as AttendanceRow[]);
-    setTeacherAttendance((teacherAttendanceResult.data || []) as TeacherAttendanceRow[]);
-    setPayments((paymentsResult.data || []) as PaymentRow[]);
-    setSummaries((summariesResult.data || []) as SummaryRow[]);
-    setBroadcasts((broadcastsResult.data || []) as BroadcastRow[]);
-    setIncidentReports((incidentReportsResult.data || []) as IncidentReportRow[]);
-    setRequirements((requirementsResult.data || []) as RequirementRow[]);
-    setDocuments((documentsResult.data || []) as DocumentRow[]);
-
-    setLoading(false);
-  }
+    void loadPage();
+  }, [router, schoolParam]);
 
   const filteredAttendance = useMemo(() => {
     return attendance.filter((item) =>
@@ -328,7 +328,7 @@ export default function AnalyticsPage() {
         : 0;
 
     const sentSummaries = filteredSummaries.filter(
-      (item) => item.whatsapp_sent
+      (item) => String(item.status || "").toLowerCase() === "sent"
     ).length;
 
     const summarySendRate =

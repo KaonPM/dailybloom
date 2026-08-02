@@ -99,82 +99,107 @@ export default function ActivitiesPage() {
   }, [library, developmentalArea]);
 
   useEffect(() => {
-    loadPage();
-  }, []);
+    async function loadPage() {
+      const context = await resolveSchoolContext(schoolParam);
+
+      if (context.error) {
+        router.push("/login");
+        return;
+      }
+
+      if (context.shouldReturnToMaster || !context.schoolId) {
+        router.push("/master");
+        return;
+      }
+
+      const { profile } = await getCurrentProfile();
+      const currentRole = String(profile?.role || "");
+      const currentRoleLower = currentRole.toLowerCase();
+      const teacherClass =
+        currentRoleLower === "teacher" && profile?.classroom_name
+          ? String(profile.classroom_name)
+          : "";
+
+      setRole(currentRole);
+      setSchoolId(context.schoolId);
+      setClassroomName(teacherClass);
+      setSelectedClassName(teacherClass);
+
+      let learnerQuery = supabase
+        .from("learners")
+        .select("*")
+        .eq("school_id", context.schoolId)
+        .order("name", { ascending: true });
+      if (teacherClass) learnerQuery = learnerQuery.eq("class", teacherClass);
+
+      let activityQuery = supabase
+        .from("activities")
+        .select("*")
+        .eq("school_id", context.schoolId)
+        .gte("activity_date", today)
+        .order("activity_date", { ascending: true })
+        .order("created_at", { ascending: true });
+      if (currentRoleLower === "teacher" && teacherClass) {
+        activityQuery = activityQuery.eq("class_name", teacherClass);
+      }
+
+      const [classroomResult, libraryResult, learnerResult, activityResult] = await Promise.all([
+        supabase
+          .from("classrooms")
+          .select("*")
+          .eq("school_id", context.schoolId)
+          .order("classroom_name", { ascending: true }),
+        supabase
+          .from("activity_library")
+          .select("*")
+          .eq("school_id", context.schoolId)
+          .order("developmental_area", { ascending: true })
+          .order("activity_name", { ascending: true }),
+        learnerQuery,
+        activityQuery,
+      ]);
+
+      const firstError = [
+        classroomResult.error,
+        libraryResult.error,
+        learnerResult.error,
+        activityResult.error,
+      ].find(Boolean);
+      if (firstError) alert(firstError.message);
+      setClassrooms((classroomResult.data || []) as ClassroomRow[]);
+      setLibrary((libraryResult.data || []) as LibraryRow[]);
+      setLearners((learnerResult.data || []) as LearnerRow[]);
+      setActivities((activityResult.data || []) as ActivityRow[]);
+      setLoading(false);
+    }
+
+    void loadPage();
+  }, [router, schoolParam, today]);
 
   useEffect(() => {
-    if (schoolId) {
-      fetchLearners(schoolId);
+    if (!schoolId) return;
+
+    async function loadLearners() {
+      let query = supabase
+        .from("learners")
+        .select("*")
+        .eq("school_id", schoolId)
+        .order("name", { ascending: true });
+
+      if (selectedClassName && selectedClassName !== "all") {
+        query = query.eq("class", selectedClassName);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        alert(error.message);
+        return;
+      }
+      setLearners((data || []) as LearnerRow[]);
     }
+
+    void loadLearners();
   }, [selectedClassName, schoolId]);
-
-  async function loadPage() {
-    const context = await resolveSchoolContext(schoolParam);
-
-    if (context.error) {
-      router.push("/login");
-      return;
-    }
-
-    if (context.shouldReturnToMaster || !context.schoolId) {
-      router.push("/master");
-      return;
-    }
-
-    const { profile } = await getCurrentProfile();
-    const currentRole = String(profile?.role || "");
-    const currentRoleLower = currentRole.toLowerCase();
-
-    const teacherClass =
-      currentRoleLower === "teacher" && profile?.classroom_name
-        ? String(profile.classroom_name)
-        : "";
-
-    setRole(currentRole);
-    setSchoolId(context.schoolId);
-    setClassroomName(teacherClass);
-    setSelectedClassName(teacherClass);
-
-    await fetchClassrooms(context.schoolId);
-    await fetchLibrary(context.schoolId);
-    await fetchLearners(context.schoolId, teacherClass);
-    await fetchActivities(context.schoolId, currentRole, teacherClass);
-
-    setLoading(false);
-  }
-
-  async function fetchClassrooms(currentSchoolId: number) {
-    const { data } = await supabase
-      .from("classrooms")
-      .select("*")
-      .eq("school_id", currentSchoolId)
-      .order("classroom_name", { ascending: true });
-
-    setClassrooms(data || []);
-  }
-
-  async function fetchLearners(currentSchoolId: number, classNameOverride?: string) {
-    const classToUse = classNameOverride ?? selectedClassName;
-
-    let query = supabase
-      .from("learners")
-      .select("*")
-      .eq("school_id", currentSchoolId)
-      .order("name", { ascending: true });
-
-    if (classToUse && classToUse !== "all") {
-      query = query.eq("class", classToUse);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setLearners(data || []);
-  }
 
   async function fetchLibrary(currentSchoolId: number) {
     const { data, error } = await supabase

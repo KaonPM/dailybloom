@@ -9,6 +9,7 @@ import ExecutiveStakeholderReport from "./components/ExecutiveStakeholderReport"
 import { buildExecutivePrintHtml } from "./export-utils";
 import { reportGroups } from "./report-config";
 import type { ReportRow, StakeholderPresetKey } from "./types";
+import responsiveStyles from "../master-responsive.module.css";
 
 type SchoolOption = {
   id: number;
@@ -2132,7 +2133,11 @@ export default function MasterReportsPage() {
           ) : (
             <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
               {rows.map((row, index) => (
-                <div key={`${row.school}-${row.type}-${index}`} style={resultRow}>
+                <div
+                  key={`${row.school}-${row.type}-${index}`}
+                  className={responsiveStyles.reportResultRow}
+                  style={resultRow}
+                >
                   <div>
                     <strong>{row.school}</strong>
                     <p style={smallText}>{row.type}</p>
@@ -2189,7 +2194,6 @@ const sectionHeader = {
 
 const resultRow = {
   display: "grid",
-  gridTemplateColumns: "220px 1fr",
   gap: 12,
   background: "#FFFDFB",
   border: "1px solid #F0E3D8",

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { getCurrentProfile } from "../../lib/auth";
 import { PERMISSIONS } from "../../lib/permissions";
+import responsiveStyles from "../master-responsive.module.css";
 
 type SponsorProgramme = {
   id: number;
@@ -1170,14 +1171,7 @@ export default function ImpactSponsorshipDashboard() {
         </div>
       )}
 
-      <div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-    gap: "14px",
-    marginBottom: "24px",
-   }}
->
+      <div className={responsiveStyles.impactMetrics}>
   <Metric
     title="Sponsor Programmes"
     value={sponsors.length}

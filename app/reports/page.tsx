@@ -65,7 +65,6 @@ type ReportSourceRow = {
   classroom?: string | null;
   title?: string | null;
   event_name?: string | null;
-  whatsapp_sent?: boolean | null;
   recipient_count?: number | null;
   received?: boolean | null;
   file_url?: string | null;
@@ -102,7 +101,6 @@ export default function ReportsPage() {
 
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [role, setRole] = useState("");
-  const [teacherClassroom, setTeacherClassroom] = useState("");
 
   const [learners, setLearners] = useState<Learner[]>([]);
   const [reportType, setReportType] = useState("School Analytics");
@@ -120,62 +118,72 @@ export default function ReportsPage() {
   const [running, setRunning] = useState(false);
 
   useEffect(() => {
-    loadPage();
-  }, []);
+    let cancelled = false;
 
-  async function loadPage() {
-    const context = await resolveSchoolContext(schoolParam);
+    async function loadPage() {
+      const context = await resolveSchoolContext(schoolParam);
 
-    if (context.error) {
-      router.push("/login");
-      return;
+      if (cancelled) return;
+
+      if (context.error) {
+        router.push("/login");
+        return;
+      }
+
+      if (context.shouldReturnToMaster || !context.schoolId) {
+        router.push("/master");
+        return;
+      }
+
+      const { profile } = await getCurrentProfile();
+
+      if (cancelled) return;
+
+      const currentRole = String(profile?.role || "");
+      const currentTeacherClass =
+        currentRole === "teacher" && profile?.classroom_name
+          ? String(profile.classroom_name)
+          : "";
+
+      let query = supabase
+        .from("learners")
+        .select("id, name, class")
+        .eq("school_id", context.schoolId)
+        .or("is_deleted.is.null,is_deleted.eq.false")
+        .order("name", { ascending: true });
+
+      if (currentTeacherClass) {
+        query = query.eq("class", currentTeacherClass);
+      }
+
+      const { data, error } = await query;
+
+      if (cancelled) return;
+
+      if (error) {
+        alert(error.message);
+        setLoading(false);
+        return;
+      }
+
+      setRole(currentRole);
+      setSchoolId(context.schoolId);
+      setLearners((data || []) as Learner[]);
+
+      if (currentTeacherClass) {
+        setScope("Classroom");
+        setSelectedClassroom(currentTeacherClass);
+      }
+
+      setLoading(false);
     }
 
-    if (context.shouldReturnToMaster || !context.schoolId) {
-      router.push("/master");
-      return;
-    }
+    void loadPage();
 
-    const { profile } = await getCurrentProfile();
-
-    const currentRole = String(profile?.role || "");
-    const currentTeacherClass =
-      currentRole === "teacher" && profile?.classroom_name
-        ? String(profile.classroom_name)
-        : "";
-
-    setRole(currentRole);
-    setTeacherClassroom(currentTeacherClass);
-    setSchoolId(context.schoolId);
-
-    await fetchLearners(context.schoolId, currentTeacherClass);
-
-    setLoading(false);
-  }
-
-  async function fetchLearners(currentSchoolId: number, teacherClass: string) {
-    let query = supabase
-      .from("learners")
-      .select("id, name, class")
-      .eq("school_id", currentSchoolId)
-      .or("is_deleted.is.null,is_deleted.eq.false")
-      .order("name", { ascending: true });
-
-    if (teacherClass) {
-      query = query.eq("class", teacherClass);
-      setScope("Classroom");
-      setSelectedClassroom(teacherClass);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setLearners((data || []) as Learner[]);
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [router, schoolParam]);
 
   const classrooms = useMemo(() => {
     const unique = new Set<string>();
@@ -227,16 +235,6 @@ export default function ReportsPage() {
     return scopedLearnerNames
       .map((name) => String(name).trim().toLowerCase())
       .includes(String(learnerName).trim().toLowerCase());
-  }
-
-  function isInScopeByClass(classValue: string) {
-    if (scope === "Entire School") return true;
-
-    if (scope === "Classroom") {
-      return String(classValue || "").trim() === selectedClassroom;
-    }
-
-    return true;
   }
 
   function dayTypeLabel(value?: string | null) {
@@ -853,7 +851,7 @@ export default function ReportsPage() {
         ? Math.round((paidPayments.length / payments.length) * 100)
         : 0;
 
-    const summariesSent = summaries.filter((item) => item.whatsapp_sent)
+    const summariesSent = summaries.filter((item) => item.status === "sent")
       .length;
 
     const summarySendRate =

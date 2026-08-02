@@ -34,12 +34,42 @@ type SchoolRow = {
 };
 
 type SchoolScopedRow = {
+  id?: string | number | null;
+  request_id?: string | number | null;
   school_id?: number | null;
   status?: string | null;
+  support_status?: string | null;
+  workflow_status?: string | null;
+  response?: string | null;
   date?: string | null;
   attendance_date?: string | null;
+  incident_date?: string | null;
   summary_date?: string | null;
+  assigned_at?: string | null;
+  recorded_at?: string | null;
+  issued_at?: string | null;
+  responded_at?: string | null;
+  uploaded_at?: string | null;
+  updated_at?: string | null;
+  generated_at?: string | null;
   created_at?: string | null;
+};
+
+type LearnerIdRow = {
+  id?: string | null;
+};
+
+type SmsDatedRow = {
+  id?: string | number | null;
+  scheduled_date?: string | null;
+  sent_at?: string | null;
+};
+
+type ParentAccessInviteRow = {
+  phone?: string | null;
+  learner_id?: string | null;
+  invite_sent_at?: string | null;
+  invite_delivery_status?: string | null;
 };
 
 type SchoolRelation =
@@ -101,9 +131,23 @@ type GeneratedReport = {
   attendanceRecords: number;
   attendanceRate: number;
   progressReportsGenerated: number;
+  assessmentRecords: number;
+  homeworkAssignments: number;
+  learnerSupportUpdates: number;
+  learnerSupportResolved: number;
+  achievementAwardsIssued: number;
+  parentConsentRequests: number;
+  parentConsentResponses: number;
+  incidentReports: number;
+  incidentsResolved: number;
+  learnerDocumentsUploaded: number;
+  learnerRequirementUpdates: number;
   trainingSessions: number;
   trainingAttendees: number;
   successStories: number;
+  paymentReminderCampaigns: number;
+  paymentReminderSmsSent: number;
+  parentPortalInviteSmsSent: number;
 };
 
 const periodTypes = ["Month", "Quarter", "Semester", "Annual"];
@@ -144,7 +188,15 @@ function getRecordDate(record: SchoolScopedRow) {
   return (
     record.date ||
     record.attendance_date ||
+    record.incident_date ||
     record.summary_date ||
+    record.assigned_at ||
+    record.recorded_at ||
+    record.issued_at ||
+    record.responded_at ||
+    record.uploaded_at ||
+    record.updated_at ||
+    record.generated_at ||
     record.created_at ||
     null
   );
@@ -165,11 +217,11 @@ function isInSelectedPeriod({
   semester: string;
   year: string;
 }) {
-  if (!dateValue) return true;
+  if (!dateValue) return false;
 
   const date = new Date(dateValue);
 
-  if (Number.isNaN(date.getTime())) return true;
+  if (Number.isNaN(date.getTime())) return false;
 
   if (date.getFullYear() !== Number(year)) return false;
 
@@ -205,7 +257,7 @@ export default function ImpactSponsorshipDashboard() {
   const [sponsors, setSponsors] = useState<SponsorProgramme[]>([]);
   const [learners, setLearners] = useState<SchoolScopedRow[]>([]);
   const [attendance, setAttendance] = useState<SchoolScopedRow[]>([]);
-  const [summaries, setSummaries] = useState<SchoolScopedRow[]>([]);
+  const [progressReports, setProgressReports] = useState<SchoolScopedRow[]>([]);
   const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([]);
   const [successStories, setSuccessStories] = useState<SuccessStory[]>([]);
 
@@ -249,43 +301,6 @@ export default function ImpactSponsorshipDashboard() {
 
   const [sponsorPage, setSponsorPage] = useState(0);
   const [schoolPage, setSchoolPage] = useState(0);
-
-  useEffect(() => {
-    loadPage();
-  }, []);
-
-  async function loadPage() {
-    const { profile, error } = await getCurrentProfile();
-
-    if (error || !profile) {
-      router.push("/login");
-      return;
-    }
-
-    if (
-      profile.role !== "master" &&
-      !(
-        profile.role === "master_admin" &&
-        Array.isArray(profile.permissions) &&
-        profile.permissions.includes(PERMISSIONS.PLATFORM_IMPACT_VIEW)
-      )
-    ) {
-      router.push("/dashboard");
-      return;
-    }
-
-    setCheckingAccess(false);
-
-    await Promise.all([
-      fetchSponsors(),
-      fetchSchools(),
-      fetchLearners(),
-      fetchAttendance(),
-      fetchSummaries(),
-      fetchTrainingRecords(),
-      fetchSuccessStories(),
-    ]);
-  }
 
   async function fetchSponsors() {
     const { data, error } = await supabase
@@ -332,11 +347,11 @@ export default function ImpactSponsorshipDashboard() {
     }
   }
 
-  async function fetchSummaries() {
-    const { data, error } = await supabase.from("daily_summaries").select("*");
+  async function fetchProgressReports() {
+    const { data, error } = await supabase.from("generated_reports").select("*");
 
     if (!error) {
-      setSummaries(data || []);
+      setProgressReports(data || []);
     }
   }
 
@@ -371,6 +386,43 @@ export default function ImpactSponsorshipDashboard() {
       setSuccessStories(rows);
     }
   }
+
+  useEffect(() => {
+    async function loadPage() {
+      const { profile, error } = await getCurrentProfile();
+
+      if (error || !profile) {
+        router.push("/login");
+        return;
+      }
+
+      if (
+        profile.role !== "master" &&
+        !(
+          profile.role === "master_admin" &&
+          Array.isArray(profile.permissions) &&
+          profile.permissions.includes(PERMISSIONS.PLATFORM_IMPACT_VIEW)
+        )
+      ) {
+        router.push("/dashboard");
+        return;
+      }
+
+      setCheckingAccess(false);
+
+      await Promise.all([
+        fetchSponsors(),
+        fetchSchools(),
+        fetchLearners(),
+        fetchAttendance(),
+        fetchProgressReports(),
+        fetchTrainingRecords(),
+        fetchSuccessStories(),
+      ]);
+    }
+
+    void loadPage();
+  }, [router]);
 
   async function createSponsorProgramme() {
     if (!sponsorName.trim() || !programmeName.trim()) {
@@ -549,10 +601,6 @@ export default function ImpactSponsorshipDashboard() {
     sponsoredSchoolIds.includes(Number(record.school_id))
   );
 
-  const progressReportsGenerated = summaries.filter((summary) =>
-    sponsoredSchoolIds.includes(Number(summary.school_id))
-  );
-
   const trainingRecordsForSponsor = trainingRecords.filter((record) =>
     sponsoredSchoolIds.includes(Number(record.school_id))
   );
@@ -593,7 +641,252 @@ export default function ImpactSponsorshipDashboard() {
     return `Annual ${reportYear}`;
   }
 
-  function generateReport() {
+  async function getSmsImpactCounts(schoolIds: number[]) {
+    const emptyCounts = {
+      paymentReminderCampaigns: 0,
+      paymentReminderSmsSent: 0,
+      parentPortalInviteSmsSent: 0,
+    };
+
+    if (schoolIds.length === 0) return emptyCounts;
+
+    const [campaignResult, reminderSmsResult, learnersResult] =
+      await Promise.all([
+        supabase
+          .from("payment_reminders")
+          .select("id, scheduled_date")
+          .in("school_id", schoolIds),
+        supabase
+          .from("message_logs")
+          .select("id, sent_at")
+          .in("school_id", schoolIds)
+          .eq("status", "sent")
+          .not("reminder_id", "is", null),
+        supabase.from("learners").select("id").in("school_id", schoolIds),
+      ]);
+
+    const smsLoadError = [
+      campaignResult.error,
+      reminderSmsResult.error,
+      learnersResult.error,
+    ].find(Boolean);
+    if (smsLoadError) {
+      alert(`SMS impact could not be loaded: ${smsLoadError.message}`);
+      return emptyCounts;
+    }
+
+    const isWithinReportPeriod = (dateValue?: string | null) =>
+      isInSelectedPeriod({
+        dateValue,
+        periodType: reportPeriodType,
+        month: reportMonth,
+        quarter: reportQuarter,
+        semester: reportSemester,
+        year: reportYear,
+      });
+
+    const campaignRows = (campaignResult.data || []) as SmsDatedRow[];
+    const reminderSmsRows = (reminderSmsResult.data || []) as SmsDatedRow[];
+    const learnerIds = ((learnersResult.data || []) as LearnerIdRow[])
+      .map((learner) => learner.id)
+      .filter((id): id is string => Boolean(id));
+
+    if (learnerIds.length === 0) {
+      return {
+        paymentReminderCampaigns: campaignRows.filter((row) =>
+          isWithinReportPeriod(row.scheduled_date)
+        ).length,
+        paymentReminderSmsSent: reminderSmsRows.filter((row) =>
+          isWithinReportPeriod(row.sent_at)
+        ).length,
+        parentPortalInviteSmsSent: 0,
+      };
+    }
+
+    const { data: parentAccessRows, error: parentAccessError } = await supabase
+      .from("parent_access")
+      .select("phone, learner_id, invite_sent_at, invite_delivery_status")
+      .in("learner_id", learnerIds);
+
+    if (parentAccessError) {
+      alert(
+        `Parent invitation SMS impact could not be loaded: ${parentAccessError.message}`
+      );
+      return {
+        paymentReminderCampaigns: campaignRows.filter((row) =>
+          isWithinReportPeriod(row.scheduled_date)
+        ).length,
+        paymentReminderSmsSent: reminderSmsRows.filter((row) =>
+          isWithinReportPeriod(row.sent_at)
+        ).length,
+        parentPortalInviteSmsSent: 0,
+      };
+    }
+
+    const sentParentInvites = new Set(
+      ((parentAccessRows || []) as ParentAccessInviteRow[])
+        .filter(
+          (row) =>
+            row.invite_delivery_status === "sent" &&
+            isWithinReportPeriod(row.invite_sent_at)
+        )
+        .map((row) => `${row.phone || "unknown"}|${row.invite_sent_at}`)
+    );
+
+    return {
+      paymentReminderCampaigns: campaignRows.filter((row) =>
+        isWithinReportPeriod(row.scheduled_date)
+      ).length,
+      paymentReminderSmsSent: reminderSmsRows.filter((row) =>
+        isWithinReportPeriod(row.sent_at)
+      ).length,
+      parentPortalInviteSmsSent: sentParentInvites.size,
+    };
+  }
+
+  async function getOperationalImpactCounts(schoolIds: number[]) {
+    const emptyCounts = {
+      assessmentRecords: 0,
+      homeworkAssignments: 0,
+      learnerSupportUpdates: 0,
+      learnerSupportResolved: 0,
+      achievementAwardsIssued: 0,
+      parentConsentRequests: 0,
+      parentConsentResponses: 0,
+      incidentReports: 0,
+      incidentsResolved: 0,
+      learnerDocumentsUploaded: 0,
+      learnerRequirementUpdates: 0,
+    };
+
+    if (schoolIds.length === 0) return emptyCounts;
+
+    const [
+      assessmentsResult,
+      homeworkResult,
+      supportResult,
+      awardsResult,
+      consentRequestsResult,
+      consentResponsesResult,
+      incidentsResult,
+      documentsResult,
+      requirementsResult,
+    ] = await Promise.all([
+      supabase
+        .from("learner_assessments")
+        .select("id, school_id, status, updated_at")
+        .in("school_id", schoolIds),
+      supabase
+        .from("homework_assignments")
+        .select("id, school_id, assigned_at")
+        .in("school_id", schoolIds),
+      supabase
+        .from("learner_support_updates")
+        .select("id, school_id, support_status, recorded_at")
+        .in("school_id", schoolIds),
+      supabase
+        .from("achievement_awards")
+        .select("id, school_id, workflow_status, issued_at, created_at")
+        .in("school_id", schoolIds),
+      supabase
+        .from("parent_permission_requests")
+        .select("id, school_id, created_at")
+        .in("school_id", schoolIds),
+      supabase
+        .from("parent_permission_responses")
+        .select("request_id, school_id, response, responded_at")
+        .in("school_id", schoolIds),
+      supabase
+        .from("incident_reports")
+        .select("id, school_id, status, incident_date, created_at")
+        .in("school_id", schoolIds),
+      supabase
+        .from("learner_documents")
+        .select("id, school_id, uploaded_at")
+        .in("school_id", schoolIds),
+      supabase
+        .from("learner_stationery_checklist")
+        .select("id, school_id, updated_at, created_at")
+        .in("school_id", schoolIds),
+    ]);
+
+    const results = [
+      assessmentsResult,
+      homeworkResult,
+      supportResult,
+      awardsResult,
+      consentRequestsResult,
+      consentResponsesResult,
+      incidentsResult,
+      documentsResult,
+      requirementsResult,
+    ];
+    const loadError = results.map((result) => result.error).find(Boolean);
+    if (loadError) {
+      alert(
+        `Some operational impact measures could not be loaded: ${loadError.message}`
+      );
+    }
+
+    const isWithinReportPeriod = (record: SchoolScopedRow) =>
+      isInSelectedPeriod({
+        dateValue: getRecordDate(record),
+        periodType: reportPeriodType,
+        month: reportMonth,
+        quarter: reportQuarter,
+        semester: reportSemester,
+        year: reportYear,
+      });
+
+    const assessmentRows = (
+      (assessmentsResult.data || []) as SchoolScopedRow[]
+    ).filter(isWithinReportPeriod);
+    const homeworkRows = (
+      (homeworkResult.data || []) as SchoolScopedRow[]
+    ).filter(isWithinReportPeriod);
+    const supportRows = (
+      (supportResult.data || []) as SchoolScopedRow[]
+    ).filter(isWithinReportPeriod);
+    const awardRows = ((awardsResult.data || []) as SchoolScopedRow[]).filter(
+      (row) =>
+        row.workflow_status === "issued" && isWithinReportPeriod(row)
+    );
+    const consentRequestRows = (
+      (consentRequestsResult.data || []) as SchoolScopedRow[]
+    ).filter(isWithinReportPeriod);
+    const consentResponseRows = (
+      (consentResponsesResult.data || []) as SchoolScopedRow[]
+    ).filter(isWithinReportPeriod);
+    const incidentRows = (
+      (incidentsResult.data || []) as SchoolScopedRow[]
+    ).filter(isWithinReportPeriod);
+    const documentRows = (
+      (documentsResult.data || []) as SchoolScopedRow[]
+    ).filter(isWithinReportPeriod);
+    const requirementRows = (
+      (requirementsResult.data || []) as SchoolScopedRow[]
+    ).filter(isWithinReportPeriod);
+
+    return {
+      assessmentRecords: assessmentRows.length,
+      homeworkAssignments: homeworkRows.length,
+      learnerSupportUpdates: supportRows.length,
+      learnerSupportResolved: supportRows.filter(
+        (row) => row.support_status === "resolved"
+      ).length,
+      achievementAwardsIssued: awardRows.length,
+      parentConsentRequests: consentRequestRows.length,
+      parentConsentResponses: consentResponseRows.length,
+      incidentReports: incidentRows.length,
+      incidentsResolved: incidentRows.filter((row) =>
+        ["resolved", "closed"].includes(String(row.status || "").toLowerCase())
+      ).length,
+      learnerDocumentsUploaded: documentRows.length,
+      learnerRequirementUpdates: requirementRows.length,
+    };
+  }
+
+  async function generateReport() {
     const reportLearners = learners.filter((learner) =>
       reportSchoolIds.includes(Number(learner.school_id))
     );
@@ -615,11 +908,11 @@ export default function ImpactSponsorshipDashboard() {
       (record) => record.status === "present"
     ).length;
 
-    const reportSummaries = summaries.filter(
-      (summary) =>
-        reportSchoolIds.includes(Number(summary.school_id)) &&
+    const reportProgressReports = progressReports.filter(
+      (report) =>
+        reportSchoolIds.includes(Number(report.school_id)) &&
         isInSelectedPeriod({
-          dateValue: getRecordDate(summary),
+          dateValue: getRecordDate(report),
           periodType: reportPeriodType,
           month: reportMonth,
           quarter: reportQuarter,
@@ -662,6 +955,11 @@ export default function ImpactSponsorshipDashboard() {
       (school) => String(school.id) === String(reportSchoolId)
     );
 
+    const [sms, operationalImpact] = await Promise.all([
+      getSmsImpactCounts(reportSchoolIds),
+      getOperationalImpactCounts(reportSchoolIds),
+    ]);
+
     setGeneratedReport({
       sponsorProgramme: selectedSponsor
         ? `${selectedSponsor.sponsor_name} - ${selectedSponsor.programme_name}`
@@ -677,13 +975,15 @@ export default function ImpactSponsorshipDashboard() {
         reportAttendance.length === 0
           ? 0
           : Math.round((presentAttendance / reportAttendance.length) * 100),
-      progressReportsGenerated: reportSummaries.length,
+      progressReportsGenerated: reportProgressReports.length,
       trainingSessions: reportTraining.length,
       trainingAttendees: reportTraining.reduce(
         (total, record) => total + Number(record.attendees_count || 0),
         0
       ),
       successStories: reportStories.length,
+      ...sms,
+      ...operationalImpact,
     });
   }
 
@@ -699,6 +999,32 @@ export default function ImpactSponsorshipDashboard() {
       ["Attendance Records", generatedReport.attendanceRecords],
       ["Attendance Rate", `${generatedReport.attendanceRate}%`],
       ["Progress Reports Generated", generatedReport.progressReportsGenerated],
+      ["Assessment Records", generatedReport.assessmentRecords],
+      ["Homework Assignments", generatedReport.homeworkAssignments],
+      ["Learner Support Updates", generatedReport.learnerSupportUpdates],
+      [
+        "Learner Support Cases Resolved",
+        generatedReport.learnerSupportResolved,
+      ],
+      ["Achievement Awards Issued", generatedReport.achievementAwardsIssued],
+      ["Parent Consent Requests", generatedReport.parentConsentRequests],
+      ["Parent Consent Responses", generatedReport.parentConsentResponses],
+      ["Incident Reports", generatedReport.incidentReports],
+      ["Incidents Resolved", generatedReport.incidentsResolved],
+      ["Learner Documents Uploaded", generatedReport.learnerDocumentsUploaded],
+      [
+        "Learner Requirement Updates",
+        generatedReport.learnerRequirementUpdates,
+      ],
+      [
+        "Payment Reminder Campaigns Scheduled",
+        generatedReport.paymentReminderCampaigns,
+      ],
+      ["Payment Reminder SMS Sent", generatedReport.paymentReminderSmsSent],
+      [
+        "Parent Portal Invitation SMS Sent",
+        generatedReport.parentPortalInviteSmsSent,
+      ],
       ["Training Sessions", generatedReport.trainingSessions],
       ["Training Attendees", generatedReport.trainingAttendees],
       ["Success Stories", generatedReport.successStories],
@@ -1026,13 +1352,26 @@ export default function ImpactSponsorshipDashboard() {
 
             <p style={{ ...textStyle, marginTop: "16px" }}>
               During this period, DailyBloom supported{" "}
-              {generatedReport.schoolsSupported} sponsored school(s), reaching{" "}
-              {generatedReport.learnersSupported} learner(s), capturing{" "}
-              {generatedReport.attendanceRecords} attendance record(s), and
-              generating {generatedReport.progressReportsGenerated} progress
-              report record(s). The report also includes{" "}
-              {generatedReport.trainingSessions} training session(s) and{" "}
-              {generatedReport.successStories} success story record(s).
+              {generatedReport.schoolsSupported} school(s) and{" "}
+              {generatedReport.learnersSupported} learner(s). Learning and
+              support activity included {generatedReport.assessmentRecords}{" "}
+              assessment record(s), {generatedReport.homeworkAssignments}{" "}
+              homework assignment(s), {generatedReport.learnerSupportUpdates}{" "}
+              learner-support update(s), and{" "}
+              {generatedReport.achievementAwardsIssued} achievement award(s).
+              Safety and participation included{" "}
+              {generatedReport.incidentReports} incident report(s),{" "}
+              {generatedReport.incidentsResolved} resolved incident(s), and{" "}
+              {generatedReport.parentConsentResponses} parent-consent
+              response(s). Operational readiness included{" "}
+              {generatedReport.learnerDocumentsUploaded} learner document(s)
+              uploaded and {generatedReport.learnerRequirementUpdates} learner
+              requirement update(s). Communication reach included{" "}
+              {generatedReport.parentPortalInviteSmsSent} parent portal
+              invitation SMS message(s) and{" "}
+              {generatedReport.paymentReminderSmsSent} payment reminder SMS
+              message(s) sent across{" "}
+              {generatedReport.paymentReminderCampaigns} scheduled campaign(s).
             </p>
           </div>
         )}

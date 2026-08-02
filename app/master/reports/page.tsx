@@ -32,6 +32,8 @@ type ReportSourceRow = {
   province?: string | null;
   district?: string | null;
   created_at?: string | null;
+  generated_at?: string | null;
+  report_type?: string | null;
   plan_name?: string | null;
   monthly_price?: number | string | null;
   next_billing_date?: string | null;
@@ -42,6 +44,23 @@ type ReportSourceRow = {
   sponsor_programme_id?: number | null;
   is_sponsored?: boolean | null;
   wageflow_enabled?: boolean | null;
+};
+
+type LearnerIdRow = {
+  id?: string | null;
+};
+
+type ParentAccessInviteRow = {
+  phone?: string | null;
+  learner_id?: string | null;
+  invite_sent_at?: string | null;
+  invite_delivery_status?: string | null;
+};
+
+type SmsImpactCounts = {
+  paymentReminderCampaigns: number;
+  paymentReminderSmsSent: number;
+  parentPortalInviteSmsSent: number;
 };
 
 const reportTypes = [
@@ -61,11 +80,17 @@ const reportTypes = [
 
   "Daily Summaries Report",
   "Broadcast Report",
-  "WhatsApp Usage Report",
-  "SMS Usage Report",
   "Payment Reminder Report",
+  "SMS Delivery Report",
+  "Homework Activity Report",
+  "Learner Support Activity Report",
+  "Achievement Awards Report",
+  "Learner Requirements Report",
+  "Parent Consent Report",
+  "Incident Report Activity",
 
   "Progress Report Analytics",
+  "Grade R Learner Reports",
   "Grade RR Progress Reports",
   "Developmental Progress Reports",
 
@@ -108,47 +133,43 @@ export default function MasterReportsPage() {
   const [showResults, setShowResults] = useState(true);
 
   useEffect(() => {
-    checkAccess();
-  }, []);
+    async function checkAccess() {
+      const { profile, error } = await getCurrentProfile();
 
-  async function checkAccess() {
-    const { profile, error } = await getCurrentProfile();
+      if (error || !profile) {
+        router.push("/login");
+        return;
+      }
 
-    if (error || !profile) {
-      router.push("/login");
-      return;
+      if (
+        profile.role !== "master" &&
+        !(
+          profile.role === "master_admin" &&
+          Array.isArray(profile.permissions) &&
+          profile.permissions.includes(PERMISSIONS.PLATFORM_REPORTS_VIEW)
+        )
+      ) {
+        router.push("/dashboard");
+        return;
+      }
+
+      const { data, error: schoolsError } = await supabase
+        .from("schools")
+        .select("id, school_name, sponsor_programme_id")
+        .is("deleted_at", null)
+        .order("school_name", { ascending: true });
+
+      if (schoolsError) {
+        alert(schoolsError.message);
+        return;
+      }
+
+      setSchools(data || []);
+      setLoading(false);
     }
 
-    if (
-      profile.role !== "master" &&
-      !(
-        profile.role === "master_admin" &&
-        Array.isArray(profile.permissions) &&
-        profile.permissions.includes(PERMISSIONS.PLATFORM_REPORTS_VIEW)
-      )
-    ) {
-      router.push("/dashboard");
-      return;
-    }
-
-    await fetchSchools();
-    setLoading(false);
-  }
-
-  async function fetchSchools() {
-    const { data, error } = await supabase
-      .from("schools")
-      .select("id, school_name, sponsor_programme_id")
-      .is("deleted_at", null)
-      .order("school_name", { ascending: true });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setSchools(data || []);
-  }
+    void checkAccess();
+  }, [router]);
 
   function getDateRange() {
     const now = new Date();
@@ -224,22 +245,28 @@ export default function MasterReportsPage() {
       if (reportType === "Package Breakdown") await runPackageBreakdownReport();
       if (reportType === "Overdue Schools") await runOverdueSchoolsReport();
 
-      if (reportType === "Daily Summaries Report") await runGenericTableReport("daily_summaries", "Daily Summaries", "created_at");
+      if (reportType === "Daily Summaries Report") await runGenericTableReport("summaries", "Daily Summaries", "created_at");
       if (reportType === "Broadcast Report") await runBroadcastReport();
-      if (reportType === "WhatsApp Usage Report") await runGenericTableReport("broadcasts", "WhatsApp Usage", "created_at");
-      if (reportType === "SMS Usage Report") await runUnavailableReport("SMS Usage Report", "SMS usage table has not been added yet.");
       if (reportType === "Payment Reminder Report") await runPaymentReminderReport();
+      if (reportType === "SMS Delivery Report") await runSmsDeliveryReport();
+      if (reportType === "Homework Activity Report") await runGenericTableReport("homework_assignments", "Homework Activity", "assigned_at");
+      if (reportType === "Learner Support Activity Report") await runGenericTableReport("learner_support_updates", "Learner Support Activity", "recorded_at");
+      if (reportType === "Achievement Awards Report") await runGenericTableReport("achievement_awards", "Achievement Awards", "created_at");
+      if (reportType === "Learner Requirements Report") await runLearnerRequirementsReport();
+      if (reportType === "Parent Consent Report") await runGenericTableReport("parent_permission_requests", "Parent Consent", "created_at");
+      if (reportType === "Incident Report Activity") await runGenericTableReport("incident_reports", "Incident Report Activity", "created_at");
 
-      if (reportType === "Progress Report Analytics") await runGenericTableReport("progress_reports", "Progress Reports", "created_at");
-      if (reportType === "Grade RR Progress Reports") await runGenericTableReport("progress_reports", "Grade RR Progress Reports", "created_at");
-      if (reportType === "Developmental Progress Reports") await runGenericTableReport("progress_reports", "Developmental Progress Reports", "created_at");
+      if (reportType === "Progress Report Analytics") await runProgressReportAnalytics();
+      if (reportType === "Grade R Learner Reports") await runGeneratedReportTypeReport("grade-r", "Grade R Learner Reports");
+      if (reportType === "Grade RR Progress Reports") await runGeneratedReportTypeReport("grade-rr", "Grade RR Progress Reports");
+      if (reportType === "Developmental Progress Reports") await runGeneratedReportTypeReport("developmental", "Developmental Progress Reports");
 
       if (reportType === "Sponsored Schools") await runSponsoredSchoolsReport();
       if (reportType === "Sponsor Impact Report") await runSponsorImpactReport();
       if (reportType === "Learners Supported") await runLearnersBySchoolReport();
       if (reportType === "Practitioners Supported") await runTeachersBySchoolReport();
       if (reportType === "Attendance Impact") await runGenericTableReport("attendance", "Attendance Impact", "created_at");
-      if (reportType === "Parent Engagement Impact") await runGenericTableReport("broadcasts", "Parent Engagement", "created_at");
+      if (reportType === "Parent Engagement Impact") await runParentEngagementImpactReport();
 
       if (reportType === "Platform Overview") await runExecutiveDashboardReport();
       if (reportType === "Feature Usage") await runFeatureUsageReport();
@@ -265,25 +292,29 @@ export default function MasterReportsPage() {
     const schoolIds = getFilteredSchoolIds();
 
     const totalSchools = schoolIds.length;
-    const activeSchools = schools.filter((school) => schoolIds.includes(Number(school.id))).length;
+    const schoolsInScope = schools.filter((school) => schoolIds.includes(Number(school.id))).length;
 
-    const learners = await countTable("learners", schoolIds);
-    const teachers = await countProfiles("teacher", schoolIds);
-    const reminders = await countTable("payment_reminders", schoolIds);
-    const broadcasts = await countTable("broadcasts", schoolIds);
-    const summaries = await countTable("daily_summaries", schoolIds);
-    const progressReports = await countTable("progress_reports", schoolIds);
+    const [learners, teachers, sms, broadcasts, summaries, progressReports] = await Promise.all([
+      countTable("learners", schoolIds),
+      countProfiles("teacher", schoolIds),
+      getSmsImpactCounts(schoolIds),
+      countTable("broadcasts", schoolIds, "created_at"),
+      countTable("summaries", schoolIds, "created_at"),
+      countTable("generated_reports", schoolIds, "generated_at"),
+    ]);
     const sponsoredSchools = schools.filter(
       (school) => schoolIds.includes(Number(school.id)) && school.sponsor_programme_id
     ).length;
 
     setRows([
       { school: "All Selected Schools", type: "Executive", detail: "Total Schools", value: String(totalSchools), status: "Current" },
-      { school: "All Selected Schools", type: "Executive", detail: "Active Schools", value: String(activeSchools), status: "Current" },
+      { school: "All Selected Schools", type: "Executive", detail: "Schools in scope", value: String(schoolsInScope), status: "Current" },
       { school: "All Selected Schools", type: "Executive", detail: "Total Learners", value: String(learners), status: "Current" },
       { school: "All Selected Schools", type: "Executive", detail: "Total Practitioners", value: String(teachers), status: "Current" },
       { school: "All Selected Schools", type: "Executive", detail: "Daily Summaries Generated", value: String(summaries), status: "Period" },
-      { school: "All Selected Schools", type: "Executive", detail: "Payment Reminders Sent", value: String(reminders), status: "Period" },
+      { school: "All Selected Schools", type: "Executive", detail: "Payment reminder campaigns scheduled", value: String(sms.paymentReminderCampaigns), status: "Period" },
+      { school: "All Selected Schools", type: "Executive", detail: "Payment reminder SMS sent", value: String(sms.paymentReminderSmsSent), status: "Period" },
+      { school: "All Selected Schools", type: "Executive", detail: "Parent portal invitation SMS sent", value: String(sms.parentPortalInviteSmsSent), status: "Period" },
       { school: "All Selected Schools", type: "Executive", detail: "Broadcasts Created", value: String(broadcasts), status: "Period" },
       { school: "All Selected Schools", type: "Executive", detail: "Progress Reports Generated", value: String(progressReports), status: "Period" },
       { school: "All Selected Schools", type: "Executive", detail: "Sponsored Schools", value: String(sponsoredSchools), status: "Current" },
@@ -387,14 +418,45 @@ export default function MasterReportsPage() {
 
   async function runSchoolActivityReport() {
     const schoolIds = getFilteredSchoolIds();
-    const reminders = await countTable("payment_reminders", schoolIds);
-    const broadcasts = await countTable("broadcasts", schoolIds);
-    const summaries = await countTable("daily_summaries", schoolIds);
+    const [sms, broadcasts, summaries, progressReports] = await Promise.all([
+      getSmsImpactCounts(schoolIds),
+      countTable("broadcasts", schoolIds, "created_at"),
+      countTable("summaries", schoolIds, "created_at"),
+      countTable("generated_reports", schoolIds, "generated_at"),
+    ]);
 
     setRows([
-      { school: "All Selected Schools", type: "School Activity", detail: "Payment reminders", value: String(reminders), status: "Period" },
+      { school: "All Selected Schools", type: "School Activity", detail: "Payment reminder campaigns scheduled", value: String(sms.paymentReminderCampaigns), status: "Period" },
+      { school: "All Selected Schools", type: "School Activity", detail: "Payment reminder SMS sent", value: String(sms.paymentReminderSmsSent), status: "Period" },
+      { school: "All Selected Schools", type: "School Activity", detail: "Parent portal invitation SMS sent", value: String(sms.parentPortalInviteSmsSent), status: "Period" },
       { school: "All Selected Schools", type: "School Activity", detail: "Broadcasts", value: String(broadcasts), status: "Period" },
       { school: "All Selected Schools", type: "School Activity", detail: "Daily summaries", value: String(summaries), status: "Period" },
+      { school: "All Selected Schools", type: "School Activity", detail: "Learner reports generated", value: String(progressReports), status: "Period" },
+    ]);
+  }
+
+  async function runLearnerRequirementsReport() {
+    const schoolIds = getFilteredSchoolIds();
+    const [documents, receivedItems] = await Promise.all([
+      countTable("learner_documents", schoolIds, "uploaded_at"),
+      countTable("learner_stationery_checklist", schoolIds, "updated_at"),
+    ]);
+
+    setRows([
+      {
+        school: "All Selected Schools",
+        type: "Learner Requirements",
+        detail: "Learner documents uploaded",
+        value: String(documents),
+        status: "Period",
+      },
+      {
+        school: "All Selected Schools",
+        type: "Learner Requirements",
+        detail: "Requirement items updated",
+        value: String(receivedItems),
+        status: "Period",
+      },
     ]);
   }
 
@@ -602,16 +664,21 @@ export default function MasterReportsPage() {
       (school) => schoolIds.includes(Number(school.id)) && school.sponsor_programme_id
     );
 
-    const learners = await countTable("learners", sponsoredSchools.map((school) => Number(school.id)));
-    const teachers = await countProfiles("teacher", sponsoredSchools.map((school) => Number(school.id)));
-    const reminders = await countTable("payment_reminders", sponsoredSchools.map((school) => Number(school.id)));
-    const broadcasts = await countTable("broadcasts", sponsoredSchools.map((school) => Number(school.id)));
+    const sponsoredSchoolIds = sponsoredSchools.map((school) => Number(school.id));
+    const [learners, teachers, sms, broadcasts] = await Promise.all([
+      countTable("learners", sponsoredSchoolIds),
+      countProfiles("teacher", sponsoredSchoolIds),
+      getSmsImpactCounts(sponsoredSchoolIds),
+      countTable("broadcasts", sponsoredSchoolIds, "created_at"),
+    ]);
 
     setRows([
       { school: "Sponsored Schools", type: "Impact", detail: "Schools funded", value: String(sponsoredSchools.length), status: "Current" },
       { school: "Sponsored Schools", type: "Impact", detail: "Learners supported", value: String(learners), status: "Current" },
       { school: "Sponsored Schools", type: "Impact", detail: "Practitioners supported", value: String(teachers), status: "Current" },
-      { school: "Sponsored Schools", type: "Impact", detail: "Payment reminders", value: String(reminders), status: "Period" },
+      { school: "Sponsored Schools", type: "Impact", detail: "Payment reminder campaigns scheduled", value: String(sms.paymentReminderCampaigns), status: "Period" },
+      { school: "Sponsored Schools", type: "Impact", detail: "Payment reminder SMS sent", value: String(sms.paymentReminderSmsSent), status: "Period" },
+      { school: "Sponsored Schools", type: "Impact", detail: "Parent portal invitation SMS sent", value: String(sms.parentPortalInviteSmsSent), status: "Period" },
       { school: "Sponsored Schools", type: "Impact", detail: "Broadcasts", value: String(broadcasts), status: "Period" },
     ]);
   }
@@ -645,18 +712,22 @@ export default function MasterReportsPage() {
   async function runFeatureUsageReport() {
     const schoolIds = getFilteredSchoolIds();
 
-    const reminders = await countTable("payment_reminders", schoolIds);
-    const broadcasts = await countTable("broadcasts", schoolIds);
-    const summaries = await countTable("daily_summaries", schoolIds);
-    const progressReports = await countTable("progress_reports", schoolIds);
-    const learners = await countTable("learners", schoolIds);
-    const teachers = await countProfiles("teacher", schoolIds);
+    const [sms, broadcasts, summaries, progressReports, learners, teachers] = await Promise.all([
+      getSmsImpactCounts(schoolIds),
+      countTable("broadcasts", schoolIds, "created_at"),
+      countTable("summaries", schoolIds, "created_at"),
+      countTable("generated_reports", schoolIds, "generated_at"),
+      countTable("learners", schoolIds),
+      countProfiles("teacher", schoolIds),
+    ]);
 
     setRows([
       { school: "All Selected Schools", type: "Feature Usage", detail: "Learners", value: String(learners), status: "Current" },
       { school: "All Selected Schools", type: "Feature Usage", detail: "Practitioners", value: String(teachers), status: "Current" },
       { school: "All Selected Schools", type: "Feature Usage", detail: "Daily summaries", value: String(summaries), status: "Period" },
-      { school: "All Selected Schools", type: "Feature Usage", detail: "Payment reminders", value: String(reminders), status: "Period" },
+      { school: "All Selected Schools", type: "Feature Usage", detail: "Payment reminder campaigns scheduled", value: String(sms.paymentReminderCampaigns), status: "Period" },
+      { school: "All Selected Schools", type: "Feature Usage", detail: "Payment reminder SMS sent", value: String(sms.paymentReminderSmsSent), status: "Period" },
+      { school: "All Selected Schools", type: "Feature Usage", detail: "Parent portal invitation SMS sent", value: String(sms.parentPortalInviteSmsSent), status: "Period" },
       { school: "All Selected Schools", type: "Feature Usage", detail: "Broadcasts", value: String(broadcasts), status: "Period" },
       { school: "All Selected Schools", type: "Feature Usage", detail: "Progress reports", value: String(progressReports), status: "Period" },
     ]);
@@ -729,7 +800,150 @@ export default function MasterReportsPage() {
     );
   }
 
-  async function runGenericTableReport(tableName: string, type: string, dateColumn: string) {
+  async function runGeneratedReportTypeReport(reportSubtype: string, type: string) {
+    const { startDate, endDate } = getDateRange();
+    const schoolIds = getFilteredSchoolIds();
+
+    let query = supabase
+      .from("generated_reports")
+      .select("id, school_id, report_type, generated_at")
+      .in("school_id", schoolIds)
+      .eq("report_type", reportSubtype)
+      .order("generated_at", { ascending: false });
+
+    if (startDate) query = query.gte("generated_at", `${startDate}T00:00:00`);
+    if (endDate) query = query.lte("generated_at", `${endDate}T23:59:59`);
+
+    const { data, error } = await query;
+
+    if (error) {
+      setRows([{ school: "System", type, detail: "Report unavailable", value: error.message, status: "Check report data" }]);
+      return;
+    }
+
+    const schoolMap = new Map<string, number>();
+    ((data || []) as ReportSourceRow[]).forEach((item) => {
+      const schoolName = getSchoolName(item.school_id);
+      schoolMap.set(schoolName, (schoolMap.get(schoolName) || 0) + 1);
+    });
+
+    setRows(
+      Array.from(schoolMap.entries()).map(([school, count]) => ({
+        school,
+        type,
+        detail: "Generated learner reports",
+        value: String(count),
+        status: "Period",
+      }))
+    );
+  }
+
+  async function runSmsDeliveryReport() {
+    const sms = await getSmsImpactCounts(getFilteredSchoolIds());
+
+    setRows([
+      {
+        school: "All Selected Schools",
+        type: "SMS Delivery",
+        detail: "Payment reminder campaigns scheduled",
+        value: String(sms.paymentReminderCampaigns),
+        status: "Period",
+      },
+      {
+        school: "All Selected Schools",
+        type: "SMS Delivery",
+        detail: "Payment reminder SMS sent",
+        value: String(sms.paymentReminderSmsSent),
+        status: "Period",
+      },
+      {
+        school: "All Selected Schools",
+        type: "SMS Delivery",
+        detail: "Parent portal invitation SMS sent",
+        value: String(sms.parentPortalInviteSmsSent),
+        status: "Period",
+      },
+    ]);
+  }
+
+  async function runParentEngagementImpactReport() {
+    const schoolIds = getFilteredSchoolIds();
+    const [broadcasts, sms] = await Promise.all([
+      countTable("broadcasts", schoolIds, "created_at"),
+      getSmsImpactCounts(schoolIds),
+    ]);
+
+    setRows([
+      {
+        school: "All Selected Schools",
+        type: "Parent Engagement",
+        detail: "Broadcasts created",
+        value: String(broadcasts),
+        status: "Period",
+      },
+      {
+        school: "All Selected Schools",
+        type: "Parent Engagement",
+        detail: "Payment reminder SMS sent",
+        value: String(sms.paymentReminderSmsSent),
+        status: "Period",
+      },
+      {
+        school: "All Selected Schools",
+        type: "Parent Engagement",
+        detail: "Parent portal invitation SMS sent",
+        value: String(sms.parentPortalInviteSmsSent),
+        status: "Period",
+      },
+    ]);
+  }
+
+  async function runProgressReportAnalytics() {
+    const { startDate, endDate } = getDateRange();
+    const schoolIds = getFilteredSchoolIds();
+
+    let query = supabase
+      .from("generated_reports")
+      .select("id, school_id, report_type, generated_at")
+      .in("school_id", schoolIds)
+      .order("generated_at", { ascending: false });
+
+    if (startDate) query = query.gte("generated_at", `${startDate}T00:00:00`);
+    if (endDate) query = query.lte("generated_at", `${endDate}T23:59:59`);
+
+    const { data, error } = await query;
+
+    if (error) {
+      setRows([{ school: "System", type: "Progress Report Analytics", detail: "Report unavailable", value: error.message, status: "Check report data" }]);
+      return;
+    }
+
+    const counts = new Map<string, number>();
+    ((data || []) as ReportSourceRow[]).forEach((item) => {
+      const reportLabel = item.report_type === "grade-r"
+        ? "Grade R"
+        : item.report_type === "grade-rr"
+          ? "Grade RR"
+          : "Developmental";
+      const key = `${getSchoolName(item.school_id)}|${reportLabel}`;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    setRows(
+      Array.from(counts.entries()).map(([key, count]) => {
+        const [school, reportLabel] = key.split("|");
+        return {
+          school,
+          type: "Progress Reports",
+          detail: `${reportLabel} learner reports`,
+          value: String(count),
+          status: "Period",
+        };
+      })
+    );
+  }
+
+  async function runGenericTableReport(tableName: string, type: string, dateColumn: string, dateOnly = false) {
     const { startDate, endDate } = getDateRange();
     const schoolIds = getFilteredSchoolIds();
 
@@ -739,7 +953,7 @@ export default function MasterReportsPage() {
       .in("school_id", schoolIds);
 
     if (startDate) query = query.gte(dateColumn, startDate);
-    if (endDate) query = query.lte(dateColumn, `${endDate}T23:59:59`);
+    if (endDate) query = query.lte(dateColumn, dateOnly ? endDate : `${endDate}T23:59:59`);
 
     const { data, error } = await query;
 
@@ -774,25 +988,19 @@ export default function MasterReportsPage() {
     );
   }
 
-  async function runUnavailableReport(type: string, message: string) {
-    setRows([
-      {
-        school: "System",
-        type,
-        detail: message,
-        value: "0",
-        status: "Pending setup",
-      },
-    ]);
-  }
-
-  async function countTable(tableName: string, schoolIds: number[]) {
+  async function countTable(tableName: string, schoolIds: number[], dateColumn?: string, dateOnly = false) {
     if (schoolIds.length === 0) return 0;
 
-    const query = supabase
+    let query = supabase
       .from(tableName)
       .select("id", { count: "exact", head: true })
       .in("school_id", schoolIds);
+
+    if (dateColumn) {
+      const { startDate, endDate } = getDateRange();
+      if (startDate) query = query.gte(dateColumn, startDate);
+      if (endDate) query = query.lte(dateColumn, dateOnly ? endDate : `${endDate}T23:59:59`);
+    }
 
     const { count, error } = await query;
 
@@ -811,6 +1019,88 @@ export default function MasterReportsPage() {
 
     if (error) return 0;
     return count || 0;
+  }
+
+  function isInSelectedDateRange(value?: string | null) {
+    if (!value) return false;
+
+    const { startDate, endDate } = getDateRange();
+    const date = value.slice(0, 10);
+
+    return (!startDate || date >= startDate) && (!endDate || date <= endDate);
+  }
+
+  async function getSmsImpactCounts(schoolIds: number[]): Promise<SmsImpactCounts> {
+    if (schoolIds.length === 0) {
+      return {
+        paymentReminderCampaigns: 0,
+        paymentReminderSmsSent: 0,
+        parentPortalInviteSmsSent: 0,
+      };
+    }
+
+    const { startDate, endDate } = getDateRange();
+
+    let campaignQuery = supabase
+      .from("payment_reminders")
+      .select("id", { count: "exact", head: true })
+      .in("school_id", schoolIds);
+
+    let reminderSmsQuery = supabase
+      .from("message_logs")
+      .select("id", { count: "exact", head: true })
+      .in("school_id", schoolIds)
+      .eq("status", "sent")
+      .not("reminder_id", "is", null);
+
+    if (startDate) {
+      campaignQuery = campaignQuery.gte("scheduled_date", startDate);
+      reminderSmsQuery = reminderSmsQuery.gte("sent_at", `${startDate}T00:00:00`);
+    }
+
+    if (endDate) {
+      campaignQuery = campaignQuery.lte("scheduled_date", endDate);
+      reminderSmsQuery = reminderSmsQuery.lte("sent_at", `${endDate}T23:59:59`);
+    }
+
+    const [campaignResult, reminderSmsResult, learnersResult] = await Promise.all([
+      campaignQuery,
+      reminderSmsQuery,
+      supabase.from("learners").select("id").in("school_id", schoolIds),
+    ]);
+
+    const learnerIds = ((learnersResult.data || []) as LearnerIdRow[])
+      .map((learner) => learner.id)
+      .filter((id): id is string => Boolean(id));
+
+    if (learnerIds.length === 0) {
+      return {
+        paymentReminderCampaigns: campaignResult.count || 0,
+        paymentReminderSmsSent: reminderSmsResult.count || 0,
+        parentPortalInviteSmsSent: 0,
+      };
+    }
+
+    const { data: parentAccessRows } = await supabase
+      .from("parent_access")
+      .select("phone, learner_id, invite_sent_at, invite_delivery_status")
+      .in("learner_id", learnerIds);
+
+    const sentInvites = new Set(
+      ((parentAccessRows || []) as ParentAccessInviteRow[])
+        .filter(
+          (row) =>
+            row.invite_delivery_status === "sent" &&
+            isInSelectedDateRange(row.invite_sent_at)
+        )
+        .map((row) => `${row.phone || "unknown"}|${row.invite_sent_at}`)
+    );
+
+    return {
+      paymentReminderCampaigns: campaignResult.count || 0,
+      paymentReminderSmsSent: reminderSmsResult.count || 0,
+      parentPortalInviteSmsSent: sentInvites.size,
+    };
   }
 
   function buildFilename(extension: string) {

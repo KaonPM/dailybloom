@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     }
 
     const prompt = `
-Write one polished WhatsApp message from a preschool practitioner to a parent.
+Write one polished DailyBloom parent update from a preschool practitioner to a parent.
 
 Rules:
 - Write only the final message.
@@ -100,7 +100,7 @@ ${learnerName} had a positive day today. Mood: ${mood}. Meals: ${meals}. Rest: $
 
 Thank you.`,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Something went wrong while polishing the message." },
       { status: 500 }

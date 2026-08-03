@@ -1,14 +1,32 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
+import { getJohannesburgTomorrowDate } from "@/app/lib/parent-event-dates";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
-
-function getTomorrowDate() {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return tomorrow.toISOString().split("T")[0];
-}
 
 function uniqueValues(values: Array<string | null | undefined>) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+function createReminderIdempotencyKey(
+  eventId: number | string,
+  reminderDate: string
+) {
+  const hex = createHash("sha256")
+    .update(`dailybloom:event-reminder:${eventId}:${reminderDate}`)
+    .digest("hex")
+    .slice(0, 32)
+    .split("");
+
+  hex[12] = "5";
+  hex[16] = ((Number.parseInt(hex[16], 16) & 3) | 8).toString(16);
+
+  return [
+    hex.slice(0, 8).join(""),
+    hex.slice(8, 12).join(""),
+    hex.slice(12, 16).join(""),
+    hex.slice(16, 20).join(""),
+    hex.slice(20, 32).join(""),
+  ].join("-");
 }
 
 async function getSchoolName(schoolId: number) {
@@ -30,11 +48,13 @@ async function sendOneSignalPush({
   title,
   message,
   url,
+  idempotencyKey,
 }: {
   externalIds: string[];
   title: string;
   message: string;
   url: string;
+  idempotencyKey: string;
 }) {
   const appId =
     process.env.ONESIGNAL_APP_ID || process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
@@ -63,6 +83,7 @@ async function sendOneSignalPush({
         en: message,
       },
       url,
+      idempotency_key: idempotencyKey,
     }),
   });
 
@@ -81,7 +102,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
-    const tomorrow = getTomorrowDate();
+    const tomorrow = getJohannesburgTomorrowDate();
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL || "https://www.dailybloom.co.za";
 
@@ -122,7 +143,8 @@ export async function GET(request: Request) {
         externalIds: parentPhones,
         title: schoolName,
         message: `${event.title || "A school event"} is tomorrow.`,
-        url: `${siteUrl}/parent/dashboard`,
+        url: `${siteUrl}/parent/dashboard#events`,
+        idempotencyKey: createReminderIdempotencyKey(event.id, tomorrow),
       });
 
       sent += parentPhones.length;

@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
-import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type EventRow = {
   id: number;
@@ -141,21 +140,6 @@ export default function EventsPage() {
       setSaving(false);
       return;
     }
-
-    authenticatedFetch("/api/notifications/parent-push", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        type: "event_reminder",
-        school_id: schoolId,
-        title: title.trim(),
-        event_date: eventDate,
-      }),
-    }).catch((pushError) => {
-      console.error("Could not send event reminder push notification:", pushError);
-    });
 
     resetForm();
     setShowForm(false);

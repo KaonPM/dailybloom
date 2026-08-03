@@ -3,13 +3,7 @@ import { supabaseAdmin } from "@/app/lib/supabase-admin";
 import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
 import { PERMISSIONS } from "@/app/lib/permissions";
 
-type ParentPushType = "daily_summary" | "broadcast" | "event_reminder" | "incident_report" | "parent_permission";
-
-function getTomorrowDate() {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return tomorrow.toISOString().split("T")[0];
-}
+type ParentPushType = "daily_summary" | "broadcast" | "incident_report" | "parent_permission";
 
 function uniqueValues(values: Array<string | null | undefined>) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
@@ -102,7 +96,7 @@ export async function POST(request: Request) {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL || "https://www.dailybloom.co.za";
 
-    if (!schoolId || !["daily_summary", "broadcast", "event_reminder", "incident_report", "parent_permission"].includes(type)) {
+    if (!schoolId || !["daily_summary", "broadcast", "incident_report", "parent_permission"].includes(type)) {
       return NextResponse.json(
         { error: "Missing or unsupported parent notification type." },
         { status: 400 }
@@ -128,16 +122,6 @@ export async function POST(request: Request) {
         : allowedParentPhones;
       title = schoolName;
       message = body.title || body.message || "A new school broadcast is available.";
-    }
-
-    if (type === "event_reminder") {
-      if (String(body.event_date || "") !== getTomorrowDate()) {
-        return NextResponse.json({ skipped: true, reason: "Event is not tomorrow." });
-      }
-
-      externalIds = allowedParentPhones;
-      title = schoolName;
-      message = `${body.title || "A school event"} is tomorrow.`;
     }
 
     if (type === "incident_report") {

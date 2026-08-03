@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/app/lib/supabase";
 import HomeworkCard from "./components/HomeworkCard";
 import FeesReceiptsCard from "./components/FeesReceiptsCard";
@@ -149,8 +149,10 @@ export default function ParentDashboardClient({
 
   const [eventLoading, setEventLoading] = useState(false);
   const [eventRows, setEventRows] = useState<EventRow[]>([]);
+  const [tomorrowEventRows, setTomorrowEventRows] = useState<EventRow[]>([]);
   const [eventPage, setEventPage] = useState(0);
   const [hasMoreEvents, setHasMoreEvents] = useState(false);
+  const eventRequestIdRef = useRef(0);
   const [messageLoading, setMessageLoading] = useState(false);
   const [dashboardMessages, setDashboardMessages] = useState<MessageRow[]>([]);
   const [incidentLoading, setIncidentLoading] = useState(false);
@@ -191,6 +193,7 @@ export default function ParentDashboardClient({
       if (document.visibilityState === "visible") {
         fetchSummaries();
         fetchBroadcasts();
+        fetchEvents();
         fetchMessageSummary();
         fetchIncidentSummary();
       }
@@ -198,10 +201,12 @@ export default function ParentDashboardClient({
 
     document.addEventListener("visibilitychange", refreshParentUpdates);
     window.addEventListener("focus", refreshParentUpdates);
+    const refreshTimer = window.setInterval(refreshParentUpdates, 60_000);
 
     return () => {
       document.removeEventListener("visibilitychange", refreshParentUpdates);
       window.removeEventListener("focus", refreshParentUpdates);
+      window.clearInterval(refreshTimer);
     };
   }, [
     selectedChildId,
@@ -211,7 +216,46 @@ export default function ParentDashboardClient({
     summaryPage,
     broadcastRange,
     broadcastPage,
+    eventRange,
+    eventPage,
   ]);
+
+  useEffect(() => {
+    function openSectionFromHash() {
+      const section = window.location.hash.replace("#", "");
+      const validSections = [
+        "homework",
+        "fees",
+        "permissions",
+        "summary",
+        "attendance",
+        "messages",
+        "broadcasts",
+        "incidents",
+        "events",
+      ];
+
+      if (!validSections.includes(section)) return;
+
+      if (section === "events") {
+        setEventRange("This Week");
+        setEventPage(0);
+        setEventRows([]);
+      }
+
+      setOpenSection(section);
+      window.setTimeout(() => {
+        document
+          .getElementById(section)
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 0);
+    }
+
+    openSectionFromHash();
+    window.addEventListener("hashchange", openSectionFromHash);
+
+    return () => window.removeEventListener("hashchange", openSectionFromHash);
+  }, []);
 
   const getTeacherName = (classroom: ClassroomRelation | null | undefined) => {
     if (!classroom) return "Not assigned";
@@ -377,60 +421,55 @@ export default function ParentDashboardClient({
   }
 
   async function fetchEvents() {
-    if (!school?.id) return;
+    if (!child?.id || !school?.id) return;
 
+    const requestId = ++eventRequestIdRef.current;
     setEventLoading(true);
 
-    const from = eventPage * PAGE_SIZE;
-    const to = from + PAGE_SIZE;
+    try {
+      const params = new URLSearchParams({
+        learner_id: String(child.id),
+        school_id: String(school.id),
+        range: eventRange,
+        page: String(eventPage),
+      });
+      const response = await fetch(`/api/parent-events?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const result = await response.json();
 
-    let query = supabase
-      .from("events")
-      .select(
-        `
-          id,
-          school_id,
-          title,
-          event_date,
-          description,
-          created_at
-        `
-      )
-      .eq("school_id", school.id)
-      .order("event_date", { ascending: true })
-      .order("created_at", { ascending: true });
+      if (!response.ok) {
+        throw new Error(result.error || "Could not load events.");
+      }
 
-    const dateFilter = getEventDateFilter(eventRange);
+      if (requestId !== eventRequestIdRef.current) return;
 
-    if (dateFilter.from) {
-      query = query.gte("event_date", dateFilter.from);
-    }
+      const rows = (result.events || []) as EventRow[];
+      setEventRows((current) =>
+        eventPage === 0
+          ? rows
+          : [
+              ...current.filter(
+                (currentEvent) =>
+                  !rows.some((event) => event.id === currentEvent.id)
+              ),
+              ...rows,
+            ]
+      );
+      setTomorrowEventRows((result.tomorrowEvents || []) as EventRow[]);
+      setHasMoreEvents(Boolean(result.hasMoreEvents));
+    } catch (error) {
+      if (requestId !== eventRequestIdRef.current) return;
 
-    if (dateFilter.to) {
-      query = query.lte("event_date", dateFilter.to);
-    }
-
-    query = query.range(from, to);
-
-    const { data, error } = await query;
-
-    if (error) {
       console.error("Parent event fetch error:", error);
       setEventRows([]);
+      setTomorrowEventRows([]);
       setHasMoreEvents(false);
-      setEventLoading(false);
-      return;
+    } finally {
+      if (requestId === eventRequestIdRef.current) {
+        setEventLoading(false);
+      }
     }
-
-    const rows = data || [];
-    const visibleRows = rows.slice(0, PAGE_SIZE);
-
-    setEventRows((current) =>
-      eventPage === 0 ? visibleRows : [...current, ...visibleRows]
-    );
-
-    setHasMoreEvents(rows.length > PAGE_SIZE);
-    setEventLoading(false);
   }
 
   async function fetchMessageSummary() {
@@ -548,12 +587,6 @@ export default function ParentDashboardClient({
     return new Date().toISOString().split("T")[0];
   }
 
-  function getTomorrowDate() {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split("T")[0];
-  }
-
   function getAttendanceStartDate(range: string) {
     const now = new Date();
 
@@ -591,44 +624,6 @@ export default function ParentDashboardClient({
     }
 
     return null;
-  }
-
-  function getEventDateFilter(range: string) {
-    const now = new Date();
-    const todayValue = getTodayDate();
-
-    if (range === "Today") {
-      return {
-        from: todayValue,
-        to: todayValue,
-      };
-    }
-
-    if (range === "This Week") {
-      const end = new Date(now);
-      end.setDate(end.getDate() + 7);
-
-      return {
-        from: todayValue,
-        to: end.toISOString().split("T")[0],
-      };
-    }
-
-    if (range === "This Month") {
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-      return {
-        from: todayValue,
-        to: end.toISOString().split("T")[0],
-      };
-    }
-
-    const endOfYear = new Date(now.getFullYear(), 11, 31);
-
-    return {
-      from: todayValue,
-      to: endOfYear.toISOString().split("T")[0],
-    };
   }
 
   function formatSummaryDate(dateValue?: string | null) {
@@ -793,6 +788,25 @@ export default function ParentDashboardClient({
     }));
   }
 
+  function openDashboardSection(section: string) {
+    markUpdateTypeSeen(section);
+    setNotificationsOpen(false);
+
+    if (section === "events") {
+      setEventRange("This Week");
+      setEventPage(0);
+      setEventRows([]);
+    }
+
+    setOpenSection(section);
+    window.history.replaceState(null, "", `#${section}`);
+    window.setTimeout(() => {
+      document
+        .getElementById(section)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
   const handleSummaryRangeChange = (value: string) => {
     setSummaryRange(value);
     setSummaryPage(0);
@@ -858,7 +872,7 @@ export default function ParentDashboardClient({
     const isOpen = openSection === id;
 
     return (
-      <div className="db-soft-card" style={styles.section}>
+      <div id={id} className="db-soft-card" style={styles.section}>
         <button onClick={() => toggleSection(id)} style={styles.sectionHeader}>
           <span>{title}</span>
           <span>{isOpen ? "▲" : "▼"}</span>
@@ -887,9 +901,7 @@ export default function ParentDashboardClient({
   const unacknowledgedIncidents = incidentReports.filter(
     (report) => !report.parent_acknowledged_at
   );
-  const tomorrowEvents = eventRows.filter(
-    (event) => String(event.event_date || "") === getTomorrowDate()
-  );
+  const tomorrowEvents = tomorrowEventRows;
   const notifications = [
     ...(summaries.length > 0 && !seenUpdateTypes.summary
       ? [{ type: "summary", text: "Daily summary shared" }]
@@ -949,6 +961,7 @@ export default function ParentDashboardClient({
                   setBroadcastRows([]);
                   setEventPage(0);
                   setEventRows([]);
+                  setTomorrowEventRows([]);
                   setSeenUpdateTypes({});
                 }}
                 style={styles.childSelect}
@@ -996,9 +1009,14 @@ export default function ParentDashboardClient({
           <div style={styles.notificationList}>
             {notifications.length > 0 ? (
               notifications.map((item, index) => (
-                <p key={index} style={styles.notificationItem}>
+                <button
+                  type="button"
+                  key={`${item.type}-${index}`}
+                  onClick={() => openDashboardSection(item.type)}
+                  style={styles.notificationItemButton}
+                >
                   • {item.text}
-                </p>
+                </button>
               ))
             ) : (
               <p style={styles.notificationItem}>No new updates.</p>
@@ -1403,6 +1421,18 @@ const styles: Record<string, React.CSSProperties> = {
   notificationItem: {
     margin: "10px 0",
     color: "#444",
+  },
+
+  notificationItemButton: {
+    width: "100%",
+    margin: "6px 0",
+    padding: "12px 14px",
+    border: "1px solid #e5eef3",
+    borderRadius: "12px",
+    background: "#fff",
+    color: "#12304a",
+    textAlign: "left" as const,
+    cursor: "pointer",
   },
 
   section: {

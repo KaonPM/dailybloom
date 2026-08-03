@@ -215,6 +215,18 @@ test.describe("authenticated role workflows", () => {
       { learnerId: otherLearnerId, requestedSchoolId: otherSchoolId }
     );
     expect(unrelatedLearnerStatus).toBe(403);
+
+    const unrelatedEventStatus = await page.evaluate(
+      async ({ learnerId: requestedLearnerId, requestedSchoolId }) => {
+        const response = await fetch(
+          `/api/parent-events?learner_id=${encodeURIComponent(requestedLearnerId)}&school_id=${requestedSchoolId}&range=Upcoming&page=0`,
+          { credentials: "same-origin" }
+        );
+        return response.status;
+      },
+      { learnerId: otherLearnerId, requestedSchoolId: otherSchoolId }
+    );
+    expect(unrelatedEventStatus).toBe(403);
   });
 
   test("sensitive staff APIs enforce authentication, permissions, and school isolation", async ({ request }) => {

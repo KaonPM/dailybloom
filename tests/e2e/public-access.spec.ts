@@ -41,6 +41,14 @@ test("parent APIs reject requests without a parent session", async ({ request })
   await expect(incidents.json()).resolves.toMatchObject({
     error: "Parent session required.",
   });
+
+  const events = await request.get(
+    "/api/parent-events?learner_id=learner-a&school_id=11&range=Upcoming&page=0"
+  );
+  expect(events.status()).toBe(401);
+  await expect(events.json()).resolves.toMatchObject({
+    error: "Parent session required.",
+  });
 });
 
 test("scheduled notification APIs fail closed without cron authorization", async ({ request }) => {

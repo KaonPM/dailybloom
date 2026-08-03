@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type DbeRegistration = {
   id?: string;
@@ -26,7 +27,9 @@ type DbeRegistration = {
 
 const registrationStatuses = [
   "Registered",
+  "Conditionally Registered",
   "Registration In Progress",
+  "Unregistered",
   "Not Registered",
 ];
 
@@ -62,11 +65,46 @@ export default function DbeRegistrationPage() {
   const [saving, setSaving] = useState(false);
   const [editingRegistration, setEditingRegistration] = useState(true);
 
-  useEffect(() => {
-    loadPage();
+  const loadRegistration = useCallback(async (currentSchoolId: number) => {
+    try {
+      const response = await authenticatedFetch(
+        `/api/dbe-registration/bootstrap?school_id=${currentSchoolId}`
+      );
+      const result = await response.json();
+
+      if (!response.ok) {
+        alert(result.error || "Registration information could not be loaded.");
+        return;
+      }
+
+      const record = result.registration as DbeRegistration;
+
+      setRecordId(record.id || null);
+      setSchoolName(record.school_name || "");
+      setRegistrationNumber(record.registration_number || "");
+      setRegistrationStatus(
+        record.registration_status || "Registration In Progress"
+      );
+      setRegistrationDate(record.registration_date || "");
+      setPrincipalName(record.principal_name || "");
+      setContactNumber(record.contact_number || "");
+      setEmailAddress(record.email_address || "");
+      setPhysicalAddress(record.physical_address || "");
+      setHealthCertificateStatus(record.health_certificate_status || "Valid");
+      setFireCertificateStatus(record.fire_certificate_status || "Valid");
+      setMunicipalApprovalStatus(record.municipal_approval_status || "Valid");
+      setPoliceClearanceStatus(record.police_clearance_status || "Valid");
+      setEditingRegistration(!result.has_saved_registration);
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Registration information could not be loaded."
+      );
+    }
   }, []);
 
-  async function loadPage() {
+  const loadPage = useCallback(async () => {
     const { profile, error: profileError } = await getCurrentProfile();
 
     if (profileError || !profile) {
@@ -93,62 +131,14 @@ export default function DbeRegistrationPage() {
 
     setSchoolId(context.schoolId);
 
-    await Promise.all([
-      loadSchoolName(context.schoolId),
-      loadRegistration(context.schoolId),
-    ]);
-
+    await loadRegistration(context.schoolId);
     setLoading(false);
-  }
+  }, [loadRegistration, router, schoolParam]);
 
-  async function loadSchoolName(currentSchoolId: number) {
-    const { data } = await supabase
-      .from("schools")
-      .select("school_name")
-      .eq("id", currentSchoolId)
-      .single();
-
-    if (data?.school_name) {
-      setSchoolName(data.school_name);
-    }
-  }
-
-  async function loadRegistration(currentSchoolId: number) {
-    const { data, error } = await supabase
-      .from("dbe_registration")
-      .select("*")
-      .eq("school_id", currentSchoolId)
-      .maybeSingle();
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    if (!data) {
-      setEditingRegistration(true);
-      return;
-    }
-
-    const record = data as DbeRegistration;
-
-    setRecordId(record.id || null);
-    setSchoolName(record.school_name || "");
-    setRegistrationNumber(record.registration_number || "");
-    setRegistrationStatus(
-      record.registration_status || "Registration In Progress"
-    );
-    setRegistrationDate(record.registration_date || "");
-    setPrincipalName(record.principal_name || "");
-    setContactNumber(record.contact_number || "");
-    setEmailAddress(record.email_address || "");
-    setPhysicalAddress(record.physical_address || "");
-    setHealthCertificateStatus(record.health_certificate_status || "Valid");
-    setFireCertificateStatus(record.fire_certificate_status || "Valid");
-    setMunicipalApprovalStatus(record.municipal_approval_status || "Valid");
-    setPoliceClearanceStatus(record.police_clearance_status || "Valid");
-    setEditingRegistration(false);
-  }
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void loadPage(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadPage]);
 
   async function saveRegistration() {
     if (!schoolId) return;

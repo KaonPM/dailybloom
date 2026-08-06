@@ -10,15 +10,19 @@ import {
 import { supabase } from "../lib/supabase";
 
 type Homework = { id: number; title: string; file_name: string };
+type HomeworkType = "none" | "instructions" | "attachment";
 type Selection = {
+  homework_type: HomeworkType;
   homework_id: string;
   instruction_note: string;
   due_date: string;
 };
+
 export type HomeworkWorkspaceHandle = {
   save: (notifyParent?: boolean, weekHasHomework?: boolean) => Promise<boolean>;
   hasHomework: () => boolean;
 };
+
 type Props = {
   schoolId: number;
   classroomId: number;
@@ -30,8 +34,8 @@ type Props = {
   enabled?: boolean;
 };
 
-const INSTRUCTIONS_ONLY = "instructions-only";
 const emptySelection = (defaultDueDate: string): Selection => ({
+  homework_type: "none",
   homework_id: "",
   instruction_note: "",
   due_date: defaultDueDate,
@@ -56,7 +60,6 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
       emptySelection(defaultDueDate),
     ]);
     const [uploadTitle, setUploadTitle] = useState("");
-    const [uploadInstruction, setUploadInstruction] = useState("");
     const [uploadFile, setUploadFile] = useState<File | null>(null);
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -83,23 +86,27 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
         setMessage(body.error || "Homework could not be loaded.");
         return;
       }
+
       setItems(body.homework || []);
       const assigned = (body.assignments || []).map(
         (row: {
           homework_id: number | null;
           instruction_note?: string | null;
           due_date?: string | null;
-        }) => ({
-          homework_id: row.homework_id
-            ? String(row.homework_id)
-            : INSTRUCTIONS_ONLY,
+        }): Selection => ({
+          homework_type: row.homework_id
+            ? "attachment"
+            : row.instruction_note
+              ? "instructions"
+              : "none",
+          homework_id: row.homework_id ? String(row.homework_id) : "",
           instruction_note: row.instruction_note || "",
           due_date: row.due_date || defaultDueDate,
         })
       );
       setSelections(
         enabled && assigned.length
-          ? assigned
+          ? assigned.slice(0, 1)
           : [emptySelection(defaultDueDate)]
       );
     }, [
@@ -117,17 +124,47 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
       return () => window.clearTimeout(timeout);
     }, [libraryVersion, load]);
 
+    const hasSavedHomework = useCallback(
+      (rows: Selection[] = selections) =>
+        enabled &&
+        rows.some(
+          (row) =>
+            (row.homework_type === "instructions" &&
+              Boolean(row.instruction_note.trim())) ||
+            (row.homework_type === "attachment" && Boolean(row.homework_id))
+        ),
+      [enabled, selections]
+    );
+
     async function saveSelections(
       notifyParent = false,
       weekHasHomework = false
     ) {
+      const incomplete = enabled
+        ? selections.find(
+            (row) =>
+              (row.homework_type === "instructions" &&
+                !row.instruction_note.trim()) ||
+              (row.homework_type === "attachment" && !row.homework_id)
+          )
+        : null;
+
+      if (incomplete) {
+        setMessage(
+          incomplete.homework_type === "attachment"
+            ? "Upload or choose an attachment before saving this homework."
+            : "Add an instruction before saving instructions-only homework."
+        );
+        return false;
+      }
+
       setSaving(true);
       const selected = enabled
         ? selections.filter(
             (row) =>
-              row.homework_id &&
-              (row.homework_id !== INSTRUCTIONS_ONLY ||
-                row.instruction_note.trim())
+              (row.homework_type === "instructions" &&
+                Boolean(row.instruction_note.trim())) ||
+              (row.homework_type === "attachment" && Boolean(row.homework_id))
           )
         : [];
       const response = await request("/api/classroom-homework", {
@@ -142,9 +179,9 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
           week_has_homework: weekHasHomework,
           items: selected.map((row, position) => ({
             homework_id:
-              row.homework_id === INSTRUCTIONS_ONLY
-                ? null
-                : Number(row.homework_id),
+              row.homework_type === "attachment"
+                ? Number(row.homework_id)
+                : null,
             instruction_note: row.instruction_note.trim(),
             due_date: row.due_date || defaultDueDate,
             position,
@@ -157,6 +194,7 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
         setMessage(body.error || "Homework could not be saved.");
         return false;
       }
+
       setMessage(
         selected.length
           ? `${dayLabel} homework saved.`
@@ -167,14 +205,7 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
 
     useImperativeHandle(ref, () => ({
       save: saveSelections,
-      hasHomework: () =>
-        enabled &&
-        selections.some(
-          (row) =>
-            Boolean(row.homework_id) &&
-            (row.homework_id !== INSTRUCTIONS_ONLY ||
-              Boolean(row.instruction_note.trim()))
-        ),
+      hasHomework: () => hasSavedHomework(),
     }));
 
     function updateSelection(index: number, patch: Partial<Selection>) {
@@ -183,6 +214,27 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
           rowIndex === index ? { ...row, ...patch } : row
         )
       );
+    }
+
+    function setHomeworkType(index: number, homeworkType: HomeworkType) {
+      setSelections((current) =>
+        current.map((row, rowIndex) => {
+          if (rowIndex !== index) return row;
+          if (homeworkType === "none") {
+            return {
+              ...emptySelection(row.due_date || defaultDueDate),
+              due_date: row.due_date || defaultDueDate,
+            };
+          }
+          return {
+            ...row,
+            homework_type: homeworkType,
+            homework_id:
+              homeworkType === "instructions" ? "" : row.homework_id,
+          };
+        })
+      );
+      setMessage("");
     }
 
     async function uploadForDay() {
@@ -266,21 +318,22 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
           (left, right) => left.title.localeCompare(right.title)
         )
       );
-      setSelections([
+      setSelections((current) => [
         {
+          ...(current[0] || emptySelection(defaultDueDate)),
+          homework_type: "attachment",
           homework_id: String(homework.id),
-          instruction_note:
-            uploadInstruction.trim() ||
-            selections[0]?.instruction_note ||
-            "",
-          due_date: selections[0]?.due_date || defaultDueDate,
         },
       ]);
       setUploadTitle("");
-      setUploadInstruction("");
       setUploadFile(null);
       setMessage(`${homework.title} uploaded and selected for ${dayLabel}.`);
     }
+
+    const selection = selections[0] || emptySelection(defaultDueDate);
+    const selectedAttachment = items.find(
+      (item) => String(item.id) === selection.homework_id
+    );
 
     return (
       <section
@@ -297,9 +350,11 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
         >
           <div>
             <h4 style={{ margin: 0 }}>Homework for {dayLabel}</h4>
-            {!isOpen && selections.some((row) => row.homework_id) ? (
+            {!isOpen ? (
               <p className="db-helper" style={{ margin: "4px 0 0" }}>
-                Homework selected
+                {hasSavedHomework()
+                  ? "Homework ready to be included when the week is saved."
+                  : "No homework allocated."}
               </p>
             ) : null}
           </div>
@@ -317,118 +372,155 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
         {isOpen ? (
           <>
             <p className="db-helper">
-              Select one homework item or send instructions without an
-              attachment.
+              Select the homework type for this day. You can save it now, or
+              save every completed day together with the weekly plan.
             </p>
 
-            <div style={{ display: "grid", gap: 10 }}>
-          {selections.map((selection, index) => (
-            <div
-              key={index}
-              className="db-list-card"
-              style={{ display: "grid", gap: 8 }}
-            >
-              <select
-                className="db-input"
-                value={selection.homework_id}
-                disabled={saving}
-                onChange={(event) =>
-                  updateSelection(index, {
-                    homework_id: event.target.value,
-                  })
-                }
-              >
-                <option value="">No homework allocated</option>
-                <option value={INSTRUCTIONS_ONLY}>
-                  Instructions only — no attachment
-                </option>
-                {items.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title}
+            <div className="db-list-card" style={{ display: "grid", gap: 10 }}>
+              <label style={{ display: "grid", gap: 5 }}>
+                <strong>Homework type</strong>
+                <select
+                  className="db-input"
+                  value={selection.homework_type}
+                  disabled={saving || uploading}
+                  onChange={(event) =>
+                    setHomeworkType(
+                      0,
+                      event.target.value as HomeworkType
+                    )
+                  }
+                >
+                  <option value="none">No homework allocated</option>
+                  <option value="instructions">
+                    Instructions only - no attachment
                   </option>
-                ))}
-              </select>
-              {selection.homework_id ? (
-                <>
+                  <option value="attachment">Homework with attachment</option>
+                </select>
+              </label>
+
+              {selection.homework_type === "instructions" ? (
+                <label style={{ display: "grid", gap: 5 }}>
+                  <strong>Instructions for parent</strong>
                   <textarea
                     className="db-input"
                     value={selection.instruction_note}
                     maxLength={500}
-                    required={selection.homework_id === INSTRUCTIONS_ONLY}
-                    placeholder={
-                      selection.homework_id === INSTRUCTIONS_ONLY
-                        ? "Homework instruction for the parent, e.g. Practise counting from 1 to 20."
-                        : "Instruction for parent, e.g. Print pages 1–2 and complete by Friday."
-                    }
+                    required
+                    placeholder="For example: Practise counting from 1 to 20 with everyday objects."
                     onChange={(event) =>
-                      updateSelection(index, {
+                      updateSelection(0, {
                         instruction_note: event.target.value,
                       })
                     }
+                    style={{ minHeight: 90, resize: "vertical" }}
                   />
+                </label>
+              ) : null}
+
+              {selection.homework_type === "attachment" ? (
+                <>
                   <label style={{ display: "grid", gap: 5 }}>
-                    <strong>Due date</strong>
-                    <input
+                    <strong>Instructions for parent</strong>
+                    <textarea
                       className="db-input"
-                      type="date"
-                      min={activityDate}
-                      value={selection.due_date}
+                      value={selection.instruction_note}
+                      maxLength={500}
+                      placeholder="For example: Print pages 1-2 and complete them with your child."
                       onChange={(event) =>
-                        updateSelection(index, {
-                          due_date: event.target.value,
+                        updateSelection(0, {
+                          instruction_note: event.target.value,
                         })
                       }
+                      style={{ minHeight: 90, resize: "vertical" }}
                     />
                   </label>
+
+                  <label style={{ display: "grid", gap: 5 }}>
+                    <strong>Attachment</strong>
+                    <select
+                      className="db-input"
+                      value={selection.homework_id}
+                      disabled={saving || uploading}
+                      onChange={(event) =>
+                        updateSelection(0, { homework_id: event.target.value })
+                      }
+                    >
+                      <option value="">Upload a new attachment below</option>
+                      {items.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.title}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedAttachment ? (
+                      <span className="db-helper">
+                        Selected: {selectedAttachment.file_name}
+                      </span>
+                    ) : null}
+                  </label>
+
+                  <div className="db-soft-card" style={{ padding: 12 }}>
+                    <strong>Upload an attachment for {dayLabel}</strong>
+                    <p className="db-helper" style={{ margin: "4px 0 10px" }}>
+                      Name the file clearly so it can be recognised later.
+                    </p>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      <input
+                        className="db-input"
+                        value={uploadTitle}
+                        maxLength={160}
+                        placeholder="Homework name, e.g. Letter-sound practice"
+                        onChange={(event) => setUploadTitle(event.target.value)}
+                      />
+                      <input
+                        className="db-input"
+                        type="file"
+                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        onChange={(event) =>
+                          setUploadFile(event.target.files?.[0] || null)
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="db-button-secondary"
+                        disabled={uploading || saving}
+                        onClick={() => void uploadForDay()}
+                      >
+                        {uploading ? "Uploading..." : "Upload attachment"}
+                      </button>
+                    </div>
+                  </div>
                 </>
               ) : null}
-            </div>
-          ))}
-            </div>
 
-            <details className="db-list-card" style={{ marginTop: 10 }}>
-              <summary style={{ cursor: "pointer", fontWeight: 800 }}>
-                Upload homework for {dayLabel}
-              </summary>
-              <p className="db-helper">
-                Optional. You can send instructions without uploading a file.
+              {selection.homework_type !== "none" ? (
+                <label style={{ display: "grid", gap: 5 }}>
+                  <strong>Due date</strong>
+                  <input
+                    className="db-input"
+                    type="date"
+                    min={activityDate}
+                    value={selection.due_date}
+                    onChange={(event) =>
+                      updateSelection(0, { due_date: event.target.value })
+                    }
+                  />
+                </label>
+              ) : null}
+
+              <button
+                type="button"
+                className="db-button-primary"
+                disabled={saving || uploading}
+                onClick={() => void saveSelections()}
+              >
+                {saving ? "Saving..." : `Save ${dayLabel} homework`}
+              </button>
+              <p className="db-helper" style={{ margin: 0 }}>
+                Saving a day does not notify parents. A single parent update is
+                sent only when the weekly activity plan is saved.
               </p>
-              <div style={{ display: "grid", gap: 8 }}>
-                <input
-                  className="db-input"
-                  value={uploadTitle}
-                  maxLength={160}
-                  placeholder="Homework name"
-                  onChange={(event) => setUploadTitle(event.target.value)}
-                />
-                <textarea
-                  className="db-input"
-                  value={uploadInstruction}
-                  maxLength={500}
-                  placeholder="Instructions for parent, e.g. Print pages 1–2 and complete by Friday."
-                  onChange={(event) =>
-                    setUploadInstruction(event.target.value)
-                  }
-                  style={{ minHeight: 80, resize: "vertical" }}
-                />
-                <input
-                  className="db-input"
-                  type="file"
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                  onChange={(event) =>
-                    setUploadFile(event.target.files?.[0] || null)
-                  }
-                />
-                <button
-                  type="button"
-                  className="db-button-primary"
-                  disabled={uploading || saving}
-                  onClick={() => void uploadForDay()}
-                >
-                  {uploading ? "Uploading..." : "Upload and select"}
-                </button>
-              </div>
-            </details>
+            </div>
           </>
         ) : null}
 

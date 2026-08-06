@@ -253,7 +253,7 @@ export default function Sidebar() {
         permission: PERMISSIONS.PROGRESS_REPORTS_MANAGE,
       },
       {
-        label: "🏆 Achievement Awards",
+        label: "Achievement Awards",
         href: "/achievement-awards",
         match: ["/achievement-awards"],
         permission: PERMISSIONS.AWARDS_MANAGE,
@@ -327,7 +327,7 @@ export default function Sidebar() {
         match: ["/progress-reports"],
       },
       {
-        label: "🏆 Achievement Awards",
+        label: "Achievement Awards",
         href: "/achievement-awards",
         match: ["/achievement-awards"],
       },

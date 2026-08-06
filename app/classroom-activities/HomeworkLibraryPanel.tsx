@@ -161,8 +161,9 @@ export default function HomeworkLibraryPanel({
         Homework Library ({items.length})
       </summary>
       <p className="db-helper">
-        Principals and authorised preschool administrators upload worksheets
-        here. Practitioners select them inside each daily plan.
+        Principals and authorised preschool administrators can keep reusable
+        resources here. Practitioners can also upload a file directly while
+        preparing a day.
       </p>
 
       <div style={{ display: "grid", gap: 10 }}>
@@ -170,7 +171,7 @@ export default function HomeworkLibraryPanel({
           className="db-input"
           value={title}
           maxLength={160}
-          placeholder="Homework name, e.g. Number Tracing Week 3"
+          placeholder="Homework name, e.g. Letter-sound practice"
           onChange={(event) => setTitle(event.target.value)}
         />
         <input

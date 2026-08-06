@@ -20,12 +20,10 @@ import {
   HomeworkWorkspace,
   type HomeworkWorkspaceHandle,
 } from "./HomeworkWorkspace";
-import HomeworkLibraryPanel from "./HomeworkLibraryPanel";
 import {
   ActivityDashboardStats,
   CompletedActivitiesPanel,
 } from "./ClassroomActivityPanels";
-import { PERMISSIONS } from "../lib/permissions";
 
 const developmentalAreas = [
   "Ring Time",
@@ -179,7 +177,6 @@ export default function ClassroomActivitiesPage() {
   const [importingGradeRLibrary, setImportingGradeRLibrary] = useState(false);
   const [completedVisibleCount, setCompletedVisibleCount] = useState(PAGE_SIZE);
   const [activeSection, setActiveSection] = useState<ActivitySection>("today");
-  const [homeworkLibraryVersion, setHomeworkLibraryVersion] = useState(0);
   const homeworkWorkspaceRefs = useRef<
     Record<string, HomeworkWorkspaceHandle | null>
   >({});
@@ -193,11 +190,6 @@ export default function ClassroomActivitiesPage() {
   const canManageLibrary = isTeacher || isPrincipal || isMaster;
   const canPlanWeek = isTeacher || isPrincipal || isMaster;
   const canViewTracker = isTeacher || isPrincipal || isMaster;
-  const canManageHomeworkLibrary =
-    role === "principal" ||
-    (role === "admin" &&
-      (profile?.permissions || []).includes(PERMISSIONS.HOMEWORK_MANAGE));
-
   const todayDate = getJohannesburgDate();
   const weekEnd = useMemo(() => addDays(weekStart, 4), [weekStart]);
   const activeClassroom = useMemo(
@@ -1492,15 +1484,6 @@ export default function ClassroomActivitiesPage() {
               </div>
             </div>
 
-            {schoolId && canManageHomeworkLibrary ? (
-              <HomeworkLibraryPanel
-                schoolId={schoolId}
-                onLibraryChanged={() =>
-                  setHomeworkLibraryVersion((value) => value + 1)
-                }
-              />
-            ) : null}
-
             <div style={{ display: "grid", gap: "8px" }}>
               {plannerRows.map((row, index) => {
                 const rowLibrary = activitiesForTheme(row.theme);
@@ -1595,7 +1578,6 @@ export default function ClassroomActivitiesPage() {
                                 isTeachingDay(candidate.day_type)
                               )?.activity_date || addDays(weekStart, 7)
                           }
-                          libraryVersion={homeworkLibraryVersion}
                           enabled={isTeachingDay(row.day_type)}
                         />
                       ) : null}

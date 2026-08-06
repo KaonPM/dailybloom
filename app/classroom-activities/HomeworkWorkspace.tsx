@@ -9,7 +9,6 @@ import {
 } from "react";
 import { supabase } from "../lib/supabase";
 
-type Homework = { id: number; title: string; file_name: string };
 type HomeworkType = "none" | "instructions" | "attachment";
 type Selection = {
   homework_type: HomeworkType;
@@ -30,7 +29,6 @@ type Props = {
   activityDate: string;
   dayLabel: string;
   defaultDueDate: string;
-  libraryVersion?: number;
   enabled?: boolean;
 };
 
@@ -50,12 +48,10 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
       activityDate,
       dayLabel,
       defaultDueDate,
-      libraryVersion = 0,
       enabled = true,
     },
     ref
   ) {
-    const [items, setItems] = useState<Homework[]>([]);
     const [selections, setSelections] = useState<Selection[]>([
       emptySelection(defaultDueDate),
     ]);
@@ -87,7 +83,6 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
         return;
       }
 
-      setItems(body.homework || []);
       const assigned = (body.assignments || []).map(
         (row: {
           homework_id: number | null;
@@ -122,7 +117,7 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
     useEffect(() => {
       const timeout = window.setTimeout(() => void load(), 0);
       return () => window.clearTimeout(timeout);
-    }, [libraryVersion, load]);
+    }, [load]);
 
     const hasSavedHomework = useCallback(
       (rows: Selection[] = selections) =>
@@ -152,7 +147,7 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
       if (incomplete) {
         setMessage(
           incomplete.homework_type === "attachment"
-            ? "Upload or choose an attachment before saving this homework."
+            ? "Upload an attachment before saving this homework."
             : "Add an instruction before saving instructions-only homework."
         );
         return false;
@@ -312,12 +307,7 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
         return;
       }
 
-      const homework = completed.homework as Homework;
-      setItems((current) =>
-        [...current.filter((item) => item.id !== homework.id), homework].sort(
-          (left, right) => left.title.localeCompare(right.title)
-        )
-      );
+      const homework = completed.homework as { id: number; title: string };
       setSelections((current) => [
         {
           ...(current[0] || emptySelection(defaultDueDate)),
@@ -331,10 +321,6 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
     }
 
     const selection = selections[0] || emptySelection(defaultDueDate);
-    const selectedAttachment = items.find(
-      (item) => String(item.id) === selection.homework_id
-    );
-
     return (
       <section
         className="db-card db-card-blue"
@@ -435,34 +421,12 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
                     />
                   </label>
 
-                  <label style={{ display: "grid", gap: 5 }}>
-                    <strong>Attachment</strong>
-                    <select
-                      className="db-input"
-                      value={selection.homework_id}
-                      disabled={saving || uploading}
-                      onChange={(event) =>
-                        updateSelection(0, { homework_id: event.target.value })
-                      }
-                    >
-                      <option value="">Upload a new attachment below</option>
-                      {items.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.title}
-                        </option>
-                      ))}
-                    </select>
-                    {selectedAttachment ? (
-                      <span className="db-helper">
-                        Selected: {selectedAttachment.file_name}
-                      </span>
-                    ) : null}
-                  </label>
-
                   <div className="db-soft-card" style={{ padding: 12 }}>
                     <strong>Upload an attachment for {dayLabel}</strong>
                     <p className="db-helper" style={{ margin: "4px 0 10px" }}>
-                      Name the file clearly so it can be recognised later.
+                      {selection.homework_id
+                        ? "An attachment is already saved for this day. Uploading another file replaces it."
+                        : "Name the file clearly so parents can recognise it."}
                     </p>
                     <div style={{ display: "grid", gap: 8 }}>
                       <input

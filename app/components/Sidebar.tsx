@@ -167,11 +167,6 @@ export default function Sidebar() {
         href: "/progress-reports",
         match: ["/progress-reports"],
       },
-      {
-        label: "Achievement Awards",
-        href: "/achievement-awards",
-        match: ["/achievement-awards"],
-      },
     ],
     []
   );
@@ -258,7 +253,7 @@ export default function Sidebar() {
         permission: PERMISSIONS.PROGRESS_REPORTS_MANAGE,
       },
       {
-        label: "Achievement Awards",
+        label: "🏆 Achievement Awards",
         href: "/achievement-awards",
         match: ["/achievement-awards"],
         permission: PERMISSIONS.AWARDS_MANAGE,
@@ -330,6 +325,11 @@ export default function Sidebar() {
         label: "Progress Reports",
         href: "/progress-reports",
         match: ["/progress-reports"],
+      },
+      {
+        label: "🏆 Achievement Awards",
+        href: "/achievement-awards",
+        match: ["/achievement-awards"],
       },
     ],
     []

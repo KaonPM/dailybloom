@@ -377,9 +377,7 @@ export default function ProgressReportsPage() {
     await fetchAllAssessments(currentSchoolId);
     await fetchGeneratedReports(currentSchoolId);
 
-    if (profile.role !== "teacher") {
-      await fetchAwards(currentSchoolId);
-    } else {
+    if (profile.role === "teacher") {
       await fetchTeacherReportSummaries(currentSchoolId, profile.id);
     }
 
@@ -3101,7 +3099,7 @@ export default function ProgressReportsPage() {
         </div>
       )}
 
-      {!isTeacher && (
+      {false && !isTeacher && (
         <div
           className="db-card db-card-yellow no-print"
           style={{ padding: "20px", marginBottom: "24px" }}
@@ -3338,7 +3336,7 @@ export default function ProgressReportsPage() {
         </div>
       )}
 
-      {!isTeacher && selectedAward && (
+      {false && !isTeacher && selectedAward && (
         <div
           className="db-card db-card-lavender award-certificate-print-area"
           style={{
@@ -3406,7 +3404,7 @@ export default function ProgressReportsPage() {
 
             {school?.logo_url && (
               <img
-                src={school.logo_url}
+                src={school?.logo_url ?? undefined}
                 alt="School Logo"
                 style={{
                   position: "absolute",
@@ -3536,7 +3534,10 @@ export default function ProgressReportsPage() {
                       fontWeight: 700,
                     }}
                   >
-                    {getAwardTeacherName(selectedAward.learner_id, selectedAward)}
+                    {getAwardTeacherName(
+                      selectedAward?.learner_id ?? 0,
+                      selectedAward ?? undefined
+                    )}
                   </p>
                   <p style={{ margin: 0, fontSize: "14px", color: "#111" }}>
                     CLASS PRACTITIONER
@@ -3555,7 +3556,7 @@ export default function ProgressReportsPage() {
                       fontWeight: 700,
                     }}
                   >
-                    {selectedAward.principal_name ||
+                    {selectedAward?.principal_name ||
                       profile?.full_name ||
                       "Principal"}
                   </p>

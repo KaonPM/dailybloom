@@ -24,6 +24,7 @@ type ProfileRow = {
   name?: string | null;
   email?: string | null;
   classroom_id?: number | null;
+  classroom_name?: string | null;
 };
 type SchoolRow = {
   id?: number;
@@ -105,9 +106,18 @@ export default function AchievementAwardsPage() {
   const selectedLearner = learners.find((item) => String(item.id) === learnerId);
   const selectedClassroomId = classroomForLearner(selectedLearner, classrooms);
   const selectedPractitioner = practitioners.find((item) => String(item.id) === String(profile?.id));
-  // Classroom ownership is recorded on the practitioner profile. Classroom
-  // rows intentionally do not carry a practitioner/teacher_id column.
-  const practitionerClassroomId = String(profile?.classroom_id || "");
+  // Existing classroom assignments may be stored by name, while newer ones
+  // also retain the classroom ID. Resolve both forms exactly as the
+  // practitioner dashboard does so an assigned practitioner can nominate.
+  const practitionerClassroomId = useMemo(() => {
+    const byId = classrooms.find((item) => String(item.id) === String(profile?.classroom_id));
+    if (byId) return String(byId.id);
+
+    const assignedName = normalizeClassroomName(profile?.classroom_name);
+    return String(
+      classrooms.find((item) => normalizeClassroomName(item.classroom_name) === assignedName)?.id || ""
+    );
+  }, [classrooms, profile?.classroom_id, profile?.classroom_name]);
 
   const nominableLearners = useMemo(
     () => isPractitioner
@@ -549,6 +559,10 @@ function classroomForLearner(learner: LearnerRow | undefined, classrooms: Classr
 
 function learnerIsInClassroom(learner: LearnerRow, classroomId: string, classrooms: ClassroomRow[]) {
   return Boolean(classroomId) && classroomForLearner(learner, classrooms) === classroomId;
+}
+
+function normalizeClassroomName(value?: string | null) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function awardStatusLabel(status?: string | null) {

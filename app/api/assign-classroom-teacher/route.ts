@@ -37,16 +37,30 @@ export async function POST(request: Request) {
       },
     });
 
+    const { data: classroom, error: classroomError } = await admin
+      .from("classrooms")
+      .select("id, classroom_name")
+      .eq("school_id", schoolId)
+      .eq("classroom_name", classroomName)
+      .maybeSingle();
+
+    if (classroomError) {
+      return NextResponse.json({ error: classroomError.message }, { status: 400 });
+    }
+    if (!classroom) {
+      return NextResponse.json({ error: "The selected classroom could not be found." }, { status: 404 });
+    }
+
     await admin
       .from("profiles")
-      .update({ classroom_name: null })
+      .update({ classroom_id: null, classroom_name: null })
       .eq("school_id", schoolId)
       .eq("role", "teacher")
       .eq("classroom_name", classroomName);
 
     const { error } = await admin
       .from("profiles")
-      .update({ classroom_name: classroomName })
+      .update({ classroom_id: classroom.id, classroom_name: classroomName })
       .eq("id", teacherId)
       .eq("school_id", schoolId)
       .eq("role", "teacher");

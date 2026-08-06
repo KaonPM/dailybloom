@@ -70,6 +70,9 @@ type BroadcastRow = {
   title?: string | null;
   message?: string | null;
   audience?: string | null;
+  recipient_scope?: "school" | "classroom" | string | null;
+  classroom_id?: number | null;
+  classroom_name?: string | null;
   recipient_count?: number | null;
   created_at?: string | null;
 };
@@ -913,7 +916,7 @@ export default function ParentDashboardClient({
         }))
       : []),
     ...(broadcastRows.length > 0 && !seenUpdateTypes.broadcasts
-      ? [{ type: "broadcasts", text: "New school broadcast available" }]
+      ? [{ type: "broadcasts", text: "New class or school broadcast available" }]
       : []),
     ...(tomorrowEvents.length > 0 && !seenUpdateTypes.events
       ? [
@@ -1161,7 +1164,11 @@ export default function ParentDashboardClient({
                     </h4>
                   </div>
 
-                  <span style={styles.broadcastAudience}>All parents</span>
+                  <span style={styles.broadcastAudience}>
+                    {broadcast.recipient_scope === "classroom"
+                      ? `${broadcast.classroom_name || "Your class"} parents`
+                      : "All school parents"}
+                  </span>
                 </div>
 
                 <p style={styles.broadcastMessage}>

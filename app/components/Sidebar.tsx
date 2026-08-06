@@ -163,6 +163,11 @@ export default function Sidebar() {
         match: ["/classroom-activities"],
       },
       {
+        label: "Class Broadcasts",
+        href: "/broadcasts",
+        match: ["/broadcasts"],
+      },
+      {
         label: "Progress Reports",
         href: "/progress-reports",
         match: ["/progress-reports"],

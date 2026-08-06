@@ -64,7 +64,7 @@ export const PERMISSION_OPTIONS: readonly PermissionOption[] = [
   { permission: PERMISSIONS.AWARDS_MANAGE, label: "Achievement awards", description: "Nominate, issue and manage achievement awards.", group: "Learners" },
   { permission: PERMISSIONS.MESSAGE_SEND, label: "Send messages", description: "Send school or parent communication.", group: "Communication" },
   { permission: PERMISSIONS.MESSAGE_VIEW, label: "View messages", description: "View messages available to the assigned school or platform role.", group: "Communication" },
-  { permission: PERMISSIONS.BROADCASTS_MANAGE, label: "Broadcasts", description: "Create and manage school broadcasts.", group: "Communication" },
+  { permission: PERMISSIONS.BROADCASTS_MANAGE, label: "Broadcasts", description: "Send school-wide or classroom broadcasts to parents.", group: "Communication" },
   { permission: PERMISSIONS.COMMUNICATIONS_MANAGE, label: "Communication centre", description: "Access the school communication centre.", group: "Communication" },
   { permission: PERMISSIONS.PARENT_NOTIFY, label: "Notify parents", description: "Send parent notifications for supported workflows.", group: "Communication" },
   { permission: PERMISSIONS.PARENT_ACCESS_MANAGE, label: "Manage parent access", description: "Create, resend and reset parent portal access.", group: "Learners" },
@@ -95,7 +95,7 @@ export const ROLE_PERMISSIONS: Record<string, readonly Permission[]> = {
   owner: Object.values(PERMISSIONS).filter((permission) => !permission.startsWith("platform.")),
   principal: Object.values(PERMISSIONS).filter((permission) => !permission.startsWith("platform.")),
   admin: Object.values(PERMISSIONS).filter((permission) => !permission.startsWith("platform.")),
-  teacher: [PERMISSIONS.ACTIVITIES_MANAGE, PERMISSIONS.MESSAGE_SEND, PERMISSIONS.MESSAGE_VIEW, PERMISSIONS.PARENT_NOTIFY, PERMISSIONS.REQUIREMENTS_VIEW, PERMISSIONS.REQUIREMENTS_TRACK],
+  teacher: [PERMISSIONS.ACTIVITIES_MANAGE, PERMISSIONS.MESSAGE_SEND, PERMISSIONS.MESSAGE_VIEW, PERMISSIONS.BROADCASTS_MANAGE, PERMISSIONS.PARENT_NOTIFY, PERMISSIONS.REQUIREMENTS_VIEW, PERMISSIONS.REQUIREMENTS_TRACK],
 };
 
 export const DELEGATED_ROLES = ["admin", "master_admin"] as const;

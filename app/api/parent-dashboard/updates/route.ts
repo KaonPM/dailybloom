@@ -108,6 +108,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Not allowed." }, { status: 403 });
     }
 
+    const { data: learnerContext, error: learnerContextError } =
+      await supabaseAdmin
+        .from("learners")
+        .select("classroom_id")
+        .eq("id", learnerId)
+        .eq("school_id", schoolId)
+        .maybeSingle();
+
+    if (learnerContextError) {
+      throw learnerContextError;
+    }
+
+    if (!learnerContext) {
+      return NextResponse.json({ error: "Learner not found." }, { status: 404 });
+    }
+
     const summaryFrom = summaryPage * PAGE_SIZE;
     const summaryTo = summaryFrom + PAGE_SIZE;
     const broadcastFrom = broadcastPage * PAGE_SIZE;
@@ -158,6 +174,9 @@ export async function GET(request: Request) {
           title,
           message,
           audience,
+          recipient_scope,
+          classroom_id,
+          classroom_name,
           recipient_count,
           created_at
         `
@@ -165,6 +184,14 @@ export async function GET(request: Request) {
       .eq("school_id", schoolId)
       .eq("status", "sent")
       .order("created_at", { ascending: false });
+
+    const learnerClassroomId = Number(learnerContext.classroom_id || 0);
+
+    broadcastQuery = learnerClassroomId
+      ? broadcastQuery.or(
+          `recipient_scope.eq.school,classroom_id.eq.${learnerClassroomId}`
+        )
+      : broadcastQuery.eq("recipient_scope", "school");
 
     if (broadcastDates.from) {
       broadcastQuery = broadcastQuery.gte("created_at", broadcastDates.from);

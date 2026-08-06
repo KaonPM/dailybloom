@@ -32,7 +32,7 @@ export default async function ParentMessagesPage() {
     schoolIds.length > 0
       ? await supabaseAdmin
           .from("profiles")
-          .select("id, full_name, role, school_id, classroom_name")
+          .select("id, full_name, role, school_id, classroom_name, is_active")
           .in("school_id", schoolIds)
           .in("role", ["teacher", "principal", "master", "owner", "admin"])
       : { data: [] };
@@ -57,8 +57,9 @@ export default async function ParentMessagesPage() {
   );
   const schoolStaff = (schoolStaffRows || []).filter(
     (staff) =>
-      staff.role !== "admin" ||
-      messagingAdminKeys.has(`${staff.id}:${staff.school_id}`)
+      staff.is_active !== false &&
+      (staff.role !== "admin" ||
+        messagingAdminKeys.has(`${staff.id}:${staff.school_id}`))
   );
 
   return (

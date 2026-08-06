@@ -9,7 +9,7 @@ import { getCurrentProfile } from "@/app/lib/auth";
 
 type Mode = "staff" | "parent";
 type UserRole = "parent" | "teacher" | "principal" | "owner" | "admin" | "master";
-type ContactRole = "parent" | "teacher" | "principal";
+type ContactRole = "parent" | "teacher" | "principal" | "admin";
 
 type SchoolRelation =
   | { id?: number | null; school_name?: string | null }
@@ -35,6 +35,7 @@ type StaffDirectoryRow = {
   role?: string | null;
   school_id?: number | null;
   classroom_name?: string | null;
+  is_active?: boolean | null;
 };
 
 type InitialParent = {
@@ -123,6 +124,7 @@ export default function MessagesClient({
   const [selectedChildId, setSelectedChildId] = useState("");
 
   const [principalContacts, setPrincipalContacts] = useState<Contact[]>([]);
+  const [administratorContacts, setAdministratorContacts] = useState<Contact[]>([]);
   const [teacherContacts, setTeacherContacts] = useState<Contact[]>([]);
 
   const [teacherLearners, setTeacherLearners] = useState<LearnerOption[]>([]);
@@ -388,7 +390,7 @@ export default function MessagesClient({
         name: isAdmin
           ? schoolAdminName
           : String(principal.full_name || "School Principal"),
-        role: "principal",
+        role: isAdmin ? "admin" : "principal",
         role_label: isAdmin ? "admin" : "principal",
         learner_id: child.id,
         learner_name: child.name,
@@ -410,6 +412,7 @@ export default function MessagesClient({
     }
 
     setPrincipalContacts(contacts.filter((contact) => contact.role === "principal"));
+    setAdministratorContacts(contacts.filter((contact) => contact.role === "admin"));
     setTeacherContacts(contacts.filter((contact) => contact.role === "teacher"));
   }
 
@@ -477,7 +480,7 @@ export default function MessagesClient({
             principal.full_name ||
               (isAdmin ? "Preschool Admin" : "School Principal")
           ),
-          role: "principal",
+          role: isAdmin ? "admin" : "principal",
           role_label: isAdmin ? "admin" : "principal",
           learner_id: null,
           subtitle: isAdmin ? "School administrator" : "School principal",
@@ -505,7 +508,12 @@ export default function MessagesClient({
 
     const learnerRows = (learners || []) as LearnerOption[];
 
-    setPrincipalContacts(principalList);
+    setPrincipalContacts(
+      principalList.filter((contact) => contact.role === "principal")
+    );
+    setAdministratorContacts(
+      principalList.filter((contact) => contact.role === "admin")
+    );
     setTeacherLearners(learnerRows);
 
     if (principalList[0]) {
@@ -551,7 +559,7 @@ export default function MessagesClient({
             contact.full_name ||
               (isAdmin ? "Preschool Admin" : "School Principal")
           ),
-          role: "principal",
+          role: isAdmin ? "admin" : "principal",
           role_label: isAdmin ? "admin" : "principal",
           learner_id: null,
           subtitle: isAdmin ? "School administrator" : "School principal",
@@ -586,7 +594,12 @@ export default function MessagesClient({
     ].sort((a, b) => a.localeCompare(b));
 
     setTeacherContacts(teacherList);
-    setPrincipalContacts(leadershipContacts);
+    setPrincipalContacts(
+      leadershipContacts.filter((contact) => contact.role === "principal")
+    );
+    setAdministratorContacts(
+      leadershipContacts.filter((contact) => contact.role === "admin")
+    );
     setPrincipalLearners(learnerRows);
     setSelectedClassroomName(classes[0] || "");
 
@@ -822,6 +835,13 @@ export default function MessagesClient({
             {principalContacts.map((contact) => renderContactButton(contact))}
           </div>
         ) : null}
+
+        {administratorContacts.length > 0 ? (
+          <div style={groupBox}>
+            <p style={groupTitle}>School administrator</p>
+            {administratorContacts.map((contact) => renderContactButton(contact))}
+          </div>
+        ) : null}
       </>
     );
   }
@@ -835,6 +855,13 @@ export default function MessagesClient({
           <div style={groupBox}>
             <p style={groupTitle}>Principal</p>
             {principalContacts.map((contact) => renderContactButton(contact))}
+          </div>
+        ) : null}
+
+        {administratorContacts.length > 0 ? (
+          <div style={groupBox}>
+            <p style={groupTitle}>School administrator</p>
+            {administratorContacts.map((contact) => renderContactButton(contact))}
           </div>
         ) : null}
 
@@ -885,9 +912,18 @@ export default function MessagesClient({
 
         {principalContacts.length > 0 ? (
           <div style={groupBox}>
-            <p style={groupTitle}>{role === "admin" ? "Principal" : "Admin"}</p>
+            <p style={groupTitle}>Principal</p>
             <div style={{ display: "grid", gap: 8 }}>
               {principalContacts.map((contact) => renderContactButton(contact))}
+            </div>
+          </div>
+        ) : null}
+
+        {administratorContacts.length > 0 ? (
+          <div style={groupBox}>
+            <p style={groupTitle}>School administrators</p>
+            <div style={{ display: "grid", gap: 8 }}>
+              {administratorContacts.map((contact) => renderContactButton(contact))}
             </div>
           </div>
         ) : null}
@@ -981,7 +1017,7 @@ export default function MessagesClient({
           <div>
             <h2 className="db-page-title">Messages</h2>
             <p className="db-page-subtitle">
-              Send and receive messages with parents, practitioners and the principal.
+              Send and receive messages with parents, practitioners and school leadership.
             </p>
           </div>
 

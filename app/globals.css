@@ -1316,3 +1316,70 @@ line-height:1.45;
     display: grid;
   }
 }
+/* Parent Portal access management */
+.db-parent-access-heading,
+.db-parent-access-actions,
+.db-parent-access-row,
+.db-parent-access-pagination,
+.db-parent-access-dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.db-parent-access-heading,
+.db-parent-access-row,
+.db-parent-access-pagination {
+  justify-content: space-between;
+}
+
+.db-parent-access-select-all {
+  padding: 12px;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}
+
+.db-parent-access-card {
+  padding: 14px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.db-parent-access-status {
+  border-radius: 999px;
+  padding: 6px 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.db-parent-access-error {
+  margin: 8px 0 0;
+  color: #a33a3a;
+  font-size: 12px;
+}
+
+.db-parent-access-pagination {
+  padding: 12px;
+}
+
+.db-parent-access-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(30, 29, 49, 0.48);
+}
+
+.db-parent-access-dialog {
+  padding: 20px;
+  width: min(100%, 560px);
+}
+
+.db-parent-access-dialog-actions {
+  margin-top: 14px;
+}

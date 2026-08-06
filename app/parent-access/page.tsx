@@ -1,13 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { resolveSchoolContext } from "../lib/school-context";
+import {
+  PARENTS_PER_PAGE,
+  ParentAccessList,
+  type LinkedLearner,
+  type ParentGroup,
+} from "./components/ParentAccessList";
+import { ParentPortalPhoneDialog } from "./components/ParentPortalPhoneDialog";
 
-type ParentGroup = { phone: string; parent_name: string; learners: { id: string; name: string }[]; status: string; invite_sent_at?: string | null; invite_error?: string | null };
 type InviteResult = { sent?: boolean };
+type PhoneEditor = LinkedLearner & { phone: string };
 
 export default function ParentAccessPage() {
   const router = useRouter();
@@ -17,54 +24,227 @@ export default function ParentAccessPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [parentPage, setParentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [phoneEditor, setPhoneEditor] = useState<PhoneEditor | null>(null);
+  const [phoneDraft, setPhoneDraft] = useState("");
+  const [updatingPhone, setUpdatingPhone] = useState(false);
 
-  useEffect(() => { void initialise(); }, []);
-  async function initialise() {
-    const context = await resolveSchoolContext(searchParams.get("school"));
-    if (!context.schoolId) { router.push(context.shouldReturnToMaster ? "/master" : "/dashboard"); return; }
-    setSchoolId(context.schoolId); await loadGroups(context.schoolId);
-  }
-  async function loadGroups(id: number) {
+  const loadGroups = useCallback(async (id: number) => {
     setLoading(true);
-    const response = await authenticatedFetch(`/api/parent-access/manage?school_id=${id}`);
+    const response = await authenticatedFetch(
+      `/api/parent-access/manage?school_id=${id}`
+    );
     const result = await response.json();
-    if (!response.ok) alert(result.error || "Could not load Parent Portal access.");
-    setGroups(result.groups || []); setLoading(false);
+    if (!response.ok) {
+      alert(result.error || "Could not load Parent Portal access.");
+      setLoading(false);
+      return;
+    }
+
+    const nextGroups = (result.groups || []) as ParentGroup[];
+    setGroups(nextGroups);
+    setParentPage((current) =>
+      Math.min(
+        current,
+        Math.max(1, Math.ceil(nextGroups.length / PARENTS_PER_PAGE))
+      )
+    );
+    setSelected((current) =>
+      current.filter((phone) =>
+        nextGroups.some((group) => group.phone === phone)
+      )
+    );
+    setLoading(false);
+  }, []);
+
+  const initialise = useCallback(async () => {
+    const context = await resolveSchoolContext(searchParams.get("school"));
+    if (!context.schoolId) {
+      router.push(context.shouldReturnToMaster ? "/master" : "/dashboard");
+      return;
+    }
+    setSchoolId(context.schoolId);
+    await loadGroups(context.schoolId);
+  }, [loadGroups, router, searchParams]);
+
+  useEffect(() => {
+    void initialise();
+  }, [initialise]);
+
+  const filteredGroups = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    if (query.length < 3) return groups;
+
+    return groups.filter((group) =>
+      [group.parent_name, ...group.learners.map((learner) => learner.name)].some(
+        (name) => name.toLocaleLowerCase().includes(query)
+      )
+    );
+  }, [groups, searchQuery]);
+
+  function updateSearchQuery(value: string) {
+    setSearchQuery(value);
+    setParentPage(1);
   }
-  function toggle(phone: string) { setSelected((current) => current.includes(phone) ? current.filter((item) => item !== phone) : [...current, phone]); }
+
+  function toggle(phone: string) {
+    setSelected((current) =>
+      current.includes(phone)
+        ? current.filter((item) => item !== phone)
+        : [...current, phone]
+    );
+  }
+
+  function toggleVisible(phones: string[], allSelected: boolean) {
+    setSelected((current) =>
+      allSelected
+        ? current.filter((phone) => !phones.includes(phone))
+        : [...new Set([...current, ...phones])]
+    );
+  }
+
   async function sendInvites() {
     if (!schoolId || !selected.length) return;
     setSending(true);
-    const response = await authenticatedFetch("/api/parent-access/manage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ school_id: schoolId, phones: selected }) });
+    const response = await authenticatedFetch("/api/parent-access/manage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ school_id: schoolId, phones: selected }),
+    });
     const result = await response.json();
-    if (!response.ok) alert(result.error || "Invitations could not be sent.");
-    else {
-      const failed = ((result.results || []) as InviteResult[]).filter((item) => !item.sent).length;
-      alert(failed ? `Invitations processed, but ${failed} SMS message(s) failed. Check the status below.` : "Parent Portal invitations sent successfully.");
-      setSelected([]); await loadGroups(schoolId);
+    if (!response.ok) {
+      alert(result.error || "Invitations could not be sent.");
+    } else {
+      const failed = ((result.results || []) as InviteResult[]).filter(
+        (item) => !item.sent
+      ).length;
+      alert(
+        failed
+          ? `Invitations processed, but ${failed} SMS message(s) failed. Check the status below.`
+          : "Parent Portal invitations sent successfully."
+      );
+      setSelected([]);
+      await loadGroups(schoolId);
     }
     setSending(false);
   }
-  const selectable = groups.filter((group) => group.status !== "active");
-  return <div>
-    <div className="db-soft-card" style={{ padding: 18, marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-        <div><h1 className="db-page-title">Parent Portal Access</h1><p className="db-page-subtitle">Invite existing parents securely by SMS. One phone number receives one account for all linked learners.</p></div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <Link className="db-main-pill db-main-pill-yellow" href={`/children${schoolId ? `?school=${schoolId}` : ""}`}>Back to Learners</Link>
-          <Link className="db-main-pill db-main-pill-pink" href={`/dashboard${schoolId ? `?school=${schoolId}` : ""}`}>Dashboard</Link>
-          <button className="db-button-primary" type="button" onClick={sendInvites} disabled={!selected.length || sending}>{sending ? "Sending..." : `Send ${selected.length || ""} Invitation${selected.length === 1 ? "" : "s"}`}</button>
+
+  function openPhoneEditor(learner: LinkedLearner, phone: string) {
+    setPhoneEditor({ ...learner, phone });
+    setPhoneDraft(phone);
+  }
+
+  function closePhoneEditor() {
+    setPhoneEditor(null);
+    setPhoneDraft("");
+  }
+
+  async function updateParentPortalPhone() {
+    if (!schoolId || !phoneEditor) return;
+    const confirmed = window.confirm(
+      `Update the Parent Portal number for ${phoneEditor.name}? The previous number will lose access to this learner and existing sessions will be signed out.`
+    );
+    if (!confirmed) return;
+
+    setUpdatingPhone(true);
+    try {
+      const response = await authenticatedFetch(
+        "/api/learners/parent-portal-phone",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            school_id: schoolId,
+            learner_id: phoneEditor.id,
+            phone: phoneDraft,
+          }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error || "Could not update the Parent Portal number."
+        );
+      }
+      closePhoneEditor();
+      alert(result.message);
+      await loadGroups(schoolId);
+    } catch (error: unknown) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Could not update the Parent Portal number."
+      );
+    } finally {
+      setUpdatingPhone(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="db-soft-card" style={{ padding: 18, marginBottom: 16 }}>
+        <div className="db-parent-access-heading">
+          <div>
+            <h1 className="db-page-title">Parent Portal Access</h1>
+            <p className="db-page-subtitle">
+              Invite existing parents securely by SMS. One phone number
+              receives one account for all linked learners.
+            </p>
+          </div>
+          <div className="db-parent-access-actions">
+            <Link
+              className="db-main-pill db-main-pill-yellow"
+              href={`/children${schoolId ? `?school=${schoolId}` : ""}`}
+            >
+              Back to Learners
+            </Link>
+            <Link
+              className="db-main-pill db-main-pill-pink"
+              href={`/dashboard${schoolId ? `?school=${schoolId}` : ""}`}
+            >
+              Dashboard
+            </Link>
+            <button
+              className="db-button-primary"
+              type="button"
+              onClick={sendInvites}
+              disabled={!selected.length || sending}
+            >
+              {sending
+                ? "Sending..."
+                : `Send ${selected.length || ""} Invitation${
+                    selected.length === 1 ? "" : "s"
+                  }`}
+            </button>
+          </div>
         </div>
       </div>
+
+      {loading ? (
+        <p>Loading parent access...</p>
+      ) : (
+        <ParentAccessList
+          groups={filteredGroups}
+          selected={selected}
+          page={parentPage}
+          searchQuery={searchQuery}
+          onSearchChange={updateSearchQuery}
+          onPageChange={setParentPage}
+          onToggle={toggle}
+          onToggleVisible={toggleVisible}
+          onEditPhone={openPhoneEditor}
+        />
+      )}
+
+      <ParentPortalPhoneDialog
+        learner={phoneEditor}
+        phone={phoneDraft}
+        saving={updatingPhone}
+        onPhoneChange={setPhoneDraft}
+        onConfirm={updateParentPortalPhone}
+        onClose={closePhoneEditor}
+      />
     </div>
-    {loading ? <p>Loading parent access...</p> : <div style={{ display: "grid", gap: 10 }}>
-      {selectable.length > 0 ? <label className="db-soft-card" style={{ padding: 12, display: "flex", gap: 9, alignItems: "center" }}><input type="checkbox" checked={selected.length === selectable.length} onChange={() => setSelected(selected.length === selectable.length ? [] : selectable.map((group) => group.phone))} /><strong>Select all parents requiring access</strong></label> : null}
-      {groups.map((group) => <div key={group.phone} className="db-soft-card" style={{ padding: 14, display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", gap: 12, alignItems: "center" }}>
-        <input type="checkbox" disabled={group.status === "active"} checked={selected.includes(group.phone)} onChange={() => toggle(group.phone)} />
-        <div><strong>{group.parent_name}</strong><p className="db-helper" style={{ margin: "3px 0" }}>{group.phone} · {group.learners.map((learner) => learner.name).join(", ")}</p>{group.invite_error ? <p style={{ margin: 0, color: "#A33A3A", fontSize: 12 }}>{group.invite_error}</p> : null}</div>
-        <span style={{ borderRadius: 999, padding: "6px 9px", fontSize: 12, fontWeight: 800, background: group.status === "active" ? "#EEF9EE" : group.status === "failed" ? "#FDECEC" : "#FFF7D9" }}>{group.status.replaceAll("_", " ")}</span>
-      </div>)}
-      {!groups.length ? <div className="db-soft-card" style={{ padding: 18 }}>No parent contact numbers are available yet.</div> : null}
-    </div>}
-  </div>;
+  );
 }

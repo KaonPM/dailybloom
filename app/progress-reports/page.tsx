@@ -28,21 +28,14 @@ import type {
   ProgressReportType as ReportType,
 } from "../lib/progress-report-types";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { awardDefinitions } from "../lib/award-types";
 import { PERMISSIONS } from "../lib/permissions";
 import {
   GeneratedReportsList,
   PrincipalReviewList,
   TeacherChecklistCapture,
 } from "./components/ProgressReportPanels";
-
-const certificateTypes = awardDefinitions.map((award) => award.name);
-const certificateReasonOptions = Object.fromEntries(
-  awardDefinitions.map((award) => [award.name, award.reasons])
-);
 
 type ProfileRow = {
   id: string;
@@ -142,24 +135,6 @@ type GeneratedReportRow = {
   generated_at?: string | null;
 };
 
-type AwardRow = {
-  id?: number | null;
-  learner_id?: IdValue;
-  classroom_id?: IdValue;
-  teacher_id?: IdValue;
-  report_period_id?: IdValue;
-  award_type?: string | null;
-  award_name?: string | null;
-  name?: string | null;
-  teacher_name?: string | null;
-  award_reason?: string | null;
-  award_year?: string | number | null;
-  principal_name?: string | null;
-  reason?: string | null;
-  created_at?: string | null;
-  deleted_at?: string | null;
-};
-
 export default function ProgressReportsPage() {
   const router = useRouter();
 
@@ -220,7 +195,6 @@ export default function ProgressReportsPage() {
 
   const [assessmentPage, setAssessmentPage] = useState(1);
   const [reportPage, setReportPage] = useState(1);
-  const [awardPage, setAwardPage] = useState(1);
   const [teacherReportPage, setTeacherReportPage] = useState(1);
 
   const [teacherObservation, setTeacherObservation] = useState("");
@@ -234,18 +208,6 @@ export default function ProgressReportsPage() {
     "draft" | "submitted" | null
   >(null);
   const [pendingDownload, setPendingDownload] = useState(false);
-
-  const [showAwards, setShowAwards] = useState(false);
-  const [awards, setAwards] = useState<AwardRow[]>([]);
-
-  const [selectedAwardLearnerId, setSelectedAwardLearnerId] = useState("");
-  const [selectedAwardClassroomId, setSelectedAwardClassroomId] = useState("");
-  const [selectedAwardTeacherId, setSelectedAwardTeacherId] = useState("");
-  const [selectedAwardPeriodId, setSelectedAwardPeriodId] = useState("");
-  const [selectedAwardType, setSelectedAwardType] = useState("");
-  const [awardReason, setAwardReason] = useState("");
-  const [selectedAward, setSelectedAward] = useState<AwardRow | null>(null);
-  const [pendingAwardDownload, setPendingAwardDownload] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -281,17 +243,6 @@ export default function ProgressReportsPage() {
 
     return () => window.cancelAnimationFrame(frame);
   }, [pendingDownload, generatedReport, reviewAssessments.length]);
-
-  useEffect(() => {
-    if (!pendingAwardDownload || !selectedAward) return;
-
-    const frame = window.requestAnimationFrame(async () => {
-      await downloadAwardCertificate();
-      setPendingAwardDownload(false);
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [pendingAwardDownload, selectedAward]);
 
   useEffect(() => {
     if (!profile || profile.role !== "teacher") {
@@ -528,64 +479,6 @@ export default function ProgressReportsPage() {
     }
 
     setGeneratedReports(data || []);
-  }
-
-  async function fetchAwards(currentSchoolId: number) {
-    const { data, error } = await supabase
-      .from("achievement_awards")
-      .select("*")
-      .eq("school_id", currentSchoolId)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setAwards(((data || []) as AwardRow[]).filter((award) => !award.deleted_at));
-  }
-
-  async function deleteCertificate(award: AwardRow) {
-    if (!schoolId || !award?.id) return;
-
-    const reason = prompt("Please provide a reason for deleting this certificate.");
-
-    if (!reason || !reason.trim()) {
-      alert("Deletion reason is required.");
-      return;
-    }
-
-    const confirmed = confirm(
-      `Delete certificate for ${getLearnerName(award.learner_id)}?`
-    );
-
-    if (!confirmed) return;
-
-    setSaving(true);
-
-    const { error } = await supabase
-      .from("achievement_awards")
-      .update({
-        deleted_at: new Date().toISOString(),
-        deleted_by: profile?.id || null,
-        delete_reason: reason.trim(),
-      })
-      .eq("id", award.id)
-      .eq("school_id", schoolId);
-
-    if (error) {
-      alert(error.message);
-      setSaving(false);
-      return;
-    }
-
-    if (selectedAward?.id === award.id) {
-      setSelectedAward(null);
-    }
-
-    await fetchAwards(schoolId);
-    setSaving(false);
-    alert("Certificate deleted.");
   }
 
   function formatPeriodType(type?: string | null) {
@@ -1075,87 +968,6 @@ export default function ProgressReportsPage() {
     }
   }
 
-  async function createAward() {
-    if (
-      !schoolId ||
-      !selectedAwardLearnerId ||
-      !selectedAwardTeacherId ||
-      !selectedAwardPeriodId ||
-      !selectedAwardType ||
-      !awardReason
-    ) {
-      alert("Please complete all certificate fields.");
-      return;
-    }
-
-    const selectedTeacherName = selectedAwardTeacherId
-      ? getTeacherName(selectedAwardTeacherId)
-      : "";
-    const awardTeacherName =
-      selectedTeacherName &&
-      selectedTeacherName !== "Practitioner not recorded"
-        ? selectedTeacherName
-        : getAwardTeacherName(selectedAwardLearnerId);
-
-    setSaving(true);
-
-    const { data: existingAward, error: existingAwardError } = await supabase
-      .from("achievement_awards")
-      .select("id")
-      .eq("learner_id", selectedAwardLearnerId)
-      .eq("report_period_id", selectedAwardPeriodId)
-      .eq("award_name", selectedAwardType)
-      .maybeSingle();
-
-    if (existingAwardError) {
-      alert(existingAwardError.message);
-      setSaving(false);
-      return;
-    }
-
-    if (existingAward) {
-      alert("This certificate has already been issued.");
-      setSaving(false);
-      return;
-    }
-
-    const { error } = await supabase.from("achievement_awards").insert([
-      {
-        school_id: schoolId,
-        learner_id: selectedAwardLearnerId,
-        classroom_id: selectedAwardClassroomId || null,
-        teacher_id: selectedAwardTeacherId || null,
-        report_period_id: selectedAwardPeriodId,
-        award_name: selectedAwardType,
-        award_reason: awardReason || null,
-        teacher_name: awardTeacherName,
-        principal_name: profile?.full_name || profile?.name || "Principal",
-        award_year: new Date().getFullYear(),
-        certificate_generated: true,
-      },
-    ]);
-
-    if (error) {
-      alert(error.message);
-      setSaving(false);
-      return;
-    }
-
-    setSelectedAwardLearnerId("");
-    setSelectedAwardClassroomId("");
-    setSelectedAwardTeacherId("");
-    setSelectedAwardPeriodId("");
-    setSelectedAwardType("");
-    setAwardReason("");
-
-    await fetchAwards(schoolId);
-    setShowAwards(true);
-    setAwardPage(1);
-
-    setSaving(false);
-    alert("Certificate created.");
-  }
-
   function getClassroomName(classroomId: IdValue) {
     return (
       classrooms.find((c) => String(c.id) === String(classroomId))
@@ -1167,53 +979,6 @@ export default function ProgressReportsPage() {
     const learner = learners.find((l) => String(l.id) === String(learnerId));
 
     return learner?.legal_name || learner?.name || "Learner not recorded";
-  }
-
-  function getAwardTeacherName(learnerId: IdValue, award?: AwardRow) {
-    if (
-      award?.teacher_name &&
-      award.teacher_name !== "Practitioner not recorded"
-    ) {
-      return award.teacher_name;
-    }
-
-    if (award?.teacher_id) {
-      const teacherName = getTeacherName(award.teacher_id);
-
-      if (teacherName !== "Practitioner not recorded") {
-        return teacherName;
-      }
-    }
-
-    const learner = learners.find((l) => String(l.id) === String(learnerId));
-
-    const classroomId = award?.classroom_id
-      ? String(award.classroom_id)
-      : getLearnerClassroomId(learner);
-
-    if (!classroomId) {
-      return "Practitioner not recorded";
-    }
-
-    const classroom = classrooms.find(
-      (c) => String(c.id) === String(classroomId)
-    );
-
-    if (classroom?.teacher_id) {
-      return getTeacherName(classroom.teacher_id);
-    }
-
-    const teacherId = getClassroomTeacherId(classroomId);
-
-    if (teacherId) {
-      return getTeacherName(teacherId);
-    }
-
-    if (classroom?.teacher_name) {
-      return classroom.teacher_name;
-    }
-
-    return "Practitioner not recorded";
   }
 
   function getTeacherName(teacherId: IdValue) {
@@ -1345,26 +1110,6 @@ export default function ProgressReportsPage() {
     });
 
     return Array.from(classroomIds);
-  }
-
-  function handleAwardLearnerChange(learnerId: string) {
-    setSelectedAwardLearnerId(learnerId);
-
-    if (!learnerId) {
-      setSelectedAwardClassroomId("");
-      setSelectedAwardTeacherId("");
-      return;
-    }
-
-    const learner = learners.find(
-      (item) => String(item.id) === String(learnerId)
-    );
-
-    const classroomId = getLearnerClassroomId(learner);
-    const teacherId = getClassroomTeacherId(classroomId);
-
-    setSelectedAwardClassroomId(classroomId);
-    setSelectedAwardTeacherId(teacherId);
   }
 
   function getPeriodTitle(periodId: IdValue) {
@@ -1539,52 +1284,6 @@ export default function ProgressReportsPage() {
   const visibleReports = filteredReports.slice(
     (reportPage - 1) * pageSize,
     reportPage * pageSize
-  );
-
-  const uniqueAwards = useMemo<AwardRow[]>(() => {
-    const map = new Map<string, AwardRow>();
-
-    awards.forEach((award) => {
-      const key = `${award.learner_id || ""}-${
-        award.report_period_id || ""
-      }-${award.award_name || ""}`;
-
-      if (!map.has(key)) {
-        map.set(key, award);
-      }
-    });
-
-    return Array.from(map.values());
-  }, [awards]);
-
-  const filteredAwards = uniqueAwards.filter((award) => {
-    if (
-      selectedClassroomId &&
-      String(award.classroom_id) !== String(selectedClassroomId)
-    ) {
-      return false;
-    }
-
-    if (
-      selectedLearnerId &&
-      String(award.learner_id) !== String(selectedLearnerId)
-    ) {
-      return false;
-    }
-
-    if (
-      selectedPeriodId &&
-      String(award.report_period_id) !== String(selectedPeriodId)
-    ) {
-      return false;
-    }
-
-    return true;
-  });
-
-  const visibleAwards = filteredAwards.slice(
-    (awardPage - 1) * pageSize,
-    awardPage * pageSize
   );
 
   const isTeacher = profile?.role === "teacher";
@@ -2166,77 +1865,6 @@ export default function ProgressReportsPage() {
     }
   }
 
-  async function downloadAwardCertificate() {
-    const certificateElement = document.querySelector(
-      ".award-certificate-print-area"
-    ) as HTMLElement;
-    const certificateButtons = document.querySelector(
-      ".award-certificate-buttons"
-    ) as HTMLElement;
-
-    if (!certificateElement) {
-      alert("Certificate not found.");
-      return;
-    }
-
-    try {
-      if (certificateButtons) {
-        certificateButtons.style.display = "none";
-      }
-
-      const canvas = await html2canvas(certificateElement, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
-
-      if (certificateButtons) {
-        certificateButtons.style.display = "flex";
-      }
-
-      const imgData = canvas.toDataURL("image/png");
-
-      const pdf = new jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: "a4",
-      });
-
-      pdf.addImage(imgData, "PNG", 0, 0, 297, 210);
-
-      const learnerName =
-        getLearnerName(selectedAward?.learner_id).replace(/\s+/g, "_") ||
-        "Learner";
-
-      if (selectedAward?.id && schoolId) {
-        const reprintPayload = {
-          certificate_id: selectedAward.id,
-          school_id: schoolId,
-          learner_id: selectedAward.learner_id,
-          printed_at: new Date().toISOString(),
-          action: "download",
-        };
-
-        const { error: reprintError } = await supabase
-          .from("certificate_reprints")
-          .insert([reprintPayload]);
-
-        if (reprintError) {
-          console.warn("Certificate reprint audit failed:", reprintError.message);
-        }
-      }
-
-      pdf.save(`${learnerName}_Certificate.pdf`);
-    } catch (error) {
-      if (certificateButtons) {
-        certificateButtons.style.display = "flex";
-      }
-
-      console.error(error);
-      alert("Failed to generate certificate PDF.");
-    }
-  }
-
   const selectedClassroom = classrooms.find(
     (c) => String(c.id) === String(selectedClassroomId)
   );
@@ -2268,38 +1896,6 @@ export default function ProgressReportsPage() {
   }
 
   const primaryColor = school?.primary_color || "#4f6fbd";
-  const secondaryColor = school?.secondary_color || "#D4AF37";
-
-  const selectedAwardLearnerName = selectedAward
-    ? getLearnerName(selectedAward.learner_id)
-    : "";
-
-  const selectedAwardTitle = selectedAward?.award_name || "";
-  const selectedAwardYear =
-    selectedAward?.award_year ||
-    (selectedAward?.created_at
-      ? new Date(selectedAward.created_at).getFullYear()
-      : new Date().getFullYear());
-  const selectedAwardSubtitle = selectedAwardTitle
-    .replace(/^Certificate\s+of\s+/i, "OF ")
-    .toUpperCase();
-  const selectedAwardReasonLine = selectedAward?.award_reason
-    ? selectedAward.award_reason.toUpperCase()
-    : "OUTSTANDING EFFORT";
-
-  let learnerNameSize = 44;
-
-  if (selectedAwardLearnerName.length > 30) {
-    learnerNameSize = 38;
-  }
-
-  if (selectedAwardLearnerName.length > 45) {
-    learnerNameSize = 32;
-  }
-
-  if (selectedAwardLearnerName.length > 60) {
-    learnerNameSize = 28;
-  }
 
   if (loading) return <p>Loading...</p>;
 
@@ -3099,502 +2695,6 @@ export default function ProgressReportsPage() {
         </div>
       )}
 
-      {false && !isTeacher && (
-        <div
-          className="db-card db-card-yellow no-print"
-          style={{ padding: "20px", marginBottom: "24px" }}
-        >
-        <div onClick={() => setShowAwards(!showAwards)} style={collapsibleHeader}>
-          <div>
-            <h3 style={{ ...sectionTitle, margin: 0 }}>Achievement Awards</h3>
-            <Link
-              href="/achievement-awards"
-              className="db-button-primary"
-              style={{ display: "inline-block", marginTop: "10px", textDecoration: "none" }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              Open Achievement Awards Module
-            </Link>
-          </div>
-          <span style={chevron}>{showAwards ? "-" : "+"}</span>
-        </div>
-
-        {showAwards && (
-          <>
-            <div
-            style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: "12px",
-            marginTop: "16px",
-          }}
-          >
-              <select
-                className="db-input"
-                value={selectedAwardLearnerId}
-                onChange={(e) => handleAwardLearnerChange(e.target.value)}
-              >
-                <option value="">Select Learner</option>
-
-                {learners.map((learner) => (
-                  <option key={learner.id} value={learner.id}>
-                    {learner.legal_name || learner.name}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                className="db-input"
-                value={
-                  selectedAwardClassroomId
-                    ? getClassroomName(selectedAwardClassroomId)
-                    : "Class will auto-fill"
-                }
-                readOnly
-              />
-
-              <select
-                className="db-input"
-                value={selectedAwardTeacherId}
-                onChange={(e) => setSelectedAwardTeacherId(e.target.value)}
-              >
-                <option value="">Select Practitioner</option>
-
-                {teachers.map((teacher) => (
-                  <option key={teacher.id} value={teacher.id}>
-                    {teacher.full_name || teacher.name || teacher.email}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                className="db-input"
-                value={selectedAwardPeriodId}
-                onChange={(e) => setSelectedAwardPeriodId(e.target.value)}
-              >
-                <option value="">Select Report Period</option>
-
-                {periods.map((period) => (
-                  <option key={period.id} value={period.id}>
-                    {period.title} ({formatPeriodType(period.report_type)} -{" "}
-                    {formatReportTemplate(
-                      period.report_template || "developmental"
-                    )}
-                    )
-                  </option>
-                ))}
-              </select>
-
-              <select
-                className="db-input"
-                value={selectedAwardType}
-                onChange={(e) => {
-                  setSelectedAwardType(e.target.value);
-                  setAwardReason("");
-                }}
-              >
-                <option value="">Select Award</option>
-
-                {certificateTypes.map((award) => (
-                  <option key={award} value={award}>
-                    {award}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                className="db-input"
-                value={awardReason}
-                onChange={(e) => setAwardReason(e.target.value)}
-                style={{ gridColumn: "1 / -1" }}
-                disabled={!selectedAwardType}
-              >
-                <option value="">
-                  {selectedAwardType
-                    ? "Select reason for award"
-                    : "Select award type first"}
-                </option>
-
-                {(certificateReasonOptions[selectedAwardType] || []).map(
-                  (reason) => (
-                    <option key={reason} value={reason}>
-                      {reason}
-                    </option>
-                  )
-                )}
-              </select>
-
-              <div style={{ gridColumn: "1 / -1" }}>
-                <button
-                  className="db-button-primary"
-                  onClick={createAward}
-                  disabled={saving}
-                >
-                  {saving ? "Creating..." : "Create Award"}
-                </button>
-              </div>
-            </div>
-
-            <h4
-              style={{
-                marginTop: "24px",
-                marginBottom: "12px",
-                fontSize: "18px",
-                fontWeight: 800,
-                color: "var(--db-text)",
-              }}
-            >
-              Generated Achievement Awards
-            </h4>
-
-            {filteredAwards.length === 0 ? (
-              <p className="db-helper">No generated achievement awards yet.</p>
-            ) : null}
-
-            <div
-              style={{
-                display: "grid",
-                gap: "10px",
-                marginTop: "20px",
-              }}
-            >
-              {visibleAwards.map((award) => (
-                <div key={award.id} className="db-list-card">
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: "12px",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div>
-                      <strong>{getLearnerName(award.learner_id)}</strong>
-                      <p style={textStyle}>{award.award_name}</p>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "10px",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                    <button
-                      className="db-button-primary"
-                      onClick={() => setSelectedAward(award)}
-                    >
-                      View
-                    </button>
-
-                    <button
-                      className="db-button-primary"
-                      onClick={async () => {
-                        setSelectedAward(award);
-                        setPendingAwardDownload(true);
-                      }}
-                    >
-                      Download
-                    </button>
-
-                    <button
-                      className="db-button-primary"
-                      style={{ background: "#d9534f" }}
-                      onClick={() => deleteCertificate(award)}
-                      disabled={saving}
-                    >
-                      Delete
-                    </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {filteredAwards.length > pageSize ? (
-              <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-                <button
-                  className="db-button-primary"
-                  disabled={awardPage === 1}
-                  onClick={() => setAwardPage((page) => Math.max(1, page - 1))}
-                >
-                  Previous
-                </button>
-
-                <button
-                  className="db-button-primary"
-                  disabled={awardPage * pageSize >= filteredAwards.length}
-                  onClick={() => setAwardPage((page) => page + 1)}
-                >
-                  Next
-                </button>
-              </div>
-            ) : null}
-          </>
-        )}
-        </div>
-      )}
-
-      {false && !isTeacher && selectedAward && (
-        <div
-          className="db-card db-card-lavender award-certificate-print-area"
-          style={{
-            padding: "24px",
-            marginBottom: "24px",
-            background: "#fff",
-          }}
-        >
-          <div
-            style={{
-              position: "relative",
-              minHeight: "690px",
-              border: `24px solid ${primaryColor}`,
-              background: "#FFFFFF",
-              overflow: "hidden",
-              textAlign: "center",
-              boxSizing: "border-box",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                inset: "22px",
-                border: "1px solid rgba(212, 175, 55, 0.75)",
-                pointerEvents: "none",
-              }}
-            />
-
-            <div
-              style={{
-                position: "absolute",
-                left: "120px",
-                top: 0,
-                width: "170px",
-                height: "100%",
-                background: secondaryColor,
-              }}
-            />
-
-            <div
-              style={{
-                position: "absolute",
-                right: "-54px",
-                top: "-34px",
-                width: "260px",
-                height: "88px",
-                background: secondaryColor,
-                transform: "rotate(45deg)",
-                transformOrigin: "center",
-              }}
-            />
-
-            <div
-              style={{
-                position: "absolute",
-                right: "-54px",
-                bottom: "-34px",
-                width: "260px",
-                height: "88px",
-                background: secondaryColor,
-                transform: "rotate(-45deg)",
-                transformOrigin: "center",
-              }}
-            />
-
-            {school?.logo_url && (
-              <img
-                src={school?.logo_url ?? undefined}
-                alt="School Logo"
-                style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "58%",
-                  width: "310px",
-                  height: "310px",
-                  objectFit: "contain",
-                  opacity: 0.12,
-                  transform: "translate(-50%, -50%)",
-                }}
-              />
-            )}
-
-            <div
-              style={{
-                position: "relative",
-                zIndex: 1,
-                padding: "74px 70px 44px 330px",
-                minHeight: "642px",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-                boxSizing: "border-box",
-              }}
-            >
-              <div>
-                <h1
-                  style={{
-                    margin: "0",
-                    fontSize: "66px",
-                    color: "#D4AF37",
-                    letterSpacing: "2px",
-                    fontWeight: 900,
-                    lineHeight: 1,
-                  }}
-                >
-                  CERTIFICATE
-                </h1>
-
-                <h2
-                  style={{
-                    margin: "10px auto 54px",
-                    fontSize: "34px",
-                    color: "#111",
-                    fontWeight: 400,
-                    letterSpacing: "1px",
-                  }}
-                >
-                  {selectedAwardSubtitle}
-                </h2>
-
-                <p
-                  style={{
-                    margin: "0 0 28px",
-                    fontSize: "18px",
-                    color: "#111",
-                    letterSpacing: "4px",
-                    fontWeight: 700,
-                  }}
-                >
-                  PROUDLY PRESENTED TO
-                </p>
-
-                <h2
-                  style={{
-                    margin: "0 auto 38px",
-                    fontSize: learnerNameSize + 18,
-                    color: "#D4AF37",
-                    fontWeight: 400,
-                    fontFamily: "Georgia, serif",
-                    fontStyle: "italic",
-                    maxWidth: "820px",
-                    lineHeight: 1.05,
-                    wordBreak: "break-word",
-                    whiteSpace: "normal",
-                    overflowWrap: "break-word",
-                  }}
-                >
-                  {selectedAwardLearnerName}
-                </h2>
-
-                <p
-                  style={{
-                    margin: "0 auto",
-                    maxWidth: "620px",
-                    fontSize: "18px",
-                    color: "#111",
-                    fontWeight: 800,
-                    fontStyle: "italic",
-                    lineHeight: 1.35,
-                  }}
-                >
-                  FOR {selectedAwardReasonLine}
-                  <br />
-                  YEAR {selectedAwardYear}
-                </p>
-
-                <p
-                  style={{
-                    marginTop: "34px",
-                    fontSize: "16px",
-                    color: "#333",
-                  }}
-                >
-                  {school?.school_name || "School Name"}
-                </p>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "90px",
-                  alignItems: "end",
-                }}
-              >
-                <div>
-                  <p
-                    style={{
-                      borderBottom: `2px solid #D4AF37`,
-                      paddingBottom: "4px",
-                      margin: "0 auto 8px",
-                      maxWidth: "220px",
-                      color: "#111",
-                      fontSize: "16px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {getAwardTeacherName(
-                      selectedAward?.learner_id ?? 0,
-                      selectedAward ?? undefined
-                    )}
-                  </p>
-                  <p style={{ margin: 0, fontSize: "14px", color: "#111" }}>
-                    CLASS PRACTITIONER
-                  </p>
-                </div>
-
-                <div>
-                  <p
-                    style={{
-                      borderBottom: `2px solid #D4AF37`,
-                      paddingBottom: "4px",
-                      margin: "0 auto 8px",
-                      maxWidth: "220px",
-                      color: "#111",
-                      fontSize: "16px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {selectedAward?.principal_name ||
-                      profile?.full_name ||
-                      "Principal"}
-                  </p>
-                  <p style={{ margin: 0, fontSize: "14px", color: "#111" }}>
-                    PRINCIPAL
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div
-            className="no-print award-certificate-buttons"
-            style={{
-              display: "flex",
-              gap: "12px",
-              marginTop: "20px",
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              className="db-button-primary"
-              style={{ background: "#777" }}
-              onClick={() => setSelectedAward(null)}
-            >
-              Close Certificate
-            </button>
-
-            <button
-              className="db-button-primary"
-              onClick={downloadAwardCertificate}
-            >
-              Download / Print Certificate
-            </button>
-          </div>
-        </div>
-      )}
-
       {selectedClassroom &&
         selectedLearner &&
         selectedPeriod &&
@@ -4000,14 +3100,11 @@ export default function ProgressReportsPage() {
           }
 
           .report-print-area,
-          .report-print-area *,
-          .award-certificate-print-area,
-          .award-certificate-print-area * {
+          .report-print-area * {
             visibility: visible;
           }
 
-          .report-print-area,
-          .award-certificate-print-area {
+          .report-print-area {
             position: absolute;
             left: 0;
             top: 0;

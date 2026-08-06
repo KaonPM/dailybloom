@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { getCurrentProfile } from "../lib/auth";
+import { PERMISSIONS } from "../lib/permissions";
 import { supabase } from "../lib/supabase";
 import {
   awardCategories,
@@ -25,6 +26,7 @@ type ProfileRow = {
   email?: string | null;
   classroom_id?: number | null;
   classroom_name?: string | null;
+  permissions?: string[] | null;
 };
 type SchoolRow = {
   id?: number;
@@ -100,12 +102,13 @@ export default function AchievementAwardsPage() {
 
   const role = String(profile?.role || "").toLowerCase();
   const isPractitioner = ["teacher", "practitioner", "educator"].includes(role);
-  const canReview = ["principal", "admin", "master"].includes(role);
+  const delegatedPermissions = new Set(profile?.permissions || []);
+  const canReview = ["owner", "principal"].includes(role)
+    || (role === "admin" && delegatedPermissions.has(PERMISSIONS.AWARDS_MANAGE));
   const definition = getAwardDefinition(awardName);
   const reason = customReason.trim() || selectedReason;
   const selectedLearner = learners.find((item) => String(item.id) === learnerId);
   const selectedClassroomId = classroomForLearner(selectedLearner, classrooms);
-  const selectedPractitioner = practitioners.find((item) => String(item.id) === String(profile?.id));
   // Existing classroom assignments may be stored by name, while newer ones
   // also retain the classroom ID. Resolve both forms exactly as the
   // practitioner dashboard does so an assigned practitioner can nominate.
@@ -136,9 +139,10 @@ export default function AchievementAwardsPage() {
   }, [awards]);
 
   const fetchAwards = useCallback(async (schoolId: number) => {
-    const desiredStatus = tab === "nominations"
-      ? isPractitioner ? "" : "nominated"
-      : tab === "issued" || tab === "reprints" ? "issued" : "";
+    const desiredStatuses = tab === "nominations"
+      ? isPractitioner ? [] : ["nominated"]
+      : tab === "issued" ? ["approved", "issued"]
+        : tab === "reprints" ? ["issued"] : [];
     let query = supabase
       .from("achievement_awards")
       .select("*", { count: "exact" })
@@ -146,7 +150,8 @@ export default function AchievementAwardsPage() {
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
-    if (desiredStatus) query = query.eq("workflow_status", desiredStatus);
+    if (desiredStatuses.length === 1) query = query.eq("workflow_status", desiredStatuses[0]);
+    if (desiredStatuses.length > 1) query = query.in("workflow_status", desiredStatuses);
     if (isPractitioner && profile?.id) query = query.eq("nominated_by", profile.id);
     if (filterLearner) query = query.eq("learner_id", filterLearner);
     if (filterClassroom) query = query.eq("classroom_id", filterClassroom);
@@ -202,7 +207,10 @@ export default function AchievementAwardsPage() {
       }
 
       const currentRole = String(currentProfile.role || "").toLowerCase();
-      if (!["teacher", "practitioner", "educator", "principal", "admin", "master"].includes(currentRole)) {
+      const currentPermissions = new Set((currentProfile.permissions || []) as string[]);
+      const currentCanReview = ["owner", "principal"].includes(currentRole)
+        || (currentRole === "admin" && currentPermissions.has(PERMISSIONS.AWARDS_MANAGE));
+      if (!["teacher", "practitioner", "educator"].includes(currentRole) && !currentCanReview) {
         router.push("/dashboard");
         return;
       }
@@ -229,7 +237,11 @@ export default function AchievementAwardsPage() {
       setLearners((learnerResult.data || []) as LearnerRow[]);
       const staff = (staffResult.data || []) as ProfileRow[];
       setPractitioners(staff.filter((item) => ["teacher", "practitioner", "educator"].includes(String(item.role).toLowerCase())));
-      setApprovers(staff.filter((item) => ["principal", "admin", "master"].includes(String(item.role).toLowerCase())));
+      setApprovers(staff.filter((item) => {
+        const itemRole = String(item.role).toLowerCase();
+        return ["owner", "principal"].includes(itemRole)
+          || (itemRole === "admin" && new Set(item.permissions || []).has(PERMISSIONS.AWARDS_MANAGE));
+      }));
       setLoading(false);
     }
 
@@ -283,28 +295,14 @@ export default function AchievementAwardsPage() {
   }
 
   async function submitNomination() {
-    if (!validateNomination() || !profile?.school_id || !selectedClassroomId) return;
+    if (!validateNomination()) return;
     setSaving(true);
-    const payload = {
-      school_id: Number(profile.school_id),
-      learner_id: learnerId,
-      classroom_id: Number(selectedClassroomId),
-      teacher_id: profile.id,
-      report_period_id: null,
-      award_name: awardName,
-      award_category: definition?.category || "General",
-      award_reason: reason,
-      teacher_name: selectedPractitioner?.full_name || selectedPractitioner?.name || profile.full_name || profile.name || "Practitioner",
-      principal_name: null,
-      award_year: CURRENT_YEAR,
-      academic_year: CURRENT_YEAR,
-      workflow_status: "nominated",
-      nominated_by: profile.id,
-      approved_by: null,
-      issued_at: null,
-      certificate_generated: false,
-    };
-    const { error } = await supabase.from("achievement_awards").insert([payload]);
+    const { error } = await supabase.rpc("create_annual_achievement_nomination", {
+      p_learner_id: learnerId,
+      p_award_name: awardName,
+      p_award_category: definition?.category || "General",
+      p_award_reason: reason,
+    });
     setSaving(false);
     if (error) return alert(error.message);
     alert("Nomination submitted for principal approval.");
@@ -314,64 +312,55 @@ export default function AchievementAwardsPage() {
 
   async function approveNomination(item: AwardRow) {
     if (!canReview || !profile?.school_id) return;
-    const { error } = await supabase
-      .from("achievement_awards")
-      .update({
-        workflow_status: "issued",
-        approved_by: profile.id,
-        approved_at: new Date().toISOString(),
-        principal_name: profile.full_name || profile.name || "Principal",
-        issued_at: new Date().toISOString(),
-        certificate_generated: true,
-        decline_reason: null,
-        declined_at: null,
-        declined_by: null,
-      })
-      .eq("id", item.id);
+    const { error } = await supabase.rpc("review_annual_achievement_nomination", {
+      p_nomination_id: item.id,
+      p_decision: "approved",
+      p_decline_reason: null,
+    });
     if (error) return alert(error.message);
     await refreshAwards(Number(profile.school_id));
-    alert("Nomination approved and annual certificate issued.");
+    alert("Nomination approved. It is now ready for certificate issue.");
   }
 
   async function declineNomination(item: AwardRow) {
     if (!canReview || !profile?.school_id) return;
     const reasonText = prompt("Reason for declining this nomination:");
     if (!reasonText?.trim()) return;
-    const { error } = await supabase
-      .from("achievement_awards")
-      .update({
-        workflow_status: "declined",
-        decline_reason: reasonText.trim(),
-        declined_by: profile.id,
-        declined_at: new Date().toISOString(),
-      })
-      .eq("id", item.id);
+    const { error } = await supabase.rpc("review_annual_achievement_nomination", {
+      p_nomination_id: item.id,
+      p_decision: "declined",
+      p_decline_reason: reasonText.trim(),
+    });
     if (error) return alert(error.message);
     await refreshAwards(Number(profile.school_id));
     alert("Nomination declined. The practitioner can now see your reason.");
   }
 
+  async function issueApprovedAward(item: AwardRow) {
+    if (!canReview || !profile?.school_id) return;
+    const { error } = await supabase.rpc("issue_approved_annual_achievement_award", {
+      p_nomination_id: item.id,
+    });
+    if (error) return alert(error.message);
+    await refreshAwards(Number(profile.school_id));
+    alert("Annual certificate issued.");
+  }
+
   async function revokeAward(item: AwardRow) {
-    if (!canReview || !profile?.id || !profile.school_id) return;
+    if (!canReview || !profile?.school_id) return;
     const reasonText = prompt("Reason for revoking this certificate:");
     if (!reasonText?.trim()) return;
-    const { error } = await supabase
-      .from("achievement_awards")
-      .update({
-        workflow_status: "revoked",
-        deleted_at: new Date().toISOString(),
-        revoked_at: new Date().toISOString(),
-        revoked_by: profile.id,
-        revoke_reason: reasonText.trim(),
-      })
-      .eq("id", item.id);
+    const { error } = await supabase.rpc("revoke_annual_achievement_award", {
+      p_award_id: item.id,
+      p_reason: reasonText.trim(),
+    });
     if (error) return alert(error.message);
     await refreshAwards(Number(profile.school_id));
     alert("Certificate revoked.");
   }
 
   async function downloadCertificate(item: AwardRow) {
-    if (!profile?.id) return;
+    if (item.workflow_status !== "issued") return;
     setSelectedCertificate(item);
     requestAnimationFrame(async () => {
       const element = document.querySelector(".award-certificate-document") as HTMLElement | null;
@@ -380,15 +369,11 @@ export default function AchievementAwardsPage() {
         const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: "#fff" });
         const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
         pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 297, 210);
-        await supabase.from("certificate_reprints").insert([{
-          certificate_id: item.id,
-          school_id: item.school_id,
-          // Learner primary keys are UUIDs. The legacy bigint learner_id in
-          // this audit table remains optional for historic records only.
-          learner_uuid: item.learner_id,
-          action: "download",
-          performed_by: profile.id,
-        }]);
+        const { error } = await supabase.rpc("record_achievement_certificate_reprint", {
+          p_award_id: item.id,
+          p_action: "download",
+        });
+        if (error) throw error;
         pdf.save(`${learnerName(item.learner_id).replace(/\s+/g, "_")}_Certificate.pdf`);
       } catch (error) {
         console.error(error);
@@ -501,12 +486,13 @@ export default function AchievementAwardsPage() {
                     <p style={textStyle}>{classroomName(item.classroom_id)} · {item.academic_year || item.award_year || CURRENT_YEAR} annual award</p>
                     <p style={smallText}>Nominated by: {practitionerName(item.teacher_id, item.teacher_name)}</p>
                     <p style={smallText}>{item.award_reason}</p>
-                    {tab === "nominations" ? <span style={statusPill(item.workflow_status)}>{awardStatusLabel(item.workflow_status)}</span> : null}
+                    {tab !== "reprints" ? <span style={statusPill(item.workflow_status)}>{awardStatusLabel(item.workflow_status)}</span> : null}
                     {item.workflow_status === "declined" ? <p style={declineStyle}><strong>Nomination declined:</strong> {item.decline_reason || "The principal did not record a reason."}</p> : null}
                     {tab === "reprints" ? <span style={pill}>{reprintCounts[String(item.id)] || 0} downloads</span> : null}
                   </div>
                   <div style={actionRow}>
-                    {tab === "nominations" && canReview ? <><button className="db-button-primary" onClick={() => approveNomination(item)}>Approve & Issue</button><button className="db-button-primary" style={secondaryDangerButton} onClick={() => declineNomination(item)}>Decline</button></> : null}
+                    {tab === "nominations" && canReview ? <><button className="db-button-primary" onClick={() => approveNomination(item)}>Approve nomination</button><button className="db-button-primary" style={secondaryDangerButton} onClick={() => declineNomination(item)}>Decline</button></> : null}
+                    {tab === "issued" && canReview && item.workflow_status === "approved" ? <button className="db-button-primary" onClick={() => issueApprovedAward(item)}>Issue Certificate</button> : null}
                     {item.workflow_status === "issued" ? <><button className="db-button-primary" onClick={() => setSelectedCertificate(item)}>View</button><button className="db-button-primary" onClick={() => downloadCertificate(item)}>Download</button>{canReview ? <button className="db-button-primary" style={dangerButton} onClick={() => revokeAward(item)}>Revoke</button> : null}</> : null}
                   </div>
                 </div>
@@ -586,6 +572,7 @@ const dangerButton = { background: "#c94b4b" };
 
 function statusPill(status?: string | null) {
   if (status === "declined") return { ...pill, background: "#fff0f0", color: "#a43838" };
+  if (status === "approved") return { ...pill, background: "#fff7db", color: "#78520b" };
   if (status === "issued") return { ...pill, background: "#e9f8ee", color: "#287146" };
   return pill;
 }

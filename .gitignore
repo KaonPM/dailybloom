@@ -15,6 +15,15 @@
 /playwright-report/
 /test-results/
 
+# local Codex/document generation work (not application source)
+/.codex-work/
+/deliverables/
+/output/
+/tmp/
+
+# superseded root-level page drafts; live routes belong under /app
+/*.updated.page.tsx
+
 # next.js
 /.next/
 /out/

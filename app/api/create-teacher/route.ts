@@ -201,7 +201,6 @@ export async function POST(request: Request) {
       full_name: fullName,
       email,
       role: "teacher",
-      classroom_id: null,
       classroom_name: classroomName || null,
       is_active: true,
       must_change_password: true,

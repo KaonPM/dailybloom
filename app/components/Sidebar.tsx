@@ -135,12 +135,6 @@ export default function Sidebar() {
         featureKey: "payment_tracking",
         permission: PERMISSIONS.BILLING_MANAGE,
       },
-      {
-        label: "Achievement Awards",
-        href: "/achievement-awards",
-        match: ["/achievement-awards"],
-        permission: PERMISSIONS.AWARDS_MANAGE,
-      },
     ],
     []
   );
@@ -167,11 +161,6 @@ export default function Sidebar() {
         label: "Today’s Activities",
         href: "/classroom-activities",
         match: ["/classroom-activities"],
-      },
-      {
-        label: "Achievement Awards",
-        href: "/achievement-awards",
-        match: ["/achievement-awards"],
       },
       {
         label: "Class Broadcasts",
@@ -269,6 +258,12 @@ export default function Sidebar() {
         permission: PERMISSIONS.PROGRESS_REPORTS_MANAGE,
       },
       {
+        label: "Achievement Awards",
+        href: "/achievement-awards",
+        match: ["/achievement-awards"],
+        permission: PERMISSIONS.AWARDS_MANAGE,
+      },
+      {
         label: "Communications",
         href: "/communications",
         match: ["/communications"],
@@ -335,6 +330,11 @@ export default function Sidebar() {
         label: "Progress Reports",
         href: "/progress-reports",
         match: ["/progress-reports"],
+      },
+      {
+        label: "Achievement Awards",
+        href: "/achievement-awards",
+        match: ["/achievement-awards"],
       },
     ],
     []

@@ -16,7 +16,6 @@ export default function LandingPage() {
 
   const dailyBloomPhoneDisplay = "076 361 6044";
   const dailyBloomPhoneCall = "+27763616044";
-  const dailyBloomWhatsApp = "27763616044";
 
   useEffect(() => {
     function handleResize() {
@@ -103,9 +102,9 @@ export default function LandingPage() {
               <h2 style={heroHeading(isMobile)}>One Platform to Run Your Entire Preschool</h2>
 
               <p style={heroBody(isMobile)}>
-                From learner records and progress reports to parent engagement, daily updates
-                and Grade RR readiness, DailyBloom helps preschools manage everything in one warm
-                and organised workspace.
+                From learner records and evidence-backed progress reports to parent engagement,
+                daily updates and school-readiness support, DailyBloom helps preschools manage
+                everything in one warm and organised workspace.
               </p>
 
               <div
@@ -168,8 +167,8 @@ export default function LandingPage() {
             />
 
             <FeatureCard
-              title="Progress & Grade RR Reports"
-              body="Support developmental progress reports, Grade RR readiness tracking and learner achievement records."
+              title="Developmental & Grade Reports"
+              body="Create evidence-backed Developmental, Grade RR and Grade R reports, alongside learner support and achievement records."
               accent="#FFD166"
               isMobile={isMobile}
             />
@@ -195,7 +194,7 @@ export default function LandingPage() {
 
           <div style={whyGrid(isMobile)}>
             <WhyCard icon="🌈" text="Built for South African preschools" isMobile={isMobile} />
-            <WhyCard icon="🎒" text="Grade RR ready" isMobile={isMobile} />
+            <WhyCard icon="🎒" text="Grade RR and Grade R reporting" isMobile={isMobile} />
             <WhyCard icon="🧒" text="Centralised learner records" isMobile={isMobile} />
             <WhyCard icon="💌" text="Dedicated parent portal" isMobile={isMobile} />
             <WhyCard icon="📢" text="School updates and announcements" isMobile={isMobile} />
@@ -232,6 +231,7 @@ export default function LandingPage() {
                   "Achievement Awards",
                   "Developmental Reports",
                   "Grade RR Reports",
+                  "Grade R Reports",
                   "DBE compliance document storage",
                   "School branding",
                 ]}
@@ -318,18 +318,6 @@ export default function LandingPage() {
               </p>
 
               <p style={paragraph(isMobile)}>
-                WhatsApp:{" "}
-                <a
-                  href={`https://wa.me/${dailyBloomWhatsApp}?text=Hello%20DailyBloom%2C%20I%20would%20like%20to%20find%20out%20more.`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={contactLink}
-                >
-                  {dailyBloomPhoneDisplay}
-                </a>
-              </p>
-
-              <p style={paragraph(isMobile)}>
                 Email:{" "}
                 <a href="mailto:info@dailybloom.co.za" style={contactLink}>
                   info@dailybloom.co.za
@@ -374,8 +362,8 @@ export default function LandingPage() {
               attendance, classroom activities, daily summaries, announcements and parent portal communication.
             </p>
             <p style={footerText}>
-              DailyBloom may help schools communicate with parents or guardians by WhatsApp, SMS, email
-              or other approved communication channels.
+              DailyBloom helps schools communicate with parents or guardians through the secure
+              parent portal, supported by approved SMS, push-notification and email workflows.
             </p>
             <p style={footerText}>
               Schools remain responsible for obtaining parent or guardian consent and for ensuring that

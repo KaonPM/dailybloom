@@ -1907,8 +1907,8 @@ export default function ProgressReportsPage() {
       >
         <h1 className="db-page-title">Progress Reports</h1>
         <p className="db-page-subtitle">
-          Generate Developmental Reports for all learners and Grade RR Reports for
-          learners preparing for Grade R next year.
+          Create evidence-backed Developmental, Grade RR and Grade R reports for
+          the learners and classrooms each report type supports.
         </p>
       </div>
 

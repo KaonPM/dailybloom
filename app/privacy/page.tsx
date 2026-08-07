@@ -48,9 +48,9 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="7. Third-Party Services">
-          Some communications may be processed through email, WhatsApp, SMS,
-          hosting providers or related technology partners where needed to deliver
-          the service.
+          Some communications may be processed through the parent portal, email,
+          SMS, push notifications, hosting providers or related technology partners
+          where needed to deliver the service.
         </Section>
 
         <Section title="8. Retention and Correction">
@@ -66,7 +66,7 @@ export default function PrivacyPage() {
         <Section title="10. Contact">
           Email: info@dailybloom.co.za
           <br />
-          Phone / WhatsApp: 076 361 6044
+          Phone: 076 361 6044
         </Section>
 
         <div style={{ marginTop: 32 }}>

@@ -23,7 +23,6 @@ const FEATURE_LABELS: Record<string, string> = {
   custom_reports: "Custom Report Generation",
   wageflow: "WageFlow Integration",
   ai_features: "AI-Powered Features",
-  whatsapp_automation: "WhatsApp Automation",
 };
 
 const FEATURE_REQUIRED_PLAN: Record<string, string> = {
@@ -40,7 +39,6 @@ const FEATURE_REQUIRED_PLAN: Record<string, string> = {
   custom_reports: "Bloom Elite",
   wageflow: "Bloom Elite",
   ai_features: "Bloom Elite",
-  whatsapp_automation: "Bloom Elite",
 };
 
 export default function SubscriptionGuard({

@@ -106,9 +106,9 @@ export default function TermsPage() {
         </Section>
 
         <Section title="14. Communication Tools">
-          DailyBloom may support or integrate with WhatsApp, SMS, email, or future
-          approved messaging tools. Delivery may depend on third-party providers,
-          internet availability, network performance and correct recipient details.
+          DailyBloom may support the parent portal, SMS, push notifications, email,
+          or future approved messaging tools. Delivery may depend on third-party
+          providers, internet availability, network performance and correct recipient details.
         </Section>
 
         <Section title="15. Availability and Support">
@@ -150,7 +150,7 @@ export default function TermsPage() {
           <br />
           Email: info@dailybloom.co.za
           <br />
-          Phone / WhatsApp: 076 361 6044
+          Phone: 076 361 6044
         </Section>
 
         <div style={{ marginTop: 32 }}>

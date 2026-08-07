@@ -71,6 +71,18 @@ textarea {
   font: inherit;
 }
 
+/* Keep password visibility consistent: DailyBloom provides the emoji control. */
+.db-password-input::-ms-reveal,
+.db-password-input::-ms-clear {
+  display: none;
+}
+
+.db-password-input::-webkit-credentials-auto-fill-button {
+  display: none !important;
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .db-page-title {
   margin: 0 0 8px 0;
   color: var(--db-text);

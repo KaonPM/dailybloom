@@ -9,6 +9,7 @@ type PasswordInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & 
 
 export default function PasswordInput({
   style,
+  className,
   visibleLabel = "Hide password",
   hiddenLabel = "Show password",
   ...props
@@ -19,6 +20,7 @@ export default function PasswordInput({
     <div style={{ position: "relative", width: "100%" }}>
       <input
         {...props}
+        className={["db-password-input", className].filter(Boolean).join(" ")}
         type={visible ? "text" : "password"}
         style={{ ...style, width: "100%", paddingRight: 48 }}
       />

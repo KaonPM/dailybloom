@@ -36,6 +36,10 @@ import {
   PrincipalReviewList,
   TeacherChecklistCapture,
 } from "./components/ProgressReportPanels";
+import {
+  getClassroomReportType,
+  normalizeReportType,
+} from "../lib/classroom-programme";
 
 type ProfileRow = {
   id: string;
@@ -226,6 +230,16 @@ export default function ProgressReportsPage() {
   const reportTitleUpper = getProgressReportTitle(reportType, true);
   const { firstPageCategories, secondPageCategories } =
     splitProgressReportCategories(reportType, activeCategories);
+  const selectedClassroom = useMemo(
+    () =>
+      classrooms.find(
+        (classroom) => String(classroom.id) === String(selectedClassroomId)
+      ),
+    [classrooms, selectedClassroomId]
+  );
+  const selectedClassroomReportType = selectedClassroom
+    ? getClassroomReportType(selectedClassroom.classroom_name)
+    : null;
 
   useEffect(() => {
     loadPage();
@@ -259,15 +273,27 @@ export default function ProgressReportsPage() {
   useEffect(() => {
     if (!profile || periodDefaultApplied || selectedPeriodId || periods.length === 0) return;
 
-    const currentPeriod = periods.find((period) => period.status === "open");
+    const currentPeriod = periods.find(
+      (period) =>
+        period.status === "open" &&
+        (!selectedClassroomReportType ||
+          normalizeReportType(period.report_template) ===
+            selectedClassroomReportType)
+    );
     setPeriodDefaultApplied(true);
     if (!currentPeriod) return;
 
     setSelectedPeriodId(String(currentPeriod.id));
-    setReportType(currentPeriod.report_template || "developmental");
+    setReportType(normalizeReportType(currentPeriod.report_template));
     setOpeningDate(currentPeriod.opening_date || "");
     setClosingDate(currentPeriod.closing_date || "");
-  }, [profile, periods, selectedPeriodId, periodDefaultApplied]);
+  }, [
+    profile,
+    periods,
+    selectedPeriodId,
+    periodDefaultApplied,
+    selectedClassroomReportType,
+  ]);
 
   async function loadPage() {
     const { profile, error } = await getCurrentProfile();
@@ -785,6 +811,29 @@ export default function ProgressReportsPage() {
       return;
     }
 
+    const effectiveClassroom = classrooms.find(
+      (classroom) => String(classroom.id) === String(effectiveClassroomId)
+    );
+    const expectedReportType = getClassroomReportType(
+      effectiveClassroom?.classroom_name
+    );
+    const activePeriod = periods.find(
+      (period) => String(period.id) === String(selectedPeriodId)
+    );
+
+    if (normalizeReportType(activePeriod?.report_template) !== expectedReportType) {
+      alert(
+        `This learner's class uses the ${formatReportTemplate(expectedReportType)}. Please select a matching report period.`
+      );
+      return;
+    }
+
+    if (reportType !== expectedReportType) {
+      setReportType(expectedReportType);
+      alert("The report type was corrected for this class. Please review the checklist and save again.");
+      return;
+    }
+
     const selectedRows = (activeCategories as ReportCategory[]).flatMap((category) => {
       return getCategoryIndicators(category)
         .map((indicator) => {
@@ -1295,9 +1344,14 @@ export default function ProgressReportsPage() {
       ));
   const isPrincipalView = !isTeacher;
 
-  const visiblePeriods = isTeacher
+  const eligiblePeriods = isTeacher
     ? periods.filter((period) => period.status !== "archived")
     : periods;
+  const visiblePeriods = eligiblePeriods.filter(
+    (period) =>
+      !selectedClassroomReportType ||
+      normalizeReportType(period.report_template) === selectedClassroomReportType
+  );
 
   const teacherClassroomIds = isTeacher ? getTeacherClassroomIds() : [];
 
@@ -1686,20 +1740,32 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    if (selectedPeriod?.status === "archived") {
+    const selectedReportPeriod = periods.find(
+      (period) => String(period.id) === String(selectedPeriodId)
+    );
+
+    if (selectedReportPeriod?.status === "archived") {
       alert(
         "This report period has been archived. Reports can no longer be generated."
       );
       return;
     }
 
-    setSaving(true);
-
-    const selectedReportPeriod = periods.find(
-      (period) => String(period.id) === String(selectedPeriodId)
+    const expectedReportType = getClassroomReportType(
+      selectedClassroom?.classroom_name
     );
-    const reportTemplate =
-      selectedReportPeriod?.report_template || reportType || "developmental";
+    const reportTemplate = normalizeReportType(
+      selectedReportPeriod?.report_template
+    );
+
+    if (reportTemplate !== expectedReportType) {
+      alert(
+        `This learner's class uses the ${formatReportTemplate(expectedReportType)}. Please select a matching report period.`
+      );
+      return;
+    }
+
+    setSaving(true);
 
     const { data: existing } = await supabase
       .from("generated_reports")
@@ -1865,9 +1931,6 @@ export default function ProgressReportsPage() {
     }
   }
 
-  const selectedClassroom = classrooms.find(
-    (c) => String(c.id) === String(selectedClassroomId)
-  );
   const selectedLearner = learners.find(
     (l) => String(l.id) === String(selectedLearnerId)
   );
@@ -2162,7 +2225,20 @@ export default function ProgressReportsPage() {
                 className="db-input"
                 value={selectedClassroomId}
                 onChange={(e) => {
-                  setSelectedClassroomId(e.target.value);
+                  const classroomId = e.target.value;
+                  const classroom = classrooms.find(
+                    (item) => String(item.id) === String(classroomId)
+                  );
+                  setSelectedClassroomId(classroomId);
+                  setSelectedLearnerId("");
+                  setSelectedPeriodId("");
+                  setReportType(
+                    classroom
+                      ? getClassroomReportType(classroom.classroom_name)
+                      : "developmental"
+                  );
+                  setOpeningDate("");
+                  setClosingDate("");
                   setAssessmentPage(1);
                   setReportPage(1);
                 }}
@@ -2206,8 +2282,20 @@ export default function ProgressReportsPage() {
 
                 setSelectedLearnerId(learnerId);
 
-                if (isTeacher && learnerClassroomId) {
+                if (learnerClassroomId) {
+                  const learnerClassroom = classrooms.find(
+                    (classroom) =>
+                      String(classroom.id) === String(learnerClassroomId)
+                  );
                   setSelectedClassroomId(learnerClassroomId);
+                  setSelectedPeriodId("");
+                  setOpeningDate("");
+                  setClosingDate("");
+                  setReportType(
+                    learnerClassroom
+                      ? getClassroomReportType(learnerClassroom.classroom_name)
+                      : "developmental"
+                  );
                 }
 
                 setAssessmentPage(1);
@@ -2239,7 +2327,7 @@ export default function ProgressReportsPage() {
 
                 if (selectedReportPeriod?.report_template) {
                   setReportType(
-                    selectedReportPeriod.report_template as ReportType
+                    normalizeReportType(selectedReportPeriod.report_template)
                   );
                 }
                 setOpeningDate(selectedReportPeriod?.opening_date || "");

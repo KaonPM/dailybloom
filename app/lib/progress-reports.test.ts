@@ -15,6 +15,10 @@ import {
   normalizeLatestAssessments,
   normalizeProgressReportMatchValue,
 } from "./progress-report-assessments";
+import {
+  getClassroomReportType,
+  isGradeRActivityTheme,
+} from "./classroom-programme";
 
 test("keeps Developmental and Grade RR report definitions separate", () => {
   const developmental = getProgressReportCategories("developmental");
@@ -139,4 +143,14 @@ test("supports category sections and stable assessment matching keys", () => {
     normalizeProgressReportMatchValue("  Language Skills "),
     "language skills"
   );
+});
+
+test("routes Grade R A and B to the Grade R programme only", () => {
+  assert.equal(getClassroomReportType("Grade R (a)"), "grade-r");
+  assert.equal(getClassroomReportType("Grade R (b)"), "grade-r");
+  assert.equal(getClassroomReportType("Grade RR (a)"), "grade-rr");
+  assert.equal(getClassroomReportType("Pre Grade R (b)"), "grade-rr");
+  assert.equal(getClassroomReportType("Babies"), "developmental");
+  assert.equal(isGradeRActivityTheme("Grade R: Mathematics"), true);
+  assert.equal(isGradeRActivityTheme("Mathematics"), false);
 });

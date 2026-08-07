@@ -57,11 +57,11 @@ export const gradeRCategories: ProgressReportCategory[] = [
 ];
 
 export const gradeRRatingScale: ProgressReportRatingLevel[] = [
-  { value: 7, label: "Outstanding achievement (80–100%)" },
-  { value: 6, label: "Meritorious achievement (70–79%)" },
-  { value: 5, label: "Substantial achievement (60–69%)" },
-  { value: 4, label: "Adequate achievement (50–59%)" },
-  { value: 3, label: "Moderate achievement (40–49%)" },
-  { value: 2, label: "Elementary achievement (30–39%)" },
-  { value: 1, label: "Not achieved (0–29%)" },
+  { value: 7, label: "Outstanding achievement (80-100%)" },
+  { value: 6, label: "Meritorious achievement (70-79%)" },
+  { value: 5, label: "Substantial achievement (60-69%)" },
+  { value: 4, label: "Adequate achievement (50-59%)" },
+  { value: 3, label: "Moderate achievement (40-49%)" },
+  { value: 2, label: "Elementary achievement (30-39%)" },
+  { value: 1, label: "Not achieved (0-29%)" },
 ];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
@@ -14,6 +14,10 @@ import {
   gradeRRatingScale,
 } from "../lib/grade-r-categories";
 import { PERMISSIONS } from "../lib/permissions";
+import {
+  getClassroomReportType,
+  normalizeReportType,
+} from "../lib/classroom-programme";
 
 const levelOptions = [
   { value: "NP", label: "NP - Needs Practice" },
@@ -37,6 +41,7 @@ type ProfileRow = {
   id: string;
   role?: string | null;
   school_id?: number | null;
+  classroom_id?: number | null;
   full_name?: string | null;
   name?: string | null;
   email?: string | null;
@@ -106,6 +111,27 @@ export default function TeacherAssessmentsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const selectedClassroom = useMemo(
+    () =>
+      classrooms.find(
+        (classroom) => String(classroom.id) === String(selectedClassroomId)
+      ),
+    [classrooms, selectedClassroomId]
+  );
+  const selectedClassroomReportType = selectedClassroom
+    ? getClassroomReportType(selectedClassroom.classroom_name)
+    : null;
+  const visiblePeriods = useMemo(
+    () =>
+      periods.filter(
+        (period) =>
+          !selectedClassroomReportType ||
+          normalizeReportType(period.report_template) ===
+            selectedClassroomReportType
+      ),
+    [periods, selectedClassroomReportType]
+  );
+
   const activeCategories =
     reportType === "grade-r"
       ? gradeRCategories
@@ -148,29 +174,20 @@ export default function TeacherAssessmentsPage() {
     if (cleaned === "meeting_expectations") return "G";
     if (cleaned === "exceeding_expectations") return "VG";
 
-    if (cleaned === "1" || cleaned === "1 - Not yet achieved expectations") {
-      return "1";
-    }
-    if (cleaned === "2" || cleaned === "2 - Partially achieved expectations") {
-      return "2";
-    }
-    if (cleaned === "3" || cleaned === "3 - Achieved expectations") {
-      return "3";
-    }
-    if (cleaned === "4" || cleaned === "4 - Exceeded expectations") {
-      return "4";
-    }
+    const dbAchievementCode = cleaned.match(/^([1-7])(?:\s|-|$)/);
+    if (dbAchievementCode) return dbAchievementCode[1];
 
     return "";
   }
 
   function getTemplateFromPeriod(periodId: string) {
+    if (selectedClassroomReportType) return selectedClassroomReportType;
+
     const selectedPeriod = periods.find(
       (period) => String(period.id) === String(periodId)
     );
 
-    if (selectedPeriod?.report_template === "grade-r") return "grade-r";
-    return selectedPeriod?.report_template === "grade-rr" ? "grade-rr" : "developmental";
+    return normalizeReportType(selectedPeriod?.report_template);
   }
 
   function formatReportTemplate(template: string) {
@@ -211,8 +228,20 @@ export default function TeacherAssessmentsPage() {
     setProfile(currentProfile);
     setSchoolId(Number(currentProfile.school_id));
 
-    await fetchClassrooms(Number(currentProfile.school_id));
+    const classroomRows = await fetchClassrooms(Number(currentProfile.school_id));
     await fetchPeriods(Number(currentProfile.school_id));
+
+    if (role === "teacher" && currentProfile.classroom_id) {
+      const assignedClassroom = classroomRows.find(
+        (classroom) =>
+          String(classroom.id) === String(currentProfile.classroom_id)
+      );
+
+      setSelectedClassroomId(String(currentProfile.classroom_id));
+      setReportType(
+        getClassroomReportType(assignedClassroom?.classroom_name)
+      );
+    }
 
     setLoading(false);
   }
@@ -226,10 +255,12 @@ export default function TeacherAssessmentsPage() {
 
     if (error) {
       alert(error.message);
-      return;
+      return [] as ClassroomRow[];
     }
 
-    setClassrooms(data || []);
+    const nextClassrooms = (data || []) as ClassroomRow[];
+    setClassrooms(nextClassrooms);
+    return nextClassrooms;
   }
 
   async function fetchPeriods(currentSchoolId: number) {
@@ -374,7 +405,23 @@ export default function TeacherAssessmentsPage() {
       return;
     }
 
-    const template = getTemplateFromPeriod(selectedPeriodId);
+    const selectedPeriod = periods.find(
+      (period) => String(period.id) === String(selectedPeriodId)
+    );
+    const template = selectedClassroomReportType || "developmental";
+
+    if (normalizeReportType(selectedPeriod?.report_template) !== template) {
+      alert(
+        `This class uses the ${formatReportTemplate(template)}. Please select a matching report period.`
+      );
+      return;
+    }
+
+    if (reportType !== template) {
+      setReportType(template);
+      alert("The assessment type was corrected for this class. Please review the ratings and save again.");
+      return;
+    }
 
     const missingLevel = (activeCategories as Category[]).some((category) =>
       getCategoryIndicators(category).some((indicator) => {
@@ -500,7 +547,14 @@ export default function TeacherAssessmentsPage() {
             setSelectedClassroomId(classroomId);
             setSelectedLearnerId("");
             setSelectedPeriodId("");
-            setReportType("developmental");
+            const classroom = classrooms.find(
+              (item) => String(item.id) === String(classroomId)
+            );
+            setReportType(
+              classroom
+                ? getClassroomReportType(classroom.classroom_name)
+                : "developmental"
+            );
             setAssessmentValues({});
             setOverallComment("");
             setExistingAssessments([]);
@@ -565,7 +619,7 @@ export default function TeacherAssessmentsPage() {
           }}
         >
           <option value="">Select Report Period</option>
-          {periods.map((period) => (
+          {visiblePeriods.map((period) => (
             <option key={period.id} value={String(period.id)}>
               {period.title} ({formatPeriodType(period.report_type)} -{" "}
               {formatReportTemplate(period.report_template || "developmental")})

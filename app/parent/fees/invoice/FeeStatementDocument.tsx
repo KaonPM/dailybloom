@@ -28,6 +28,8 @@ type Props = {
   monthlyFee: number;
   balance: number;
   rows: FeeStatementRow[];
+  backHref?: string;
+  backLabel?: string;
 };
 
 const money = (value: number) =>
@@ -48,6 +50,8 @@ export default function FeeStatementDocument({
   monthlyFee,
   balance,
   rows,
+  backHref = "/parent/fees",
+  backLabel = "Back",
 }: Props) {
   const primary = school?.primary_color || "#75C7EA";
   const secondary = school?.secondary_color || "#F8F4FF";
@@ -55,8 +59,8 @@ export default function FeeStatementDocument({
   return (
     <article className="fee-print-statement fee-document">
       <div className="fee-document-actions">
-        <a className="db-button-secondary" href="/parent/fees">
-          Back
+        <a className="db-button-secondary" href={backHref}>
+          {backLabel}
         </a>
         <button
           type="button"

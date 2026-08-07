@@ -1073,6 +1073,12 @@ line-height:1.45;
     display: none !important;
   }
 
+  .fee-document-identity {
+    display: grid !important;
+    grid-template-columns: 1.4fr 1fr 1fr !important;
+    gap: 22px !important;
+  }
+
   .fee-document-table tr {
     break-inside: avoid;
   }
@@ -1314,10 +1320,29 @@ line-height:1.45;
     box-shadow: none;
   }
 
-  .fee-document-header,
-  .fee-document-identity {
+  .fee-document-header {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .fee-document-identity {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .fee-document-identity strong,
+  .fee-document-identity p {
+    font-size: 12px;
+  }
+
+  .fee-document-identity strong {
+    margin-bottom: 5px;
+  }
+
+  .fee-document-identity p {
+    overflow-wrap: anywhere;
   }
 
   .fee-document-title {

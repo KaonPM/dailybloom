@@ -74,6 +74,7 @@ export default function PaymentsPage() {
   const [showRecordForm, setShowRecordForm] = useState(false);
   const [showUnpaidLearners, setShowUnpaidLearners] = useState(false);
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
+  const [statementLearnerId, setStatementLearnerId] = useState("");
 
   const [highlightRecordForm, setHighlightRecordForm] = useState(false);
   const [lastSavedSuccess, setLastSavedSuccess] = useState(false);
@@ -749,6 +750,56 @@ export default function PaymentsPage() {
 
           {showPaymentHistory ? (
             <div style={{ marginTop: 14 }}>
+              <div
+                className="db-card"
+                style={{ padding: 14, marginBottom: 14, background: "#FFFDFB" }}
+              >
+                <h4 style={{ ...sectionTitle, fontSize: 16 }}>
+                  Learner Fee Statement
+                </h4>
+                <p style={smallText}>
+                  Choose a learner to view or print the same continuous statement
+                  available in the parent portal.
+                </p>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
+                    alignItems: "end",
+                    marginTop: 10,
+                  }}
+                >
+                  <label style={{ display: "grid", gap: 6, flex: "1 1 260px" }}>
+                    <span style={labelText}>Learner</span>
+                    <select
+                      className="db-input"
+                      value={statementLearnerId}
+                      onChange={(event) => setStatementLearnerId(event.target.value)}
+                    >
+                      <option value="">Select learner</option>
+                      {learners.map((learner) => (
+                        <option key={learner.id} value={learner.id}>
+                          {learner.name || "Unnamed learner"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="db-button-primary"
+                    disabled={!statementLearnerId || !schoolId}
+                    onClick={() =>
+                      router.push(
+                        `/payments/statement?school=${schoolId}&learner=${encodeURIComponent(statementLearnerId)}`
+                      )
+                    }
+                  >
+                    View Statement
+                  </button>
+                </div>
+              </div>
+
               <div style={formGrid}>
                 <div>
                   <p style={labelText}>From</p>

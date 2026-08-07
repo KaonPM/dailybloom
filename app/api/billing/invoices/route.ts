@@ -52,7 +52,7 @@ export async function GET(request: Request) {
   let journalQuery = supabaseAdmin
     .from("billing_journal_entries")
     .select(
-      "id, school_id, invoice_id, entry_type, amount, reason, created_at, schools(id, school_name, logo_url)",
+      "id, school_id, invoice_id, payment_id, entry_type, amount, reason, effective_date, created_at, schools(id, school_name, logo_url)",
       { count: "exact" }
     )
     .order("created_at", { ascending: false })

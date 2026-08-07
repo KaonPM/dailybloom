@@ -12,6 +12,8 @@ import { PERMISSIONS } from "../lib/permissions";
 type School = {
   id: number;
   school_name: string | null;
+  contact_number?: string | null;
+  is_demo_school?: boolean | null;
 };
 
 type Subscription = {
@@ -70,6 +72,23 @@ export default function BillingPage() {
     useState<Subscription | null>(null);
   const [exemptionReason, setExemptionReason] = useState("");
   const [savingExemption, setSavingExemption] = useState(false);
+  const [reminderSubscription, setReminderSubscription] =
+    useState<Subscription | null>(null);
+  const [reminderMessage, setReminderMessage] = useState("");
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [journalSubscription, setJournalSubscription] =
+    useState<Subscription | null>(null);
+  const [journalType, setJournalType] = useState<"credit" | "debit">("credit");
+  const [journalAmount, setJournalAmount] = useState("");
+  const [journalDate, setJournalDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [journalReason, setJournalReason] = useState("");
+  const [savingJournal, setSavingJournal] = useState(false);
+  const [demoSubscription, setDemoSubscription] =
+    useState<Subscription | null>(null);
+  const [demoReason, setDemoReason] = useState("");
+  const [savingDemo, setSavingDemo] = useState(false);
 
   const [subscriptionsOpen, setSubscriptionsOpen] = useState(true);
   const [invoicesOpen, setInvoicesOpen] = useState(false);
@@ -139,7 +158,7 @@ export default function BillingPage() {
   async function fetchSchools() {
     const { data, error } = await supabase
       .from("schools")
-      .select("id, school_name")
+      .select("id, school_name, contact_number, is_demo_school")
       .order("school_name", { ascending: true });
 
     if (error) {
@@ -379,7 +398,7 @@ export default function BillingPage() {
 
     setSavingExemption(true);
     try {
-      const result = await runPlatformOperation({
+      await runPlatformOperation({
         action: "exempt_setup_fee",
         school_id: exemptionSubscription.school_id,
         reason: exemptionReason.trim(),
@@ -400,6 +419,121 @@ export default function BillingPage() {
       );
     } finally {
       setSavingExemption(false);
+    }
+  }
+
+  function openReminderPopup(subscription: Subscription) {
+    setReminderSubscription(subscription);
+    setReminderMessage(
+      `DailyBloom payment reminder: your ${subscription.plan_name} subscription of R${Number(subscription.monthly_price).toFixed(2)} is outstanding. Please contact DailyBloom if you need assistance.`
+    );
+  }
+
+  async function sendPaymentReminder() {
+    if (!reminderSubscription || reminderMessage.trim().length < 8) {
+      alert("Enter a short payment reminder before sending it.");
+      return;
+    }
+
+    setSendingReminder(true);
+    try {
+      await runPlatformOperation({
+        action: "send_billing_payment_reminder",
+        school_id: reminderSubscription.school_id,
+        subscription_id: reminderSubscription.id,
+        message: reminderMessage.trim(),
+      });
+      setReminderSubscription(null);
+      setReminderMessage("");
+      alert("Payment reminder sent by SMS.");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "The payment reminder could not be sent."
+      );
+    } finally {
+      setSendingReminder(false);
+    }
+  }
+
+  function openJournalPopup(subscription: Subscription) {
+    setJournalSubscription(subscription);
+    setJournalType("credit");
+    setJournalAmount("");
+    setJournalDate(new Date().toISOString().slice(0, 10));
+    setJournalReason("");
+  }
+
+  async function postBillingJournal() {
+    const amount = Number(journalAmount);
+    if (
+      !journalSubscription ||
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      journalReason.trim().length < 3
+    ) {
+      alert("Enter a valid amount, date and reason for this journal.");
+      return;
+    }
+
+    setSavingJournal(true);
+    try {
+      await runPlatformOperation({
+        action: "post_billing_journal",
+        school_id: journalSubscription.school_id,
+        subscription_id: journalSubscription.id,
+        journal_type: journalType,
+        amount,
+        effective_date: journalDate,
+        reason: journalReason.trim(),
+      });
+      await fetchAllSubscriptions();
+      setInvoiceRefreshKey((current) => current + 1);
+      setInvoicesOpen(true);
+      setJournalSubscription(null);
+      alert(`${journalType === "credit" ? "Credit" : "Debit"} journal posted.`);
+    } catch (error) {
+      alert(
+        error instanceof Error ? error.message : "The journal could not be posted."
+      );
+    } finally {
+      setSavingJournal(false);
+    }
+  }
+
+  function openDemoPopup(subscription: Subscription) {
+    setDemoSubscription(subscription);
+    setDemoReason("");
+  }
+
+  async function setDemoSchool() {
+    if (!demoSubscription || demoReason.trim().length < 3) {
+      alert("Enter a reason for making this a Demo school.");
+      return;
+    }
+
+    setSavingDemo(true);
+    try {
+      await runPlatformOperation({
+        action: "set_demo_school",
+        school_id: demoSubscription.school_id,
+        reason: demoReason.trim(),
+      });
+      await fetchAllSubscriptions();
+      setDemoSubscription(null);
+      setDemoReason("");
+      alert(
+        "Demo school set. Existing history remains available; future DailyBloom billing and reminder SMS are paused."
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "The school could not be marked as a Demo school."
+      );
+    } finally {
+      setSavingDemo(false);
     }
   }
 
@@ -674,7 +808,12 @@ export default function BillingPage() {
               </p>
             ) : (
               <div style={{ display: "grid", gap: "10px" }}>
-                {filteredSubscriptions.map((subscription) => (
+                {filteredSubscriptions.map((subscription) => {
+                  const isDemoSchool = Boolean(
+                    subscription.schools?.is_demo_school
+                  );
+
+                  return (
                   <div key={subscription.id} className="db-list-card">
                     <div
                       style={{
@@ -691,17 +830,16 @@ export default function BillingPage() {
                         <p style={textStyle}>
                           {subscription.plan_name} · R
                           {Number(subscription.monthly_price).toFixed(2)} ·{" "}
-                          {subscription.status}
+                          {isDemoSchool ? "Demo school" : subscription.status}
                         </p>
                         <p style={textStyle}>
-                          Next billing:{" "}
-                          {subscription.next_billing_date || "Not set"} · Last
-                          paid:{" "}
-                          {subscription.last_payment_date || "No payment yet"}
+                          {isDemoSchool
+                            ? "DailyBloom billing and payment-reminder SMS are paused. Existing billing history is kept."
+                            : `Next billing: ${subscription.next_billing_date || "Not set"} · Last paid: ${subscription.last_payment_date || "No payment yet"}`}
                         </p>
                       </div>
 
-                      {isMaster ? (
+                      {isMaster && !isDemoSchool ? (
                         <div
                           style={{
                             display: "flex",
@@ -720,6 +858,22 @@ export default function BillingPage() {
                             {savingPaymentId === subscription.id
                               ? "Saving..."
                               : "Record Payment"}
+                          </button>
+
+                          <button
+                            type="button"
+                            style={secondaryButton}
+                            onClick={() => openReminderPopup(subscription)}
+                          >
+                            Send Reminder
+                          </button>
+
+                          <button
+                            type="button"
+                            style={secondaryButton}
+                            onClick={() => openJournalPopup(subscription)}
+                          >
+                            Pass Journal
                           </button>
 
                           <button
@@ -744,11 +898,24 @@ export default function BillingPage() {
                             Exempt Setup Fee
                           </button>
 
+                          <button
+                            type="button"
+                            style={secondaryButton}
+                            onClick={() => openDemoPopup(subscription)}
+                          >
+                            Set Demo School
+                          </button>
+
                         </div>
+                      ) : isMaster && isDemoSchool ? (
+                        <p className="db-helper" style={{ margin: 0 }}>
+                          Demo school — billing controls are paused.
+                        </p>
                       ) : null}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 {isMaster && subscriptionTotalPages > 1 ? (
                   <div
                     style={{
@@ -873,6 +1040,221 @@ export default function BillingPage() {
         ) : null}
       </div>
       */}
+
+      {reminderSubscription && typeof document !== "undefined"
+        ? createPortal(
+        <div style={modalOverlay}>
+          <div style={modalCard}>
+            <div style={modalHeader}>
+              <div>
+                <h3 style={modalTitle}>Send Payment Reminder</h3>
+                <p style={modalSubtitle}>
+                  {reminderSubscription.schools?.school_name || "Selected school"}
+                </p>
+              </div>
+              <button
+                type="button"
+                style={closeButton}
+                disabled={sendingReminder}
+                onClick={() => setReminderSubscription(null)}
+                aria-label="Close payment reminder"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="db-helper">
+              This SMS goes to the school contact number and is recorded in the
+              DailyBloom billing audit trail.
+            </p>
+            <label style={labelStyle}>Reminder Message</label>
+            <textarea
+              className="db-input"
+              rows={5}
+              maxLength={480}
+              value={reminderMessage}
+              onChange={(event) => setReminderMessage(event.target.value)}
+            />
+            <div style={modalActions}>
+              <button
+                type="button"
+                style={secondaryButton}
+                disabled={sendingReminder}
+                onClick={() => setReminderSubscription(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="db-button-primary"
+                disabled={sendingReminder || reminderMessage.trim().length < 8}
+                onClick={sendPaymentReminder}
+              >
+                {sendingReminder ? "Sending..." : "Send SMS"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+          )
+        : null}
+
+      {journalSubscription && typeof document !== "undefined"
+        ? createPortal(
+        <div style={modalOverlay}>
+          <div style={modalCard}>
+            <div style={modalHeader}>
+              <div>
+                <h3 style={modalTitle}>Pass Billing Journal</h3>
+                <p style={modalSubtitle}>
+                  {journalSubscription.schools?.school_name || "Selected school"}
+                </p>
+              </div>
+              <button
+                type="button"
+                style={closeButton}
+                disabled={savingJournal}
+                onClick={() => setJournalSubscription(null)}
+                aria-label="Close billing journal"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="db-helper">
+              A credit reduces the amount due or creates account credit. A debit
+              posts an additional auditable charge. Journals do not send a
+              payment receipt email.
+            </p>
+
+            <label style={labelStyle}>Journal Type</label>
+            <select
+              className="db-input"
+              value={journalType}
+              onChange={(event) =>
+                setJournalType(event.target.value as "credit" | "debit")
+              }
+            >
+              <option value="credit">Credit Journal</option>
+              <option value="debit">Debit Journal</option>
+            </select>
+
+            <label style={labelStyle}>Amount</label>
+            <input
+              className="db-input"
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={journalAmount}
+              onChange={(event) => setJournalAmount(event.target.value)}
+            />
+
+            <label style={labelStyle}>Effective Date</label>
+            <input
+              className="db-input"
+              type="date"
+              max={new Date().toISOString().slice(0, 10)}
+              value={journalDate}
+              onChange={(event) => setJournalDate(event.target.value)}
+            />
+
+            <label style={labelStyle}>Reason</label>
+            <textarea
+              className="db-input"
+              rows={4}
+              value={journalReason}
+              placeholder="Explain the approved adjustment for the audit trail"
+              onChange={(event) => setJournalReason(event.target.value)}
+            />
+
+            <div style={modalActions}>
+              <button
+                type="button"
+                style={secondaryButton}
+                disabled={savingJournal}
+                onClick={() => setJournalSubscription(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="db-button-primary"
+                disabled={
+                  savingJournal ||
+                  !journalAmount ||
+                  journalReason.trim().length < 3
+                }
+                onClick={postBillingJournal}
+              >
+                {savingJournal
+                  ? "Posting..."
+                  : `Post ${journalType === "credit" ? "Credit" : "Debit"} Journal`}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+          )
+        : null}
+
+      {demoSubscription && typeof document !== "undefined"
+        ? createPortal(
+        <div style={modalOverlay}>
+          <div style={modalCard}>
+            <div style={modalHeader}>
+              <div>
+                <h3 style={modalTitle}>Set Demo School</h3>
+                <p style={modalSubtitle}>
+                  {demoSubscription.schools?.school_name || "Selected school"}
+                </p>
+              </div>
+              <button
+                type="button"
+                style={closeButton}
+                disabled={savingDemo}
+                onClick={() => setDemoSubscription(null)}
+                aria-label="Close demo school dialog"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="db-helper">
+              Existing account history is kept, but future DailyBloom setup and
+              subscription invoices, payment actions and reminder SMS are
+              paused. Use this only for a school that should not be billed.
+            </p>
+            <label style={labelStyle}>Reason</label>
+            <textarea
+              className="db-input"
+              rows={4}
+              value={demoReason}
+              placeholder="Example: Demonstration school — no DailyBloom billing"
+              onChange={(event) => setDemoReason(event.target.value)}
+            />
+            <div style={modalActions}>
+              <button
+                type="button"
+                style={secondaryButton}
+                disabled={savingDemo}
+                onClick={() => setDemoSubscription(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="db-button-primary"
+                disabled={savingDemo || demoReason.trim().length < 3}
+                onClick={setDemoSchool}
+              >
+                {savingDemo ? "Saving..." : "Set Demo School"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+          )
+        : null}
 
       {activePaymentSubscription && typeof document !== "undefined"
         ? createPortal(

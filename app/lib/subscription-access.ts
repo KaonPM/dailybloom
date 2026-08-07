@@ -7,6 +7,29 @@ export async function getSchoolSubscriptionAccess(schoolId: number) {
     .eq("school_id", schoolId)
     .maybeSingle();
 
+  const { data: school } = await supabase
+    .from("schools")
+    .select("package_name, billing_status, status, is_active, is_demo_school")
+    .eq("id", schoolId)
+    .maybeSingle();
+
+  // Demo schools stay usable even when an old subscription is overdue or
+  // cancelled. Their access is controlled by the active school record while
+  // DailyBloom invoices and reminder SMS remain paused.
+  if (
+    school?.is_demo_school === true &&
+    school.is_active !== false &&
+    school.status === "active"
+  ) {
+    return {
+      allowed: true,
+      reason: null,
+      planName:
+        subscription?.plan_name || subscription?.package_name || school.package_name,
+      status: "demo",
+    };
+  }
+
   if (subscription && !error) {
     if (subscription.status === "cancelled") {
       return {
@@ -26,7 +49,11 @@ export async function getSchoolSubscriptionAccess(schoolId: number) {
       };
     }
 
-    if (subscription.status === "active" || subscription.status === "trial") {
+    if (
+      subscription.status === "active" ||
+      subscription.status === "trial" ||
+      subscription.status === "demo"
+    ) {
       return {
         allowed: true,
         reason: null,
@@ -35,12 +62,6 @@ export async function getSchoolSubscriptionAccess(schoolId: number) {
       };
     }
   }
-
-  const { data: school } = await supabase
-    .from("schools")
-    .select("package_name, billing_status, status, is_active")
-    .eq("id", schoolId)
-    .maybeSingle();
 
   if (
     school &&

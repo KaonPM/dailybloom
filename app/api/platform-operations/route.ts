@@ -6,6 +6,7 @@ import {
   activateSubscriptionBilling,
   createSetupFeeInvoice,
 } from "../../lib/billing-ledger";
+import { sendSms } from "../../lib/sms-portal";
 
 const ONBOARDING_FIELDS = [
   "onboarding_status", "setup_fee_paid", "subscription_paid", "setup_date",
@@ -19,10 +20,41 @@ function numberId(value: unknown) {
   return Number.isInteger(id) && id > 0 ? id : 0;
 }
 
+function dateOnly(value: unknown) {
+  const date = String(value || "");
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+}
+
+async function getSchoolBillingContext(schoolId: number) {
+  const { data: school, error } = await supabaseAdmin
+    .from("schools")
+    .select("id, school_name, contact_number, is_demo_school")
+    .eq("id", schoolId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!school) throw new Error("School was not found.");
+  return school;
+}
+
+async function assertDailyBloomBillableSchool(schoolId: number) {
+  const school = await getSchoolBillingContext(schoolId);
+  if (school.is_demo_school) {
+    throw new Error("This is a Demo school. DailyBloom billing is disabled.");
+  }
+  return school;
+}
+
 async function repairBillingAccount(
   schoolId: number,
   requireSubscription = false
 ) {
+  const school = await getSchoolBillingContext(schoolId);
+  if (school.is_demo_school) {
+    return {
+      skipped: true,
+      reason: "Demo schools are excluded from DailyBloom billing.",
+    };
+  }
   const { data: subscription, error: subscriptionError } = await supabaseAdmin
     .from("school_subscriptions")
     .select("id")
@@ -127,9 +159,16 @@ export async function POST(request: Request) {
 
     if (action === "save_subscription") {
       if (!schoolId) return NextResponse.json({ error: "School is required." }, { status: 400 });
+      await assertDailyBloomBillableSchool(schoolId);
       const planName = String(body.plan_name || "").trim();
       const monthlyPrice = Number(body.monthly_price);
       const status = String(body.status || "trial");
+      if (status === "demo") {
+        return NextResponse.json(
+          { error: "Use Set Demo School to stop DailyBloom billing for a demo school." },
+          { status: 400 }
+        );
+      }
       if (!planName || !Number.isFinite(monthlyPrice) || monthlyPrice < 0) return NextResponse.json({ error: "A valid plan is required." }, { status: 400 });
       const { error } = await supabaseAdmin.from("school_subscriptions").upsert({ school_id: schoolId, plan_name: planName, monthly_price: monthlyPrice, status, next_billing_date: body.next_billing_date || null, updated_at: new Date().toISOString() }, { onConflict: "school_id" });
       if (error) throw error;
@@ -161,9 +200,9 @@ export async function POST(request: Request) {
     }
 
     if (action === "repair_billing_account") {
-      if (authorization.staff.role !== "master") {
+      if (!['master', 'master_admin'].includes(authorization.staff.role)) {
         return NextResponse.json(
-          { error: "Only the Master may run emergency billing repair." },
+          { error: "Only Master billing users may run emergency billing repair." },
           { status: 403 }
         );
       }
@@ -183,6 +222,133 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, result });
     }
 
+    if (action === "set_demo_school") {
+      if (!['master', 'master_admin'].includes(authorization.staff.role)) {
+        return NextResponse.json(
+          { error: "Only Master billing users may set a Demo school." },
+          { status: 403 }
+        );
+      }
+      const reason = String(body.reason || "").trim();
+      if (!schoolId || reason.length < 3) {
+        return NextResponse.json(
+          { error: "Select a school and enter a demo-school reason." },
+          { status: 400 }
+        );
+      }
+      const { data, error } = await supabaseAdmin.rpc("set_dailybloom_demo_school", {
+        target_school_id: schoolId,
+        demo_reason: reason,
+        actor_id: authorization.staff.userId,
+      });
+      if (error) throw error;
+      await writeSecurityAudit(authorization.staff, "billing.school_marked_demo", {
+        school_id: schoolId,
+        reason,
+      });
+      return NextResponse.json({ success: true, result: data });
+    }
+
+    if (action === "send_billing_payment_reminder") {
+      if (!['master', 'master_admin'].includes(authorization.staff.role)) {
+        return NextResponse.json(
+          { error: "Only Master billing users may send DailyBloom payment reminders." },
+          { status: 403 }
+        );
+      }
+      const subscriptionId = numberId(body.subscription_id);
+      const message = String(body.message || "").trim();
+      if (!schoolId || !subscriptionId || message.length < 8) {
+        return NextResponse.json(
+          { error: "Select a subscription and enter a payment reminder message." },
+          { status: 400 }
+        );
+      }
+      const school = await assertDailyBloomBillableSchool(schoolId);
+      if (!school.contact_number) {
+        return NextResponse.json(
+          { error: "Add a school contact number before sending a payment reminder." },
+          { status: 400 }
+        );
+      }
+      const { data: subscription, error: subscriptionError } = await supabaseAdmin
+        .from("school_subscriptions")
+        .select("id")
+        .eq("id", subscriptionId)
+        .eq("school_id", schoolId)
+        .maybeSingle();
+      if (subscriptionError) throw subscriptionError;
+      if (!subscription) {
+        return NextResponse.json({ error: "Subscription was not found for this school." }, { status: 404 });
+      }
+      const delivery = await sendSms(String(school.contact_number), message);
+      const { error: reminderError } = await supabaseAdmin
+        .from("billing_payment_reminders")
+        .insert({
+          school_id: schoolId,
+          subscription_id: subscriptionId,
+          phone_number: school.contact_number,
+          message,
+          provider_message_id: delivery.providerMessageId,
+          sent_by: authorization.staff.userId,
+        });
+      if (reminderError) throw reminderError;
+      await writeSecurityAudit(authorization.staff, "billing.payment_reminder_sent", {
+        school_id: schoolId,
+        subscription_id: subscriptionId,
+      });
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "post_billing_journal") {
+      if (!['master', 'master_admin'].includes(authorization.staff.role)) {
+        return NextResponse.json(
+          { error: "Only Master billing users may pass billing journals." },
+          { status: 403 }
+        );
+      }
+      const subscriptionId = numberId(body.subscription_id);
+      const journalType = String(body.journal_type || "");
+      const amount = Number(body.amount);
+      const effectiveDate = dateOnly(body.effective_date);
+      const reason = String(body.reason || "").trim();
+      if (
+        !schoolId ||
+        !subscriptionId ||
+        !['credit', 'debit'].includes(journalType) ||
+        !Number.isFinite(amount) ||
+        amount <= 0 ||
+        !effectiveDate ||
+        effectiveDate > new Date().toISOString().slice(0, 10) ||
+        reason.length < 3
+      ) {
+        return NextResponse.json(
+          { error: "Journal type, amount, effective date and reason are required." },
+          { status: 400 }
+        );
+      }
+      await assertDailyBloomBillableSchool(schoolId);
+      const { data, error } = await supabaseAdmin.rpc("post_school_billing_journal", {
+        target_school_id: schoolId,
+        target_subscription_id: subscriptionId,
+        journal_type: journalType,
+        journal_amount: amount,
+        effective_on: effectiveDate,
+        journal_reason: reason,
+        actor_id: authorization.staff.userId,
+      });
+      if (error) throw error;
+      await writeSecurityAudit(authorization.staff, "billing.journal_posted", {
+        school_id: schoolId,
+        subscription_id: subscriptionId,
+        journal_type: journalType,
+        amount,
+        effective_date: effectiveDate,
+        reason,
+      });
+      return NextResponse.json({ success: true, result: data });
+    }
+
     if (action === "exempt_setup_fee") {
       const reason = String(body.reason || "").trim();
       if (!schoolId || reason.length < 3) {
@@ -192,6 +358,7 @@ export async function POST(request: Request) {
         );
       }
 
+      await assertDailyBloomBillableSchool(schoolId);
       await repairBillingAccount(schoolId, true);
       const { data: invoiceId, error: exemptionError } = await supabaseAdmin.rpc(
         "apply_setup_fee_exemption",
@@ -240,6 +407,7 @@ export async function POST(request: Request) {
         );
       }
       if (!schoolId || !subscriptionId || !Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "A valid subscription and payment amount are required." }, { status: 400 });
+      await assertDailyBloomBillableSchool(schoolId);
       const { data: subscription } = await supabaseAdmin
         .from("school_subscriptions")
         .select("id, school_id, plan_name, next_billing_date")
@@ -366,6 +534,8 @@ export async function POST(request: Request) {
         );
       }
 
+      await assertDailyBloomBillableSchool(schoolId);
+
       const { data: payment, error: paymentLookupError } = await supabaseAdmin
         .from("subscription_payments")
         .select("id, school_id, amount")
@@ -406,6 +576,7 @@ export async function POST(request: Request) {
 
     const subscriptionId = numberId(body.subscription_id);
     if (!schoolId || !subscriptionId) return NextResponse.json({ error: "Subscription is required." }, { status: 400 });
+    await assertDailyBloomBillableSchool(schoolId);
     const { error } = await supabaseAdmin.from("school_subscriptions").update({ status: "overdue", updated_at: new Date().toISOString() }).eq("id", subscriptionId).eq("school_id", schoolId);
     if (error) throw error;
     await supabaseAdmin.from("schools").update({ billing_status: "overdue" }).eq("id", schoolId);

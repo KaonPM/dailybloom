@@ -165,7 +165,7 @@ export async function POST(request: Request) {
       success: true,
       schoolId: school.id,
       tempPassword,
-      setupInvoiceNumber: setupInvoice.invoice_number,
+      setupInvoiceNumber: setupInvoice?.invoice_number ?? null,
       setupInvoiceEmailSent: false,
     });
   } catch (error: unknown) {

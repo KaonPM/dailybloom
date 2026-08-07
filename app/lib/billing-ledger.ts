@@ -11,7 +11,7 @@ type InvoiceRow = {
   id: string;
   school_id: number;
   invoice_number: string;
-  charge_type: "setup_fee" | "subscription";
+  charge_type: "setup_fee" | "subscription" | "debit_journal";
   description: string;
   plan_name: string | null;
   issue_date: string;
@@ -61,7 +61,7 @@ async function ensureSubscription(schoolId: number) {
 
   const { data: school, error: schoolError } = await supabaseAdmin
     .from("schools")
-    .select("package_name")
+    .select("package_name, is_demo_school")
     .eq("id", schoolId)
     .single();
   if (schoolError) throw schoolError;
@@ -78,9 +78,12 @@ async function ensureSubscription(schoolId: number) {
         school_id: schoolId,
         plan_name: planName,
         monthly_price: getPlanPrice(planName),
+        // `school_subscriptions.status` intentionally stays within its existing
+        // lifecycle values.  Demo is a school billing setting, not a second
+        // subscription status, which keeps existing database constraints safe.
         status: "active",
         start_date: dateOnly(now),
-        next_billing_date: nextBillingDate,
+        next_billing_date: school.is_demo_school ? null : nextBillingDate,
         updated_at: now.toISOString(),
       },
       { onConflict: "school_id" }
@@ -89,10 +92,14 @@ async function ensureSubscription(schoolId: number) {
     .single();
   if (error) throw error;
 
-  await supabaseAdmin
-    .from("schools")
-    .update({ billing_status: "active" })
-    .eq("id", schoolId);
+  // A demo school is represented by `is_demo_school`, rather than a new
+  // billing_status value. This preserves the existing billing-status constraint.
+  if (!school.is_demo_school) {
+    await supabaseAdmin
+      .from("schools")
+      .update({ billing_status: "active" })
+      .eq("id", schoolId);
+  }
   return data;
 }
 
@@ -100,7 +107,25 @@ export async function activateSubscriptionBilling(
   schoolId: number,
   activationDate = new Date()
 ) {
+  const { data: school, error: schoolError } = await supabaseAdmin
+    .from("schools")
+    .select("is_demo_school")
+    .eq("id", schoolId)
+    .single();
+  if (schoolError) throw schoolError;
+
   const subscription = await ensureSubscription(schoolId);
+  if (school.is_demo_school) {
+    const { error } = await supabaseAdmin
+      .from("school_subscriptions")
+      .update({
+        next_billing_date: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", subscription.id);
+    if (error) throw error;
+    return { ...subscription, next_billing_date: null };
+  }
   const nextBillingDate = dateOnly(
     new Date(
       Date.UTC(
@@ -133,7 +158,7 @@ async function schoolBillingContact(schoolId: number) {
     await Promise.all([
       supabaseAdmin
         .from("schools")
-        .select("id, school_name, package_name")
+        .select("id, school_name, package_name, is_demo_school")
         .eq("id", schoolId)
         .single(),
       supabaseAdmin
@@ -160,6 +185,7 @@ export async function createSetupFeeInvoice(
   setupDate?: string | null
 ) {
   const { school } = await schoolBillingContact(schoolId);
+  if (school.is_demo_school) return null;
   const subscription = await ensureSubscription(schoolId);
   const planName = String(
     subscription?.plan_name || school.package_name || "Bloom"
@@ -321,7 +347,7 @@ export async function reconcileSetupFeeInvoices() {
     await Promise.all([
       supabaseAdmin
         .from("schools")
-        .select("id, status, is_active, created_at"),
+        .select("id, status, is_active, created_at, is_demo_school"),
       supabaseAdmin
         .from("billing_invoices")
         .select("school_id")
@@ -352,7 +378,8 @@ export async function reconcileSetupFeeInvoices() {
     (existing || []).map((invoice) => Number(invoice.school_id))
   );
   const missingSchools = (schools || []).filter(
-    (school) => !existingSchoolIds.has(Number(school.id))
+    (school) =>
+      !school.is_demo_school && !existingSchoolIds.has(Number(school.id))
   );
 
   const { data: setupInvoices, error: setupInvoiceError } = await supabaseAdmin
@@ -385,12 +412,11 @@ export async function reconcileSetupFeeInvoices() {
   const created: InvoiceRow[] = [];
   for (const school of missingSchools) {
     try {
-      created.push(
-        await createSetupFeeInvoice(
-          Number(school.id),
-          schoolSetupDate.get(Number(school.id))
-        )
+      const invoice = await createSetupFeeInvoice(
+        Number(school.id),
+        schoolSetupDate.get(Number(school.id))
       );
+      if (invoice) created.push(invoice);
     } catch (error) {
       console.error(
         `Setup invoice creation failed for school ${school.id}.`,
@@ -404,6 +430,7 @@ export async function reconcileSetupFeeInvoices() {
     Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth(), 1)
   );
   for (const school of schools || []) {
+    if (school.is_demo_school) continue;
     const setupDate = schoolSetupDate.get(Number(school.id));
     if (!setupDate) continue;
     const parsed = new Date(`${setupDate}T00:00:00.000Z`);
@@ -459,6 +486,13 @@ export async function createMonthlySubscriptionInvoice(
   schoolId: number,
   billingDate = new Date()
 ) {
+  const { data: school, error: schoolError } = await supabaseAdmin
+    .from("schools")
+    .select("is_demo_school")
+    .eq("id", schoolId)
+    .maybeSingle();
+  if (schoolError) throw schoolError;
+  if (school?.is_demo_school) return null;
   const subscription = await currentSubscription(schoolId);
   if (!subscription || !["active", "trial"].includes(String(subscription.status))) {
     return null;

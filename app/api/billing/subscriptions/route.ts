@@ -5,6 +5,19 @@ import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
+type SubscriptionSummaryRow = {
+  monthly_price: number | null;
+  status: string | null;
+  schools:
+    | { is_demo_school: boolean | null }
+    | { is_demo_school: boolean | null }[]
+    | null;
+};
+
+function linkedSchool(row: SubscriptionSummaryRow) {
+  return Array.isArray(row.schools) ? row.schools[0] || null : row.schools;
+}
+
 function positiveInteger(value: string | null, fallback: number) {
   const parsed = Number(value || 0);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
@@ -39,7 +52,7 @@ export async function GET(request: Request) {
   let query = supabaseAdmin
     .from("school_subscriptions")
     .select(
-      "id, school_id, plan_name, monthly_price, status, start_date, first_billing_date, next_billing_date, last_payment_date, created_at, schools(id, school_name)",
+      "id, school_id, plan_name, monthly_price, status, start_date, first_billing_date, next_billing_date, last_payment_date, created_at, schools(id, school_name, contact_number, is_demo_school)",
       { count: "exact" }
     )
     .order("created_at", { ascending: false })
@@ -49,7 +62,7 @@ export async function GET(request: Request) {
 
   let summaryQuery = supabaseAdmin
     .from("school_subscriptions")
-    .select("monthly_price, status");
+    .select("monthly_price, status, schools(is_demo_school)");
   if (schoolId) summaryQuery = summaryQuery.eq("school_id", schoolId);
   if (status) summaryQuery = summaryQuery.eq("status", status);
 
@@ -64,7 +77,10 @@ export async function GET(request: Request) {
     );
   }
 
-  const summaryRows = summaryResult.data || [];
+  const summaryRows = (summaryResult.data || []) as SubscriptionSummaryRow[];
+  const billableSummaryRows = summaryRows.filter(
+    (row) => !linkedSchool(row)?.is_demo_school
+  );
   return NextResponse.json({
     subscriptions: result.data || [],
     pagination: {
@@ -74,11 +90,11 @@ export async function GET(request: Request) {
       total_pages: Math.max(1, Math.ceil((result.count || 0) / pageSize)),
     },
     summary: {
-      expected_monthly_revenue: summaryRows
+      expected_monthly_revenue: billableSummaryRows
         .filter((row) => ["active", "trial"].includes(String(row.status)))
         .reduce((sum, row) => sum + Number(row.monthly_price || 0), 0),
-      active_count: summaryRows.filter((row) => row.status === "active").length,
-      overdue_count: summaryRows.filter((row) => row.status === "overdue")
+      active_count: billableSummaryRows.filter((row) => row.status === "active").length,
+      overdue_count: billableSummaryRows.filter((row) => row.status === "overdue")
         .length,
     },
   });

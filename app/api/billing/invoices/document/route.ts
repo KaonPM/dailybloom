@@ -44,12 +44,12 @@ export async function GET(request: Request) {
     supabaseAdmin
       .from("subscription_payments")
       .select(
-        "id, payment_date, amount, original_amount, charge_type, plan_name, payment_method, receipt_number"
+        "id, payment_date, amount, original_amount, charge_type, plan_name, payment_method, notes, receipt_number"
       )
       .eq("school_id", invoice.school_id),
     supabaseAdmin
       .from("billing_journal_entries")
-      .select("id, entry_type, amount, reason, created_at")
+      .select("id, entry_type, amount, reason, effective_date, created_at")
       .eq("school_id", invoice.school_id)
       .order("created_at", { ascending: true }),
     supabaseAdmin
@@ -157,13 +157,25 @@ export async function GET(request: Request) {
         payment.payment_method || "Method not set"
       }`,
       invoiced: 0,
-      payment: Number(payment.original_amount || payment.amount || 0),
-      credit: 0,
-      reference: String(payment.receipt_number || ""),
+      payment:
+        payment.charge_type === "credit_journal"
+          ? 0
+          : Number(payment.original_amount || payment.amount || 0),
+      credit:
+        payment.charge_type === "credit_journal"
+          ? Number(payment.original_amount || payment.amount || 0)
+          : 0,
+      reference: String(
+        payment.charge_type === "credit_journal"
+          ? payment.notes || ""
+          : payment.receipt_number || ""
+      ),
     })),
-    ...(accountJournalResult.data || []).map((journal) => ({
+    ...(accountJournalResult.data || [])
+      .filter((journal) => journal.entry_type === "setup_fee_exemption")
+      .map((journal) => ({
       key: `journal-${journal.id}`,
-      date: String(journal.created_at).slice(0, 10),
+      date: String(journal.effective_date || journal.created_at).slice(0, 10),
       order: 1,
       description:
         journal.entry_type === "setup_fee_exemption"
@@ -173,7 +185,7 @@ export async function GET(request: Request) {
       payment: 0,
       credit: Number(journal.amount || 0),
       reference: String(journal.reason || ""),
-    })),
+      })),
     ...(accountAdjustmentResult.data || []).map((adjustment) => ({
       key: `adjustment-${adjustment.id}`,
       date: String(adjustment.created_at).slice(0, 10),

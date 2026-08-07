@@ -12,6 +12,9 @@ export const PLATFORM_OPERATION_PERMISSIONS = {
   record_payment: PERMISSIONS.BILLING_MANAGE,
   adjust_payment: PERMISSIONS.BILLING_MANAGE,
   mark_overdue: PERMISSIONS.BILLING_MANAGE,
+  send_billing_payment_reminder: PERMISSIONS.BILLING_MANAGE,
+  post_billing_journal: PERMISSIONS.BILLING_MANAGE,
+  set_demo_school: PERMISSIONS.BILLING_MANAGE,
 } as const satisfies Record<string, Permission>;
 
 export type PlatformOperation = keyof typeof PLATFORM_OPERATION_PERMISSIONS;

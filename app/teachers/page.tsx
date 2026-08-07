@@ -281,7 +281,7 @@ export default function TeachersPage() {
 
   async function deleteTeacher(teacher: TeacherRow) {
     const confirmed = confirm(
-      `Delete ${teacher.full_name || "this practitioner"}? This will remove their login access.`
+      `Remove ${teacher.full_name || "this practitioner"} from this school? Their past records will remain available, and their login can be reassigned to another school later.`
     );
 
     if (!confirmed) return;
@@ -309,7 +309,7 @@ export default function TeachersPage() {
       await loadTeachers(schoolId);
     }
 
-    alert("Practitioner deleted.");
+    alert(result.message || "Practitioner removed from this school.");
   }
 
   if (loading) return <p>Loading practitioners...</p>;
@@ -555,7 +555,7 @@ export default function TeachersPage() {
                           className="db-button-secondary"
                           onClick={() => deleteTeacher(teacher)}
                         >
-                          Delete
+                          Remove from School
                         </button>
                       </div>
                     </div>

@@ -308,22 +308,26 @@ export default function MessagesClient({
   async function loadStaffContext() {
     const { profile } = await getCurrentProfile();
 
-    if (!profile) {
+    if (!profile || !profile.school_id) {
       setLoading(false);
       return;
     }
 
     const profileRole = String(profile.role || "") as UserRole;
+    const staffProfile: StaffProfile = {
+      ...profile,
+      school_id: Number(profile.school_id),
+    };
 
     setRole(profileRole);
-    setSchoolId(Number(profile.school_id));
-    setCurrentUserId(String(profile.id));
-    setCurrentUserName(String(profile.full_name || "User"));
+    setSchoolId(staffProfile.school_id);
+    setCurrentUserId(String(staffProfile.id));
+    setCurrentUserName(String(staffProfile.full_name || "User"));
 
     if (profileRole === "teacher") {
-      await loadTeacherView(profile);
+      await loadTeacherView(staffProfile);
     } else {
-      await loadPrincipalView(profile);
+      await loadPrincipalView(staffProfile);
     }
 
     setLoading(false);

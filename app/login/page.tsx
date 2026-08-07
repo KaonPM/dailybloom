@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
+import { getCurrentProfile } from "../lib/auth";
 import PasswordInput from "../components/PasswordInput";
 
 export default function LoginPage() {
@@ -33,26 +34,14 @@ export default function LoginPage() {
       return;
     }
 
-    const { data: profileData, error: profileError } = await supabase
-      .from("profiles")
-      .select(
-        `
-        id,
-        role,
-        school_id,
-        is_active,
-        must_change_password,
-        schools (
-          is_active
-        )
-      `
-      )
-      .eq("id", authData.user.id)
-      .single();
+    const { profile: profileData, error: profileError } =
+      await getCurrentProfile();
 
     if (profileError || !profileData) {
-      alert("Could not load your account profile.");
-      await supabase.auth.signOut();
+      alert(
+        profileError?.message ||
+          "Could not load your account profile. Please try again."
+      );
       setLoading(false);
       return;
     }
@@ -60,11 +49,7 @@ export default function LoginPage() {
     const role = profileData.role;
     const userIsActive = profileData.is_active !== false;
 
-    const schoolRow = Array.isArray(profileData.schools)
-      ? profileData.schools[0]
-      : profileData.schools;
-
-    const schoolIsActive = schoolRow?.is_active !== false;
+    const schoolIsActive = profileData.school_is_active !== false;
     const isSchoolUser = ["owner", "principal", "admin", "teacher"].includes(role);
 
     if (!userIsActive) {

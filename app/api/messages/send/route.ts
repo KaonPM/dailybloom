@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 import { authorizeMessageUser } from "@/app/lib/message-authorization";
 import { PERMISSIONS } from "@/app/lib/permissions";
+import {
+  isActivePlatformSupportUser,
+  isPlatformSupportConversationParticipant,
+} from "@/app/lib/platform-support-messaging";
 
 async function getSchoolName(schoolId: number) {
   const { data, error } = await supabaseAdmin
@@ -103,7 +107,32 @@ export async function POST(request: Request) {
       );
     }
 
-    if (recipientRole === "parent") {
+    const [senderIsSupport, recipientIsSupport] = await Promise.all([
+      isActivePlatformSupportUser(authorization.userId, PERMISSIONS.MESSAGE_SEND),
+      isActivePlatformSupportUser(recipientId, PERMISSIONS.MESSAGE_SEND),
+    ]);
+    const isSupportConversation = senderIsSupport || recipientIsSupport;
+
+    if (isSupportConversation) {
+      const isAllowed =
+        !learnerId &&
+        (await isPlatformSupportConversationParticipant({
+          schoolId,
+          currentUserId: authorization.userId,
+          contactId: recipientId,
+          permission: PERMISSIONS.MESSAGE_SEND,
+        }));
+
+      if (!isAllowed) {
+        return NextResponse.json(
+          {
+            error:
+              "DailyBloom Support messages are available only between school leadership and authorised Master users.",
+          },
+          { status: 403 }
+        );
+      }
+    } else if (recipientRole === "parent") {
       const { data: linkedParent } = await supabaseAdmin.from("learners").select("id")
         .eq("school_id", schoolId).eq("id", learnerId || "").eq("parent_phone", recipientId).maybeSingle();
       if (!linkedParent) return NextResponse.json({ error: "The selected parent is not linked to this learner and school." }, { status: 403 });
@@ -133,9 +162,13 @@ export async function POST(request: Request) {
     const schoolName = await getSchoolName(schoolId);
     const senderDisplayName =
       authorization.kind === "staff"
-        ? authorization.role === "admin"
-          ? `${schoolName} Admin`
-          : authorization.staffName
+        ? authorization.role === "master"
+          ? "DailyBloom Master"
+          : authorization.role === "master_admin"
+            ? `${authorization.staffName || "DailyBloom"} Master Admin`
+            : authorization.role === "admin"
+              ? `${schoolName} Admin`
+              : authorization.staffName
         : authorization.parent?.name || "Parent/guardian";
 
     const { data, error } = await supabaseAdmin

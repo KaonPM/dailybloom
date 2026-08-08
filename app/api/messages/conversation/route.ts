@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 import { authorizeMessageUser } from "@/app/lib/message-authorization";
+import { PERMISSIONS } from "@/app/lib/permissions";
+import {
+  isActivePlatformSupportUser,
+  isPlatformSupportConversationParticipant,
+} from "@/app/lib/platform-support-messaging";
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +23,32 @@ export async function POST(request: Request) {
         { error: "Missing school or conversation participants." },
         { status: 400 }
       );
+    }
+
+    const [currentUserIsSupport, contactIsSupport] = await Promise.all([
+      isActivePlatformSupportUser(authorization.userId, PERMISSIONS.MESSAGE_SEND),
+      isActivePlatformSupportUser(contactId, PERMISSIONS.MESSAGE_SEND),
+    ]);
+
+    if (currentUserIsSupport || contactIsSupport) {
+      const isAllowed =
+        !learnerId &&
+        (await isPlatformSupportConversationParticipant({
+          schoolId,
+          currentUserId: authorization.userId,
+          contactId,
+          permission: PERMISSIONS.MESSAGE_SEND,
+        }));
+
+      if (!isAllowed) {
+        return NextResponse.json(
+          {
+            error:
+              "DailyBloom Support messages are available only between school leadership and authorised Master users.",
+          },
+          { status: 403 }
+        );
+      }
     }
 
     let query = supabaseAdmin

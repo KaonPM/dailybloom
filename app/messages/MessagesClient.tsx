@@ -8,8 +8,22 @@ import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 import { getCurrentProfile } from "@/app/lib/auth";
 
 type Mode = "staff" | "parent";
-type UserRole = "parent" | "teacher" | "principal" | "owner" | "admin" | "master";
-type ContactRole = "parent" | "teacher" | "principal" | "admin";
+type UserRole =
+  | "parent"
+  | "teacher"
+  | "principal"
+  | "owner"
+  | "admin"
+  | "master"
+  | "master_admin";
+type ContactRole =
+  | "parent"
+  | "teacher"
+  | "principal"
+  | "owner"
+  | "admin"
+  | "master"
+  | "master_admin";
 
 type SchoolRelation =
   | { id?: number | null; school_name?: string | null }
@@ -84,11 +98,14 @@ type Contact = {
   id: string;
   name: string;
   role: ContactRole;
-  role_label?: "admin" | "principal" | "teacher" | "parent";
+  role_label?: ContactRole;
   learner_id?: string | null;
   learner_name?: string | null;
   classroom_name?: string | null;
   subtitle?: string;
+  school_id?: number | null;
+  unread_count?: number;
+  last_message_at?: string | null;
 };
 
 type MessageRow = {
@@ -126,6 +143,7 @@ export default function MessagesClient({
   const [principalContacts, setPrincipalContacts] = useState<Contact[]>([]);
   const [administratorContacts, setAdministratorContacts] = useState<Contact[]>([]);
   const [teacherContacts, setTeacherContacts] = useState<Contact[]>([]);
+  const [supportContacts, setSupportContacts] = useState<Contact[]>([]);
 
   const [teacherLearners, setTeacherLearners] = useState<LearnerOption[]>([]);
   const [principalLearners, setPrincipalLearners] = useState<LearnerOption[]>([]);
@@ -208,7 +226,7 @@ export default function MessagesClient({
 
   useEffect(() => {
     if (
-      ["principal", "owner", "admin", "master"].includes(role) &&
+    ["principal", "owner", "admin", "master", "master_admin"].includes(role) &&
       selectedPrincipalLearner
     ) {
       setActiveContact(buildParentContactFromLearner(selectedPrincipalLearner));
@@ -221,13 +239,21 @@ export default function MessagesClient({
     } else {
       setMessages([]);
     }
-  }, [activeContact?.id, activeContact?.learner_id, schoolId, currentUserId]);
+  }, [
+    activeContact?.id,
+    activeContact?.learner_id,
+    activeContact?.school_id,
+    schoolId,
+    currentUserId,
+  ]);
 
   useEffect(() => {
+    if (role === "master" || role === "master_admin") return;
     fetchUnreadConversationCounts();
-  }, [schoolId, currentUserId]);
+  }, [schoolId, currentUserId, role]);
 
   useEffect(() => {
+    if (role === "master" || role === "master_admin") return;
     if (!schoolId || !currentUserId || !activeContact) return;
 
     const channel = supabase
@@ -264,7 +290,7 @@ export default function MessagesClient({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeContact?.id, activeContact?.learner_id, schoolId, currentUserId]);
+  }, [activeContact?.id, activeContact?.learner_id, schoolId, currentUserId, role]);
 
   async function loadMessagesPage() {
     if (mode === "parent") {
@@ -308,21 +334,34 @@ export default function MessagesClient({
   async function loadStaffContext() {
     const { profile } = await getCurrentProfile();
 
-    if (!profile || !profile.school_id) {
+    if (!profile) {
       setLoading(false);
       return;
     }
 
     const profileRole = String(profile.role || "") as UserRole;
+
+    setRole(profileRole);
+    setCurrentUserId(String(profile.id));
+    setCurrentUserName(String(profile.full_name || "User"));
+
+    if (profileRole === "master" || profileRole === "master_admin") {
+      await loadPlatformSupportView();
+      setLoading(false);
+      return;
+    }
+
+    if (!profile.school_id) {
+      setLoading(false);
+      return;
+    }
+
     const staffProfile: StaffProfile = {
       ...profile,
       school_id: Number(profile.school_id),
     };
 
-    setRole(profileRole);
     setSchoolId(staffProfile.school_id);
-    setCurrentUserId(String(staffProfile.id));
-    setCurrentUserName(String(staffProfile.full_name || "User"));
 
     if (profileRole === "teacher") {
       await loadTeacherView(staffProfile);
@@ -418,10 +457,15 @@ export default function MessagesClient({
     setPrincipalContacts(contacts.filter((contact) => contact.role === "principal"));
     setAdministratorContacts(contacts.filter((contact) => contact.role === "admin"));
     setTeacherContacts(contacts.filter((contact) => contact.role === "teacher"));
+    setSupportContacts([]);
   }
 
-  function getConversationKey(contactId: string, learnerId?: string | null) {
-    return `${contactId}::${learnerId || ""}`;
+  function getConversationKey(
+    contactId: string,
+    learnerId?: string | null,
+    contactSchoolId?: number | null
+  ) {
+    return `${contactSchoolId || ""}::${contactId}::${learnerId || ""}`;
   }
 
   async function fetchUnreadConversationCounts() {
@@ -466,6 +510,67 @@ export default function MessagesClient({
       teachers: (result.teachers || []) as TeacherOption[],
       principals: (result.principals || []) as PrincipalOption[],
     };
+  }
+
+  async function fetchPlatformSupportDirectory(currentSchoolId: number) {
+    const response = await messageFetch("/api/messages/platform-support-directory", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ school_id: currentSchoolId }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || "Could not load DailyBloom Support contacts.");
+    }
+
+    return (result.contacts || []) as Contact[];
+  }
+
+  async function fetchPlatformSupportInbox() {
+    const response = await messageFetch("/api/messages/platform-support-inbox", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || "Could not load DailyBloom Support messages.");
+    }
+
+    return (result.contacts || []) as Contact[];
+  }
+
+  async function loadPlatformSupportView() {
+    const inbox = await fetchPlatformSupportInbox();
+
+    setTeacherContacts([]);
+    setPrincipalContacts([]);
+    setAdministratorContacts([]);
+    setTeacherLearners([]);
+    setPrincipalLearners([]);
+    setSelectedTeacherLearnerId("");
+    setSelectedPrincipalLearnerId("");
+    setSelectedClassroomName("");
+    setSupportContacts(inbox);
+    setUnreadByConversation(
+      Object.fromEntries(
+        inbox.map((contact) => [
+          getConversationKey(contact.id, contact.learner_id, contact.school_id),
+          Number(contact.unread_count || 0),
+        ])
+      )
+    );
+
+    const firstContact = inbox[0] || null;
+    setSchoolId(firstContact?.school_id ? Number(firstContact.school_id) : null);
+    setActiveContact(firstContact);
   }
 
   async function loadTeacherView(profile: StaffProfile) {
@@ -519,6 +624,7 @@ export default function MessagesClient({
       principalList.filter((contact) => contact.role === "admin")
     );
     setTeacherLearners(learnerRows);
+    setSupportContacts([]);
 
     if (principalList[0]) {
       setActiveContact(principalList[0]);
@@ -534,7 +640,10 @@ export default function MessagesClient({
     const currentSchoolId = Number(profile.school_id);
     const viewerIsAdmin = String(profile.role || "").toLowerCase() === "admin";
 
-    const { teachers, principals } = await fetchStaffDirectory(currentSchoolId);
+    const [{ teachers, principals }, supportDirectory] = await Promise.all([
+      fetchStaffDirectory(currentSchoolId),
+      fetchPlatformSupportDirectory(currentSchoolId).catch(() => [] as Contact[]),
+    ]);
 
     const teacherList: Contact[] = ((teachers || []) as TeacherOption[]).map(
       (teacher) => ({
@@ -604,6 +713,9 @@ export default function MessagesClient({
     setAdministratorContacts(
       leadershipContacts.filter((contact) => contact.role === "admin")
     );
+    setSupportContacts(
+      supportDirectory.filter((contact) => String(contact.id) !== String(profile.id))
+    );
     setPrincipalLearners(learnerRows);
     setSelectedClassroomName(classes[0] || "");
 
@@ -658,7 +770,9 @@ export default function MessagesClient({
     }
 
     setMessages((result.messages || []) as MessageRow[]);
-    fetchUnreadConversationCounts();
+    if (role !== "master" && role !== "master_admin") {
+      fetchUnreadConversationCounts();
+    }
   }
 
   function messageBelongsToContact(message: MessageRow, contact: Contact) {
@@ -730,7 +844,9 @@ export default function MessagesClient({
       fetchConversation(activeContact).catch((error) => {
         console.error("Conversation refresh failed:", error);
       });
-      fetchUnreadConversationCounts();
+      if (role !== "master" && role !== "master_admin") {
+        fetchUnreadConversationCounts();
+      }
     } catch (error: unknown) {
       alert(error instanceof Error ? error.message : "Could not send message.");
     } finally {
@@ -786,7 +902,8 @@ export default function MessagesClient({
     if (value === "parent") return "Parent";
     if (value === "teacher") return "Practitioner";
     if (value === "principal") return "Principal";
-    if (value === "master") return "Principal";
+    if (value === "master") return "Master";
+    if (value === "master_admin") return "Master Admin";
     if (value === "owner") return "Principal";
     if (value === "admin") return "Admin";
 
@@ -905,6 +1022,18 @@ export default function MessagesClient({
       <>
         <h3 style={sectionTitle}>Messages</h3>
 
+        {supportContacts.length > 0 ? (
+          <div style={groupBox}>
+            <p style={groupTitle}>DailyBloom Support</p>
+            <p style={smallText}>
+              Contact Master or an authorised Master Admin for DailyBloom support.
+            </p>
+            <div style={{ display: "grid", gap: 8 }}>
+              {supportContacts.map((contact) => renderContactButton(contact))}
+            </div>
+          </div>
+        ) : null}
+
         {teacherContacts.length > 0 ? (
           <div style={groupBox}>
             <p style={groupTitle}>Practitioners</p>
@@ -977,18 +1106,55 @@ export default function MessagesClient({
     );
   }
 
+  function renderPlatformSupportSidebar() {
+    return (
+      <>
+        <h3 style={sectionTitle}>DailyBloom Support</h3>
+
+        <div style={groupBox}>
+          <p style={groupTitle}>School leadership</p>
+          <p style={smallText}>
+            Secure messages from principals, owners and authorised school administrators.
+          </p>
+
+          {supportContacts.length > 0 ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              {supportContacts.map((contact) => renderContactButton(contact))}
+            </div>
+          ) : (
+            <p style={smallText}>No DailyBloom Support messages yet.</p>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  function handleContactSelection(contact: Contact) {
+    if (
+      (role === "master" || role === "master_admin") &&
+      contact.school_id
+    ) {
+      setSchoolId(Number(contact.school_id));
+    }
+
+    setActiveContact(contact);
+  }
+
   function renderContactButton(contact: Contact) {
     const active =
       activeContact?.id === contact.id &&
-      String(activeContact?.learner_id || "") === String(contact.learner_id || "");
+      String(activeContact?.learner_id || "") === String(contact.learner_id || "") &&
+      Number(activeContact?.school_id || 0) === Number(contact.school_id || 0);
     const unreadCount =
-      unreadByConversation[getConversationKey(contact.id, contact.learner_id)] || 0;
+      unreadByConversation[
+        getConversationKey(contact.id, contact.learner_id, contact.school_id)
+      ] || 0;
 
     return (
       <button
-        key={`${contact.role}-${contact.id}-${contact.learner_id || ""}`}
+        key={`${contact.role}-${contact.school_id || ""}-${contact.id}-${contact.learner_id || ""}`}
         type="button"
-        onClick={() => setActiveContact(contact)}
+        onClick={() => handleContactSelection(contact)}
         style={{
           ...contactButton,
           background: active ? "#EAF7FD" : "#FFFDFB",
@@ -1021,7 +1187,9 @@ export default function MessagesClient({
           <div>
             <h2 className="db-page-title">Messages</h2>
             <p className="db-page-subtitle">
-              Send and receive messages with parents, practitioners and school leadership.
+              {role === "master" || role === "master_admin"
+                ? "Respond to secure DailyBloom Support messages from school leadership."
+                : "Send and receive messages with parents, practitioners and school leadership."}
             </p>
           </div>
 
@@ -1031,7 +1199,11 @@ export default function MessagesClient({
                 ? "/parent/dashboard"
                 : role === "teacher"
                   ? "/teacher"
-                  : "/dashboard"
+                  : role === "master"
+                    ? "/master?view=dashboard"
+                    : role === "master_admin"
+                      ? "/master-admin"
+                      : "/dashboard"
             }
             style={{ ...backLink, ...(isMobile ? mobileBackLink : {}) }}
           >
@@ -1049,7 +1221,9 @@ export default function MessagesClient({
             ? renderParentSidebar()
             : role === "teacher"
               ? renderTeacherSidebar()
-              : renderPrincipalSidebar()}
+              : role === "master" || role === "master_admin"
+                ? renderPlatformSupportSidebar()
+                : renderPrincipalSidebar()}
         </div>
 
         <div

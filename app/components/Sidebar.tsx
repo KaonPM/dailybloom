@@ -73,6 +73,11 @@ export default function Sidebar() {
         view: "dashboard",
       },
       {
+        label: "DailyBloom Support",
+        href: "/messages",
+        match: ["/messages"],
+      },
+      {
         label: "Manage Schools",
         href: "/master?view=manage-schools",
         match: ["/master"],
@@ -633,6 +638,10 @@ export default function Sidebar() {
 
   const masterAdminNav = [
     { label: "Master Admin Home", href: "/master-admin", match: ["/master-admin"] },
+    ...(profile?.permissions?.includes(PERMISSIONS.MESSAGE_VIEW) &&
+    profile?.permissions?.includes(PERMISSIONS.MESSAGE_SEND)
+      ? [{ label: "DailyBloom Support", href: "/messages", match: ["/messages"] }]
+      : []),
     ...(profile?.permissions?.includes(PERMISSIONS.PLATFORM_DASHBOARD_VIEW)
       ? [{ label: "Master Dashboard", href: "/master?view=dashboard", match: ["/master"] }]
       : []),
@@ -937,7 +946,7 @@ export default function Sidebar() {
                 Dashboard
               </Link>
 
-              {!isMaster && canViewMessages ? (
+              {!isMaster && !isMasterAdmin && canViewMessages ? (
                 <Link
                   href="/messages"
                   style={navStyle({

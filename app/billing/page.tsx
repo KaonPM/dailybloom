@@ -75,6 +75,9 @@ export default function BillingPage() {
   const [reminderSubscription, setReminderSubscription] =
     useState<Subscription | null>(null);
   const [reminderMessage, setReminderMessage] = useState("");
+  const [reminderDate, setReminderDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
   const [sendingReminder, setSendingReminder] = useState(false);
   const [journalSubscription, setJournalSubscription] =
     useState<Subscription | null>(null);
@@ -424,14 +427,19 @@ export default function BillingPage() {
 
   function openReminderPopup(subscription: Subscription) {
     setReminderSubscription(subscription);
+    setReminderDate(new Date().toISOString().slice(0, 10));
     setReminderMessage(
       `DailyBloom payment reminder: your ${subscription.plan_name} subscription of R${Number(subscription.monthly_price).toFixed(2)} is outstanding. Please contact DailyBloom if you need assistance.`
     );
   }
 
   async function sendPaymentReminder() {
-    if (!reminderSubscription || reminderMessage.trim().length < 8) {
-      alert("Enter a short payment reminder before sending it.");
+    if (
+      !reminderSubscription ||
+      reminderMessage.trim().length < 8 ||
+      !reminderDate
+    ) {
+      alert("Choose a reminder date and enter a short payment reminder.");
       return;
     }
 
@@ -442,10 +450,11 @@ export default function BillingPage() {
         school_id: reminderSubscription.school_id,
         subscription_id: reminderSubscription.id,
         message: reminderMessage.trim(),
+        scheduled_date: reminderDate,
       });
       setReminderSubscription(null);
       setReminderMessage("");
-      alert("Payment reminder sent by SMS.");
+      alert(`Payment reminder scheduled for ${reminderDate}.`);
     } catch (error) {
       alert(
         error instanceof Error
@@ -1047,7 +1056,7 @@ export default function BillingPage() {
           <div style={modalCard}>
             <div style={modalHeader}>
               <div>
-                <h3 style={modalTitle}>Send Payment Reminder</h3>
+                <h3 style={modalTitle}>Schedule Payment Reminder</h3>
                 <p style={modalSubtitle}>
                   {reminderSubscription.schools?.school_name || "Selected school"}
                 </p>
@@ -1064,9 +1073,18 @@ export default function BillingPage() {
             </div>
 
             <p className="db-helper">
-              This SMS goes to the school contact number and is recorded in the
-              DailyBloom billing audit trail.
+              This SMS is scheduled for the school contact number, then sent by
+              the protected DailyBloom reminder process and recorded in the
+              billing audit trail.
             </p>
+            <label style={labelStyle}>Reminder Send Date</label>
+            <input
+              type="date"
+              className="db-input"
+              min={new Date().toISOString().slice(0, 10)}
+              value={reminderDate}
+              onChange={(event) => setReminderDate(event.target.value)}
+            />
             <label style={labelStyle}>Reminder Message</label>
             <textarea
               className="db-input"
@@ -1090,7 +1108,7 @@ export default function BillingPage() {
                 disabled={sendingReminder || reminderMessage.trim().length < 8}
                 onClick={sendPaymentReminder}
               >
-                {sendingReminder ? "Sending..." : "Send SMS"}
+                {sendingReminder ? "Scheduling..." : "Schedule SMS"}
               </button>
             </div>
           </div>

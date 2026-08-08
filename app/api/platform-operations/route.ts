@@ -6,7 +6,6 @@ import {
   activateSubscriptionBilling,
   createSetupFeeInvoice,
 } from "../../lib/billing-ledger";
-import { sendSms } from "../../lib/sms-portal";
 
 const ONBOARDING_FIELDS = [
   "onboarding_status", "setup_fee_paid", "subscription_paid", "setup_date",
@@ -258,9 +257,19 @@ export async function POST(request: Request) {
       }
       const subscriptionId = numberId(body.subscription_id);
       const message = String(body.message || "").trim();
-      if (!schoolId || !subscriptionId || message.length < 8) {
+      const scheduledDate = dateOnly(body.scheduled_date);
+      if (
+        !schoolId ||
+        !subscriptionId ||
+        message.length < 8 ||
+        !scheduledDate ||
+        scheduledDate < new Date().toISOString().slice(0, 10)
+      ) {
         return NextResponse.json(
-          { error: "Select a subscription and enter a payment reminder message." },
+          {
+            error:
+              "Select a subscription, reminder date and payment reminder message.",
+          },
           { status: 400 }
         );
       }
@@ -281,7 +290,6 @@ export async function POST(request: Request) {
       if (!subscription) {
         return NextResponse.json({ error: "Subscription was not found for this school." }, { status: 404 });
       }
-      const delivery = await sendSms(String(school.contact_number), message);
       const { error: reminderError } = await supabaseAdmin
         .from("billing_payment_reminders")
         .insert({
@@ -289,15 +297,18 @@ export async function POST(request: Request) {
           subscription_id: subscriptionId,
           phone_number: school.contact_number,
           message,
-          provider_message_id: delivery.providerMessageId,
+          scheduled_date: scheduledDate,
+          status: "scheduled",
+          retry_count: 0,
           sent_by: authorization.staff.userId,
         });
       if (reminderError) throw reminderError;
-      await writeSecurityAudit(authorization.staff, "billing.payment_reminder_sent", {
+      await writeSecurityAudit(authorization.staff, "billing.payment_reminder_scheduled", {
         school_id: schoolId,
         subscription_id: subscriptionId,
+        scheduled_date: scheduledDate,
       });
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, scheduled_date: scheduledDate });
     }
 
     if (action === "post_billing_journal") {

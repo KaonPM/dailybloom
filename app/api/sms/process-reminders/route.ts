@@ -11,6 +11,12 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 type MessageLog = { id: number; parent_phone?: string | null; message?: string | null; retry_count?: number | null };
+type BillingPaymentReminder = {
+  id: number;
+  phone_number: string;
+  message: string;
+  retry_count?: number | null;
+};
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
@@ -20,34 +26,58 @@ export async function GET(request: Request) {
   }
   const today = new Date().toISOString().split("T")[0];
 
-  const { data: campaigns, error } = await supabase
-    .from("payment_reminders")
-    .select("*")
-    .eq("status", "scheduled")
-    .lte("scheduled_date", today);
+  const [campaignResponse, billingReminderResponse] = await Promise.all([
+    supabase
+      .from("payment_reminders")
+      .select("*")
+      .eq("status", "scheduled")
+      .lte("scheduled_date", today),
+    supabase
+      .from("billing_payment_reminders")
+      .select("id, phone_number, message, retry_count")
+      .in("status", ["scheduled", "retry"])
+      .lte("scheduled_date", today),
+  ]);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (campaignResponse.error || billingReminderResponse.error) {
+    return NextResponse.json(
+      {
+        error:
+          campaignResponse.error?.message || billingReminderResponse.error?.message,
+      },
+      { status: 500 }
+    );
   }
 
-  if (!campaigns || campaigns.length === 0) {
+  const campaigns = campaignResponse.data || [];
+  const billingReminders =
+    (billingReminderResponse.data || []) as BillingPaymentReminder[];
+
+  if (campaigns.length === 0 && billingReminders.length === 0) {
     return NextResponse.json({ message: "No due reminders" });
   }
 
-  const results = [];
+  const preschoolResults = [];
 
   for (const campaign of campaigns) {
     const result = await processCampaign(campaign.id);
-    results.push({
+    preschoolResults.push({
       reminder_id: campaign.id,
       ...result,
     });
   }
 
+  const dailyBloomResults = [];
+  for (const reminder of billingReminders) {
+    const result = await processBillingPaymentReminder(reminder);
+    dailyBloomResults.push({ reminder_id: reminder.id, ...result });
+  }
+
   return NextResponse.json({
     success: true,
-    processed: campaigns.length,
-    results,
+    processed: campaigns.length + billingReminders.length,
+    preschool_fee_reminders: preschoolResults,
+    dailybloom_subscription_reminders: dailyBloomResults,
   });
 }
 
@@ -186,6 +216,59 @@ async function sendSMS(msg: MessageLog): Promise<boolean> {
       .eq("id", msg.id);
 
     return false;
+  }
+}
+
+async function processBillingPaymentReminder(
+  reminder: BillingPaymentReminder
+) {
+  if ((reminder.retry_count || 0) >= 3) {
+    return { status: "failed", error: "Maximum delivery attempts reached." };
+  }
+
+  try {
+    const token = await getSmsPortalToken();
+    const phone = sanitizePhone(reminder.phone_number);
+    if (!phone || phone.length < 10) throw new Error("Invalid phone number");
+
+    const response = await fetch("https://rest.smsportal.com/v1/bulkmessages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        messages: [{ content: reminder.message, destination: phone }],
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result?.message || "SMS sending failed");
+
+    const { error } = await supabase
+      .from("billing_payment_reminders")
+      .update({
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        provider_message_id: result?.batchId || result?.id || null,
+        error_message: null,
+      })
+      .eq("id", reminder.id);
+    if (error) throw error;
+    return { status: "sent" };
+  } catch (error: unknown) {
+    const retryCount = (reminder.retry_count || 0) + 1;
+    const nextStatus = retryCount >= 3 ? "failed" : "retry";
+    const { error: updateError } = await supabase
+      .from("billing_payment_reminders")
+      .update({
+        status: nextStatus,
+        retry_count: retryCount,
+        error_message:
+          error instanceof Error ? error.message : "Unknown SMS error",
+      })
+      .eq("id", reminder.id);
+    if (updateError) throw updateError;
+    return { status: nextStatus };
   }
 }
 

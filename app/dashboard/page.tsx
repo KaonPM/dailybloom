@@ -58,21 +58,9 @@ type PaymentItem = {
   status?: string | null;
 };
 
-type ActivityItem = {
+type ClassroomItem = {
   id: number;
-  activity_date?: string | null;
-  class_name?: string | null;
-  classroom?: string | null;
-  subject?: string | null;
-  title?: string | null;
-  description?: string | null;
-  activity_note?: string | null;
-};
-
-type ClassroomActivitySummary = {
-  classroom: string;
-  firstActivity: ActivityItem;
-  additionalActivityCount: number;
+  classroom_name?: string | null;
 };
 
 type UpcomingBirthdayItem = {
@@ -113,9 +101,7 @@ export default function PrincipalDashboardPage() {
   const [upcomingBirthdays, setUpcomingBirthdays] = useState<
     UpcomingBirthdayItem[]
   >([]);
-  const [todayActivities, setTodayActivities] = useState<ActivityItem[]>([]);
-  const [selectedActivityClassroom, setSelectedActivityClassroom] =
-    useState("");
+  const [activityClassrooms, setActivityClassrooms] = useState<string[]>([]);
   const [consolidated, setConsolidated] = useState<ConsolidatedOverview>({
     presentToday: 0,
     absentToday: 0,
@@ -262,7 +248,7 @@ export default function PrincipalDashboardPage() {
     const dd = String(todayDay).padStart(2, "0");
     const todayDate = `${yyyy}-${mm}-${dd}`;
 
-    const [eventsRes, learnersRes, activitiesRes] = await Promise.all([
+    const [eventsRes, learnersRes, classroomsRes] = await Promise.all([
       supabase
         .from("events")
         .select("id, title, event_date")
@@ -279,16 +265,15 @@ export default function PrincipalDashboardPage() {
         .order("name", { ascending: true }),
 
       supabase
-        .from("activities")
-        .select("id, activity_date, class_name, subject, title, description")
+        .from("classrooms")
+        .select("id, classroom_name")
         .eq("school_id", currentSchoolId)
-        .eq("activity_date", todayDate)
-        .order("created_at", { ascending: true }),
+        .order("classroom_name", { ascending: true }),
     ]);
 
     const allEvents = (eventsRes.data || []) as EventItem[];
     const allLearners = (learnersRes.data || []) as LearnerItem[];
-    const allTodayActivities = (activitiesRes.data || []) as ActivityItem[];
+    const allClassrooms = (classroomsRes.data || []) as ClassroomItem[];
 
     const todaysEvents = allEvents.filter(
       (event) => String(event.event_date || "") === todayDate
@@ -357,7 +342,11 @@ export default function PrincipalDashboardPage() {
     setUpcomingEvents(nextUpcomingEvents);
     setBirthdaysToday(todaysBirthdays);
     setUpcomingBirthdays(computedUpcomingBirthdays);
-    setTodayActivities(allTodayActivities);
+    setActivityClassrooms(
+      allClassrooms
+        .map((classroom) => String(classroom.classroom_name || "").trim())
+        .filter(Boolean)
+    );
   }
 
   async function fetchConsolidatedOverview(currentSchoolId: number) {
@@ -450,10 +439,16 @@ export default function PrincipalDashboardPage() {
     return <p>School not found.</p>;
   }
 
-  const todayActivitiesByClassroom = groupActivitiesByClassroom(todayActivities);
-  const selectedClassroomActivity = todayActivitiesByClassroom.find(
-    (summary) => summary.classroom === selectedActivityClassroom
-  );
+  const visibleActivityClassrooms = activityClassrooms.slice(0, 5);
+  const additionalActivityClassrooms = activityClassrooms.slice(5);
+
+  function openTodaysActivities(classroom: string) {
+    const now = new Date();
+    const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    router.push(
+      `/activities?classroom=${encodeURIComponent(classroom)}&date=${todayDate}`
+    );
+  }
 
   return (
     <div
@@ -633,58 +628,51 @@ export default function PrincipalDashboardPage() {
 
         <CompactHighlightCard
           title="Today’s Activities"
-          subtitle="Planned for today"
-          href="/activities"
+          subtitle="Choose a class to view today’s plan"
           accentBackground="#EAF7FD"
           accentBorder="#CBEAF7"
-          footerText="Open activities"
+          footerText="Class activities open for today"
         >
-          <div style={{ display: "grid", gap: "7px" }}>
-            {todayActivitiesByClassroom.length > 0 ? (
+          <div style={{ display: "grid", gap: "8px" }}>
+            {activityClassrooms.length > 0 ? (
               <>
-                <select
-                  aria-label="Choose a classroom to view today's activity"
-                  value={selectedActivityClassroom}
-                  onChange={(event) =>
-                    setSelectedActivityClassroom(event.target.value)
-                  }
-                  style={compactActivitySelect}
-                >
-                  <option value="">Choose a classroom</option>
-                  {todayActivitiesByClassroom.map((summary) => (
-                    <option key={summary.classroom} value={summary.classroom}>
-                      {summary.classroom}
-                    </option>
+                <div style={compactClassroomList}>
+                  {visibleActivityClassrooms.map((classroom) => (
+                    <button
+                      key={classroom}
+                      type="button"
+                      onClick={() => openTodaysActivities(classroom)}
+                      style={compactClassroomButton}
+                    >
+                      {classroom}
+                    </button>
                   ))}
-                </select>
+                </div>
 
-                {selectedClassroomActivity ? (
-                  <div style={compactMiniCard}>
-                    <strong style={compactMiniTitle}>
-                      {selectedClassroomActivity.classroom}
-                    </strong>
-                  <p style={compactMiniText}>
-                    {selectedClassroomActivity.firstActivity.title ||
-                      selectedClassroomActivity.firstActivity.subject ||
-                      selectedClassroomActivity.firstActivity.description ||
-                      selectedClassroomActivity.firstActivity.activity_note ||
-                      "Planned activity"}
-                  </p>
-                    {selectedClassroomActivity.additionalActivityCount > 0 ? (
-                    <p style={compactMiniMeta}>
-                        + {selectedClassroomActivity.additionalActivityCount} more{" "}
-                        {selectedClassroomActivity.additionalActivityCount === 1
-                        ? "activity"
-                        : "activities"}
-                    </p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <CompactEmptyText text="Select a classroom to view today's activity." />
-                )}
+                {additionalActivityClassrooms.length > 0 ? (
+                  <select
+                    aria-label="More classrooms with activities"
+                    defaultValue=""
+                    onChange={(event) => {
+                      if (event.target.value) {
+                        openTodaysActivities(event.target.value);
+                      }
+                    }}
+                    style={compactActivitySelect}
+                  >
+                    <option value="">
+                      More classes ({additionalActivityClassrooms.length})
+                    </option>
+                    {additionalActivityClassrooms.map((classroom) => (
+                      <option key={classroom} value={classroom}>
+                        {classroom}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
               </>
             ) : (
-              <CompactEmptyText text="No activities planned for today." />
+              <CompactEmptyText text="No classrooms have been added yet." />
             )}
           </div>
         </CompactHighlightCard>
@@ -796,29 +784,6 @@ export default function PrincipalDashboardPage() {
         </div>
       </CollapsibleSection>
     </div>
-  );
-}
-
-function groupActivitiesByClassroom(
-  activities: ActivityItem[]
-): ClassroomActivitySummary[] {
-  const groupedActivities = new Map<string, ActivityItem[]>();
-
-  activities.forEach((activity) => {
-    const classroom = String(
-      activity.class_name || activity.classroom || "Unassigned classroom"
-    ).trim();
-    const existingActivities = groupedActivities.get(classroom) || [];
-    existingActivities.push(activity);
-    groupedActivities.set(classroom, existingActivities);
-  });
-
-  return Array.from(groupedActivities.entries()).map(
-    ([classroom, classroomActivities]) => ({
-      classroom,
-      firstActivity: classroomActivities[0],
-      additionalActivityCount: Math.max(classroomActivities.length - 1, 0),
-    })
   );
 }
 
@@ -938,26 +903,25 @@ function CompactHighlightCard({
 }: {
   title: string;
   subtitle: string;
-  href: string;
+  href?: string;
   accentBackground: string;
   accentBorder: string;
   footerText: string;
   children: React.ReactNode;
 }) {
-  return (
-    <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
-      <div
+  const card = (
+    <div
         style={{
           background: "#FFFFFF",
           border: "1px solid #F0E3D8",
           borderRadius: "20px",
           padding: "12px",
           boxShadow: "0 6px 16px rgba(45, 42, 62, 0.04)",
-          cursor: "pointer",
+          cursor: href ? "pointer" : "default",
           minHeight: "170px",
           height: "100%",
         }}
-      >
+    >
         <div
           style={{
             background: accentBackground,
@@ -1002,8 +966,15 @@ function CompactHighlightCard({
         >
           {footerText}
         </p>
-      </div>
+    </div>
+  );
+
+  return href ? (
+    <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
+      {card}
     </Link>
+  ) : (
+    card
   );
 }
 
@@ -1099,18 +1070,33 @@ const compactActivitySelect = {
   padding: "8px 10px",
 };
 
+const compactClassroomList = {
+  display: "flex",
+  flexWrap: "wrap" as const,
+  gap: "6px",
+};
+
+const compactClassroomButton = {
+  flex: "1 1 90px",
+  minHeight: "34px",
+  border: "1px solid #CBEAF7",
+  borderRadius: "10px",
+  background: "#FFFFFF",
+  color: "#2D2A3E",
+  cursor: "pointer",
+  fontSize: "12px",
+  fontWeight: 700,
+  padding: "7px 9px",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap" as const,
+};
+
 const compactMiniTitle = {
   display: "block",
   color: "#2D2A3E",
   fontSize: "13px",
   fontWeight: 600,
-};
-
-const compactMiniText = {
-  margin: "4px 0 0 0",
-  color: "#5B5675",
-  fontSize: "12px",
-  lineHeight: 1.4,
 };
 
 const compactMiniMeta = {

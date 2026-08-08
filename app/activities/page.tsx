@@ -52,6 +52,12 @@ export default function ActivitiesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const schoolParam = searchParams.get("school");
+  const requestedClassroom = (searchParams.get("classroom") || "").trim();
+  const requestedDateValue = searchParams.get("date") || "";
+  const requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDateValue)
+    ? requestedDateValue
+    : "";
+  const hasFocusedActivityDayView = Boolean(requestedDate);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -123,24 +129,35 @@ export default function ActivitiesPage() {
       setRole(currentRole);
       setSchoolId(context.schoolId);
       setClassroomName(teacherClass);
-      setSelectedClassName(teacherClass);
+      setSelectedClassName(teacherClass || requestedClassroom);
+      setActivityDate(requestedDate || today);
 
       let learnerQuery = supabase
         .from("learners")
         .select("*")
         .eq("school_id", context.schoolId)
         .order("name", { ascending: true });
-      if (teacherClass) learnerQuery = learnerQuery.eq("class", teacherClass);
+      if (teacherClass) {
+        learnerQuery = learnerQuery.eq("class", teacherClass);
+      } else if (requestedClassroom) {
+        learnerQuery = learnerQuery.eq("class", requestedClassroom);
+      }
 
       let activityQuery = supabase
         .from("activities")
         .select("*")
         .eq("school_id", context.schoolId)
-        .gte("activity_date", today)
         .order("activity_date", { ascending: true })
         .order("created_at", { ascending: true });
+      if (requestedDate) {
+        activityQuery = activityQuery.eq("activity_date", requestedDate);
+      } else {
+        activityQuery = activityQuery.gte("activity_date", today);
+      }
       if (currentRoleLower === "teacher" && teacherClass) {
         activityQuery = activityQuery.eq("class_name", teacherClass);
+      } else if (requestedClassroom) {
+        activityQuery = activityQuery.eq("class_name", requestedClassroom);
       }
 
       const [classroomResult, libraryResult, learnerResult, activityResult] = await Promise.all([
@@ -174,7 +191,7 @@ export default function ActivitiesPage() {
     }
 
     void loadPage();
-  }, [router, schoolParam, today]);
+  }, [router, requestedClassroom, requestedDate, schoolParam, today]);
 
   useEffect(() => {
     if (!schoolId) return;
@@ -228,12 +245,19 @@ export default function ActivitiesPage() {
       .from("activities")
       .select("*")
       .eq("school_id", currentSchoolId)
-      .gte("activity_date", today)
       .order("activity_date", { ascending: true })
       .order("created_at", { ascending: true });
 
+    if (requestedDate) {
+      query = query.eq("activity_date", requestedDate);
+    } else {
+      query = query.gte("activity_date", today);
+    }
+
     if (roleLower === "teacher" && teacherClass) {
       query = query.eq("class_name", teacherClass);
+    } else if (requestedClassroom) {
+      query = query.eq("class_name", requestedClassroom);
     }
 
     const { data, error } = await query;
@@ -485,7 +509,9 @@ export default function ActivitiesPage() {
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">Activities</h2>
         <p className="db-page-subtitle">
-          Practitioners capture daily activities. Principals manage the activity library and view support needs.
+          {hasFocusedActivityDayView
+            ? `Viewing activities planned for ${requestedClassroom || "this school"} on ${requestedDate}.`
+            : "Practitioners capture daily activities. Principals manage the activity library and view support needs."}
         </p>
 
         {schoolParam && schoolId ? (
@@ -497,11 +523,21 @@ export default function ActivitiesPage() {
         {isTeacher && classroomName ? (
           <p style={smallText}>Practitioner view: {classroomName}</p>
         ) : canManageLibrary ? (
-          <p style={smallText}>Principal view: activity library and school activities</p>
+          <p style={smallText}>
+            {hasFocusedActivityDayView
+              ? "Principal view: selected class and day"
+              : "Principal view: activity library and school activities"}
+          </p>
+        ) : null}
+
+        {hasFocusedActivityDayView ? (
+          <Link href="/activities" className="db-button-secondary" style={{ marginTop: 10 }}>
+            View All Activities
+          </Link>
         ) : null}
       </div>
 
-      {canManageLibrary ? (
+      {canManageLibrary && !hasFocusedActivityDayView ? (
         <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
           <div style={topRow}>
             <div>
@@ -748,7 +784,11 @@ export default function ActivitiesPage() {
 
       <div className="db-card db-card-green" style={{ padding: 16 }}>
         <h3 style={sectionTitle}>
-          {isTeacher ? "My Upcoming Activities" : "School Activities"} ({activities.length})
+          {hasFocusedActivityDayView
+            ? `Today’s Activities${requestedClassroom ? ` — ${requestedClassroom}` : ""}`
+            : isTeacher
+              ? "My Upcoming Activities"
+              : "School Activities"} ({activities.length})
         </h3>
 
         {activities.length === 0 ? (

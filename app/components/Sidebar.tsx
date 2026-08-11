@@ -202,6 +202,8 @@ export default function Sidebar() {
   const schoolManagementNav = useMemo<NavItem[]>(
     () => [
       { label: "Learners", href: "/children", match: ["/children"], permission: PERMISSIONS.LEARNERS_MANAGE },
+      { label: "Enrolments", href: "/enrolments", match: ["/enrolments"], permission: PERMISSIONS.LEARNERS_MANAGE },
+      { label: "Re-enrolments", href: "/re-enrolments", match: ["/re-enrolments"], permission: PERMISSIONS.SCHOOL_MANAGE },
       { label: "Classrooms", href: "/classrooms", match: ["/classrooms"], permission: PERMISSIONS.CLASSROOM_ASSIGN },
       {
         label: "Learner Attendance",
@@ -292,6 +294,12 @@ export default function Sidebar() {
         href: "/school-documents",
         match: ["/school-documents"],
         permission: PERMISSIONS.SCHOOL_DOCUMENTS_MANAGE,
+      },
+      {
+        label: "School Setup",
+        href: "/school-setup",
+        match: ["/school-setup"],
+        permission: PERMISSIONS.SCHOOL_MANAGE,
       },
       { label: "Billing Overview", href: "/billing", match: [], permission: PERMISSIONS.BILLING_MANAGE },
     ],

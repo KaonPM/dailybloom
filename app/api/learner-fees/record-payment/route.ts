@@ -5,6 +5,7 @@ import {
   writeSecurityAudit,
 } from "@/app/lib/server-authorization";
 import { PERMISSIONS } from "@/app/lib/permissions";
+import { recordCommunicationNotification } from "@/app/lib/communication-notification-centre";
 
 function createReceiptNumber(schoolId: number) {
   const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
@@ -20,7 +21,7 @@ async function sendParentPush(
   const appId =
     process.env.ONESIGNAL_APP_ID || process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
   const key = process.env.ONESIGNAL_REST_API_KEY;
-  if (!appId || !key || !phone) return { skipped: true };
+  if (!appId || !key || !phone) return { skipped: true, providerMessageId: null };
 
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL || "https://www.dailybloom.co.za";
@@ -43,9 +44,10 @@ async function sendParentPush(
   });
   if (!response.ok) {
     console.error("Parent fee push failed:", await response.text());
-    return { skipped: true };
+    return { skipped: true, providerMessageId: null };
   }
-  return { skipped: false };
+  const payload = await response.json().catch(() => ({}));
+  return { skipped: false, providerMessageId: String(payload?.id || "") || null };
 }
 
 export async function POST(request: Request) {
@@ -262,6 +264,22 @@ export async function POST(request: Request) {
       String(learner.name || "your child"),
       receipt
     );
+    await recordCommunicationNotification({
+      schoolId,
+      learnerId,
+      channel: "push",
+      communicationType: "learner_fee_payment_receipt",
+      sourceType: "learner_fee_payment",
+      sourceId: String(paymentResult.data.id),
+      status: push.skipped ? "skipped" : "sent",
+      recipientName: String(learner.name || ""),
+      recipientPhone: String(learner.parent_phone || "") || null,
+      subject: String(schoolResult.data?.school_name || "DailyBloom"),
+      bodyPreview: `Payment recorded for ${learner.name}. Receipt ${receipt} is available.`,
+      providerMessageId: push.providerMessageId,
+      sentAt: push.skipped ? null : new Date().toISOString(),
+      createdBy: authorization.staff.userId,
+    });
     return NextResponse.json({
       success: true,
       receipt_number: receipt,

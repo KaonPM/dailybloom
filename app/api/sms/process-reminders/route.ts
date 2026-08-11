@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { recordCommunicationNotification } from "@/app/lib/communication-notification-centre";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -13,6 +14,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 type MessageLog = { id: number; parent_phone?: string | null; message?: string | null; retry_count?: number | null };
 type BillingPaymentReminder = {
   id: number;
+  school_id: number;
   phone_number: string;
   message: string;
   retry_count?: number | null;
@@ -34,7 +36,7 @@ export async function GET(request: Request) {
       .lte("scheduled_date", today),
     supabase
       .from("billing_payment_reminders")
-      .select("id, phone_number, message, retry_count")
+      .select("id, school_id, phone_number, message, retry_count")
       .in("status", ["scheduled", "retry"])
       .lte("scheduled_date", today),
   ]);
@@ -60,7 +62,7 @@ export async function GET(request: Request) {
   const preschoolResults = [];
 
   for (const campaign of campaigns) {
-    const result = await processCampaign(campaign.id);
+    const result = await processCampaign(campaign.id, Number(campaign.school_id || 0));
     preschoolResults.push({
       reminder_id: campaign.id,
       ...result,
@@ -81,7 +83,7 @@ export async function GET(request: Request) {
   });
 }
 
-async function processCampaign(reminderId: number) {
+async function processCampaign(reminderId: number, schoolId: number) {
   const { data: messages, error } = await supabase
     .from("message_logs")
     .select("*")
@@ -120,7 +122,7 @@ async function processCampaign(reminderId: number) {
       continue;
     }
 
-    const sent = await sendSMS(msg);
+    const sent = await sendSMS(msg, schoolId);
 
     if (sent) {
       sentCount++;
@@ -163,7 +165,7 @@ function sanitizePhone(phone?: string | null) {
   return cleaned;
 }
 
-async function sendSMS(msg: MessageLog): Promise<boolean> {
+async function sendSMS(msg: MessageLog, schoolId: number): Promise<boolean> {
   try {
     const token = await getSmsPortalToken();
     const phone = sanitizePhone(msg.parent_phone);
@@ -204,16 +206,48 @@ async function sendSMS(msg: MessageLog): Promise<boolean> {
       })
       .eq("id", msg.id);
 
+    if (schoolId > 0) {
+      await recordCommunicationNotification({
+        schoolId,
+        channel: "sms",
+        communicationType: "learner_fee_payment_reminder",
+        sourceType: "message_log",
+        sourceId: String(msg.id),
+        status: "sent",
+        recipientPhone: phone,
+        bodyPreview: msg.message,
+        providerMessageId: String(result?.batchId || result?.id || "") || null,
+        sentAt: new Date().toISOString(),
+      });
+    }
+
     return true;
   } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : "Unknown SMS error";
     await supabase
       .from("message_logs")
       .update({
         status: "retry",
         retry_count: (msg.retry_count || 0) + 1,
-        error_message: err instanceof Error ? err.message : "Unknown SMS error",
+        error_message: errorMessage,
       })
       .eq("id", msg.id);
+
+    if (schoolId > 0) {
+      await recordCommunicationNotification({
+        schoolId,
+        channel: "sms",
+        communicationType: "learner_fee_payment_reminder",
+        sourceType: "message_log",
+        sourceId: String(msg.id),
+        status: (msg.retry_count || 0) + 1 >= 3 ? "failed" : "retry_scheduled",
+        recipientPhone: sanitizePhone(msg.parent_phone),
+        bodyPreview: msg.message,
+        attemptCount: (msg.retry_count || 0) + 1,
+        failedAt: (msg.retry_count || 0) + 1 >= 3 ? new Date().toISOString() : null,
+        errorMessage,
+      });
+    }
 
     return false;
   }
@@ -254,6 +288,18 @@ async function processBillingPaymentReminder(
       })
       .eq("id", reminder.id);
     if (error) throw error;
+    await recordCommunicationNotification({
+      schoolId: reminder.school_id,
+      channel: "sms",
+      communicationType: "dailybloom_subscription_payment_reminder",
+      sourceType: "billing_payment_reminder",
+      sourceId: String(reminder.id),
+      status: "sent",
+      recipientPhone: phone,
+      bodyPreview: reminder.message,
+      providerMessageId: String(result?.batchId || result?.id || "") || null,
+      sentAt: new Date().toISOString(),
+    });
     return { status: "sent" };
   } catch (error: unknown) {
     const retryCount = (reminder.retry_count || 0) + 1;
@@ -268,6 +314,19 @@ async function processBillingPaymentReminder(
       })
       .eq("id", reminder.id);
     if (updateError) throw updateError;
+    await recordCommunicationNotification({
+      schoolId: reminder.school_id,
+      channel: "sms",
+      communicationType: "dailybloom_subscription_payment_reminder",
+      sourceType: "billing_payment_reminder",
+      sourceId: String(reminder.id),
+      status: nextStatus === "failed" ? "failed" : "retry_scheduled",
+      recipientPhone: sanitizePhone(reminder.phone_number),
+      bodyPreview: reminder.message,
+      attemptCount: retryCount,
+      failedAt: nextStatus === "failed" ? new Date().toISOString() : null,
+      errorMessage: error instanceof Error ? error.message : "Unknown SMS error",
+    });
     return { status: nextStatus };
   }
 }

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { OneSignalClient } from "@/app/components/RegisterServiceWorker";
 
 const menuItems = [
+  { label: "Re-enrolment", href: "/parent/re-enrolment" },
   { label: "🏠 Dashboard", href: "/parent/dashboard" },
   { label: "📅 Events", href: "/parent/dashboard#events" },
   { label: "💬 Messages", href: "/parent/messages" },

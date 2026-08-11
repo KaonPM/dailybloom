@@ -6,6 +6,7 @@ import {
   writeSecurityAudit,
 } from "@/app/lib/server-authorization";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { recordCommunicationNotification } from "@/app/lib/communication-notification-centre";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -144,7 +145,7 @@ async function sendParentPush(
   const restApiKey = process.env.ONESIGNAL_REST_API_KEY;
 
   if (!appId || !restApiKey || parentPhones.length === 0) {
-    return { sent: false, skipped: true };
+    return { sent: false, skipped: true, providerMessageId: null };
   }
 
   const siteUrl =
@@ -169,7 +170,8 @@ async function sendParentPush(
     throw new Error((await response.text()) || "OneSignal notification failed.");
   }
 
-  return { sent: true, skipped: false };
+  const result = (await response.json().catch(() => ({}))) as { id?: string };
+  return { sent: true, skipped: false, providerMessageId: result.id || null };
 }
 
 async function deliverBroadcast({
@@ -213,11 +215,41 @@ async function deliverBroadcast({
   }
 
   try {
-    await sendParentPush(await getSchoolName(schoolId), title, message, parentPhones);
+    const push = await sendParentPush(
+      await getSchoolName(schoolId),
+      title,
+      message,
+      parentPhones
+    );
+    await recordCommunicationNotification({
+      schoolId,
+      channel: "push",
+      communicationType: "Broadcast",
+      subject: title,
+      bodyPreview: message,
+      recipientCount: parentPhones.length,
+      status: push.sent ? "sent" : "skipped",
+      providerMessageId: push.providerMessageId || null,
+      sourceType: "broadcast_push",
+      metadata: { provider: "onesignal", parent_phones: parentPhones },
+    });
   } catch (pushError) {
     // The broadcast and parent dashboard update remain available even if a
     // device has not subscribed to push notifications or the provider fails.
     console.error("Could not send broadcast push notification:", pushError);
+    await recordCommunicationNotification({
+      schoolId,
+      channel: "push",
+      communicationType: "Broadcast",
+      subject: title,
+      bodyPreview: message,
+      recipientCount: parentPhones.length,
+      status: "failed",
+      errorMessage:
+        pushError instanceof Error ? pushError.message : "Push notification failed.",
+      sourceType: "broadcast_push",
+      metadata: { provider: "onesignal" },
+    });
   }
 
   return parentPhones.length;

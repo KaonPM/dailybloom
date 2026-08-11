@@ -4,41 +4,38 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type Learner = {
-  id: number;
+  id: string;
   name: string;
   parent_phone?: string | null;
   class?: string | null;
 };
 
 type CommunicationRow = {
-  id: number;
+  id: string;
   school_id?: number | null;
-  learner_name?: string | null;
-  parent_phone?: string | null;
+  learner_id?: string | null;
+  recipient_name?: string | null;
+  recipient_phone?: string | null;
+  recipient_email?: string | null;
+  recipient_count?: number | null;
+  channel?: string | null;
   communication_type?: string | null;
-  message?: string | null;
+  subject?: string | null;
+  body_preview?: string | null;
   status?: string | null;
-  sent_date?: string | null;
+  sent_at?: string | null;
+  delivered_at?: string | null;
+  read_at?: string | null;
+  failed_at?: string | null;
+  error_message?: string | null;
   created_at?: string | null;
 };
 
-const communicationTypes = [
-  "All",
-  "Daily Summary",
-  "Broadcast",
-  "Payment Reminder",
-  "Learner Requirements",
-  "Homework",
-  "Incident Report",
-  "Parent Permission",
-  "Achievement Award",
-  "Fee Payment Receipt",
-  "General Message",
-];
-
-const statusOptions = ["All", "Sent", "Pending", "Failed", "Copied"];
+const channelOptions = ["All", "Parent Portal", "In App", "Push", "SMS", "WhatsApp", "Email"];
+const statusOptions = ["All", "Queued", "Sending", "Sent", "Delivered", "Read", "Retry Scheduled", "Failed", "Skipped"];
 
 export default function CommunicationsPage() {
   const router = useRouter();
@@ -52,7 +49,7 @@ export default function CommunicationsPage() {
   const [records, setRecords] = useState<CommunicationRow[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<CommunicationRow | null>(null);
 
-  const [communicationType, setCommunicationType] = useState("All");
+  const [channel, setChannel] = useState("All");
   const [status, setStatus] = useState("All");
   const [learnerName, setLearnerName] = useState("");
   const [phoneSearch, setPhoneSearch] = useState("");
@@ -111,40 +108,25 @@ export default function CommunicationsPage() {
 
     setRunning(true);
 
-    let query = supabase
-      .from("communications")
-      .select("*")
-      .eq("school_id", schoolId)
-      .gte("sent_date", fromDate)
-      .lte("sent_date", toDate)
-      .order("sent_date", { ascending: false })
-      .order("created_at", { ascending: false });
+    const learner = learners.find((item) => item.name === learnerName);
+    const params = new URLSearchParams({ school_id: String(schoolId), from: fromDate, to: toDate });
+    if (channel !== "All") params.set("channel", channel.toLowerCase().replace(" ", "_"));
+    if (status !== "All") params.set("status", status.toLowerCase().replace(" ", "_"));
+    if (learner?.id) params.set("learner_id", learner.id);
+    if (generalSearch.trim()) params.set("search", generalSearch.trim());
 
-    if (communicationType !== "All") {
-      query = query.eq("communication_type", communicationType);
-    }
-
-    if (status !== "All") {
-      query = query.eq("status", status);
-    }
-
-    if (learnerName) {
-      query = query.eq("learner_name", learnerName);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      alert(error.message);
+    const response = await authenticatedFetch(`/api/communications/notification-centre?${params.toString()}`);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      alert(payload.error || "Could not load communication history.");
       setRunning(false);
       return;
     }
-
-    let rows = (data || []) as CommunicationRow[];
+    let rows = (payload.notifications || []) as CommunicationRow[];
 
     if (phoneSearch.trim()) {
       rows = rows.filter((row) =>
-        String(row.parent_phone || "")
+        String(row.recipient_phone || "")
           .toLowerCase()
           .includes(phoneSearch.trim().toLowerCase())
       );
@@ -155,11 +137,14 @@ export default function CommunicationsPage() {
 
       rows = rows.filter((row) => {
         const combined = [
-          row.learner_name,
-          row.parent_phone,
+          row.recipient_name,
+          row.recipient_phone,
+          row.recipient_email,
+          row.channel,
           row.communication_type,
           row.status,
-          row.message,
+          row.subject,
+          row.body_preview,
         ]
           .join(" ")
           .toLowerCase();
@@ -180,12 +165,14 @@ export default function CommunicationsPage() {
     }
 
     const headers: (keyof CommunicationRow)[] = [
-      "sent_date",
-      "learner_name",
-      "parent_phone",
+      "created_at",
+      "recipient_name",
+      "recipient_phone",
+      "recipient_email",
+      "channel",
       "communication_type",
       "status",
-      "message",
+      "body_preview",
     ];
 
     const csvRows = [
@@ -231,7 +218,7 @@ export default function CommunicationsPage() {
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">Communications</h2>
         <p className="db-page-subtitle">
-          Track broadcast and generated parent communication records by type, learner, phone number, and date range. Private conversations are managed from Messages.
+          Review parent portal, in-app, push, SMS, WhatsApp and email communication in one secure history.
         </p>
       </div>
 
@@ -240,13 +227,13 @@ export default function CommunicationsPage() {
 
         <div style={grid}>
           <div>
-            <p style={labelText}>Communication Type</p>
+            <p style={labelText}>Channel</p>
             <select
               className="db-input"
-              value={communicationType}
-              onChange={(e) => setCommunicationType(e.target.value)}
+              value={channel}
+              onChange={(e) => setChannel(e.target.value)}
             >
-              {communicationTypes.map((type) => (
+              {channelOptions.map((type) => (
                 <option key={type}>{type}</option>
               ))}
             </select>
@@ -342,16 +329,18 @@ export default function CommunicationsPage() {
         <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
           <h3 style={sectionTitle}>Communication Details</h3>
 
-          <p style={smallText}>Learner: {selectedRecord.learner_name || "Not linked"}</p>
-          <p style={smallText}>Phone: {selectedRecord.parent_phone || "Not added"}</p>
+          <p style={smallText}>Recipient: {selectedRecord.recipient_name || "Not linked"}</p>
+          <p style={smallText}>Phone: {selectedRecord.recipient_phone || "Not added"}</p>
+          <p style={smallText}>Email: {selectedRecord.recipient_email || "Not added"}</p>
+          <p style={smallText}>Channel: {selectedRecord.channel || "Not added"}</p>
           <p style={smallText}>
             Type: {selectedRecord.communication_type || "Not added"}
           </p>
           <p style={smallText}>Status: {selectedRecord.status || "Not added"}</p>
-          <p style={smallText}>Date: {selectedRecord.sent_date || "No date"}</p>
+          <p style={smallText}>Date: {selectedRecord.sent_at || selectedRecord.created_at || "No date"}</p>
 
           <div style={messageBox}>
-            {selectedRecord.message || "No message content saved."}
+            {selectedRecord.body_preview || "No message preview saved."}
           </div>
 
           <button
@@ -381,12 +370,12 @@ export default function CommunicationsPage() {
                 onClick={() => setSelectedRecord(record)}
                 style={recordButton}
               >
-                <span style={pillBlue}>{record.sent_date || "No date"}</span>
+                <span style={pillBlue}>{String(record.sent_at || record.created_at || "No date").slice(0, 10)}</span>
 
-                <strong>{record.learner_name || "General"}</strong>
+                <strong>{record.recipient_name || "General"}</strong>
 
                 <span style={pillNeutral}>
-                  {record.communication_type || "Message"}
+                  {record.channel || "Message"}
                 </span>
 
                 <span style={pillStatus}>{record.status || "Saved"}</span>

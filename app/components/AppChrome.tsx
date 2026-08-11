@@ -29,6 +29,7 @@ export default function AppChrome({
 
   const isPublicRoute =
     publicRoutes.includes(pathname) ||
+    pathname.startsWith("/enrolment/") ||
     pathname.startsWith("/legal") ||
     pathname.startsWith("/privacy") ||
     pathname.startsWith("/terms");

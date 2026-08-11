@@ -1,6 +1,7 @@
 import "server-only";
 import { Resend } from "resend";
 import { supabaseAdmin } from "./supabase-admin";
+import { recordCommunicationNotification } from "./communication-notification-centre";
 
 type OutboxRow = {
   id: string;
@@ -149,6 +150,24 @@ async function sendPaymentReceipt(paymentId: number) {
       </div>`,
   });
   if (error) throw new Error(error.message);
+
+  await recordCommunicationNotification({
+    schoolId: Number(payment.school_id),
+    recipientName: contact.full_name || null,
+    recipientEmail: contact.email,
+    channel: "email",
+    communicationType: "Payment receipt",
+    subject: `Payment Received - ${school.school_name || "DailyBloom"}`,
+    bodyPreview: `${paymentType} payment receipt ${payment.receipt_number}`,
+    status: "sent",
+    sourceType: "billing_payment_receipt",
+    sourceId: String(payment.id),
+    metadata: {
+      provider: "resend",
+      receipt_number: payment.receipt_number,
+      receipt_url: receiptUrl,
+    },
+  });
 }
 
 export async function processBillingReceiptOutbox(options?: {
@@ -188,6 +207,18 @@ export async function processBillingReceiptOutbox(options?: {
       summary.sent += 1;
       summary.results.push({ payment_id: Number(row.payment_id), sent: true });
     } catch (error) {
+      await recordCommunicationNotification({
+        schoolId: Number(row.school_id),
+        channel: "email",
+        communicationType: "Payment receipt",
+        subject: "Payment receipt delivery",
+        bodyPreview: `Payment receipt for payment ${row.payment_id}`,
+        status: "failed",
+        sourceType: "billing_payment_receipt",
+        sourceId: String(row.payment_id),
+        errorMessage: error instanceof Error ? error.message : "Email delivery failed.",
+        metadata: { provider: "resend" },
+      });
       const reason =
         error instanceof Error ? error.message : "Receipt delivery failed.";
       const terminal = Number(row.attempts || 0) >= 5;

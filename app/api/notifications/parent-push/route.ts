@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
 import { PERMISSIONS } from "@/app/lib/permissions";
+import { recordCommunicationNotification } from "@/app/lib/communication-notification-centre";
 
 type ParentPushType = "daily_summary" | "broadcast" | "incident_report" | "parent_permission";
 
@@ -53,7 +54,7 @@ async function sendOneSignalPush({
   const restApiKey = process.env.ONESIGNAL_REST_API_KEY;
 
   if (!appId || !restApiKey || externalIds.length === 0) {
-    return { skipped: true };
+    return { skipped: true, providerMessageId: null };
   }
 
   const response = await fetch("https://api.onesignal.com/notifications", {
@@ -83,7 +84,8 @@ async function sendOneSignalPush({
     throw new Error(errorText || "OneSignal notification failed.");
   }
 
-  return { skipped: false };
+  const payload = await response.json().catch(() => ({}));
+  return { skipped: false, providerMessageId: String(payload?.id || "") || null };
 }
 
 export async function POST(request: Request) {
@@ -145,6 +147,22 @@ export async function POST(request: Request) {
       title,
       message,
       url,
+    });
+    await recordCommunicationNotification({
+      schoolId,
+      channel: "push",
+      communicationType: type,
+      sourceType: "parent_push",
+      sourceId: String(body.source_id || crypto.randomUUID()),
+      status: result.skipped ? "skipped" : "sent",
+      recipientPhone: externalIds.length === 1 ? externalIds[0] : null,
+      recipientCount: externalIds.length,
+      subject: title,
+      bodyPreview: message,
+      providerMessageId: result.providerMessageId,
+      sentAt: result.skipped ? null : new Date().toISOString(),
+      metadata: { destination_url: url },
+      createdBy: authorization.staff.userId,
     });
     await writeSecurityAudit(authorization.staff, "parent.notification_sent", { school_id: schoolId, type, recipients: externalIds.length });
 

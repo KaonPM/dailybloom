@@ -133,6 +133,26 @@ textarea {
   border-top: 6px solid var(--db-lavender);
 }
 
+.db-public-page {
+  width: min(920px, calc(100% - 32px));
+  margin: 32px auto;
+  display: grid;
+  gap: 18px;
+}
+
+.db-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 215, 106, 0.32);
+  color: var(--db-text);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .db-button-primary {
   display: inline-flex;
   align-items: center;

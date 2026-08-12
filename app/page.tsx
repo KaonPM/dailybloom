@@ -355,6 +355,8 @@ export default function LandingPage() {
               <Link href="/privacy" style={footerLink}>Privacy Policy</Link>
               <span style={{ margin: "0 8px" }}>|</span>
               <Link href="/terms" style={footerLink}>Terms & Conditions</Link>
+              <span style={{ margin: "0 8px" }}>|</span>
+              <Link href="/data-deletion" style={footerLink}>Data Deletion</Link>
             </p>
             <p style={footerText}>© 2026 DailyBloom. All rights reserved.</p>
             <p style={footerText}>

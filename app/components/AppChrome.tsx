@@ -19,6 +19,7 @@ export default function AppChrome({
     "/change-password",
     "/legal",
     "/privacy",
+    "/data-deletion",
     "/terms",
 
     // Parent auth pages
@@ -32,6 +33,7 @@ export default function AppChrome({
     pathname.startsWith("/enrolment/") ||
     pathname.startsWith("/legal") ||
     pathname.startsWith("/privacy") ||
+    pathname.startsWith("/data-deletion") ||
     pathname.startsWith("/terms");
 
   // Public pages

@@ -220,20 +220,23 @@ export default function LandingPage() {
                 isMobile={isMobile}
                 isOpen={openPackage === "Bloom"}
                 onClick={() => setOpenPackage(openPackage === "Bloom" ? null : "Bloom")}
-                items={[
-                  "Learner profiles and document storage",
-                  "Classrooms",
-                  "Attendance register",
-                  "Events calendar",
-                  "Daily summaries",
-                  "Broadcast messaging",
-                  "Payment reminders",
-                  "Achievement Awards",
-                  "Developmental Reports",
-                  "Grade RR Reports",
-                  "Grade R Reports",
-                  "DBE compliance document storage",
-                  "School branding",
+                groups={[
+                  {
+                    title: "Learner records",
+                    items: ["Learner profiles", "Learner documents and requirements", "Attendance register"],
+                  },
+                  {
+                    title: "Daily school operations",
+                    items: ["Events calendar", "Daily summaries", "Achievement awards"],
+                  },
+                  {
+                    title: "Parent communication",
+                    items: ["Secure parent portal", "Parent messages and broadcasts", "Payment reminders"],
+                  },
+                  {
+                    title: "Safety and compliance",
+                    items: ["Incident records", "Parent consent records", "DBE compliance document storage", "School branding"],
+                  },
                 ]}
               />
 
@@ -247,37 +250,48 @@ export default function LandingPage() {
                 isOpen={openPackage === "Bloom Pro"}
                 onClick={() => setOpenPackage(openPackage === "Bloom Pro" ? null : "Bloom Pro")}
                 badge="Popular"
-                items={[
-                  "Everything in Bloom",
-                  "Multiple classrooms",
-                  "Practitioner management",
-                  "Advanced reporting dashboard",
-                  "Saved summaries",
-                  "Summary history",
-                  "Monthly report generation",
-                  "Parent communication tracking",
-                  "School performance insights",
-                  "Priority support",
+                groups={[
+                  {
+                    title: "Everything in Bloom",
+                    items: ["All Bloom learner, operations, communication and compliance features"],
+                  },
+                  {
+                    title: "Reports and learner development",
+                    items: ["Developmental Reports", "Grade RR Reports", "Grade R Learner Reports", "Saved report history"],
+                  },
+                  {
+                    title: "Learner support",
+                    items: ["Learner support register", "Interventions and follow-ups", "Printable support summaries"],
+                  },
+                  {
+                    title: "School oversight",
+                    items: ["Advanced reporting dashboard", "Monthly report generation", "Parent communication tracking", "School performance insights", "Priority support"],
+                  },
                 ]}
               />
 
               <PackageCard
                 name="Bloom Elite"
                 price="R499/month"
-                learners="60+ learners"
+                learners="61+ learners"
                 summary="For schools that want fuller operational support across school admin, staff, and payroll records."
                 accent="#57C785"
                 isMobile={isMobile}
                 isOpen={openPackage === "Bloom Elite"}
                 onClick={() => setOpenPackage(openPackage === "Bloom Elite" ? null : "Bloom Elite")}
-                items={[
-                  "Everything in Bloom Pro",
-                  "Unlimited classrooms",
-                  "Unlimited staff accounts",
-                  "Advanced compliance tracking",
-                  "School-wide analytics",
-                  "WageFlow included",
-                  "Dedicated onboarding support",
+                groups={[
+                  {
+                    title: "Everything in Bloom Pro",
+                    items: ["All Bloom Pro reporting, learner support and school oversight features"],
+                  },
+                  {
+                    title: "Advanced school intelligence",
+                    items: ["School-wide analytics", "Advanced exports", "Advanced compliance tracking"],
+                  },
+                  {
+                    title: "Operations and support",
+                    items: ["WageFlow included", "Dedicated onboarding support", "Priority support"],
+                  },
                 ]}
               />
             </div>
@@ -427,7 +441,7 @@ function PackageCard({
   isMobile,
   isOpen,
   onClick,
-  items,
+  groups,
   badge,
 }: {
   name: string;
@@ -438,7 +452,7 @@ function PackageCard({
   isMobile: boolean;
   isOpen: boolean;
   onClick: () => void;
-  items: string[];
+  groups: Array<{ title: string; items: string[] }>;
   badge?: string;
 }) {
   return (
@@ -481,11 +495,20 @@ function PackageCard({
       </button>
 
       {isOpen && (
-        <ul style={{ margin: "12px 0 0 18px", padding: 0, color: "#5F6275", lineHeight: 1.7, fontSize: isMobile ? 14 : 15 }}>
-          {items.map((item) => (
-            <li key={item}>{item}</li>
+        <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
+          {groups.map((group) => (
+            <div key={group.title}>
+              <h4 style={{ margin: "0 0 5px", color: "#2D2A3E", fontSize: isMobile ? 14 : 15 }}>
+                {group.title}
+              </h4>
+              <ul style={{ margin: "0 0 0 18px", padding: 0, color: "#5F6275", lineHeight: 1.65, fontSize: isMobile ? 14 : 15 }}>
+                {group.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

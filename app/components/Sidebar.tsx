@@ -36,6 +36,14 @@ type NavItem = {
   permission?: Permission;
 };
 
+type WorkflowGroup = {
+  key: string;
+  label: string;
+  color: string;
+  items: NavItem[];
+  externalItems?: Array<{ label: string; href: string }>;
+};
+
 function displayRole(role?: string | null) {
   if (!role) return "";
   if (role.toLowerCase() === "teacher") return "Practitioner";
@@ -59,10 +67,8 @@ export default function Sidebar() {
   const [filteredSchoolManagementNav, setFilteredSchoolManagementNav] = useState<NavItem[]>([]);
   const [filteredTeacherSchoolManagementNav, setFilteredTeacherSchoolManagementNav] = useState<NavItem[]>([]);
 
-  const [dbeOpen, setDbeOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(true);
-  const [schoolManagementOpen, setSchoolManagementOpen] = useState(false);
-  const [staffAccessOpen, setStaffAccessOpen] = useState(false);
+  const [openWorkflowGroups, setOpenWorkflowGroups] = useState<Record<string, boolean>>({});
 
   const masterNav = useMemo<NavItem[]>(
     () => [
@@ -518,10 +524,7 @@ export default function Sidebar() {
   const showSchoolActions = !isMasterAdmin && (Boolean(school) || !isMaster);
 
   useEffect(() => {
-    if (isTeacher) {
-      setQuickActionsOpen(true);
-      setSchoolManagementOpen(true);
-    }
+    if (isTeacher) setQuickActionsOpen(true);
   }, [isTeacher]);
 
   useEffect(() => {
@@ -643,6 +646,152 @@ export default function Sidebar() {
   const visibleQuickActionsNav = isTeacher
     ? filteredTeacherQuickActionsNav
     : filteredQuickActionsNav;
+
+  const visibleSchoolNav = isTeacher
+    ? filteredTeacherSchoolManagementNav
+    : filteredSchoolManagementNav;
+
+  function itemsNamed(...labels: string[]) {
+    const wanted = new Set(labels);
+    return visibleSchoolNav.filter((item) => wanted.has(item.label));
+  }
+
+  const messagesNavItem: NavItem = {
+    label: "Messages",
+    href: "/messages",
+    match: ["/messages"],
+  };
+
+  const workflowGroups: WorkflowGroup[] = isTeacher
+    ? [
+        {
+          key: "daily-classroom",
+          label: "Daily Classroom",
+          color: "#22C55E",
+          items: itemsNamed(
+            "Attendance",
+            "Classroom Activities",
+            "Daily Summaries",
+            "Events"
+          ),
+        },
+        {
+          key: "learner-development",
+          label: "Learner Development",
+          color: "#7C3AED",
+          items: itemsNamed(
+            "Progress Reports",
+            "Incident Reports",
+            "Achievement Awards"
+          ),
+        },
+        {
+          key: "learners-parents",
+          label: "Learners & Parents",
+          color: "#60A5FA",
+          items: itemsNamed("Learners"),
+        },
+        {
+          key: "parent-communication",
+          label: "Parent Communication",
+          color: "#EC4899",
+          items: [
+            ...(canViewMessages ? [messagesNavItem] : []),
+            { label: "Class Broadcasts", href: "/broadcasts", match: ["/broadcasts"] },
+          ],
+        },
+      ]
+    : [
+        {
+          key: "daily-classroom",
+          label: "Daily Classroom",
+          color: "#22C55E",
+          items: itemsNamed(
+            "Learner Attendance",
+            "Practitioner Attendance",
+            "Classroom Activities",
+            "Summaries",
+            "Events"
+          ),
+        },
+        {
+          key: "learner-development",
+          label: "Learner Development",
+          color: "#7C3AED",
+          items: itemsNamed(
+            "Progress Reports",
+            "Incident Reports",
+            "Achievement Awards"
+          ),
+        },
+        {
+          key: "learners-parents",
+          label: "Learners & Parents",
+          color: "#60A5FA",
+          items: itemsNamed(
+            "Learners",
+            "Enrolments",
+            "Re-enrolments",
+            "Parent Consent",
+            "Learner Requirements"
+          ),
+        },
+        {
+          key: "parent-communication",
+          label: "Parent Communication",
+          color: "#EC4899",
+          items: [
+            ...(canViewMessages ? [messagesNavItem] : []),
+            ...itemsNamed("Broadcasts", "Communications"),
+          ],
+        },
+        {
+          key: "fees-payments",
+          label: "Fees & Payments",
+          color: "#EAB308",
+          items: itemsNamed("Payments", "Billing Overview"),
+        },
+        {
+          key: "school-administration",
+          label: "School Administration",
+          color: "#F59E0B",
+          items: [
+            ...itemsNamed("Classrooms", "School Setup", "School Printable Documents"),
+            ...(canViewDbe ? dbeNav : []),
+          ],
+        },
+        {
+          key: "reports-insights",
+          label: "Reports & Insights",
+          color: "#38BDF8",
+          items: itemsNamed("Reports", "School Analytics"),
+        },
+        {
+          key: "staff-management",
+          label: "Staff Management",
+          color: "#7C3AED",
+          items: [
+            ...(canManagePreschoolAdmins
+              ? [{ label: "Admin", href: "/staff-access", match: ["/staff-access"] }]
+              : []),
+            ...(canViewTeachers
+              ? [{ label: "Practitioners", href: "/teachers", match: ["/teachers"] }]
+              : []),
+          ],
+          externalItems: showWageFlowStaffManagement
+            ? [
+                {
+                  label: "WageFlow Staff Management",
+                  href: "https://wageflow.lesedismartsolutions.co.za/login",
+                },
+              ]
+            : [],
+        },
+      ];
+
+  const visibleWorkflowGroups = workflowGroups.filter(
+    (group) => group.items.length > 0 || Boolean(group.externalItems?.length)
+  );
 
   const masterAdminNav = [
     { label: "Master Admin Home", href: "/master-admin", match: ["/master-admin"] },
@@ -954,24 +1103,6 @@ export default function Sidebar() {
                 Dashboard
               </Link>
 
-              {!isMaster && !isMasterAdmin && canViewMessages ? (
-                <Link
-                  href="/messages"
-                  style={navStyle({
-                    label: "Messages",
-                    href: "/messages",
-                    match: ["/messages"],
-                  })}
-                >
-                  <span style={messageNavInner}>
-                    <span>Messages</span>
-                    {unreadMessageCount > 0 ? (
-                      <span style={messageBadge}>{unreadMessageCount}</span>
-                    ) : null}
-                  </span>
-                </Link>
-              ) : null}
-
               <button
                 type="button"
                 onClick={() => setQuickActionsOpen((prev) => !prev)}
@@ -992,106 +1123,64 @@ export default function Sidebar() {
                   </Link>
                 ))}
 
-              {!isTeacher ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setStaffAccessOpen((prev) => !prev)}
-                    style={collapsibleButtonStyle("#7C3AED")}
-                  >
-                    <span>👥 Staff Access</span>
-                    <span>{staffAccessOpen ? "⌄" : "›"}</span>
-                  </button>
+              {visibleWorkflowGroups.map((group) => {
+                const groupIsActive = group.items.some((item) => isActiveNav(item));
+                const groupIsOpen = groupIsActive || (openWorkflowGroups[group.key] ?? false);
 
-                  {staffAccessOpen && canManagePreschoolAdmins ? (
-                    <Link
-                      href={withSchoolContext("/staff-access")}
-                      style={navStyle({
-                        label: "Admin",
-                        href: "/staff-access",
-                        match: ["/staff-access"],
-                      })}
+                return (
+                  <div key={group.key} style={{ display: "grid", gap: "8px" }}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenWorkflowGroups((current) => ({
+                          ...current,
+                          [group.key]: !groupIsOpen,
+                        }))
+                      }
+                      style={collapsibleButtonStyle(group.color)}
+                      aria-expanded={groupIsOpen}
                     >
-                      Admin
-                    </Link>
-                  ) : null}
+                      <span>{group.label}</span>
+                      <span>{groupIsOpen ? "⌄" : "›"}</span>
+                    </button>
 
-                  {staffAccessOpen && canViewTeachers ? (
-                    <Link
-                      href={withSchoolContext("/teachers")}
-                      style={navStyle({
-                        label: "Practitioners",
-                        href: "/teachers",
-                        match: ["/teachers"],
-                      })}
-                    >
-                      Practitioners
-                    </Link>
-                  ) : null}
-                </>
-              ) : null}
+                    {groupIsOpen
+                      ? group.items.map((item) => (
+                          <Link
+                            key={`${group.key}-${item.label}`}
+                            href={withSchoolContext(item.href)}
+                            style={navStyle(item)}
+                          >
+                            {item.href === "/messages" ? (
+                              <span style={messageNavInner}>
+                                <span>{item.label}</span>
+                                {unreadMessageCount > 0 ? (
+                                  <span style={messageBadge}>{unreadMessageCount}</span>
+                                ) : null}
+                              </span>
+                            ) : (
+                              item.label
+                            )}
+                          </Link>
+                        ))
+                      : null}
 
-              <button
-                type="button"
-                onClick={() => setSchoolManagementOpen((prev) => !prev)}
-                style={collapsibleButtonStyle("#F59E0B")}
-              >
-                <span>🏫 School Management</span>
-                <span>{schoolManagementOpen ? "⌄" : "›"}</span>
-              </button>
-
-              {schoolManagementOpen &&
-                (isTeacher
-                  ? filteredTeacherSchoolManagementNav
-                  : filteredSchoolManagementNav
-                ).map((item) => (
-                  <Link
-                    key={item.label}
-                    href={withSchoolContext(item.href)}
-                    style={navStyle(item)}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-
-              {showWageFlowStaffManagement ? (
-                <a
-                  href="https://wageflow.lesedismartsolutions.co.za/login"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    ...collapsibleButtonStyle("#7C3AED"),
-                    textDecoration: "none",
-                  }}
-                >
-                  <span>👥 Staff Management</span>
-                  <span>›</span>
-                </a>
-              ) : null}
-
-              {canViewDbe ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setDbeOpen((prev) => !prev)}
-                    style={collapsibleButtonStyle("#60A5FA")}
-                  >
-                    <span>📋 DBE Registration Information</span>
-                    <span>{dbeOpen ? "⌄" : "›"}</span>
-                  </button>
-
-                  {dbeOpen &&
-                    dbeNav.map((item) => (
-                      <Link
-                        key={item.label}
-                        href={withSchoolContext(item.href)}
-                        style={navStyle(item)}
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
-                </>
-              ) : null}
+                    {groupIsOpen
+                      ? group.externalItems?.map((item) => (
+                          <a
+                            key={`${group.key}-${item.label}`}
+                            href={item.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={navStyle({ label: item.label, href: item.href })}
+                          >
+                            {item.label}
+                          </a>
+                        ))
+                      : null}
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : null}

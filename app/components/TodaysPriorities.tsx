@@ -16,7 +16,7 @@ export default function TodaysPriorities({
 }: {
   items: PriorityItem[];
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const visibleItems = items.slice(0, 5);
 
   return (

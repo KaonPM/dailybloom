@@ -177,8 +177,6 @@ export default function TeacherDashboardPage() {
       return;
     }
 
-    setProfile(currentProfile);
-
     const currentSchoolId = Number(currentProfile.school_id);
 
     const { data: schoolData, error: schoolError } = await supabase
@@ -199,16 +197,27 @@ export default function TeacherDashboardPage() {
       currentProfile
     );
 
-    setClassroomLabel(
+    const resolvedClassroomId =
+      resolvedClassroom?.id || currentProfile.classroom_id || null;
+    const resolvedClassroomName =
       resolvedClassroom?.classroom_name ||
-        currentProfile.classroom_name ||
-        "No classroom assigned"
+      currentProfile.classroom_name ||
+      null;
+
+    setProfile({
+      ...currentProfile,
+      classroom_id: resolvedClassroomId,
+      classroom_name: resolvedClassroomName,
+    });
+
+    setClassroomLabel(
+      resolvedClassroomName || "No classroom assigned"
     );
 
     await fetchTeacherDashboardData(
       currentSchoolId,
-      resolvedClassroom?.id || null,
-      resolvedClassroom?.classroom_name || currentProfile.classroom_name || null
+      resolvedClassroomId,
+      resolvedClassroomName
     );
 
     setLoading(false);

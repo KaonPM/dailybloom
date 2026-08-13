@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import TodaysPriorities, {
+  type PriorityItem,
+} from "../components/TodaysPriorities";
 
 type School = {
   id: number;
@@ -526,6 +529,53 @@ export default function TeacherDashboardPage() {
     return <p>Practitioner dashboard unavailable.</p>;
   }
 
+  const priorities: PriorityItem[] = [];
+  if (!profile.classroom_id) {
+    priorities.push({
+      title: "Classroom assignment needed",
+      detail: "Ask the principal to assign your classroom before completing classroom work.",
+      href: "/messages",
+      action: "Message principal",
+      tone: "yellow",
+    });
+  } else {
+    if (overview.attendanceToday < overview.learners) {
+      priorities.push({
+        title: "Complete today's attendance",
+        detail: `${overview.learners - overview.attendanceToday} learner${overview.learners - overview.attendanceToday === 1 ? " still needs" : "s still need"} an attendance record.`,
+        href: "/attendance",
+        action: "Take attendance",
+        tone: "yellow",
+      });
+    }
+    if (overview.summariesToday < overview.learners) {
+      priorities.push({
+        title: "Daily summaries are outstanding",
+        detail: `${overview.learners - overview.summariesToday} learner summar${overview.learners - overview.summariesToday === 1 ? "y is" : "ies are"} still outstanding.`,
+        href: "/summaries",
+        action: "Open summaries",
+        tone: "pink",
+      });
+    }
+    if (overview.activitiesToday === 0) {
+      priorities.push({
+        title: "No activity is planned for today",
+        detail: "Open the classroom plan and prepare today's activity.",
+        href: "/classroom-activities",
+        action: "Plan activity",
+      });
+    }
+    if (outstandingRequirements.length > 0) {
+      priorities.push({
+        title: "Learner requirements need attention",
+        detail: `${outstandingRequirements.length} learner${outstandingRequirements.length === 1 ? " has" : "s have"} outstanding requirements.`,
+        href: "/learner-requirements",
+        action: "View checklist",
+        tone: "pink",
+      });
+    }
+  }
+
   return (
     <div
       style={{
@@ -578,6 +628,8 @@ export default function TeacherDashboardPage() {
           Classroom view: {classroomLabel}
         </p>
       </div>
+
+      <TodaysPriorities items={priorities} />
 
       <div
         style={{

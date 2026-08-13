@@ -7,6 +7,9 @@ import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import LearnerSupportWidget from "../components/LearnerSupportWidget";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import TodaysPriorities, {
+  type PriorityItem,
+} from "../components/TodaysPriorities";
 
 type School = {
   id: number;
@@ -441,7 +444,36 @@ export default function PrincipalDashboardPage() {
 
   const visibleActivityClassrooms = activityClassrooms.slice(0, 5);
   const additionalActivityClassrooms = activityClassrooms.slice(5);
+  const priorities: PriorityItem[] = [];
+  const learnersMarkedToday =
+    consolidated.presentToday + consolidated.absentToday;
 
+  if (stats.learners > learnersMarkedToday) {
+    priorities.push({
+      title: "Learner attendance is incomplete",
+      detail: `${stats.learners - learnersMarkedToday} learner${stats.learners - learnersMarkedToday === 1 ? " is" : "s are"} not marked today.`,
+      href: "/attendance",
+      action: "Open attendance",
+      tone: "yellow",
+    });
+  }
+  if (consolidated.unpaidThisMonth > 0) {
+    priorities.push({
+      title: "School fees need follow-up",
+      detail: `${consolidated.unpaidThisMonth} learner account${consolidated.unpaidThisMonth === 1 ? "" : "s"} remain unpaid this month.`,
+      href: "/payments",
+      action: "Review payments",
+      tone: "pink",
+    });
+  }
+  if (activityClassrooms.length === 0 && stats.classrooms > 0) {
+    priorities.push({
+      title: "No classroom activities are planned for today",
+      detail: "Check that practitioners have completed today's classroom plans.",
+      href: "/classroom-activities",
+      action: "Review activities",
+    });
+  }
   function openTodaysActivities(classroom: string) {
     const now = new Date();
     const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -538,6 +570,8 @@ export default function PrincipalDashboardPage() {
           </div>
         </div>
       </div>
+
+      <TodaysPriorities items={priorities} />
 
       <div
         id="today-activities"

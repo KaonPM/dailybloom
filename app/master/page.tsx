@@ -7,6 +7,9 @@ import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { PERMISSIONS } from "../lib/permissions";
+import TodaysPriorities, {
+  type PriorityItem,
+} from "../components/TodaysPriorities";
 
 type SchoolItem = {
   id: number;
@@ -667,6 +670,29 @@ export default function MasterPage() {
     (item) => String(item.id) === sponsorProgrammeId
   );
   const currentView = searchParams.get("view") || "dashboard";
+  const priorities: PriorityItem[] = [];
+  const inactiveSchools = schools.filter(
+    (item) => item.status && item.status !== "active" && !item.deleted_at
+  ).length;
+
+  if (stats.pendingSignupRequests > 0) {
+    priorities.push({
+      title: "New school sign-ups are awaiting review",
+      detail: `${stats.pendingSignupRequests} sign-up request${stats.pendingSignupRequests === 1 ? " needs" : "s need"} attention.`,
+      href: "/master?view=pending-signups",
+      action: "Review sign-ups",
+      tone: "yellow",
+    });
+  }
+  if (inactiveSchools > 0) {
+    priorities.push({
+      title: "School statuses need review",
+      detail: `${inactiveSchools} school${inactiveSchools === 1 ? " is" : "s are"} not currently active.`,
+      href: "/master?view=manage-schools",
+      action: "Review schools",
+      tone: "pink",
+    });
+  }
 
   if (loading) {
     return <p>Loading master dashboard...</p>;
@@ -717,14 +743,16 @@ export default function MasterPage() {
       </div>
 
       {currentView === "dashboard" && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "14px",
-            marginBottom: "24px",
-          }}
-        >
+        <>
+          <TodaysPriorities items={priorities} />
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: "14px",
+              marginBottom: "24px",
+            }}
+          >
           <StatLinkCard
             label="Total Schools"
             value={stats.totalSchools}
@@ -756,7 +784,8 @@ export default function MasterPage() {
             background="#F8E8F0"
             border="#EBC9D8"
           />
-        </div>
+          </div>
+        </>
       )}
 
       {currentView === "manage-schools" && (

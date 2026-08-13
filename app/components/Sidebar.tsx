@@ -132,17 +132,17 @@ export default function Sidebar() {
 
   const quickActionsNav = useMemo<NavItem[]>(
     () => [
-      { label: "➕ Add Learner", href: "/children", match: ["/children"], permission: PERMISSIONS.LEARNERS_MANAGE },
-      { label: "👩‍🏫 Add Practitioner", href: "/teachers", match: ["/teachers"], permission: PERMISSIONS.STAFF_MANAGE },
-      { label: "📅 Add Event", href: "/events", match: ["/events"], permission: PERMISSIONS.EVENTS_MANAGE },
+      { label: "Add Learner", href: "/children", match: ["/children"], permission: PERMISSIONS.LEARNERS_MANAGE },
+      { label: "Add Practitioner", href: "/teachers", match: ["/teachers"], permission: PERMISSIONS.STAFF_MANAGE },
+      { label: "Add Event", href: "/events", match: ["/events"], permission: PERMISSIONS.EVENTS_MANAGE },
       {
-        label: "💬 Create Broadcast",
+        label: "Create Broadcast",
         href: "/broadcasts",
         match: ["/broadcasts"],
         permission: PERMISSIONS.BROADCASTS_MANAGE,
       },
       {
-        label: "💳 Record Payment",
+        label: "Record Payment",
         href: "/payments",
         match: ["/payments"],
         featureKey: "payment_tracking",
@@ -1110,7 +1110,7 @@ export default function Sidebar() {
                 onClick={() => setQuickActionsOpen((prev) => !prev)}
                 style={collapsibleButtonStyle("#22C55E")}
               >
-                <span>🌱 Quick Actions</span>
+                <span>Quick Actions</span>
                 <span>{quickActionsOpen ? "⌄" : "›"}</span>
               </button>
 

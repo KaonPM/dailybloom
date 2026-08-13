@@ -20,6 +20,9 @@ type Campaign = {
   response_deadline: string | null;
   status: "open" | "closed";
   created_at: string;
+  source_form_id?: string | null;
+  form_snapshot?: Record<string, unknown>;
+  rollover_applied_at?: string | null;
 };
 
 type Reenrolment = {
@@ -35,6 +38,18 @@ type Reenrolment = {
   notification_error: string | null;
   parent_notes?: string;
   decline_reason?: string | null;
+  learner_details?: Record<string, string> | null;
+  guardian_details?: Record<string, string> | null;
+  medical_details?: Record<string, string> | null;
+  acknowledged_document_ids?: string[];
+  acknowledged_requirement_ids?: string[];
+  renewal_snapshot?: {
+    missing_documents?: Array<{ id: string; name: string }>;
+    learner_requirements?: Array<{ id: string; name: string; quantity?: number }>;
+  } | null;
+  current_classroom_id?: number | null;
+  next_classroom_id?: number | null;
+  classroom_applied_at?: string | null;
 };
 
 type ReenrolmentData = {
@@ -43,6 +58,8 @@ type ReenrolmentData = {
   campaign: Campaign | null;
   campaigns: Campaign[];
   reenrolments: Reenrolment[];
+  enrolment_forms: Array<{ id: string; form_name: string; form_type: string; instructions?: string | null }>;
+  classrooms: Array<{ id: number; classroom_name: string }>;
 };
 
 const money = (value: number | null | undefined) =>
@@ -70,9 +87,12 @@ export default function ReEnrolmentsPage() {
   const [schoolYear, setSchoolYear] = useState(String(new Date().getFullYear() + 1));
   const [responseDeadline, setResponseDeadline] = useState("");
   const [applyRegistrationFee, setApplyRegistrationFee] = useState(false);
+  const [sourceFormId, setSourceFormId] = useState("");
+  const [nextClassroomId, setNextClassroomId] = useState("");
   const [selectedForReviewId, setSelectedForReviewId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [reviewing, setReviewing] = useState(false);
+  const [rollingOver, setRollingOver] = useState(false);
 
   const schoolQuery = useMemo(() => (isMaster && schoolId ? `?school=${schoolId}` : ""), [isMaster, schoolId]);
 
@@ -80,7 +100,9 @@ export default function ReEnrolmentsPage() {
     const response = await authenticatedFetch(`/api/re-enrolments?school_id=${id}`);
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || "Re-enrolments could not be loaded.");
-    setData(body as ReenrolmentData);
+    const nextData = body as ReenrolmentData;
+    setData(nextData);
+    setSourceFormId((current) => current || nextData.enrolment_forms?.[0]?.id || "");
   }, []);
 
   useEffect(() => {
@@ -128,6 +150,7 @@ export default function ReEnrolmentsPage() {
           school_year: Number(schoolYear),
           response_deadline: responseDeadline || null,
           apply_registration_fee: applyRegistrationFee,
+          source_form_id: sourceFormId || null,
         }),
       });
       const body = await response.json();
@@ -172,6 +195,10 @@ export default function ReEnrolmentsPage() {
       setError("Add a reason so the parent knows what needs attention.");
       return;
     }
+    if (action === "approve_reenrolment" && !nextClassroomId) {
+      setError("Select the learner's next-year classroom before approval.");
+      return;
+    }
     setReviewing(true);
     setError("");
     setMessage("");
@@ -184,6 +211,7 @@ export default function ReEnrolmentsPage() {
           school_id: schoolId,
           reenrolment_id: selectedForReviewId,
           decline_reason: declineReason,
+          next_classroom_id: nextClassroomId ? Number(nextClassroomId) : null,
         }),
       });
       const body = await response.json();
@@ -191,11 +219,34 @@ export default function ReEnrolmentsPage() {
       setMessage(body.message || "Re-enrolment updated.");
       setSelectedForReviewId(null);
       setDeclineReason("");
+      setNextClassroomId("");
       await load(schoolId);
     } catch (reviewError) {
       setError(reviewError instanceof Error ? reviewError.message : "The re-enrolment could not be reviewed.");
     } finally {
       setReviewing(false);
+    }
+  }
+
+  async function applyClassroomRollover() {
+    if (!schoolId || !data?.campaign) return;
+    setRollingOver(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await authenticatedFetch("/api/re-enrolments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "apply_classroom_rollover", school_id: schoolId, campaign_id: data.campaign.id }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "The new-year classroom rollover could not be applied.");
+      setMessage(body.message || "Approved learners were moved to their next-year classrooms.");
+      await load(schoolId);
+    } catch (rolloverError) {
+      setError(rolloverError instanceof Error ? rolloverError.message : "The new-year classroom rollover could not be applied.");
+    } finally {
+      setRollingOver(false);
     }
   }
 
@@ -206,6 +257,7 @@ export default function ReEnrolmentsPage() {
   const submittedCount = reenrolments.filter((record) => record.status === "submitted").length;
   const approvedCount = reenrolments.filter((record) => record.status === "approved").length;
   const selectedForReview = reenrolments.find((record) => record.id === selectedForReviewId) || null;
+  const rolloverAvailable = campaign ? Date.now() >= new Date(`${campaign.school_year}-01-01T00:00:00+02:00`).getTime() : false;
 
   return (
     <main style={{ maxWidth: 1280, margin: "0 auto", padding: "24px 18px 44px", display: "grid", gap: 18 }}>
@@ -242,6 +294,14 @@ export default function ReEnrolmentsPage() {
               <span className="db-label">Parent response deadline <em>(optional)</em></span>
               <input className="db-input" type="date" value={responseDeadline} onChange={(event) => setResponseDeadline(event.target.value)} />
             </label>
+            <label style={{ gridColumn: "1 / -1" }}>
+              <span className="db-label">Digital re-enrolment form</span>
+              <select className="db-input" value={sourceFormId} onChange={(event) => setSourceFormId(event.target.value)}>
+                <option value="">Standard DailyBloom digital renewal form</option>
+                {data.enrolment_forms.map((form) => <option key={form.id} value={form.id}>{form.form_name}</option>)}
+              </select>
+              <small className="db-helper">The selected form and requirements are snapshotted for this campaign.</small>
+            </label>
             <label className="db-checkbox-row" style={{ gridColumn: "1 / -1" }}>
               <input type="checkbox" checked={applyRegistrationFee} disabled={!data.registration_fee} onChange={(event) => setApplyRegistrationFee(event.target.checked)} />
               <span>
@@ -268,7 +328,11 @@ export default function ReEnrolmentsPage() {
               <button className="db-button-primary" type="button" onClick={sendNotifications} disabled={sending || awaitingCount === 0}>
                 {sending ? "Sending…" : `Send Parent Portal Push${awaitingCount ? ` (${awaitingCount})` : ""}`}
               </button>
+              <button className="db-button-secondary" type="button" onClick={() => void applyClassroomRollover()} disabled={rollingOver || !rolloverAvailable || Boolean(campaign.rollover_applied_at) || approvedCount === 0}>
+                {campaign.rollover_applied_at ? "New-year rollover completed" : rollingOver ? "Applying rollover…" : `Apply ${campaign.school_year} Classroom Rollover`}
+              </button>
             </div>
+            {!campaign.rollover_applied_at && !rolloverAvailable ? <p className="db-helper">The classroom rollover becomes available on 1 January {campaign.school_year}. Until then, learners remain in their current classes.</p> : null}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginTop: 18 }}>
               <div className="db-soft-card" style={{ padding: 14 }}><strong>Awaiting parent</strong><br />{awaitingCount} learner{awaitingCount === 1 ? "" : "s"}</div>
               <div className="db-soft-card" style={{ padding: 14 }}><strong>Submitted</strong><br />{submittedCount} learner{submittedCount === 1 ? "" : "s"}</div>
@@ -295,7 +359,7 @@ export default function ReEnrolmentsPage() {
                       <td style={{ padding: 12 }}>{record.notification_error ? "Could not send" : record.notification_sent_at ? "Sent" : "Not sent"}</td>
                       <td style={{ padding: 12 }}>
                         {record.status === "submitted" ? (
-                          <button className="db-button-secondary" type="button" onClick={() => { setSelectedForReviewId(record.id); setDeclineReason(""); }}>Review</button>
+                          <button className="db-button-secondary" type="button" onClick={() => { setSelectedForReviewId(record.id); setDeclineReason(""); setNextClassroomId(record.next_classroom_id ? String(record.next_classroom_id) : ""); }}>Review</button>
                         ) : record.status === "declined" ? "Reason sent" : record.status === "approved" ? "Approved" : "Awaiting parent"}
                       </td>
                     </tr>
@@ -324,7 +388,26 @@ export default function ReEnrolmentsPage() {
                     <strong>Parent notes</strong>
                     <p className="db-helper" style={{ margin: "6px 0 0" }}>{selectedForReview.parent_notes || "No additional notes."}</p>
                   </div>
+                  <div><strong>Missing documents acknowledged</strong><p className="db-helper" style={{ margin: "6px 0 0" }}>{selectedForReview.acknowledged_document_ids?.length || 0} of {selectedForReview.renewal_snapshot?.missing_documents?.length || 0}</p></div>
+                  <div><strong>Learner requirements acknowledged</strong><p className="db-helper" style={{ margin: "6px 0 0" }}>{selectedForReview.acknowledged_requirement_ids?.length || 0} of {selectedForReview.renewal_snapshot?.learner_requirements?.length || 0}</p></div>
                 </div>
+                <div className="db-soft-card" style={{ padding: 14, marginTop: 16 }}>
+                  <strong>Digital form details</strong>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 10 }}>
+                    <p className="db-helper" style={{ margin: 0 }}><strong>Learner:</strong> {selectedForReview.learner_details?.legal_name || selectedForReview.learner_name}</p>
+                    <p className="db-helper" style={{ margin: 0 }}><strong>Guardian:</strong> {selectedForReview.guardian_details?.name || "Not supplied"}</p>
+                    <p className="db-helper" style={{ margin: 0 }}><strong>Guardian phone:</strong> {selectedForReview.guardian_details?.phone || "Not supplied"}</p>
+                    <p className="db-helper" style={{ margin: 0 }}><strong>Allergies:</strong> {selectedForReview.medical_details?.allergies || "None recorded"}</p>
+                  </div>
+                </div>
+                <label style={{ display: "block", marginTop: 16 }}>
+                  <span className="db-label">Next-year classroom</span>
+                  <select className="db-input" value={nextClassroomId} onChange={(event) => setNextClassroomId(event.target.value)}>
+                    <option value="">Select next-year classroom</option>
+                    {data.classrooms.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.classroom_name}</option>)}
+                  </select>
+                  <small className="db-helper">Approval records the planned class only. The current class changes during the controlled new-year rollover.</small>
+                </label>
                 <label style={{ display: "block", marginTop: 16 }}>
                   <span className="db-label">If declining, explain what the parent needs to correct</span>
                   <textarea className="db-input" value={declineReason} onChange={(event) => setDeclineReason(event.target.value)} rows={3} placeholder="For example: Please upload the updated immunisation card before re-enrolment can be approved." />

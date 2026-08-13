@@ -68,7 +68,9 @@ export default function Sidebar() {
   const [filteredTeacherSchoolManagementNav, setFilteredTeacherSchoolManagementNav] = useState<NavItem[]>([]);
 
   const [quickActionsOpen, setQuickActionsOpen] = useState(true);
-  const [openWorkflowGroups, setOpenWorkflowGroups] = useState<Record<string, boolean>>({});
+  const [openWorkflowGroups, setOpenWorkflowGroups] = useState<
+    Record<string, { pathname: string; open: boolean }>
+  >({});
 
   const masterNav = useMemo<NavItem[]>(
     () => [
@@ -1125,7 +1127,9 @@ export default function Sidebar() {
 
               {visibleWorkflowGroups.map((group) => {
                 const groupIsActive = group.items.some((item) => isActiveNav(item));
-                const groupIsOpen = groupIsActive || (openWorkflowGroups[group.key] ?? false);
+                const groupOverride = openWorkflowGroups[group.key];
+                const groupIsOpen =
+                  groupOverride?.pathname === pathname ? groupOverride.open : groupIsActive;
 
                 return (
                   <div key={group.key} style={{ display: "grid", gap: "8px" }}>
@@ -1134,7 +1138,7 @@ export default function Sidebar() {
                       onClick={() =>
                         setOpenWorkflowGroups((current) => ({
                           ...current,
-                          [group.key]: !groupIsOpen,
+                          [group.key]: { pathname, open: !groupIsOpen },
                         }))
                       }
                       style={collapsibleButtonStyle(group.color)}

@@ -7,11 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { resolveSchoolContext } from "../lib/school-context";
 import { getCurrentProfile } from "../lib/auth";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
-import {
-  LearnerMonthlyFeeSelect,
-  MonthlyFeeSetup,
-} from "./MonthlyFeeOptions";
-import { OtherFeeSetup } from "./OtherFeeSetup";
+import { LearnerMonthlyFeeSelect } from "./MonthlyFeeOptions";
 import {
   duplicateLearnerDisplayName,
   findLearnerDuplicate,
@@ -144,12 +140,6 @@ export default function LearnersPage() {
   const [selectedOtherFeeIds, setSelectedOtherFeeIds] = useState<number[]>([]);
   const [schoolRegistrationFee, setSchoolRegistrationFee] = useState("");
   const [schoolMonthlyFee, setSchoolMonthlyFee] = useState("");
-  const [newMonthlyFeeName, setNewMonthlyFeeName] = useState("");
-  const [newMonthlyFeeAmount, setNewMonthlyFeeAmount] = useState("");
-  const [newOtherFeeName, setNewOtherFeeName] = useState("");
-  const [newOtherFeeAmount, setNewOtherFeeAmount] = useState("");
-  const [showSchoolFeeSetup, setShowSchoolFeeSetup] = useState(false);
-  const [savingFeeSetup, setSavingFeeSetup] = useState(false);
 
   const [manualClassroomId, setManualClassroomId] = useState("");
   const [suggestedAgeGroup, setSuggestedAgeGroup] = useState("");
@@ -157,7 +147,9 @@ export default function LearnersPage() {
   const [selectedLearner, setSelectedLearner] = useState<LearnerRow | null>(
     null
   );
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(
+    () => searchParams.get("action") === "add"
+  );
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -621,81 +613,6 @@ export default function LearnersPage() {
     setShowForm(true);
   }
 
-  async function updateSchoolFeeCatalog(action: string, extra = {}) {
-    if (!schoolId) return false;
-    setSavingFeeSetup(true);
-    const response = await authenticatedFetch("/api/school-fees/catalog", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ school_id: schoolId, action, ...extra }),
-    });
-    const result = await response.json();
-    setSavingFeeSetup(false);
-    if (!response.ok) {
-      alert(result.error || "Could not update the school fee setup.");
-      return false;
-    }
-    await fetchSchoolFeeCatalog(schoolId);
-    return true;
-  }
-
-  async function saveStandardSchoolFees() {
-    const registrationAmount = Number(schoolRegistrationFee || 0);
-    const monthlyAmount = Number(schoolMonthlyFee || 0);
-    if (
-      Number.isNaN(registrationAmount) ||
-      registrationAmount < 0 ||
-      Number.isNaN(monthlyAmount) ||
-      monthlyAmount < 0
-    ) {
-      alert("Enter valid registration and monthly fee amounts.");
-      return;
-    }
-    const saved = await updateSchoolFeeCatalog("save_standard", {
-      registration_amount: registrationAmount,
-      monthly_amount: monthlyAmount,
-    });
-    if (saved) {
-      if (!selectedLearner) {
-        setRegistrationFeeAmount(String(registrationAmount));
-        setMonthlyFee(String(monthlyAmount));
-      }
-      alert("School fee defaults saved.");
-    }
-  }
-
-  async function addOtherSchoolFee() {
-    const amount = Number(newOtherFeeAmount || 0);
-    if (!newOtherFeeName.trim() || Number.isNaN(amount) || amount < 0) {
-      alert("Enter an additional fee name and a valid amount.");
-      return;
-    }
-    const saved = await updateSchoolFeeCatalog("add_other", {
-      fee_name: newOtherFeeName.trim(),
-      amount,
-    });
-    if (saved) {
-      setNewOtherFeeName("");
-      setNewOtherFeeAmount("");
-    }
-  }
-
-  async function addMonthlySchoolFee() {
-    const amount = Number(newMonthlyFeeAmount || 0);
-    if (!newMonthlyFeeName.trim() || Number.isNaN(amount) || amount <= 0) {
-      alert("Enter a monthly fee name and an amount greater than zero.");
-      return;
-    }
-    const saved = await updateSchoolFeeCatalog("add_monthly", {
-      fee_name: newMonthlyFeeName.trim(),
-      amount,
-    });
-    if (saved) {
-      setNewMonthlyFeeName("");
-      setNewMonthlyFeeAmount("");
-    }
-  }
-
   async function deleteLearner(learner: LearnerRow) {
     if (!schoolId) return;
 
@@ -1030,105 +947,6 @@ export default function LearnersPage() {
           ) : null}
         </div>
       </div>
-
-      {canAddLearner && activeFilter !== "birthdays-today" ? (
-        <div
-          className="db-card db-card-lavender"
-          style={{ padding: 16, marginBottom: 18 }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-            }}
-          >
-            <div>
-              <h3 style={{ ...sectionTitle, marginBottom: 4 }}>
-                School Fee Setup
-              </h3>
-              <p style={{ ...helperText, margin: 0 }}>
-                Set the fees that appear when adding or editing a learner.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="db-main-pill"
-              onClick={() => setShowSchoolFeeSetup((current) => !current)}
-            >
-              {showSchoolFeeSetup ? "Close" : "Open"}
-            </button>
-          </div>
-
-          {showSchoolFeeSetup ? (
-            <div style={{ marginTop: 16 }}>
-              <div style={grid2}>
-                <div>
-                  <p style={labelText}>Registration Fee</p>
-                  <input
-                    className="db-input"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={schoolRegistrationFee}
-                    onChange={(e) => setSchoolRegistrationFee(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <p style={labelText}>Monthly School Fee</p>
-                  <input
-                    className="db-input"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={schoolMonthlyFee}
-                    onChange={(e) => setSchoolMonthlyFee(e.target.value)}
-                  />
-                </div>
-              </div>
-              <button
-                type="button"
-                className="db-button-primary"
-                onClick={saveStandardSchoolFees}
-                disabled={savingFeeSetup}
-              >
-                Save Standard Fees
-              </button>
-
-              <MonthlyFeeSetup
-                options={schoolFeeTypes.filter((fee) => fee.fee_category === "monthly")}
-                name={newMonthlyFeeName}
-                amount={newMonthlyFeeAmount}
-                saving={savingFeeSetup}
-                onNameChange={setNewMonthlyFeeName}
-                onAmountChange={setNewMonthlyFeeAmount}
-                onAdd={() => void addMonthlySchoolFee()}
-                onRemove={(feeId) =>
-                  void updateSchoolFeeCatalog("archive_monthly", { fee_id: feeId })
-                }
-              />
-
-              <OtherFeeSetup
-                options={schoolFeeTypes.filter(
-                  (fee) => fee.fee_category === "other"
-                )}
-                name={newOtherFeeName}
-                amount={newOtherFeeAmount}
-                saving={savingFeeSetup}
-                onNameChange={setNewOtherFeeName}
-                onAmountChange={setNewOtherFeeAmount}
-                onAdd={() => void addOtherSchoolFee()}
-                onRemove={(feeId) =>
-                  void updateSchoolFeeCatalog("archive_other", {
-                    fee_id: feeId,
-                  })
-                }
-              />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
 
       {showForm && canAddLearner ? (
         <div

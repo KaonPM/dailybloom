@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 import { resolveSchoolContext } from "@/app/lib/school-context";
+import { MonthlyFeeSetup } from "@/app/children/MonthlyFeeOptions";
+import { OtherFeeSetup } from "@/app/children/OtherFeeSetup";
 
 type FormType = "general" | "babies" | "grade_r";
 
@@ -25,6 +27,14 @@ type SchoolSettings = {
   bank_branch_code: string;
   bank_account_type: string;
   payment_reminder_day: number;
+};
+
+type SchoolFeeType = {
+  id: number;
+  fee_code: string;
+  fee_name: string;
+  fee_category: "registration" | "monthly" | "other";
+  amount: number;
 };
 
 const emptySettings: SchoolSettings = {
@@ -68,17 +78,43 @@ export default function SchoolSetupPage() {
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [settings, setSettings] = useState<SchoolSettings>(emptySettings);
   const [forms, setForms] = useState<EnrolmentForm[]>([]);
-  const [registrationFee, setRegistrationFee] = useState<{ fee_name: string; amount: number } | null>(null);
+  const [schoolFeeTypes, setSchoolFeeTypes] = useState<SchoolFeeType[]>([]);
+  const [schoolRegistrationFee, setSchoolRegistrationFee] = useState("");
+  const [schoolMonthlyFee, setSchoolMonthlyFee] = useState("");
+  const [newMonthlyFeeName, setNewMonthlyFeeName] = useState("");
+  const [newMonthlyFeeAmount, setNewMonthlyFeeAmount] = useState("");
+  const [newOtherFeeName, setNewOtherFeeName] = useState("");
+  const [newOtherFeeAmount, setNewOtherFeeAmount] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingForm, setSavingForm] = useState<FormType | null>(null);
   const [uploadingForm, setUploadingForm] = useState<FormType | null>(null);
+  const [savingFeeSetup, setSavingFeeSetup] = useState(false);
 
   const schoolQuery = useMemo(() => {
     const value = searchParams.get("school");
     return value ? `?school=${encodeURIComponent(value)}` : "";
   }, [searchParams]);
+
+  async function fetchSchoolFeeCatalog(activeSchoolId: number) {
+    const response = await authenticatedFetch(
+      `/api/school-fees/catalog?school_id=${activeSchoolId}`,
+      { cache: "no-store" }
+    );
+    const body = await response.json();
+    if (!response.ok) {
+      throw new Error(body.error || "The school fee setup could not be loaded.");
+    }
+    const fees = (body.fees || []) as SchoolFeeType[];
+    setSchoolFeeTypes(fees);
+    setSchoolRegistrationFee(
+      String(fees.find((fee) => fee.fee_category === "registration")?.amount || 0)
+    );
+    setSchoolMonthlyFee(
+      String(fees.find((fee) => fee.fee_code === "monthly_school_fee")?.amount || 0)
+    );
+  }
 
   async function loadPage() {
     const context = await resolveSchoolContext(searchParams.get("school"));
@@ -98,9 +134,94 @@ export default function SchoolSetupPage() {
       if (!response.ok) throw new Error(body.error || "School Setup could not be loaded.");
       setSettings({ ...emptySettings, ...(body.settings || {}) });
       setForms(body.forms || []);
-      setRegistrationFee(body.registration_fee || null);
+      await fetchSchoolFeeCatalog(context.schoolId);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "School Setup could not be loaded.");
+    }
+  }
+
+  async function updateSchoolFeeCatalog(
+    action: string,
+    extra: Record<string, unknown> = {}
+  ) {
+    if (!schoolId) return false;
+    setSavingFeeSetup(true);
+    setMessage("");
+    setError("");
+    try {
+      const response = await authenticatedFetch("/api/school-fees/catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ school_id: schoolId, action, ...extra }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error || "The school fee setup could not be updated.");
+      }
+      await fetchSchoolFeeCatalog(schoolId);
+      return true;
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "The school fee setup could not be updated."
+      );
+      return false;
+    } finally {
+      setSavingFeeSetup(false);
+    }
+  }
+
+  async function saveStandardSchoolFees() {
+    const registrationAmount = Number(schoolRegistrationFee || 0);
+    const monthlyAmount = Number(schoolMonthlyFee || 0);
+    if (
+      Number.isNaN(registrationAmount) ||
+      registrationAmount < 0 ||
+      Number.isNaN(monthlyAmount) ||
+      monthlyAmount < 0
+    ) {
+      setError("Enter valid registration and monthly fee amounts.");
+      return;
+    }
+    const saved = await updateSchoolFeeCatalog("save_standard", {
+      registration_amount: registrationAmount,
+      monthly_amount: monthlyAmount,
+    });
+    if (saved) setMessage("School fees saved.");
+  }
+
+  async function addMonthlySchoolFee() {
+    const amount = Number(newMonthlyFeeAmount || 0);
+    if (!newMonthlyFeeName.trim() || Number.isNaN(amount) || amount <= 0) {
+      setError("Enter a monthly fee name and an amount greater than zero.");
+      return;
+    }
+    const saved = await updateSchoolFeeCatalog("add_monthly", {
+      fee_name: newMonthlyFeeName.trim(),
+      amount,
+    });
+    if (saved) {
+      setNewMonthlyFeeName("");
+      setNewMonthlyFeeAmount("");
+      setMessage("Monthly fee option saved.");
+    }
+  }
+
+  async function addOtherSchoolFee() {
+    const amount = Number(newOtherFeeAmount || 0);
+    if (!newOtherFeeName.trim() || Number.isNaN(amount) || amount < 0) {
+      setError("Enter an additional fee name and a valid amount.");
+      return;
+    }
+    const saved = await updateSchoolFeeCatalog("add_other", {
+      fee_name: newOtherFeeName.trim(),
+      amount,
+    });
+    if (saved) {
+      setNewOtherFeeName("");
+      setNewOtherFeeAmount("");
+      setMessage("Additional fee saved.");
     }
   }
 
@@ -247,10 +368,6 @@ export default function SchoolSetupPage() {
     }
   }
 
-  const feeText = registrationFee
-    ? `${registrationFee.fee_name} - R${Number(registrationFee.amount || 0).toFixed(2)}`
-    : "Not set yet";
-
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <section className="db-page-header db-card-blue">
@@ -267,15 +384,42 @@ export default function SchoolSetupPage() {
       {error ? <div className="db-soft-card" role="alert" style={{ padding: 14, color: "#a33d45" }}>{error}</div> : null}
       {message ? <div className="db-soft-card" role="status" style={{ padding: 14, color: "#246b45" }}>{message}</div> : null}
 
-      <section className="db-card db-card-yellow" style={{ display: "grid", gap: 14 }}>
+      <section className="db-card db-card-yellow" style={{ display: "grid", gap: 18 }}>
         <div>
-          <h2 style={{ margin: 0 }}>Registration Fee</h2>
-          <p className="db-helper" style={{ marginBottom: 0 }}>This is managed only in School Fee Setup. It is the single Registration Fee used for each new learner.</p>
+          <h2 style={{ margin: 0 }}>School Fees</h2>
+          <p className="db-helper" style={{ marginBottom: 0 }}>Configure the registration fee, monthly fee options and once-off charges used when adding or editing learners.</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "space-between", flexWrap: "wrap" }}>
-          <strong>{feeText}</strong>
-          <Link className="db-button-secondary" href={`/children${schoolQuery}`}>Open School Fee Setup</Link>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+          <label style={{ display: "grid", gap: 7 }}>
+            <strong>Registration Fee</strong>
+            <input className="db-input" type="number" min="0" step="0.01" value={schoolRegistrationFee} onChange={(event) => setSchoolRegistrationFee(event.target.value)} />
+          </label>
+          <label style={{ display: "grid", gap: 7 }}>
+            <strong>Standard Monthly School Fee</strong>
+            <input className="db-input" type="number" min="0" step="0.01" value={schoolMonthlyFee} onChange={(event) => setSchoolMonthlyFee(event.target.value)} />
+          </label>
         </div>
+        <div><button className="db-button-primary" type="button" disabled={savingFeeSetup} onClick={() => void saveStandardSchoolFees()}>{savingFeeSetup ? "Saving..." : "Save Standard Fees"}</button></div>
+        <MonthlyFeeSetup
+          options={schoolFeeTypes.filter((fee) => fee.fee_category === "monthly")}
+          name={newMonthlyFeeName}
+          amount={newMonthlyFeeAmount}
+          saving={savingFeeSetup}
+          onNameChange={setNewMonthlyFeeName}
+          onAmountChange={setNewMonthlyFeeAmount}
+          onAdd={() => void addMonthlySchoolFee()}
+          onRemove={(feeId) => void updateSchoolFeeCatalog("archive_monthly", { fee_id: feeId })}
+        />
+        <OtherFeeSetup
+          options={schoolFeeTypes.filter((fee) => fee.fee_category === "other")}
+          name={newOtherFeeName}
+          amount={newOtherFeeAmount}
+          saving={savingFeeSetup}
+          onNameChange={setNewOtherFeeName}
+          onAmountChange={setNewOtherFeeAmount}
+          onAdd={() => void addOtherSchoolFee()}
+          onRemove={(feeId) => void updateSchoolFeeCatalog("archive_other", { fee_id: feeId })}
+        />
       </section>
 
       <section className="db-card db-card-green" style={{ display: "grid", gap: 18 }}>

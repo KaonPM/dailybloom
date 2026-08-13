@@ -255,6 +255,9 @@ export default function EnrolmentsPage() {
   }
 
   const displayedEnquiries = enquiries.slice(0, visibleCount);
+  const manualEnrolmentHref = schoolQuery
+    ? `/children${schoolQuery}&action=add`
+    : "/children?action=add";
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
@@ -285,9 +288,22 @@ export default function EnrolmentsPage() {
       ) : null}
 
       <section className="db-card db-card-yellow" style={{ display: "grid", gap: 16 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>New Enquiry</h2>
-          <p className="db-helper" style={{ marginBottom: 0 }}>The form uses the single Registration Fee already set in School Fee Setup. No second fee is created here.</p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 style={{ margin: 0 }}>New Enquiry</h2>
+            <p className="db-helper" style={{ marginBottom: 0 }}>The form uses the single Registration Fee already set in School Fee Setup. No second fee is created here.</p>
+          </div>
+          <Link className="db-button-secondary" href={manualEnrolmentHref}>
+            + Add Learner Manually
+          </Link>
         </div>
         {forms.length === 0 ? (
           <div className="db-soft-card" style={{ padding: 14 }}>
@@ -370,7 +386,7 @@ export default function EnrolmentsPage() {
                   ) : <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "review", { decision: "approved" })}>{isWorking ? "Saving..." : "Approve Enrolment"}</button><button className="db-button-secondary" type="button" onClick={() => setDecliningId(enquiry.id)}>Decline with Reason</button></div>
                 ) : null}
 
-                {enquiry.status === "approved" ? <div className="db-helper">Approved. Capture the learner in the existing learner flow, then allocate the class. This keeps learner billing and duplicate protection in their current safe workflow. <Link href={`/children${schoolQuery}`}>Open Learners</Link></div> : null}
+                {enquiry.status === "approved" ? <div className="db-helper">Approved. Capture the learner in the existing learner flow, then allocate the class. This keeps learner billing and duplicate protection in their current safe workflow. <Link href={manualEnrolmentHref}>Open Add Learner</Link></div> : null}
                 {enquiry.status === "declined" && enquiry.decline_reason ? <div className="db-helper"><strong>Decline reason:</strong> {enquiry.decline_reason}</div> : null}
               </article>
             );

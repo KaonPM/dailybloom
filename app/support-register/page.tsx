@@ -94,6 +94,8 @@ export default function SupportRegisterPage() {
   const [selectedLearnerId, setSelectedLearnerId] = useState("");
   const [profileOutcomes, setProfileOutcomes] = useState<OutcomeRow[]>([]);
   const [supportUpdates, setSupportUpdates] = useState<SupportUpdateRow[]>([]);
+  const [supportDaysAbsent, setSupportDaysAbsent] = useState<number | null>(null);
+  const [supportAttendanceFrom, setSupportAttendanceFrom] = useState("");
   const [updateOutcomeId, setUpdateOutcomeId] = useState("");
   const [updateStatus, setUpdateStatus] = useState("active");
   const [supportIdentified, setSupportIdentified] = useState("");
@@ -305,6 +307,31 @@ export default function SupportRegisterPage() {
       const nextOutcomes = (payload.outcomes || []) as OutcomeRow[];
       setProfileOutcomes(nextOutcomes);
       setSupportUpdates((payload.updates || []) as SupportUpdateRow[]);
+      const learner = learners.find((item) => String(item.id) === String(learnerId));
+      const firstSupportDate = nextOutcomes
+        .map((item) => item.activity_date || item.created_at?.slice(0, 10) || "")
+        .filter(Boolean)
+        .sort()[0] || "";
+      setSupportAttendanceFrom(firstSupportDate);
+      setSupportDaysAbsent(null);
+      if (learner?.name) {
+        let attendanceQuery = supabase
+          .from("attendance")
+          .select("id", { count: "exact", head: true })
+          .eq("school_id", schoolId)
+          .eq("learner_name", learner.name)
+          .eq("status", "absent");
+        if (firstSupportDate) attendanceQuery = attendanceQuery.gte("attendance_date", firstSupportDate);
+        const { count, error: attendanceError } = await attendanceQuery;
+        if (attendanceError) {
+          console.error("Could not load support attendance context", attendanceError);
+          setSupportDaysAbsent(0);
+        } else {
+          setSupportDaysAbsent(count || 0);
+        }
+      } else {
+        setSupportDaysAbsent(0);
+      }
       const firstOpen = nextOutcomes.find((item) => supportStatusValue(item) !== "resolved") || nextOutcomes[0];
       setUpdateOutcomeId(firstOpen ? String(firstOpen.id) : "");
       setUpdateStatus(firstOpen ? supportStatusValue(firstOpen) : "active");
@@ -390,6 +417,8 @@ export default function SupportRegisterPage() {
     setSelectedLearnerId("");
     setProfileOutcomes([]);
     setSupportUpdates([]);
+    setSupportDaysAbsent(null);
+    setSupportAttendanceFrom("");
     setUpdateOutcomeId("");
     setSupportIdentified("");
     setCustomSupportIdentified("");
@@ -547,6 +576,17 @@ export default function SupportRegisterPage() {
                 <StatCard title="Support Areas" value={new Set(profileOutcomes.map((item) => item.developmental_area).filter(Boolean)).size} note="Areas identified" />
                 <StatCard title="Open Cases" value={profileOutcomes.filter((item) => supportStatusValue(item) !== "resolved").length} note="Currently receiving support" />
                 <StatCard title="Recorded Updates" value={supportUpdates.length} note="Interventions and reviews" />
+          <StatCard
+            title="Days Absent"
+            value={supportDaysAbsent ?? 0}
+            note={
+              supportDaysAbsent === null
+                ? "Calculating attendance context"
+                : supportAttendanceFrom
+                  ? `Since ${formatShortDate(supportAttendanceFrom)}`
+                  : "During support history"
+            }
+          />
               </div>
 
               <div className="support-no-print db-soft-card" style={{ padding: "16px", marginBottom: "16px" }}>
@@ -620,8 +660,8 @@ export default function SupportRegisterPage() {
                   <textarea className="db-input" rows={3} value={progressNote} onChange={(event) => setProgressNote(event.target.value)} placeholder="What changed, what remains difficult and what should happen next?" />
                 </label>
                 <label style={fieldLabel}>
-                  Parent-friendly summary
-                  <textarea className="db-input" rows={3} value={parentSummary} onChange={(event) => setParentSummary(event.target.value)} placeholder="Plain-language summary suitable for the printed parent meeting handout." />
+                  Parent meeting summary and suggested home support
+                  <textarea className="db-input" rows={3} value={parentSummary} onChange={(event) => setParentSummary(event.target.value)} placeholder="Summarise progress in plain language and suggest a simple way the family can support the learner at home." />
                 </label>
                 <button type="button" className="db-button-primary" onClick={saveSupportUpdate} disabled={saving || !updateOutcomeId}>
                   {saving ? "Saving..." : "Save Support Update"}
@@ -653,8 +693,8 @@ export default function SupportRegisterPage() {
                         <strong>{outcome?.developmental_area || "Support area"} · {supportStatusLabel(update.support_status)}</strong>
                         {update.support_identified ? <p style={textStyle}><b>Support identified:</b> {update.support_identified}</p> : null}
                         {update.intervention ? <p style={textStyle}><b>Intervention:</b> {update.intervention}</p> : null}
-                        {update.progress_note ? <p className="support-no-print" style={textStyle}><b>Detailed note:</b> {update.progress_note}</p> : null}
-                        {update.parent_summary ? <p style={textStyle}><b>Progress summary:</b> {update.parent_summary}</p> : null}
+                        {update.progress_note ? <p style={textStyle}><b>Progress since the previous review:</b> {update.progress_note}</p> : null}
+                        {update.parent_summary ? <p style={textStyle}><b>Parent summary and home support:</b> {update.parent_summary}</p> : null}
                         {update.next_review_date ? <p style={textStyle}><b>Next review:</b> {formatShortDate(update.next_review_date)}</p> : null}
                         <p style={smallHint}>{formatShortDate(update.recorded_at)}{update.recorded_by_name ? ` · ${update.recorded_by_name}` : ""}</p>
                       </div>

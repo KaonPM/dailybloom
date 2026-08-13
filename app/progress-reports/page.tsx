@@ -152,6 +152,7 @@ export default function ProgressReportsPage() {
   const [periods, setPeriods] = useState<PeriodRow[]>([]);
   const [allAssessments, setAllAssessments] = useState<AssessmentRow[]>([]);
   const [generatedReports, setGeneratedReports] = useState<GeneratedReportRow[]>([]);
+  const [daysAbsent, setDaysAbsent] = useState<number | null>(null);
 
   const [reportType, setReportType] = useState<ReportType>(
     "developmental"
@@ -1939,6 +1940,55 @@ export default function ProgressReportsPage() {
   );
   const teacherName = getTeacherName(selectedTeacherId);
 
+  useEffect(() => {
+    let cancelled = false;
+    const learnerName = selectedLearner?.name?.trim();
+    if (!schoolId || !learnerName || !selectedPeriodId) {
+      setDaysAbsent(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const periodStart = selectedPeriod?.start_date || selectedPeriod?.opening_date || openingDate;
+    const periodEnd = selectedPeriod?.end_date || selectedPeriod?.closing_date || closingDate;
+
+    async function loadDaysAbsent() {
+      setDaysAbsent(null);
+      let query = supabase
+        .from("attendance")
+        .select("id", { count: "exact", head: true })
+        .eq("school_id", schoolId)
+        .eq("learner_name", learnerName)
+        .eq("status", "absent");
+      if (periodStart) query = query.gte("attendance_date", periodStart);
+      if (periodEnd) query = query.lte("attendance_date", periodEnd);
+      const { count, error } = await query;
+      if (cancelled) return;
+      if (error) {
+        console.error("Could not load learner absence total", error);
+        setDaysAbsent(0);
+        return;
+      }
+      setDaysAbsent(count || 0);
+    }
+
+    void loadDaysAbsent();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    schoolId,
+    selectedLearner?.name,
+    selectedPeriodId,
+    selectedPeriod?.start_date,
+    selectedPeriod?.opening_date,
+    selectedPeriod?.end_date,
+    selectedPeriod?.closing_date,
+    openingDate,
+    closingDate,
+  ]);
+
   function calculateAge(dateOfBirth?: string | null) {
     if (!dateOfBirth) return "Not added";
 
@@ -2973,6 +3023,11 @@ export default function ProgressReportsPage() {
 
                   <p style={bookletText}>
                     <strong>Class:</strong> {selectedClassroom.classroom_name}
+                  </p>
+
+                  <p style={bookletText}>
+                    <strong>Days Absent:</strong>{" "}
+                    {daysAbsent === null ? "Calculating..." : daysAbsent}
                   </p>
 
                   {reportType === "grade-rr" || reportType === "grade-r" ? (

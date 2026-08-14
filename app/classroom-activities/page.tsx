@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { resolveSchoolContext } from "../lib/school-context";
 import {
   defaultActivityLibrary,
@@ -659,20 +660,18 @@ export default function ClassroomActivitiesPage() {
   }
 
   async function fetchActivityLibrary(currentSchoolId: number) {
-    const { data, error } = await supabase
-      .from("activity_library")
-      .select("*")
-      .eq("school_id", currentSchoolId)
-      .eq("archived", false)
-      .order("theme", { ascending: true })
-      .order("activity_name", { ascending: true });
-
-    if (error) {
-      alert(error.message);
-      return;
+    try {
+      const response = await authenticatedFetch(
+        `/api/classroom-activity-library?school_id=${currentSchoolId}`
+      );
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "The activity themes could not be loaded.");
+      }
+      setActivityLibrary(payload.activities || []);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "The activity themes could not be loaded.");
     }
-
-    setActivityLibrary(data || []);
   }
 
   async function fetchWeeklyPlans(currentSchoolId: number) {

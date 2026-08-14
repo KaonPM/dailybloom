@@ -1,96 +1,91 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
-import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
+import { processBillingReceiptOutbox } from "@/app/lib/billing-receipt-delivery";
 import { PERMISSIONS } from "@/app/lib/permissions";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import {
+  requireStaffPermission,
+  writeSecurityAudit,
+} from "@/app/lib/server-authorization";
+import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const schoolId = Number(body.school_id);
-    const authorization = await requireStaffPermission(request, PERMISSIONS.BILLING_MANAGE, schoolId);
+    const schoolId = Number(body.school_id || 0);
+    const authorization = await requireStaffPermission(
+      request,
+      PERMISSIONS.BILLING_MANAGE,
+      schoolId
+    );
     if (!authorization.ok) return authorization.response;
 
-    const {
-      principalEmail,
-      principalName,
-      schoolName,
-      amount,
-      paymentDate,
-      nextBillingDate,
-      paymentType,
-      paymentMethod,
-      paymentNotes,
-      planName,
-      receiptNumber,
-      receiptUrl,
-    } = body;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://dailybloom.co.za";
-    const secureReceiptUrl = receiptUrl
-      ? new URL(String(receiptUrl), appUrl).toString()
-      : "";
-
-    if (!principalEmail || !schoolName || !amount) {
+    const paymentId = Number(body.payment_id || 0);
+    if (
+      !Number.isInteger(schoolId) ||
+      schoolId <= 0 ||
+      !Number.isInteger(paymentId) ||
+      paymentId <= 0
+    ) {
       return NextResponse.json(
-        { error: "Missing required payment confirmation details." },
+        { error: "Valid school and payment IDs are required." },
         { status: 400 }
       );
     }
 
-    await resend.emails.send({
-      from:
-        process.env.DAILYBLOOM_FROM_EMAIL ||
-        "DailyBloom <info@dailybloom.co.za>",
-      to: principalEmail,
-      subject: `Payment Received - ${schoolName}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
-          <h2 style="color: #111827;">Payment Received</h2>
+    const { data: payment, error: paymentError } = await supabaseAdmin
+      .from("subscription_payments")
+      .select("id")
+      .eq("id", paymentId)
+      .eq("school_id", schoolId)
+      .maybeSingle();
+    if (paymentError) throw paymentError;
+    if (!payment) {
+      return NextResponse.json(
+        { error: "Payment was not found for this school." },
+        { status: 404 }
+      );
+    }
 
-          <p>Dear ${principalName || "Principal"},</p>
-
-          <p>
-            Thank you so much for your payment. This email confirms that
-            DailyBloom has received payment for <strong>${schoolName}</strong>.
-          </p>
-
-          <div style="background: #f8fafc; padding: 16px; border-radius: 10px; margin: 20px 0;">
-            <p><strong>Receipt Number:</strong> ${receiptNumber || "Not generated"}</p>
-            <p><strong>School:</strong> ${schoolName}</p>
-            <p><strong>Payment Type:</strong> ${paymentType || "Subscription Fee"}</p>
-            <p><strong>Package:</strong> ${planName || "DailyBloom"} Subscription Package</p>
-            <p><strong>Amount Received:</strong> R${Number(amount).toFixed(2)}</p>
-            <p><strong>Payment Date:</strong> ${paymentDate || "Not specified"}</p>
-            <p><strong>Payment Method:</strong> ${paymentMethod || "Not specified"}</p>
-            <p><strong>Next Billing Date:</strong> ${nextBillingDate || "Not set"}</p>
-            <p><strong>Payment Notes:</strong> ${paymentNotes || "No notes added"}</p>
-          </div>
-
-          <p>
-            Please keep this email as confirmation that your payment was received.
-          </p>
-          ${
-            secureReceiptUrl
-              ? `<p><a href="${secureReceiptUrl}" style="display:inline-block;background:#75C7EA;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:12px;">Open payment receipt</a></p>`
-              : ""
-          }
-
-          <p>
-            Kind regards,<br />
-            <strong>DailyBloom</strong><br />
-            Powered by Lesedi Smart Solutions
-          </p>
-        </div>
-      `,
+    const delivery = await processBillingReceiptOutbox({
+      paymentId,
+      batchSize: 1,
     });
-    await writeSecurityAudit(authorization.staff, "billing.receipt_sent", { school_id: schoolId, receipt_number: receiptNumber });
+    const result = delivery.results[0];
+    const { data: outbox, error: outboxError } = await supabaseAdmin
+      .from("billing_email_outbox")
+      .select("status, attempts, next_attempt_at, last_error, sent_at")
+      .eq("payment_id", paymentId)
+      .eq("email_type", "payment_receipt")
+      .maybeSingle();
+    if (outboxError) throw outboxError;
 
-    return NextResponse.json({ success: true });
+    const sent = Boolean(result?.sent || outbox?.status === "sent");
+    await writeSecurityAudit(
+      authorization.staff,
+      "billing.receipt_delivery_requested",
+      {
+        school_id: schoolId,
+        payment_id: paymentId,
+        sent,
+        outbox_status: outbox?.status || null,
+      }
+    );
+
+    return NextResponse.json({
+      success: true,
+      sent,
+      queued: !sent && Boolean(outbox),
+      status: outbox?.status || "not_queued",
+      attempts: Number(outbox?.attempts || 0),
+      next_attempt_at: outbox?.next_attempt_at || null,
+      reason: result?.reason || outbox?.last_error || null,
+    });
   } catch (error: unknown) {
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Could not send payment confirmation email.",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not process the payment receipt email.",
       },
       { status: 500 }
     );

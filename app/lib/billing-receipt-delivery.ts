@@ -1,7 +1,10 @@
 import "server-only";
 import { Resend } from "resend";
 import { supabaseAdmin } from "./supabase-admin";
-import { recordCommunicationNotification } from "./communication-notification-centre";
+import {
+  recordCommunicationNotification,
+  updateCommunicationNotificationBySource,
+} from "./communication-notification-centre";
 
 type OutboxRow = {
   id: string;
@@ -42,11 +45,7 @@ function retryDelayMinutes(attempts: number) {
   return Math.min(24 * 60, Math.max(5, 5 * 2 ** Math.max(0, attempts - 1)));
 }
 
-async function sendPaymentReceipt(paymentId: number) {
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error("RESEND_API_KEY is not configured.");
-  }
-
+async function sendPaymentReceipt(paymentId: number, attemptCount: number) {
   const { data: payment, error: paymentError } = await supabaseAdmin
     .from("subscription_payments")
     .select(
@@ -109,14 +108,38 @@ async function sendPaymentReceipt(paymentId: number) {
   const paymentType =
     payment.charge_type === "setup_fee" ? "Setup Fee" : "Subscription Fee";
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  const { error } = await resend.emails.send({
-    from:
-      process.env.DAILYBLOOM_FROM_EMAIL ||
-      "DailyBloom <info@dailybloom.co.za>",
-    to: contact.email,
+  await recordCommunicationNotification({
+    schoolId: Number(payment.school_id),
+    recipientName: contact.full_name || null,
+    recipientEmail: contact.email,
+    channel: "email",
+    communicationType: "Payment receipt",
     subject: `Payment Received - ${school.school_name || "DailyBloom"}`,
-    html: `
+    bodyPreview: `${paymentType} payment receipt ${payment.receipt_number}`,
+    status: "sending",
+    sourceType: "billing_payment_receipt",
+    sourceId: String(payment.id),
+    attemptCount,
+    metadata: {
+      provider: "resend",
+      receipt_number: payment.receipt_number,
+      receipt_url: receiptUrl,
+    },
+  });
+
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is not configured.");
+  }
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const { data, error } = await resend.emails.send(
+    {
+      from:
+        process.env.DAILYBLOOM_FROM_EMAIL ||
+        "DailyBloom <info@dailybloom.co.za>",
+      to: contact.email,
+      subject: `Payment Received - ${school.school_name || "DailyBloom"}`,
+      html: `
       <div style="font-family:Arial,sans-serif;background:#FFF8F2;padding:24px;color:#2D2A3E">
         <div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #F0E3D8;border-radius:18px;padding:26px">
           <h1 style="margin:0 0 8px">Daily<span style="color:#FF5EA8">Bloom</span></h1>
@@ -150,25 +173,22 @@ async function sendPaymentReceipt(paymentId: number) {
           <p style="color:#6F6880;font-size:13px">DailyBloom is a subsidiary of Lesedi Smart Solutions (Pty) Ltd.</p>
         </div>
       </div>`,
-  });
+    },
+    { idempotencyKey: `billing-payment-receipt-${payment.id}` }
+  );
   if (error) throw new Error(error.message);
 
-  await recordCommunicationNotification({
-    schoolId: Number(payment.school_id),
-    recipientName: contact.full_name || null,
-    recipientEmail: contact.email,
+  await updateCommunicationNotificationBySource({
     channel: "email",
-    communicationType: "Payment receipt",
-    subject: `Payment Received - ${school.school_name || "DailyBloom"}`,
-    bodyPreview: `${paymentType} payment receipt ${payment.receipt_number}`,
     status: "sent",
     sourceType: "billing_payment_receipt",
     sourceId: String(payment.id),
-    metadata: {
-      provider: "resend",
-      receipt_number: payment.receipt_number,
-      receipt_url: receiptUrl,
-    },
+    providerMessageId: data?.id || null,
+    attemptCount,
+    nextRetryAt: null,
+    sentAt: new Date().toISOString(),
+    failedAt: null,
+    errorMessage: null,
   });
 }
 
@@ -195,7 +215,7 @@ export async function processBillingReceiptOutbox(options?: {
 
   for (const row of rows) {
     try {
-      await sendPaymentReceipt(Number(row.payment_id));
+      await sendPaymentReceipt(Number(row.payment_id), Number(row.attempts || 1));
       const { error: updateError } = await supabaseAdmin
         .from("billing_email_outbox")
         .update({
@@ -209,24 +229,22 @@ export async function processBillingReceiptOutbox(options?: {
       summary.sent += 1;
       summary.results.push({ payment_id: Number(row.payment_id), sent: true });
     } catch (error) {
-      await recordCommunicationNotification({
-        schoolId: Number(row.school_id),
-        channel: "email",
-        communicationType: "Payment receipt",
-        subject: "Payment receipt delivery",
-        bodyPreview: `Payment receipt for payment ${row.payment_id}`,
-        status: "failed",
-        sourceType: "billing_payment_receipt",
-        sourceId: String(row.payment_id),
-        errorMessage: error instanceof Error ? error.message : "Email delivery failed.",
-        metadata: { provider: "resend" },
-      });
       const reason =
         error instanceof Error ? error.message : "Receipt delivery failed.";
       const terminal = Number(row.attempts || 0) >= 5;
       const nextAttempt = new Date(
         Date.now() + retryDelayMinutes(Number(row.attempts || 1)) * 60_000
       ).toISOString();
+      await updateCommunicationNotificationBySource({
+        channel: "email",
+        status: terminal ? "failed" : "retry_scheduled",
+        sourceType: "billing_payment_receipt",
+        sourceId: String(row.payment_id),
+        attemptCount: Number(row.attempts || 1),
+        nextRetryAt: terminal ? null : nextAttempt,
+        failedAt: terminal ? new Date().toISOString() : null,
+        errorMessage: reason,
+      });
       await supabaseAdmin
         .from("billing_email_outbox")
         .update({

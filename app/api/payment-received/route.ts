@@ -39,7 +39,9 @@ export async function POST(request: Request) {
     }
 
     await resend.emails.send({
-      from: "DailyBloom <info@lesedismartsolutions.co.za>",
+      from:
+        process.env.DAILYBLOOM_FROM_EMAIL ||
+        "DailyBloom <info@dailybloom.co.za>",
       to: principalEmail,
       subject: `Payment Received - ${schoolName}`,
       html: `

@@ -111,7 +111,9 @@ async function sendPaymentReceipt(paymentId: number) {
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   const { error } = await resend.emails.send({
-    from: "DailyBloom <info@lesedismartsolutions.co.za>",
+    from:
+      process.env.DAILYBLOOM_FROM_EMAIL ||
+      "DailyBloom <info@dailybloom.co.za>",
     to: contact.email,
     subject: `Payment Received - ${school.school_name || "DailyBloom"}`,
     html: `

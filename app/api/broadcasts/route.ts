@@ -179,11 +179,17 @@ async function deliverBroadcast({
   title,
   message,
   recipients,
+  classroomId,
+  classroomName,
+  createdBy,
 }: {
   schoolId: number;
   title: string;
   message: string;
   recipients: LearnerRecipient[];
+  classroomId?: number | null;
+  classroomName?: string | null;
+  createdBy?: string | null;
 }) {
   const recipientsWithPhones = recipients.filter((recipient) =>
     String(recipient.parent_phone || "").trim()
@@ -231,7 +237,13 @@ async function deliverBroadcast({
       status: push.sent ? "sent" : "skipped",
       providerMessageId: push.providerMessageId || null,
       sourceType: "broadcast_push",
-      metadata: { provider: "onesignal", parent_phones: parentPhones },
+      createdBy,
+      metadata: {
+        provider: "onesignal",
+        parent_phones: parentPhones,
+        classroom_id: classroomId || null,
+        classroom_name: classroomName || null,
+      },
     });
   } catch (pushError) {
     // The broadcast and parent dashboard update remain available even if a
@@ -248,7 +260,13 @@ async function deliverBroadcast({
       errorMessage:
         pushError instanceof Error ? pushError.message : "Push notification failed.",
       sourceType: "broadcast_push",
-      metadata: { provider: "onesignal" },
+      createdBy,
+      metadata: {
+        provider: "onesignal",
+        parent_phones: parentPhones,
+        classroom_id: classroomId || null,
+        classroom_name: classroomName || null,
+      },
     });
   }
 
@@ -440,6 +458,9 @@ export async function POST(request: Request) {
         title,
         message,
         recipients,
+        classroomId: classroom ? Number(classroom.id) : null,
+        classroomName: classroom?.classroom_name || null,
+        createdBy: authorization.staff.userId,
       });
 
       const { data: sentBroadcast, error: sentError } = await supabaseAdmin
@@ -569,6 +590,13 @@ export async function PATCH(request: Request) {
       title: String(broadcast.title || "Broadcast"),
       message: String(broadcast.message || ""),
       recipients,
+      classroomId:
+        recipientScope === "classroom" ? Number(broadcast.classroom_id) : null,
+      classroomName:
+        recipientScope === "classroom"
+          ? String(broadcast.classroom_name || "")
+          : null,
+      createdBy: authorization.staff.userId,
     });
 
     const { data: updated, error: updateError } = await supabaseAdmin

@@ -1,0 +1,307 @@
+.page {
+  display: grid;
+  gap: 20px;
+}
+
+.hero,
+.panel {
+  background: #fff;
+  border: 1px solid #eadfd7;
+  border-radius: 26px;
+  padding: 24px;
+}
+
+.hero {
+  border-top: 8px solid #72c6e9;
+}
+
+.hero h1 {
+  margin: 0 0 6px;
+  color: #25233d;
+  font-size: clamp(1.8rem, 4vw, 2.7rem);
+}
+
+.hero p {
+  margin: 0;
+  color: #716985;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summaryCard {
+  background: #fff;
+  border: 1px solid #eadfd7;
+  border-radius: 20px;
+  padding: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.summaryCard span {
+  color: #716985;
+}
+
+.summaryCard strong {
+  font-size: 2rem;
+  color: #25233d;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.filters label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  color: #39324f;
+}
+
+.filters input,
+.filters select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #e5d8ce;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+  color: #25233d;
+}
+
+.filterActions {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+}
+
+.primary,
+.secondary,
+.pager button,
+.linkButton {
+  border: 1px solid #d8cabe;
+  border-radius: 999px;
+  padding: 11px 18px;
+  background: #fff;
+  color: #25233d;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary {
+  background: #72c6e9;
+  border-color: #72c6e9;
+  color: #fff;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.panelHeader h2 {
+  margin: 0;
+  color: #25233d;
+}
+
+.tableWrap {
+  overflow: auto;
+  border: 1px solid #eadfd7;
+  border-radius: 18px;
+}
+
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1050px;
+}
+
+.tableWrap th,
+.tableWrap td {
+  text-align: left;
+  padding: 14px;
+  border-bottom: 1px solid #eee4dd;
+  vertical-align: top;
+}
+
+.tableWrap th {
+  background: #f8f3fb;
+  color: #615879;
+  font-size: 0.86rem;
+}
+
+.tableWrap td {
+  color: #302b43;
+}
+
+.tableWrap td small {
+  display: block;
+  color: #81778f;
+  margin-top: 4px;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status {
+  display: inline-flex;
+  border-radius: 999px;
+  background: #eef2f4;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.status_failed {
+  background: #fee8e5;
+  color: #9b2c25;
+}
+
+.status_delivered,
+.status_read {
+  background: #e7f7e9;
+  color: #176b32;
+}
+
+.status_queued,
+.status_sending,
+.status_retry_scheduled {
+  background: #fff4d5;
+  color: #7b5a00;
+}
+
+.pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  color: #716985;
+}
+
+.pager div {
+  display: flex;
+  gap: 8px;
+}
+
+.empty,
+.error {
+  padding: 22px;
+  border-radius: 16px;
+  background: #faf6f2;
+  color: #716985;
+}
+
+.error {
+  background: #feeceb;
+  color: #912d29;
+}
+
+.drawerBackdrop {
+  position: fixed;
+  inset: 0;
+  background: #26213680;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drawer {
+  width: min(520px, 100%);
+  height: 100%;
+  overflow: auto;
+  background: #fff;
+  padding: 26px;
+  box-shadow: -10px 0 30px #1112;
+}
+
+.drawerHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.drawer dl {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.drawer dt {
+  font-weight: 700;
+  color: #716985;
+}
+
+.drawer dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.close {
+  border: 0;
+  background: #f7e9ef;
+  border-radius: 999px;
+  width: 42px;
+  height: 42px;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+@media (max-width: 1050px) {
+  .summaryGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .filters {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .hero,
+  .panel {
+    padding: 17px;
+    border-radius: 20px;
+  }
+
+  .summaryGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .filterActions {
+    align-items: stretch;
+  }
+
+  .pager {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pager div,
+  .pager button {
+    width: 100%;
+  }
+
+  .drawer dl {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .drawer dd {
+    margin-bottom: 12px;
+  }
+}

@@ -1,471 +1,305 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import CommunicationSummary from "./components/CommunicationSummary";
+import CommunicationHistory from "./components/CommunicationHistory";
+import styles from "./communications.module.css";
+import { ClassroomOption, CommunicationRow, CommunicationSummaryData, PaginationData } from "./types";
 
-type Learner = {
-  id: string;
-  name: string;
-  parent_phone?: string | null;
-  class?: string | null;
+const EMPTY_SUMMARY: CommunicationSummaryData = {
+  sentToday: 0,
+  delivered: 0,
+  read: 0,
+  failed: 0,
+  awaiting: 0,
+};
+const DEFAULT_PAGINATION: PaginationData = { page: 1, pageSize: 20, total: 0, totalPages: 1 };
+const channels = ["", "parent_portal", "in_app", "push", "sms", "whatsapp", "email"];
+const statuses = ["", "queued", "sending", "sent", "delivered", "read", "retry_scheduled", "failed", "skipped"];
+
+type Filters = {
+  from: string;
+  to: string;
+  classroom: string;
+  type: string;
+  channel: string;
+  status: string;
+  search: string;
 };
 
-type CommunicationRow = {
-  id: string;
-  school_id?: number | null;
-  learner_id?: string | null;
-  recipient_name?: string | null;
-  recipient_phone?: string | null;
-  recipient_email?: string | null;
-  recipient_count?: number | null;
-  channel?: string | null;
-  communication_type?: string | null;
-  subject?: string | null;
-  body_preview?: string | null;
-  status?: string | null;
-  sent_at?: string | null;
-  delivered_at?: string | null;
-  read_at?: string | null;
-  failed_at?: string | null;
-  error_message?: string | null;
-  created_at?: string | null;
-};
-
-const channelOptions = ["All", "Parent Portal", "In App", "Push", "SMS", "WhatsApp", "Email"];
-const statusOptions = ["All", "Queued", "Sending", "Sent", "Delivered", "Read", "Retry Scheduled", "Failed", "Skipped"];
+const label = (value: string) =>
+  value
+    ? value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+    : "All";
+const dateInput = (date: Date) => date.toISOString().slice(0, 10);
+const defaultFilters = (): Filters => ({
+  from: dateInput(new Date(Date.now() - 29 * 86400000)),
+  to: dateInput(new Date()),
+  classroom: "",
+  type: "",
+  channel: "",
+  status: "",
+  search: "",
+});
 
 export default function CommunicationsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const schoolParam = searchParams.get("school");
-
-  const today = new Date().toISOString().split("T")[0];
-
+  const requestedSchool = searchParams.get("school");
+  const initialFilters = useMemo(defaultFilters, []);
   const [schoolId, setSchoolId] = useState<number | null>(null);
-  const [learners, setLearners] = useState<Learner[]>([]);
-  const [records, setRecords] = useState<CommunicationRow[]>([]);
-  const [selectedRecord, setSelectedRecord] = useState<CommunicationRow | null>(null);
-
-  const [channel, setChannel] = useState("All");
-  const [status, setStatus] = useState("All");
-  const [learnerName, setLearnerName] = useState("");
-  const [phoneSearch, setPhoneSearch] = useState("");
-  const [generalSearch, setGeneralSearch] = useState("");
-
-  const [fromDate, setFromDate] = useState(today);
-  const [toDate, setToDate] = useState(today);
-
+  const [rows, setRows] = useState<CommunicationRow[]>([]);
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
+  const [classrooms, setClassrooms] = useState<ClassroomOption[]>([]);
+  const [types, setTypes] = useState<string[]>([]);
+  const [selected, setSelected] = useState<CommunicationRow | null>(null);
   const [loading, setLoading] = useState(true);
-  const [running, setRunning] = useState(false);
+  const [error, setError] = useState("");
+  const [draftFilters, setDraftFilters] = useState<Filters>(initialFilters);
+  const [appliedFilters, setAppliedFilters] = useState<Filters>(initialFilters);
 
   useEffect(() => {
-    loadPage();
-  }, []);
+    let active = true;
+    void (async () => {
+      const context = await resolveSchoolContext(requestedSchool);
+      if (!active) return;
+      if (context.error) {
+        router.push("/login");
+        return;
+      }
+      if (context.shouldReturnToMaster || !context.schoolId) {
+        router.push("/master");
+        return;
+      }
+      setSchoolId(context.schoolId);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [requestedSchool, router]);
 
-  async function loadPage() {
-    const context = await resolveSchoolContext(schoolParam);
-
-    if (context.error) {
-      router.push("/login");
-      return;
-    }
-
-    if (context.shouldReturnToMaster || !context.schoolId) {
-      router.push("/master");
-      return;
-    }
-
-    setSchoolId(context.schoolId);
-    await fetchLearners(context.schoolId);
-    setLoading(false);
-  }
-
-  async function fetchLearners(currentSchoolId: number) {
-    const { data, error } = await supabase
-      .from("learners")
-      .select("id, name, parent_phone, class")
-      .eq("school_id", currentSchoolId)
-      .order("name", { ascending: true });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setLearners((data || []) as Learner[]);
-  }
-
-  async function runCommunicationSearch() {
-    if (!schoolId) return;
-
-    if (fromDate > toDate) {
-      alert("From date cannot be after To date.");
-      return;
-    }
-
-    setRunning(true);
-
-    const learner = learners.find((item) => item.name === learnerName);
-    const params = new URLSearchParams({ school_id: String(schoolId), from: fromDate, to: toDate });
-    if (channel !== "All") params.set("channel", channel.toLowerCase().replace(" ", "_"));
-    if (status !== "All") params.set("status", status.toLowerCase().replace(" ", "_"));
-    if (learner?.id) params.set("learner_id", learner.id);
-    if (generalSearch.trim()) params.set("search", generalSearch.trim());
-
-    const response = await authenticatedFetch(`/api/communications/notification-centre?${params.toString()}`);
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      alert(payload.error || "Could not load communication history.");
-      setRunning(false);
-      return;
-    }
-    let rows = (payload.notifications || []) as CommunicationRow[];
-
-    if (phoneSearch.trim()) {
-      rows = rows.filter((row) =>
-        String(row.recipient_phone || "")
-          .toLowerCase()
-          .includes(phoneSearch.trim().toLowerCase())
-      );
-    }
-
-    if (generalSearch.trim()) {
-      const term = generalSearch.trim().toLowerCase();
-
-      rows = rows.filter((row) => {
-        const combined = [
-          row.recipient_name,
-          row.recipient_phone,
-          row.recipient_email,
-          row.channel,
-          row.communication_type,
-          row.status,
-          row.subject,
-          row.body_preview,
-        ]
-          .join(" ")
-          .toLowerCase();
-
-        return combined.includes(term);
+  const load = useCallback(
+    async (requestedPage = 1) => {
+      if (!schoolId) return;
+      setLoading(true);
+      setError("");
+      const params = new URLSearchParams({
+        school_id: String(schoolId),
+        page: String(requestedPage),
+        page_size: "20",
+        from: appliedFilters.from,
+        to: appliedFilters.to,
       });
-    }
+      if (appliedFilters.classroom) params.set("classroom_id", appliedFilters.classroom);
+      if (appliedFilters.type) params.set("communication_type", appliedFilters.type);
+      if (appliedFilters.channel) params.set("channel", appliedFilters.channel);
+      if (appliedFilters.status) params.set("status", appliedFilters.status);
+      if (appliedFilters.search.trim()) params.set("search", appliedFilters.search.trim());
 
-    setRecords(rows);
-    setSelectedRecord(null);
-    setRunning(false);
+      try {
+        const response = await authenticatedFetch(`/api/communications/notification-centre?${params}`);
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Communication history could not be loaded.");
+        setRows(payload.notifications || []);
+        setSummary(payload.summary || EMPTY_SUMMARY);
+        setPagination(payload.pagination || DEFAULT_PAGINATION);
+        setClassrooms(payload.classrooms || []);
+        setTypes(payload.communicationTypes || []);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Communication history could not be loaded.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [appliedFilters, schoolId],
+  );
+
+  useEffect(() => {
+    if (schoolId) void load(1);
+  }, [load, schoolId]);
+
+  function updateFilter(key: keyof Filters, value: string) {
+    setDraftFilters((current) => ({ ...current, [key]: value }));
+  }
+
+  function applyFilters() {
+    setAppliedFilters({ ...draftFilters });
+  }
+
+  function resetFilters() {
+    const next = defaultFilters();
+    setDraftFilters(next);
+    setAppliedFilters(next);
   }
 
   function exportCsv() {
-    if (records.length === 0) {
-      alert("No communication records to export.");
-      return;
-    }
-
-    const headers: (keyof CommunicationRow)[] = [
-      "created_at",
-      "recipient_name",
-      "recipient_phone",
-      "recipient_email",
-      "channel",
-      "communication_type",
-      "status",
-      "body_preview",
-    ];
-
-    const csvRows = [
-      headers.join(","),
-      ...records.map((row) =>
-        headers
-          .map((header) => {
-            const value = String(row[header] || "");
-            return `"${value.replace(/"/g, '""')}"`;
-          })
-          .join(",")
-      ),
-    ];
-
-    const blob = new Blob([csvRows.join("\n")], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-    const filename = `communications-${fromDate}-to-${toDate}.csv`;
-
+    const headings = ["Date", "Learner/parent", "Class", "Type", "Subject", "Channel", "Status", "Sent by"];
+    const csv = [
+      headings,
+      ...rows.map((row) => [
+        row.sent_at || row.created_at || "",
+        row.learner_name || row.recipient_name || "",
+        row.classroom_name || "",
+        row.communication_type || "",
+        row.subject || "",
+        row.channel || "",
+        row.status || "",
+        row.sent_by_name || "",
+      ]),
+    ]
+      .map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
+    link.download = "dailybloom-communication-history.csv";
     link.click();
-    document.body.removeChild(link);
-
     URL.revokeObjectURL(url);
   }
 
-  const selectedLearnerPhone = useMemo(() => {
-    const learner = learners.find((item) => item.name === learnerName);
-    return learner?.parent_phone || "";
-  }, [learners, learnerName]);
-
-  if (loading) {
-    return <p>Loading communications...</p>;
-  }
-
   return (
-    <div>
-      <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
-        <h2 className="db-page-title">Communications</h2>
-        <p className="db-page-subtitle">
-          Review parent portal, in-app, push, SMS, WhatsApp and email communication in one secure history.
-        </p>
-      </div>
+    <main className={styles.page}>
+      <section className={styles.hero}>
+        <h1>Communication Centre</h1>
+        <p>One auditable history of parent portal notices, push notifications, SMS, WhatsApp and email.</p>
+      </section>
+      <CommunicationSummary summary={summary} />
 
-      <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
-        <h3 style={sectionTitle}>Communication Filters</h3>
-
-        <div style={grid}>
-          <div>
-            <p style={labelText}>Channel</p>
-            <select
-              className="db-input"
-              value={channel}
-              onChange={(e) => setChannel(e.target.value)}
-            >
-              {channelOptions.map((type) => (
-                <option key={type}>{type}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <p style={labelText}>Status</p>
-            <select
-              className="db-input"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              {statusOptions.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <p style={labelText}>Learner</p>
-            <select
-              className="db-input"
-              value={learnerName}
-              onChange={(e) => setLearnerName(e.target.value)}
-            >
-              <option value="">All learners</option>
-              {learners.map((learner) => (
-                <option key={learner.id} value={learner.name}>
-                  {learner.name}
+      <section className={styles.panel}>
+        <div className={styles.filters}>
+          <label>
+            From
+            <input type="date" value={draftFilters.from} onChange={(event) => updateFilter("from", event.target.value)} />
+          </label>
+          <label>
+            To
+            <input type="date" value={draftFilters.to} onChange={(event) => updateFilter("to", event.target.value)} />
+          </label>
+          <label>
+            Class
+            <select value={draftFilters.classroom} onChange={(event) => updateFilter("classroom", event.target.value)}>
+              <option value="">All classes</option>
+              {classrooms.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.classroom_name}
                 </option>
               ))}
             </select>
-          </div>
-
-          <div>
-            <p style={labelText}>Phone</p>
+          </label>
+          <label>
+            Communication type
+            <select value={draftFilters.type} onChange={(event) => updateFilter("type", event.target.value)}>
+              <option value="">All types</option>
+              {types.map((item) => (
+                <option key={item} value={item}>
+                  {label(item)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Channel
+            <select value={draftFilters.channel} onChange={(event) => updateFilter("channel", event.target.value)}>
+              {channels.map((item) => (
+                <option key={item} value={item}>
+                  {label(item)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Status
+            <select value={draftFilters.status} onChange={(event) => updateFilter("status", event.target.value)}>
+              {statuses.map((item) => (
+                <option key={item} value={item}>
+                  {label(item)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Search
             <input
-              className="db-input"
-              value={phoneSearch || selectedLearnerPhone}
-              onChange={(e) => setPhoneSearch(e.target.value)}
-              placeholder="Search phone number"
+              value={draftFilters.search}
+              onChange={(event) => updateFilter("search", event.target.value)}
+              placeholder="Parent, learner, phone or subject"
             />
-          </div>
-
-          <div>
-            <p style={labelText}>Search</p>
-            <input
-              className="db-input"
-              value={generalSearch}
-              onChange={(e) => setGeneralSearch(e.target.value)}
-              placeholder="Search message, learner, type..."
-            />
-          </div>
-
-          <div>
-            <p style={labelText}>From</p>
-            <input
-              type="date"
-              className="db-input"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <p style={labelText}>To</p>
-            <input
-              type="date"
-              className="db-input"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-            />
+          </label>
+          <div className={styles.filterActions}>
+            <button className={styles.primary} type="button" onClick={applyFilters}>
+              Apply
+            </button>
+            <button className={styles.secondary} type="button" onClick={resetFilters}>
+              Clear
+            </button>
           </div>
         </div>
+      </section>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-          <button
-            type="button"
-            className="db-button-primary"
-            onClick={runCommunicationSearch}
-            disabled={running}
-          >
-            {running ? "Loading..." : "View Communication History"}
-          </button>
-
-          <button type="button" className="db-button-secondary" onClick={exportCsv}>
-            Export CSV
-          </button>
-        </div>
-      </div>
-
-      {selectedRecord ? (
-        <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
-          <h3 style={sectionTitle}>Communication Details</h3>
-
-          <p style={smallText}>Recipient: {selectedRecord.recipient_name || "Not linked"}</p>
-          <p style={smallText}>Phone: {selectedRecord.recipient_phone || "Not added"}</p>
-          <p style={smallText}>Email: {selectedRecord.recipient_email || "Not added"}</p>
-          <p style={smallText}>Channel: {selectedRecord.channel || "Not added"}</p>
-          <p style={smallText}>
-            Type: {selectedRecord.communication_type || "Not added"}
-          </p>
-          <p style={smallText}>Status: {selectedRecord.status || "Not added"}</p>
-          <p style={smallText}>Date: {selectedRecord.sent_at || selectedRecord.created_at || "No date"}</p>
-
-          <div style={messageBox}>
-            {selectedRecord.body_preview || "No message preview saved."}
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <div>
+            <h2>Communication history</h2>
+            <span>{pagination.total} records</span>
           </div>
-
-          <button
-            type="button"
-            className="db-button-secondary"
-            onClick={() => setSelectedRecord(null)}
-            style={{ marginTop: 12 }}
-          >
-            Close Details
+          <button className={styles.secondary} type="button" onClick={exportCsv} disabled={!rows.length}>
+            Export current page
           </button>
         </div>
-      ) : null}
-
-      <div className="db-card db-card-green" style={{ padding: 16 }}>
-        <h3 style={sectionTitle}>Communication History ({records.length})</h3>
-
-        {records.length === 0 ? (
-          <p className="db-helper">
-            No communication history loaded. Use the filters above and click View.
-          </p>
+        {error ? (
+          <div className={styles.error}>{error}</div>
+        ) : loading ? (
+          <div className={styles.empty}>Loading communication history…</div>
         ) : (
-          <div style={{ display: "grid", gap: 8 }}>
-            {records.map((record) => (
-              <button
-                key={record.id}
-                type="button"
-                onClick={() => setSelectedRecord(record)}
-                style={recordButton}
-              >
-                <span style={pillBlue}>{String(record.sent_at || record.created_at || "No date").slice(0, 10)}</span>
-
-                <strong>{record.recipient_name || "General"}</strong>
-
-                <span style={pillNeutral}>
-                  {record.channel || "Message"}
-                </span>
-
-                <span style={pillStatus}>{record.status || "Saved"}</span>
-              </button>
-            ))}
-          </div>
+          <CommunicationHistory rows={rows} pagination={pagination} onPage={load} onView={setSelected} />
         )}
-      </div>
-    </div>
+      </section>
+
+      {selected && (
+        <div className={styles.drawerBackdrop} onClick={() => setSelected(null)}>
+          <aside className={styles.drawer} onClick={(event) => event.stopPropagation()}>
+            <div className={styles.drawerHeader}>
+              <div>
+                <h2>{label(selected.communication_type || "Communication")}</h2>
+                <p>{selected.subject || selected.learner_name}</p>
+              </div>
+              <button className={styles.close} type="button" aria-label="Close details" onClick={() => setSelected(null)}>
+                ×
+              </button>
+            </div>
+            <dl>
+              <dt>Status</dt>
+              <dd>{label(selected.status || "")}</dd>
+              <dt>Channel</dt>
+              <dd>{label(selected.channel || "")}</dd>
+              <dt>Classroom</dt>
+              <dd>{selected.classroom_name || "School-wide"}</dd>
+              <dt>Recipient</dt>
+              <dd>
+                {selected.recipient_name || selected.learner_name || "General"}
+                <br />
+                {selected.recipient_phone || selected.recipient_email}
+              </dd>
+              <dt>Message</dt>
+              <dd>{selected.body_preview || "No preview recorded."}</dd>
+              <dt>Sent by</dt>
+              <dd>{selected.sent_by_name || "DailyBloom"}</dd>
+              <dt>Attempts</dt>
+              <dd>{selected.attempt_count || 0}</dd>
+              {selected.error_message && (
+                <>
+                  <dt>Failure reason</dt>
+                  <dd>{selected.error_message}</dd>
+                </>
+              )}
+            </dl>
+          </aside>
+        </div>
+      )}
+    </main>
   );
 }
-
-const sectionTitle = {
-  margin: "0 0 10px 0",
-  color: "#2D2A3E",
-  fontSize: 20,
-  fontWeight: 700 as const,
-};
-
-const labelText = {
-  margin: "0 0 8px 0",
-  color: "#6D6888",
-  fontSize: 13,
-  fontWeight: 800,
-};
-
-const smallText = {
-  margin: "4px 0 0 0",
-  color: "#6D6888",
-  fontSize: 13,
-};
-
-const grid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 10,
-};
-
-const recordButton = {
-  width: "100%",
-  display: "grid",
-  gridTemplateColumns: "120px 1fr 150px 100px",
-  gap: 8,
-  alignItems: "center",
-  background: "#FFFDFB",
-  border: "1px solid #F0E3D8",
-  borderRadius: 12,
-  padding: "10px 12px",
-  color: "#2D2A3E",
-  cursor: "pointer",
-  textAlign: "left" as const,
-};
-
-const pillBlue = {
-  background: "#EAF7FD",
-  border: "1px solid #CBEAF7",
-  borderRadius: 999,
-  padding: "4px 10px",
-  fontSize: 12,
-  color: "#2D2A3E",
-  textAlign: "center" as const,
-};
-
-const pillNeutral = {
-  background: "#F8F4FF",
-  border: "1px solid #E7DFF8",
-  borderRadius: 999,
-  padding: "4px 10px",
-  fontSize: 12,
-  color: "#2D2A3E",
-  textAlign: "center" as const,
-};
-
-const pillStatus = {
-  background: "#EAF8EE",
-  border: "1px solid #CDEED8",
-  borderRadius: 999,
-  padding: "4px 10px",
-  fontSize: 12,
-  color: "#2D2A3E",
-  textAlign: "center" as const,
-};
-
-const messageBox = {
-  marginTop: 10,
-  background: "#FFFDFB",
-  border: "1px solid #F0E3D8",
-  borderRadius: 12,
-  padding: 12,
-  color: "#2D2A3E",
-  fontSize: 14,
-  lineHeight: 1.6,
-};

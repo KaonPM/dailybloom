@@ -279,10 +279,10 @@ export default function Sidebar() {
         permission: PERMISSIONS.AWARDS_MANAGE,
       },
       {
-        label: "Communications",
+          label: "Communication Centre",
         href: "/communications",
         match: ["/communications"],
-        permission: PERMISSIONS.COMMUNICATIONS_MANAGE,
+        permission: PERMISSIONS.MESSAGE_VIEW,
       },
       {
         label: "Reports",
@@ -315,7 +315,13 @@ export default function Sidebar() {
   );
 
   const teacherSchoolManagementNav = useMemo<NavItem[]>(
-    () => [
+      () => [
+        {
+          label: "Communication Centre",
+          href: "/communications",
+          match: ["/communications"],
+          permission: PERMISSIONS.MESSAGE_VIEW,
+        },
       {
         label: "Classroom Activities",
         href: "/classroom-activities",
@@ -697,9 +703,10 @@ export default function Sidebar() {
           key: "parent-communication",
           label: "Parent Communication",
           color: "#EC4899",
-          items: [
-            ...(canViewMessages ? [messagesNavItem] : []),
-            { label: "Class Broadcasts", href: "/broadcasts", match: ["/broadcasts"] },
+            items: [
+              ...(canViewMessages ? [messagesNavItem] : []),
+              { label: "Class Broadcasts", href: "/broadcasts", match: ["/broadcasts"] },
+              ...itemsNamed("Communication Centre"),
           ],
         },
       ]
@@ -744,7 +751,7 @@ export default function Sidebar() {
           color: "#EC4899",
           items: [
             ...(canViewMessages ? [messagesNavItem] : []),
-            ...itemsNamed("Broadcasts", "Communications"),
+             ...itemsNamed("Broadcasts", "Communication Centre"),
           ],
         },
         {

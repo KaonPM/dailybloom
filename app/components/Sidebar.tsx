@@ -117,6 +117,11 @@ export default function Sidebar() {
         match: ["/master/reports"],
       },
       {
+        label: "Trust & Security",
+        href: "/master/trust-security",
+        match: ["/master/trust-security"],
+      },
+      {
         label: "Platform Analytics",
         href: "/master/analytics",
         match: ["/master/analytics"],
@@ -308,6 +313,12 @@ export default function Sidebar() {
         href: "/school-setup",
         match: ["/school-setup"],
         permission: PERMISSIONS.SCHOOL_MANAGE,
+      },
+      {
+        label: "Trust & Security",
+        href: "/trust-security",
+        match: ["/trust-security"],
+        permission: PERMISSIONS.REPORTS_VIEW,
       },
       { label: "Billing Overview", href: "/billing", match: [], permission: PERMISSIONS.BILLING_MANAGE },
     ],
@@ -765,7 +776,7 @@ export default function Sidebar() {
           label: "School Administration",
           color: "#F59E0B",
           items: [
-            ...itemsNamed("Classrooms", "School Setup", "School Printable Documents"),
+            ...itemsNamed("Classrooms", "School Setup", "School Printable Documents", "Trust & Security"),
             ...(canViewDbe ? dbeNav : []),
           ],
         },
@@ -830,7 +841,14 @@ export default function Sidebar() {
       ? [{ label: "Master Admin Access", href: "/platform-access", match: ["/platform-access"] }]
       : []),
     ...(profile?.permissions?.includes(PERMISSIONS.PLATFORM_REPORTS_VIEW)
-      ? [{ label: "Platform Reports", href: "/master/reports", match: ["/master/reports"] }]
+      ? [
+          { label: "Platform Reports", href: "/master/reports", match: ["/master/reports"] },
+          {
+            label: "Trust & Security",
+            href: "/master/trust-security",
+            match: ["/master/trust-security"],
+          },
+        ]
       : []),
     ...(profile?.permissions?.includes(PERMISSIONS.PLATFORM_ANALYTICS_VIEW)
       ? [{ label: "Platform Analytics", href: "/master/analytics", match: ["/master/analytics"] }]

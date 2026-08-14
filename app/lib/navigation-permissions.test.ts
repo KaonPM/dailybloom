@@ -7,5 +7,6 @@ test("school routes map to the matching delegated permission", () => {
   assert.equal(permissionForSchoolPath("/children"), PERMISSIONS.LEARNERS_MANAGE);
   assert.equal(permissionForSchoolPath("/dbe-registration/documents"), PERMISSIONS.DBE_MANAGE);
   assert.equal(permissionForSchoolPath("/billing"), PERMISSIONS.BILLING_MANAGE);
+  assert.equal(permissionForSchoolPath("/trust-security"), PERMISSIONS.REPORTS_VIEW);
   assert.equal(permissionForSchoolPath("/dashboard"), null);
 });

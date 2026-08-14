@@ -16,6 +16,7 @@ const SCHOOL_ROUTE_PERMISSIONS: readonly [string, Permission][] = [
   ["/attendance", PERMISSIONS.ATTENDANCE_MANAGE],
   ["/summaries", PERMISSIONS.SUMMARIES_MANAGE],
   ["/analytics", PERMISSIONS.ANALYTICS_VIEW],
+  ["/trust-security", PERMISSIONS.REPORTS_VIEW],
   ["/reports", PERMISSIONS.REPORTS_VIEW],
   ["/payments", PERMISSIONS.BILLING_MANAGE],
   ["/billing", PERMISSIONS.BILLING_MANAGE],

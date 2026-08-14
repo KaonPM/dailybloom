@@ -403,7 +403,7 @@ export default function LearnerProfilePage() {
   const [savingPortalPhone, setSavingPortalPhone] = useState(false);
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "requirements" | "documents"
+    "overview" | "journey" | "requirements" | "documents"
   >("overview");
 
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
@@ -1174,6 +1174,19 @@ export default function LearnerProfilePage() {
           <button
             type="button"
             className={
+              activeTab === "journey"
+                ? "db-button-primary"
+                : "db-button-secondary"
+            }
+            style={tabButton}
+            onClick={() => setActiveTab("journey")}
+          >
+            Learner Journey
+          </button>
+
+          <button
+            type="button"
+            className={
               activeTab === "requirements"
                 ? "db-button-primary"
                 : "db-button-secondary"
@@ -1317,6 +1330,87 @@ export default function LearnerProfilePage() {
               value={learner.support_needs || "None recorded"}
             />
             <Info label="Notes" value={learner.notes || "No notes recorded"} />
+          </div>
+        </div>
+      )}
+
+      {activeTab === "journey" && (
+        <div className="db-card db-card-lavender" style={{ padding: 16 }}>
+          <h3 style={sectionTitle}>Learner Journey</h3>
+          <p className="db-page-subtitle" style={{ marginBottom: 16 }}>
+            A simple starting point for understanding {learner.name || "this learner"}&apos;s
+            school journey. Open an area only when you need the full record.
+          </p>
+
+          <div style={journeyGrid}>
+            <JourneyCard
+              title="Attendance"
+              summary="View attendance and absence history for context around participation and progress."
+              action="Open attendance"
+              onClick={() =>
+                router.push(schoolId ? `/attendance?school=${schoolId}` : "/attendance")
+              }
+            />
+
+            <JourneyCard
+              title="Development & support"
+              summary={
+                learner.support_needs
+                  ? `Current support note: ${learner.support_needs}`
+                  : "Review developmental reports, evidence, interventions and follow-ups."
+              }
+              action="Open support register"
+              onClick={() =>
+                router.push(
+                  schoolId ? `/support-register?school=${schoolId}` : "/support-register"
+                )
+              }
+              secondaryAction="Open reports"
+              onSecondaryClick={() =>
+                router.push(
+                  schoolId ? `/progress-reports?school=${schoolId}` : "/progress-reports"
+                )
+              }
+            />
+
+            <JourneyCard
+              title="Safety & consent"
+              summary="Open incident history and parent consent records when they are relevant."
+              action="Open incidents"
+              onClick={() =>
+                router.push(
+                  schoolId ? `/incident-reports?school=${schoolId}` : "/incident-reports"
+                )
+              }
+              secondaryAction="Open consent"
+              onSecondaryClick={() =>
+                router.push(
+                  schoolId ? `/parent-permissions?school=${schoolId}` : "/parent-permissions"
+                )
+              }
+            />
+
+            <JourneyCard
+              title="Requirements & documents"
+              summary={`${outstandingRequirementCount} requirement${
+                outstandingRequirementCount === 1 ? "" : "s"
+              } outstanding and ${missingDocumentCount} document${
+                missingDocumentCount === 1 ? "" : "s"
+              } missing.`}
+              action="View requirements"
+              onClick={() => setActiveTab("requirements")}
+              secondaryAction="View documents"
+              onSecondaryClick={() => setActiveTab("documents")}
+            />
+
+            <JourneyCard
+              title="Fees & statement"
+              summary="View the learner's continuous fee account, billed amounts and recorded payments."
+              action="Open payments"
+              onClick={() =>
+                router.push(schoolId ? `/payments?school=${schoolId}` : "/payments")
+              }
+            />
           </div>
         </div>
       )}
@@ -1720,6 +1814,49 @@ function Info({
   );
 }
 
+function JourneyCard({
+  title,
+  summary,
+  action,
+  onClick,
+  secondaryAction,
+  onSecondaryClick,
+}: {
+  title: string;
+  summary: string;
+  action: string;
+  onClick: () => void;
+  secondaryAction?: string;
+  onSecondaryClick?: () => void;
+}) {
+  return (
+    <div style={journeyCard}>
+      <h4 style={journeyTitle}>{title}</h4>
+      <p style={journeySummary}>{summary}</p>
+      <div style={journeyActions}>
+        <button
+          type="button"
+          className="db-button-primary"
+          style={smallButton}
+          onClick={onClick}
+        >
+          {action}
+        </button>
+        {secondaryAction && onSecondaryClick ? (
+          <button
+            type="button"
+            className="db-button-secondary"
+            style={smallButton}
+            onClick={onSecondaryClick}
+          >
+            {secondaryAction}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 const summaryText = {
   margin: "6px 0 0 0",
   color: "#6D6888",
@@ -1743,6 +1880,43 @@ const grid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
   gap: 8,
+};
+
+const journeyGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+  gap: 12,
+};
+
+const journeyCard = {
+  display: "flex",
+  flexDirection: "column" as const,
+  minHeight: 168,
+  padding: 14,
+  background: "#FFFDFB",
+  border: "1px solid #E8E0D8",
+  borderRadius: 14,
+};
+
+const journeyTitle = {
+  margin: 0,
+  color: "#2D2A3E",
+  fontSize: 16,
+  fontWeight: 800 as const,
+};
+
+const journeySummary = {
+  flex: 1,
+  margin: "8px 0 14px",
+  color: "#6D6888",
+  fontSize: 13,
+  lineHeight: 1.5,
+};
+
+const journeyActions = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap" as const,
 };
 
 const formGrid = {

@@ -164,7 +164,7 @@ export default function CommunicationsPage() {
   return (
     <main className={styles.page}>
       <section className={styles.hero}>
-        <h1>Communication Centre</h1>
+        <h1 className="db-page-title">Communication Centre</h1>
         <p>One auditable history of parent portal notices, push notifications, SMS, WhatsApp and email.</p>
       </section>
       <CommunicationSummary summary={summary} />

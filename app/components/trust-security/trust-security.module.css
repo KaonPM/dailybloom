@@ -18,7 +18,7 @@
   box-shadow: 0 18px 38px rgba(74, 55, 69, 0.07);
 }
 
-.hero h1 { margin: 4px 0 10px; font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.05; }
+.hero h1 { margin: 4px 0 10px; }
 .eyebrow { margin: 0; color: #7a6b91; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: .78rem; }
 .intro { max-width: 720px; margin: 0; color: #766d8a; font-size: 1.05rem; line-height: 1.6; }
 .badge { flex: 0 0 auto; padding: 10px 14px; border: 1px solid #e5d7a6; border-radius: 999px; background: #fff6d8; color: #5c4a19; font-weight: 700; font-size: .85rem; }

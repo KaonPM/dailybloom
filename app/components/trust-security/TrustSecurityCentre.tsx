@@ -90,7 +90,7 @@ export default function TrustSecurityCentre({ scope }: { scope: Scope }) {
       <section className={styles.hero}>
         <div>
           <p className={styles.eyebrow}>Governance overview</p>
-          <h1>Trust &amp; Security Centre</h1>
+          <h1 className="db-page-title">Trust &amp; Security Centre</h1>
           <p className={styles.intro}>
             A clear view of how DailyBloom protects access, consent, communication and accountable records.
           </p>

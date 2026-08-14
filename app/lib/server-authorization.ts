@@ -68,11 +68,15 @@ export async function authenticatedRoleCanAccessLearner(staff: AuthorizedStaff, 
 
   const { data: classroom } = await supabaseAdmin
     .from("classrooms")
-    .select("classroom_name")
+    .select("id, classroom_name")
     .eq("id", classroomId)
     .eq("school_id", Number(staff.schoolId || 0))
     .maybeSingle();
 
+  if (!classroom) return false;
+  const assignedId = Number(staff.profile.classroom_id || 0);
+  if (assignedId) return Number(classroom.id) === assignedId;
+
   const assignedName = String(staff.profile.classroom_name || "").trim().toLowerCase();
-  return Boolean(classroom && assignedName && String(classroom.classroom_name || "").trim().toLowerCase() === assignedName);
+  return Boolean(assignedName && String(classroom.classroom_name || "").trim().toLowerCase() === assignedName);
 }

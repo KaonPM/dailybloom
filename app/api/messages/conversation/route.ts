@@ -51,27 +51,41 @@ export async function POST(request: Request) {
       }
     }
 
-    let query = supabaseAdmin
+    let outgoingQuery = supabaseAdmin
       .from("messages")
       .select("*")
       .eq("school_id", schoolId)
-      .or(
-        `and(sender_id.eq.${currentUserId},recipient_id.eq.${contactId}),and(sender_id.eq.${contactId},recipient_id.eq.${currentUserId})`
-      )
-      .order("created_at", { ascending: true })
-      .limit(200);
+      .eq("sender_id", authorization.userId)
+      .eq("recipient_id", contactId);
+    let incomingQuery = supabaseAdmin
+      .from("messages")
+      .select("*")
+      .eq("school_id", schoolId)
+      .eq("sender_id", contactId)
+      .eq("recipient_id", authorization.userId);
 
     if (learnerId) {
-      query = query.eq("learner_id", learnerId);
+      outgoingQuery = outgoingQuery.eq("learner_id", learnerId);
+      incomingQuery = incomingQuery.eq("learner_id", learnerId);
     }
 
-    const { data, error } = await query;
+    const [outgoing, incoming] = await Promise.all([
+      outgoingQuery.order("created_at", { ascending: true }).limit(200),
+      incomingQuery.order("created_at", { ascending: true }).limit(200),
+    ]);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (outgoing.error || incoming.error) {
+      return NextResponse.json(
+        { error: outgoing.error?.message || incoming.error?.message },
+        { status: 400 }
+      );
     }
 
-    const messages = data || [];
+    const messages = [...(outgoing.data || []), ...(incoming.data || [])]
+      .sort((left, right) =>
+        String(left.created_at || "").localeCompare(String(right.created_at || ""))
+      )
+      .slice(-200);
 
     const unreadIds = messages
       .filter(

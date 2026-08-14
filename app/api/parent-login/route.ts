@@ -4,7 +4,10 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { cookies } from "next/headers";
 import { enforceRateLimit } from "@/app/lib/rate-limit";
-import { hashParentSessionToken } from "@/app/lib/parent-session";
+import {
+  hashParentSessionToken,
+} from "@/app/lib/parent-session";
+import { createPendingParentChallenge } from "@/app/lib/parent-challenge";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -186,7 +189,7 @@ export async function POST(req: Request) {
 
   const validPin =
     await bcrypt.compare(
-      pin,
+      String(pin),
       primary.pin_hash
     );
 
@@ -217,7 +220,7 @@ export async function POST(req: Request) {
 
     cookieStore.set(
       "parent_pending_phone",
-      cleanPhone,
+      createPendingParentChallenge(cleanPhone),
       {
         httpOnly: true,
         secure:

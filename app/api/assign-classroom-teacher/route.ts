@@ -51,6 +51,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "The selected classroom could not be found." }, { status: 404 });
     }
 
+    const { data: teacher, error: teacherError } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("id", teacherId)
+      .eq("school_id", schoolId)
+      .eq("role", "teacher")
+      .eq("is_active", true)
+      .maybeSingle();
+    if (teacherError) {
+      return NextResponse.json({ error: teacherError.message }, { status: 400 });
+    }
+    if (!teacher) {
+      return NextResponse.json(
+        { error: "The selected practitioner could not be found in this school." },
+        { status: 404 }
+      );
+    }
+
     await admin
       .from("profiles")
       .update({ classroom_id: null, classroom_name: null })
@@ -58,15 +76,20 @@ export async function POST(request: Request) {
       .eq("role", "teacher")
       .eq("classroom_name", classroomName);
 
-    const { error } = await admin
+    const { data: assignedTeacher, error } = await admin
       .from("profiles")
       .update({ classroom_id: classroom.id, classroom_name: classroomName })
       .eq("id", teacherId)
       .eq("school_id", schoolId)
-      .eq("role", "teacher");
+      .eq("role", "teacher")
+      .select("id")
+      .maybeSingle();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error || !assignedTeacher) {
+      return NextResponse.json(
+        { error: error?.message || "The practitioner could not be assigned." },
+        { status: error ? 400 : 409 }
+      );
     }
 
     await writeSecurityAudit(authorization.staff, "classroom.teacher_assigned", { teacher_id: teacherId, classroom_name: classroomName });

@@ -1,31 +1,41 @@
 import { NextResponse } from "next/server";
 import { requireStaffPermission } from "@/app/lib/server-authorization";
 import { PERMISSIONS } from "@/app/lib/permissions";
+import { enforceRateLimit } from "@/app/lib/rate-limit";
+
+function text(value: unknown, maxLength: number) {
+  return String(value || "").trim().slice(0, maxLength);
+}
 
 export async function POST(req: Request) {
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "OpenAI API key is missing." },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json();
     const authorization = await requireStaffPermission(req, PERMISSIONS.MESSAGE_SEND, Number(body.school_id));
     if (!authorization.ok) return authorization.response;
+    const limited = await enforceRateLimit(
+      req,
+      "polish-summary",
+      60,
+      3600,
+      authorization.staff.userId
+    );
+    if (limited) return limited;
 
-    const {
-      learnerName,
-      mood,
-      meals,
-      rest,
-      healthSafety,
-      todayHighlight,
-      teacherNotes,
-    } = body;
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "Summary polishing is temporarily unavailable." },
+        { status: 503 }
+      );
+    }
+
+    const learnerName = text(body.learnerName, 120);
+    const mood = text(body.mood, 120);
+    const meals = text(body.meals, 300);
+    const rest = text(body.rest, 300);
+    const healthSafety = text(body.healthSafety, 500);
+    const todayHighlight = text(body.todayHighlight, 500);
+    const teacherNotes = text(body.teacherNotes, 800);
 
     if (
       !learnerName ||

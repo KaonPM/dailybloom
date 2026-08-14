@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
-import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
+import {
+  authenticatedRoleCanAccessLearner,
+  requireStaffPermission,
+  writeSecurityAudit,
+} from "@/app/lib/server-authorization";
 import { PERMISSIONS } from "@/app/lib/permissions";
 import {
   canonicalLearnerDocumentName,
@@ -24,8 +28,26 @@ export async function GET(request: Request) {
   const documentId = Number(params.get("document_id"));
   const authorization = await requireStaffPermission(request, PERMISSIONS.REQUIREMENTS_VIEW, schoolId);
   if (!authorization.ok) return authorization.response;
-  const { data: document } = await supabaseAdmin.from("learner_documents").select("id, school_id, file_path, file_url").eq("id", documentId).eq("school_id", schoolId).maybeSingle();
+  const { data: document } = await supabaseAdmin.from("learner_documents").select("id, school_id, learner_id, file_path, file_url").eq("id", documentId).eq("school_id", schoolId).maybeSingle();
   if (!document) return NextResponse.json({ error: "Document not found." }, { status: 404 });
+  const { data: learner } = await supabaseAdmin
+    .from("learners")
+    .select("classroom_id")
+    .eq("id", document.learner_id)
+    .eq("school_id", schoolId)
+    .maybeSingle();
+  if (
+    !learner ||
+    !(await authenticatedRoleCanAccessLearner(
+      authorization.staff,
+      Number(learner.classroom_id || 0)
+    ))
+  ) {
+    return NextResponse.json(
+      { error: "You may only access learner documents in your assigned classroom." },
+      { status: 403 }
+    );
+  }
   if (document.file_path) {
     const { data, error } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(document.file_path, 300);
     if (error || !data?.signedUrl) return NextResponse.json({ error: error?.message || "Document could not be opened." }, { status: 400 });

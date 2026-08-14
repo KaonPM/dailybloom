@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { unstable_rethrow } from "next/navigation";
 import { getParentSessionHash } from "./parent-session";
 
 const supabase = createClient(
@@ -79,6 +80,7 @@ export async function getCurrentParent() {
       children: children || [],
     };
   } catch (err) {
+    unstable_rethrow(err);
     console.error("Parent session error:", err);
     return null;
   }

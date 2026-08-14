@@ -83,12 +83,12 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const schoolId = Number(body.school_id);
-    const message = String(body.message || "").trim();
+    const message = String(body.message || "").trim().slice(0, 2000);
     const senderRole = String(body.sender_role || "").trim();
     const senderId = String(body.sender_id || "").trim();
     const recipientRole = String(body.recipient_role || "").trim();
     const recipientId = String(body.recipient_id || "").trim();
-    const recipientName = String(body.recipient_name || "").trim();
+    const recipientName = String(body.recipient_name || "").trim().slice(0, 160);
     const learnerId = body.learner_id ? String(body.learner_id) : null;
     const authorization = await authorizeMessageUser(request, schoolId, senderId, learnerId, PERMISSIONS.MESSAGE_SEND);
     if (!authorization.ok) return authorization.response;
@@ -99,7 +99,8 @@ export async function POST(request: Request) {
       !senderRole ||
       !senderId ||
       !recipientRole ||
-      !recipientId
+      !recipientId ||
+      !["parent", "teacher", "principal", "admin", "owner", "master", "master_admin"].includes(recipientRole)
     ) {
       return NextResponse.json(
         { error: "Missing message sender, recipient, school, or message text." },

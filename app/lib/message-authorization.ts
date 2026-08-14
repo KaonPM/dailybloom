@@ -1,7 +1,11 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { getCurrentParent } from "./getCurrentParent";
-import { requireStaffPermission } from "./server-authorization";
+import { supabaseAdmin } from "./supabase-admin";
+import {
+  authenticatedRoleCanAccessLearner,
+  requireStaffPermission,
+} from "./server-authorization";
 import { PERMISSIONS, type Permission } from "./permissions";
 import {
   parentCanAccessLearnerAtSchool,
@@ -37,6 +41,30 @@ export async function authorizeMessageUser(request: Request, schoolId: number, c
     if (!authorization.ok) return authorization;
     if (claimedUserId && claimedUserId !== authorization.staff.userId) {
       return { ok: false, response: NextResponse.json({ error: "Sender identity does not match your session." }, { status: 403 }) };
+    }
+    if (learnerId) {
+      const { data: learner } = await supabaseAdmin
+        .from("learners")
+        .select("classroom_id")
+        .eq("id", learnerId)
+        .eq("school_id", schoolId)
+        .maybeSingle();
+      const mayAccessLearner = Boolean(
+        learner &&
+          (await authenticatedRoleCanAccessLearner(
+            authorization.staff,
+            Number(learner.classroom_id || 0)
+          ))
+      );
+      if (!mayAccessLearner) {
+        return {
+          ok: false,
+          response: NextResponse.json(
+            { error: "You may only access learners in your assigned classroom." },
+            { status: 403 }
+          ),
+        };
+      }
     }
     return {
       ok: true,

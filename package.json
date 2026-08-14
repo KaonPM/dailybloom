@@ -15,7 +15,7 @@
     "test:learner-documents": "tsx --test app/lib/learner-documents.test.ts",
     "test:progress-reports": "tsx --test app/lib/progress-reports.test.ts",
     "test:billing": "tsx --test app/lib/billing-calculations.test.ts",
-    "test:authorization": "tsx --test app/lib/permissions.test.ts app/lib/authorization-policy.test.ts app/lib/parent-authorization-policy.test.ts app/lib/role-management.test.ts app/lib/platform-operation-policy.test.ts app/lib/navigation-permissions.test.ts",
+    "test:authorization": "tsx --test app/lib/permissions.test.ts app/lib/authorization-policy.test.ts app/lib/parent-authorization-policy.test.ts app/lib/parent-session.test.ts app/lib/role-management.test.ts app/lib/platform-operation-policy.test.ts app/lib/navigation-permissions.test.ts",
     "test:monitoring": "tsx --test app/lib/error-monitoring.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:authenticated": "playwright test tests/e2e/authenticated-workflows.spec.ts"
@@ -26,7 +26,7 @@
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.8.0",
-    "next": "16.2.10",
+    "next": "16.3.1",
     "openai": "^6.34.0",
     "pdfjs-dist": "^6.1.200",
     "react": "19.2.4",
@@ -42,7 +42,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.3",
+    "eslint-config-next": "16.3.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.0",
     "typescript": "^5"

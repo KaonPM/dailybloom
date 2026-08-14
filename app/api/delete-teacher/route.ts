@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       .from("profiles")
       .update({
         school_id: null,
+        classroom_id: null,
         classroom_name: null,
         is_active: false,
       })

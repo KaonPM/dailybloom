@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { enforceRateLimit } from "@/app/lib/rate-limit";
+import { verifyPendingParentChallenge } from "@/app/lib/parent-challenge";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,11 +15,9 @@ export async function POST(req: Request) {
 
     const { pin } =
       await req.json();
+    const normalizedPin = String(pin || "");
 
-    if (
-      !pin ||
-      pin.length !== 4
-    ) {
+    if (!/^\d{4}$/.test(normalizedPin)) {
       return NextResponse.json(
         {
           error:
@@ -33,10 +32,8 @@ export async function POST(req: Request) {
     const cookieStore =
       await cookies();
 
-    const phone =
-      cookieStore.get(
-        "parent_pending_phone"
-      )?.value;
+    const pendingChallenge = cookieStore.get("parent_pending_phone")?.value || "";
+    const phone = verifyPendingParentChallenge(pendingChallenge);
 
     if (!phone) {
       return NextResponse.json(
@@ -54,7 +51,7 @@ export async function POST(req: Request) {
 
     const hashedPin =
       await bcrypt.hash(
-        pin,
+        normalizedPin,
         10
       );
 

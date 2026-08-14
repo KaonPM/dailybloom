@@ -1,6 +1,19 @@
 .page {
   display: grid;
   gap: 20px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.page > *,
+.hero,
+.panel,
+.summaryGrid,
+.filters {
+  max-width: 100%;
+  min-width: 0;
 }
 
 .hero,
@@ -9,6 +22,10 @@
   border: 1px solid #eadfd7;
   border-radius: 26px;
   padding: 24px;
+}
+
+.panel {
+  overflow: hidden;
 }
 
 .hero {
@@ -61,6 +78,7 @@
   gap: 6px;
   font-weight: 600;
   color: #39324f;
+  min-width: 0;
 }
 
 .filters input,
@@ -78,6 +96,7 @@
   display: flex;
   gap: 10px;
   align-items: end;
+  min-width: 0;
 }
 
 .primary,
@@ -113,7 +132,11 @@
 }
 
 .tableWrap {
-  overflow: auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid #eadfd7;
   border-radius: 18px;
 }
@@ -259,11 +282,11 @@
 
 @media (max-width: 1050px) {
   .summaryGrid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .filters {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -275,7 +298,7 @@
   }
 
   .summaryGrid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .filters {

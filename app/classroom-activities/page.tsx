@@ -186,6 +186,7 @@ export default function ClassroomActivitiesPage() {
   const homeworkWorkspaceRefs = useRef<
     Record<string, HomeworkWorkspaceHandle | null>
   >({});
+  const defaultLibrarySeedRequests = useRef<Set<number>>(new Set());
   const gradeRSeedRequests = useRef<Set<number>>(new Set());
 
   const role = String(profile?.role || "").toLowerCase();
@@ -498,6 +499,7 @@ export default function ClassroomActivitiesPage() {
 
     const classroomRows = await fetchClassrooms(context.schoolId);
     await fetchActivityLibrary(context.schoolId);
+    await ensureDefaultLibrary(context.schoolId, currentProfile);
     await fetchWeeklyPlans(context.schoolId);
     await fetchOutcomes(context.schoolId);
     await fetchAllLearners(context.schoolId);
@@ -577,6 +579,24 @@ export default function ClassroomActivitiesPage() {
     setImportingGradeRLibrary(false);
   }
 
+  async function ensureDefaultLibrary(
+    currentSchoolId: number,
+    currentProfile: ProfileRow
+  ) {
+    if (defaultLibrarySeedRequests.current.has(currentSchoolId)) {
+      return;
+    }
+
+    defaultLibrarySeedRequests.current.add(currentSchoolId);
+    await seedLibraryItems(
+      currentSchoolId,
+      currentProfile,
+      defaultActivityLibrary,
+      "",
+      false
+    );
+  }
+
   async function ensureGradeRLibrary(
     classroom: ClassroomRow | null | undefined,
     currentSchoolId: number,
@@ -618,16 +638,17 @@ export default function ClassroomActivitiesPage() {
       return;
     }
 
+    const libraryKey = (theme: string | null | undefined, activityName: string) =>
+      `${String(theme || "").trim().toLowerCase()}|||${activityName.trim().toLowerCase()}`;
+
     const existing = new Set(
-      (data || []).map(
-        (item: ActivityLibraryKey) =>
-          `${item.developmental_area}|||${item.theme || ""}|||${item.activity_name}`
+      (data || []).map((item: ActivityLibraryKey) =>
+        libraryKey(item.theme, item.activity_name)
       )
     );
 
     const missingItems = libraryItems.filter(
-      (item) =>
-        !existing.has(`${item.developmental_area}|||${item.theme}|||${item.activity_name}`)
+      (item) => !existing.has(libraryKey(item.theme, item.activity_name))
     );
 
     if (missingItems.length === 0) {
@@ -1907,7 +1928,7 @@ export default function ClassroomActivitiesPage() {
           </div>
 
           <div style={{ marginTop: "12px" }}>
-            {activityLibrary.length === 0 ? (
+            {!activeClassroomIsGradeR && classroomActivityLibrary.length === 0 ? (
               <button
                 type="button"
                 className="db-button-primary"

@@ -5,6 +5,7 @@ import { toSouthAfricanSmsNumber } from "@/app/lib/sms-portal";
 type WhatsAppTemplateInput = {
   templateName: string;
   phone: string;
+  headerParameters?: string[];
   bodyParameters: string[];
   buttonUrl?: string;
 };
@@ -121,13 +122,24 @@ function templateLanguage() {
   return process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en_US";
 }
 
+function logTemplateDispatch(input: { templateName: string; language: string; headerParameterCount: number; bodyParameterCount: number }) {
+  console.info("WhatsApp template dispatch", input);
+}
+
 export async function sendWhatsAppTemplate(input: WhatsAppTemplateInput): Promise<WhatsAppSendResult> {
   const apiVersion = requiredEnvironment("WHATSAPP_API_VERSION");
   const phoneNumberId = requiredEnvironment("WHATSAPP_PHONE_NUMBER_ID");
   const accessToken = requiredEnvironment("WHATSAPP_ACCESS_TOKEN");
   const to = toSouthAfricanSmsNumber(input.phone).replace(/^\+/, "");
+  const language = templateLanguage();
 
   const components: Array<Record<string, unknown>> = [];
+  if (input.headerParameters?.length) {
+    components.push({
+      type: "header",
+      parameters: input.headerParameters.map((value) => ({ type: "text", text: cleanTemplateParameter(value) })),
+    });
+  }
   if (input.bodyParameters.length > 0) {
     components.push({
       type: "body",
@@ -142,6 +154,12 @@ export async function sendWhatsAppTemplate(input: WhatsAppTemplateInput): Promis
       parameters: [{ type: "text", text: cleanTemplateParameter(input.buttonUrl) }],
     });
   }
+  logTemplateDispatch({
+    templateName: input.templateName,
+    language,
+    headerParameterCount: input.headerParameters?.length || 0,
+    bodyParameterCount: input.bodyParameters.length,
+  });
 
   const response = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
     method: "POST",
@@ -155,7 +173,7 @@ export async function sendWhatsAppTemplate(input: WhatsAppTemplateInput): Promis
       type: "template",
       template: {
         name: input.templateName,
-        language: { code: templateLanguage() },
+        language: { code: language },
         components,
       },
     }),
@@ -184,6 +202,8 @@ export async function sendWhatsAppAuthenticationCode(input: WhatsAppAuthenticati
   const accessToken = requiredEnvironment("WHATSAPP_ACCESS_TOKEN");
   const to = toSouthAfricanSmsNumber(input.phone).replace(/^\+/, "");
   const code = cleanTemplateParameter(input.code);
+  const language = templateLanguage();
+  logTemplateDispatch({ templateName: input.templateName, language, headerParameterCount: 0, bodyParameterCount: 1 });
 
   const response = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
     method: "POST",
@@ -197,7 +217,7 @@ export async function sendWhatsAppAuthenticationCode(input: WhatsAppAuthenticati
       type: "template",
       template: {
         name: input.templateName,
-        language: { code: templateLanguage() },
+        language: { code: language },
         components: [
           { type: "body", parameters: [{ type: "text", text: code }] },
         ],
@@ -240,7 +260,10 @@ export async function sendEnrolmentWhatsApp(input: {
   return sendWhatsAppTemplate({
     templateName,
     phone: input.phone,
-    bodyParameters: input.bodyParameters,
+    headerParameters: input.kind === "registration" ? [input.bodyParameters[1] || ""] : undefined,
+    bodyParameters: input.kind === "registration"
+      ? [input.bodyParameters[0] || "", input.bodyParameters[2] || "", input.bodyParameters[3] || "", input.bodyParameters[4] || ""]
+      : input.bodyParameters,
     // Meta dynamic URL buttons append this value to the fixed URL configured in the template.
     buttonUrl: input.kind === "form" && input.bodyParameters[3]
       ? formUrlToken(input.bodyParameters[3])

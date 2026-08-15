@@ -872,7 +872,7 @@ function CollapsibleSection({
           </p>
         </div>
 
-        <span style={togglePill}>{isOpen ? "Hide" : "Open"}</span>
+        <span style={togglePill}>{isOpen ? "Close" : "Open"}</span>
       </button>
 
       {isOpen && <div style={{ marginTop: "12px" }}>{children}</div>}

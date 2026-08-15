@@ -308,7 +308,7 @@ export default function EnrolmentsPage() {
           <Link className="db-button-secondary" href={manualEnrolmentHref}>
             + Add Learner Manually
           </Link>
-          <button className="db-button-secondary" type="button" onClick={() => setNewEnquiryOpen((current) => !current)} aria-expanded={newEnquiryOpen}>
+          <button className="db-collapse-action" type="button" onClick={() => setNewEnquiryOpen((current) => !current)} aria-expanded={newEnquiryOpen}>
             {newEnquiryOpen ? "Close" : "Open"}
           </button>
         </div>
@@ -333,7 +333,7 @@ export default function EnrolmentsPage() {
           <div><h2 style={{ margin: 0 }}>Enrolment Pipeline</h2><p className="db-helper" style={{ marginBottom: 0 }}>{schoolName} · {enquiries.length} total enquiries</p></div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button className="db-button-secondary" type="button" onClick={() => void loadPage()} disabled={loading}>{loading ? "Loading..." : "Refresh"}</button>
-            <button className="db-button-secondary" type="button" onClick={() => setPipelineOpen((current) => !current)} aria-expanded={pipelineOpen}>{pipelineOpen ? "Close" : "Open"} list</button>
+            <button className="db-collapse-action" type="button" onClick={() => setPipelineOpen((current) => !current)} aria-expanded={pipelineOpen}>{pipelineOpen ? "Close" : "Open"} list</button>
           </div>
         </div>
 

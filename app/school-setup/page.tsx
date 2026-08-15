@@ -503,34 +503,30 @@ function CollapsibleSetupSection({
 }) {
   return (
     <section className={`db-card db-card-${tone}`} style={{ display: "grid", gap: 18 }}>
-      <button type="button" onClick={onToggle} aria-expanded={isOpen} style={setupSectionToggle}>
-        <span style={{ textAlign: "left" }}>
+      <div style={setupSectionHeader}>
+        <div style={{ textAlign: "left" }}>
           <span style={setupSectionTitle}>{title}</span>
           <span className="db-helper" style={{ display: "block", marginTop: 4 }}>{description}</span>
-        </span>
-        <span className="db-main-pill">{isOpen ? "Close" : "Open"}</span>
-      </button>
+        </div>
+        <button type="button" className="db-collapse-action" onClick={onToggle} aria-expanded={isOpen}>
+          {isOpen ? "Close" : "Open"}
+        </button>
+      </div>
       {isOpen ? children : null}
     </section>
   );
 }
 
-const setupSectionToggle: React.CSSProperties = {
+const setupSectionHeader: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
   gap: 16,
-  width: "100%",
-  padding: 0,
-  border: 0,
-  background: "transparent",
-  cursor: "pointer",
-  color: "inherit",
 };
 
 const setupSectionTitle: React.CSSProperties = {
   display: "block",
   color: "#2D2A3E",
-  fontSize: 20,
+  fontSize: 18,
   fontWeight: 700,
 };

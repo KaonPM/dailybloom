@@ -58,6 +58,7 @@ body {
 
 body {
   font-weight: 400;
+  font-size: 14px;
 }
 
 a {
@@ -86,7 +87,7 @@ textarea {
 .db-page-title {
   margin: 0 0 8px 0;
   color: var(--db-text);
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.15;
 }
@@ -94,9 +95,26 @@ textarea {
 .db-page-subtitle {
   margin: 0;
   color: var(--db-text-soft);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 400;
   line-height: 1.6;
+}
+
+/* Keep operational screens calm and compact; printable documents use their own styles. */
+.db-main-content h1:not(.db-page-title) {
+  font-size: 22px !important;
+}
+
+.db-main-content h2:not(.db-page-title):not(.db-stat-value) {
+  font-size: 18px !important;
+}
+
+.db-main-content h3 {
+  font-size: 17px !important;
+}
+
+.db-main-content h4 {
+  font-size: 16px !important;
 }
 
 .db-card {
@@ -192,6 +210,35 @@ textarea {
 .db-button-secondary:hover {
   background: #fffaf6;
   border-color: #dfd0c4;
+}
+
+.db-collapse-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 1px solid #9edbf5;
+  border-radius: 999px;
+  background: #eaf7fd;
+  color: #17607d;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(56, 148, 188, 0.13);
+}
+
+.db-collapse-action:hover {
+  background: #d8f1fc;
+  border-color: #71c6eb;
+}
+
+.db-collapse-action:focus-visible {
+  outline: 3px solid rgba(124, 204, 243, 0.45);
+  outline-offset: 2px;
 }
 
 .db-main-pill {
@@ -310,7 +357,7 @@ textarea {
 
 .db-stat-value {
   margin: 10px 0 6px 0;
-  font-size: 30px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--db-text);
 }
@@ -318,14 +365,14 @@ textarea {
 .db-stat-label {
   margin: 0;
   color: var(--db-text-soft);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
 }
 
 .db-stat-note {
   margin: 0;
   color: #9a96ad;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .db-list-card {
@@ -490,7 +537,7 @@ textarea {
 
 @media (min-width: 821px) {
   .db-page-title {
-    font-size: 26px;
+    font-size: 23px;
   }
 
   .db-page-subtitle {
@@ -530,7 +577,7 @@ textarea {
   }
 
   .db-stat-value {
-    font-size: 26px;
+    font-size: 23px;
   }
 }
 
@@ -607,7 +654,7 @@ textarea {
   }
 
   .db-page-title {
-    font-size: 24px !important;
+    font-size: 21px !important;
     line-height: 1.15;
   }
 
@@ -643,7 +690,7 @@ textarea {
 
 @media (max-width: 520px) {
   .db-page-title {
-    font-size: 21px !important;
+    font-size: 20px !important;
   }
 
   .db-page-subtitle {

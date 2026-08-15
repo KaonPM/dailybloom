@@ -1465,15 +1465,16 @@ export default function LearnersPage() {
       ) : null}
 
       <div className="db-card db-card-lavender" style={{ padding: 16 }}>
-        <h3 style={sectionTitle}>
-          {activeFilter === "birthdays-today"
-            ? `Birthdays Today (${searchedLearners.length})`
-            : `Learners (${searchedLearners.length})`}
-        </h3>
-
-        <button type="button" className="db-button-secondary" onClick={() => setLearnersListOpen((current) => !current)} aria-expanded={learnersListOpen}>
-          {learnersListOpen ? "Close" : "Open"} list
-        </button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <h3 style={sectionTitle}>
+            {activeFilter === "birthdays-today"
+              ? `Birthdays Today (${searchedLearners.length})`
+              : `Learners (${searchedLearners.length})`}
+          </h3>
+          <button type="button" className="db-collapse-action" onClick={() => setLearnersListOpen((current) => !current)} aria-expanded={learnersListOpen}>
+            {learnersListOpen ? "Close" : "Open"} list
+          </button>
+        </div>
 
         {learnersListOpen ? <>
         <div

@@ -787,7 +787,7 @@ export default function ClassroomsPage() {
       <div className="db-card db-card-green" style={{ padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <h3 style={sectionTitle}>Classrooms ({classrooms.length})</h3>
-          <button type="button" className="db-button-secondary" onClick={() => setClassroomsListOpen((current) => !current)} aria-expanded={classroomsListOpen}>
+          <button type="button" className="db-collapse-action" onClick={() => setClassroomsListOpen((current) => !current)} aria-expanded={classroomsListOpen}>
             {classroomsListOpen ? "Close" : "Open"} list
           </button>
         </div>

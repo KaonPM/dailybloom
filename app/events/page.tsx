@@ -269,7 +269,7 @@ export default function EventsPage() {
       <div className="db-card db-card-green" style={{ padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <h3 style={sectionTitle}>Upcoming School Events ({events.length})</h3>
-          <button type="button" className="db-button-secondary" onClick={() => setEventsListOpen((current) => !current)} aria-expanded={eventsListOpen}>
+          <button type="button" className="db-collapse-action" onClick={() => setEventsListOpen((current) => !current)} aria-expanded={eventsListOpen}>
             {eventsListOpen ? "Close" : "Open"} list
           </button>
         </div>

@@ -892,7 +892,7 @@ export default function LearnerRequirementsPage() {
             style={{ padding: 16, marginBottom: 18, order: 4 }}
           >
             <button type="button" onClick={() => setStationeryOpen((current) => !current)} style={collapseHeader}>
-              <span>Required Stationery and Hygiene</span><span>{stationeryOpen ? "▲" : "▼"}</span>
+              <span>Required Stationery and Hygiene</span><span className="db-collapse-action">{stationeryOpen ? "Close" : "Open"}</span>
             </button>
 
             {stationeryOpen ? <>
@@ -953,7 +953,7 @@ export default function LearnerRequirementsPage() {
             style={{ padding: 16, marginBottom: 18, order: 5 }}
           >
             <button type="button" onClick={() => setDocumentsOpen((current) => !current)} style={collapseHeader}>
-              <span>Required Documents</span><span>{documentsOpen ? "▲" : "▼"}</span>
+              <span>Required Documents</span><span className="db-collapse-action">{documentsOpen ? "Close" : "Open"}</span>
             </button>
 
             {documentsOpen ? <>

@@ -117,6 +117,10 @@ export function isWhatsAppEnrolmentConfigured() {
   );
 }
 
+function templateLanguage() {
+  return process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en_US";
+}
+
 export async function sendWhatsAppTemplate(input: WhatsAppTemplateInput): Promise<WhatsAppSendResult> {
   const apiVersion = requiredEnvironment("WHATSAPP_API_VERSION");
   const phoneNumberId = requiredEnvironment("WHATSAPP_PHONE_NUMBER_ID");
@@ -151,7 +155,7 @@ export async function sendWhatsAppTemplate(input: WhatsAppTemplateInput): Promis
       type: "template",
       template: {
         name: input.templateName,
-        language: { code: "en_US" },
+        language: { code: templateLanguage() },
         components,
       },
     }),
@@ -193,7 +197,7 @@ export async function sendWhatsAppAuthenticationCode(input: WhatsAppAuthenticati
       type: "template",
       template: {
         name: input.templateName,
-        language: { code: "en_US" },
+        language: { code: templateLanguage() },
         components: [
           { type: "body", parameters: [{ type: "text", text: code }] },
         ],

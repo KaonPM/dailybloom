@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/app/lib/supabase-admin";
 const FORM_TYPES = new Set(["general", "babies", "grade_r"]);
 const MAX_TEMPLATE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_TEMPLATE_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+const CUSTOM_FIELD_TYPES = new Set(["text", "textarea", "select"]);
 
 function text(value: unknown, max = 250) {
   return String(value || "").trim().slice(0, max);
@@ -13,6 +14,33 @@ function text(value: unknown, max = 250) {
 
 function fileName(value: unknown) {
   return text(value, 180).replace(/[^a-zA-Z0-9._-]/g, "_") || "enrolment-form";
+}
+
+function customFields(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 12).flatMap((field, index) => {
+    if (!field || typeof field !== "object") return [];
+    const candidate = field as Record<string, unknown>;
+    const label = text(candidate.label, 120);
+    const type = text(candidate.type, 20);
+    if (!label || !CUSTOM_FIELD_TYPES.has(type)) return [];
+    const options = Array.isArray(candidate.options)
+      ? candidate.options.map((option) => text(option, 80)).filter(Boolean).slice(0, 20)
+      : [];
+    if (type === "select" && options.length < 2) return [];
+    return [{
+      id: text(candidate.id, 80).replace(/[^a-zA-Z0-9_-]/g, "") || `question_${index + 1}`,
+      label,
+      type,
+      required: candidate.required === true,
+      ...(type === "select" ? { options } : {}),
+    }];
+  });
+}
+
+function textList(value: unknown, maximum = 20) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => text(item, 180)).filter(Boolean).slice(0, maximum);
 }
 
 export async function GET(request: Request) {
@@ -93,6 +121,9 @@ export async function POST(request: Request) {
         form_type: formType,
         form_name: formName,
         instructions: text(body.instructions, 3000) || null,
+        custom_fields: customFields(body.custom_fields),
+        required_documents: textList(body.required_documents, 10),
+        stationery_list: textList(body.stationery_list, 40),
         is_active: body.is_active !== false,
         created_by: existingForm?.created_by || authorization.staff.userId,
         updated_by: authorization.staff.userId,

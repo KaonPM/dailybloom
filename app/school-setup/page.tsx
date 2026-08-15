@@ -9,12 +9,22 @@ import { MonthlyFeeSetup } from "@/app/children/MonthlyFeeOptions";
 import { OtherFeeSetup } from "@/app/children/OtherFeeSetup";
 
 type FormType = "general" | "babies" | "grade_r";
+type CustomFormField = {
+  id: string;
+  label: string;
+  type: "text" | "textarea" | "select";
+  required: boolean;
+  options?: string[];
+};
 
 type EnrolmentForm = {
   id: string;
   form_type: FormType;
   form_name: string;
   instructions?: string | null;
+  custom_fields?: CustomFormField[] | null;
+  required_documents?: string[] | null;
+  stationery_list?: string[] | null;
   source_document_name?: string | null;
   source_document_size?: number | null;
   is_active: boolean;
@@ -258,6 +268,24 @@ export default function SchoolSetupPage() {
     });
   }
 
+  function updateCustomFields(type: FormType, customFields: CustomFormField[]) {
+    updateForm(type, { custom_fields: customFields });
+  }
+
+  function addCustomField(type: FormType) {
+    const fields = formFor(type)?.custom_fields || [];
+    if (fields.length >= 12) {
+      setError("You can add up to 12 custom parent questions per form.");
+      return;
+    }
+    updateCustomFields(type, [...fields, {
+      id: `question_${Date.now()}`,
+      label: "New question",
+      type: "text",
+      required: false,
+    }]);
+  }
+
   async function saveSettings() {
     if (!schoolId) return;
     setSavingSettings(true);
@@ -301,6 +329,9 @@ export default function SchoolSetupPage() {
           form_type: type,
           form_name: form.form_name,
           instructions: form.instructions || "",
+          custom_fields: form.custom_fields || [],
+          required_documents: form.required_documents || [],
+          stationery_list: form.stationery_list || [],
           is_active: form.is_active,
         }),
       });
@@ -462,16 +493,44 @@ export default function SchoolSetupPage() {
         <p className="db-helper" style={{ margin: 0 }}>Keep up to three school-specific form types. An uploaded form is kept as your reference; DailyBloom sends a secure digital form link after the Registration Fee is confirmed.</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
           {formOptions.map((option) => {
-            const form = formFor(option.type) || { id: "", form_type: option.type, form_name: option.defaultName, instructions: "", is_active: true };
+            const form = formFor(option.type) || { id: "", form_type: option.type, form_name: option.defaultName, instructions: "", custom_fields: [], required_documents: [], stationery_list: [], is_active: true };
+            const customFields = form.custom_fields || [];
             return (
               <article className="db-soft-card" key={option.type} style={{ display: "grid", gap: 12, padding: 16 }}>
                 <div><h3 style={{ margin: 0 }}>{option.title}</h3><p className="db-helper" style={{ marginBottom: 0 }}>{option.description}</p></div>
                 <label style={{ display: "grid", gap: 7 }}><strong>Form name</strong><input className="db-input" value={form.form_name} onChange={(event) => updateForm(option.type, { form_name: event.target.value })} /></label>
                 <label style={{ display: "grid", gap: 7 }}><strong>School instructions</strong><textarea className="db-input" rows={4} value={form.instructions || ""} onChange={(event) => updateForm(option.type, { instructions: event.target.value })} placeholder="Optional school-specific instructions for the parent" /></label>
+                <div style={{ display: "grid", gap: 10 }}>
+                  <div><strong>Custom parent questions</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>Add the extra information this school needs. Core learner and parent details always stay included.</p></div>
+                  {customFields.map((field, index) => (
+                    <div key={field.id} className="db-card" style={{ display: "grid", gap: 8, padding: 12 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 130px", gap: 8 }}>
+                        <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Question</span><input className="db-input" value={field.label} onChange={(event) => updateCustomFields(option.type, customFields.map((item) => item.id === field.id ? { ...item, label: event.target.value } : item))} /></label>
+                        <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Answer type</span><select className="db-input" value={field.type} onChange={(event) => updateCustomFields(option.type, customFields.map((item) => item.id === field.id ? { ...item, type: event.target.value as CustomFormField["type"], options: event.target.value === "select" ? item.options?.length ? item.options : ["Option 1", "Option 2"] : undefined } : item))}><option value="text">Short text</option><option value="textarea">Long text</option><option value="select">Choose from list</option></select></label>
+                      </div>
+                      {field.type === "select" ? <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Choices (one per line)</span><textarea className="db-input" rows={3} value={(field.options || []).join("\n")} onChange={(event) => updateCustomFields(option.type, customFields.map((item) => item.id === field.id ? { ...item, options: event.target.value.split("\n") } : item))} /></label> : null}
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <label style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={field.required} onChange={(event) => updateCustomFields(option.type, customFields.map((item) => item.id === field.id ? { ...item, required: event.target.checked } : item))} /> Required</label>
+                        <button className="db-collapse-action" type="button" disabled={index === 0} onClick={() => updateCustomFields(option.type, customFields.map((item, position) => position === index ? customFields[index - 1] : position === index - 1 ? customFields[index] : item))}>Up</button>
+                        <button className="db-collapse-action" type="button" disabled={index === customFields.length - 1} onClick={() => updateCustomFields(option.type, customFields.map((item, position) => position === index ? customFields[index + 1] : position === index + 1 ? customFields[index] : item))}>Down</button>
+                        <button className="db-collapse-action" type="button" onClick={() => updateCustomFields(option.type, customFields.filter((item) => item.id !== field.id))}>Remove</button>
+                      </div>
+                    </div>
+                  ))}
+                  <div><button className="db-button-secondary" type="button" onClick={() => addCustomField(option.type)}>Add parent question</button></div>
+                </div>
+                <div style={{ display: "grid", gap: 10 }}>
+                  <div><strong>Parent uploads and stationery</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>These appear in step 3 of the parent form.</p></div>
+                  <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Required document uploads (one per line)</span><textarea className="db-input" rows={3} value={(form.required_documents || []).join("\n")} onChange={(event) => updateForm(option.type, { required_documents: event.target.value.split("\n") })} placeholder={"Birth certificate\nParent ID\nImmunisation record"} /></label>
+                  <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Stationery / items to bring (one per line)</span><textarea className="db-input" rows={3} value={(form.stationery_list || []).join("\n")} onChange={(event) => updateForm(option.type, { stationery_list: event.target.value.split("\n") })} placeholder={"Small school bag\nWater bottle\nExtra set of clothes"} /></label>
+                </div>
                 <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={form.is_active} onChange={(event) => updateForm(option.type, { is_active: event.target.checked })} /> Available for new enquiries</label>
                 <div className="db-helper">{form.source_document_name ? `Reference file: ${form.source_document_name}${form.source_document_size ? ` (${formatBytes(form.source_document_size)})` : ""}` : "No reference document uploaded yet."}</div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <button className="db-button-secondary" type="button" onClick={() => void saveForm(option.type)} disabled={savingForm === option.type}>{savingForm === option.type ? "Saving..." : "Save Form"}</button>
+                  <Link className="db-button-secondary" href={`/enrolment/preview?form_name=${encodeURIComponent(form.form_name)}&instructions=${encodeURIComponent(form.instructions || "")}&custom_fields=${encodeURIComponent(JSON.stringify(customFields))}&required_documents=${encodeURIComponent(JSON.stringify(form.required_documents || []))}&stationery_list=${encodeURIComponent(JSON.stringify(form.stationery_list || []))}&school_name=Your%20School`} target="_blank" rel="noreferrer">
+                    Preview Parent Form
+                  </Link>
                   <label className="db-button-primary" style={{ cursor: uploadingForm === option.type ? "wait" : "pointer" }}>
                     <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden disabled={uploadingForm === option.type} onChange={(event) => void uploadTemplate(option.type, event)} />
                     {uploadingForm === option.type ? "Uploading..." : form.source_document_name ? "Replace File" : "Upload Reference"}

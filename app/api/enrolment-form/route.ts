@@ -8,8 +8,15 @@ import {
 import { toSouthAfricanSmsNumber } from "@/app/lib/sms-portal";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
+const ALLOWED_DOCUMENT_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
 function text(value: unknown, max = 250) {
   return String(value || "").trim().slice(0, max);
+}
+
+function fileName(value: unknown) {
+  return text(value, 180).replace(/[^a-zA-Z0-9._-]/g, "_") || "document";
 }
 
 function one<T>(value: T | T[] | null | undefined) {
@@ -20,7 +27,7 @@ async function findEnquiry(token: string) {
   if (!token || token.length < 30) return null;
   const { data } = await supabaseAdmin
     .from("school_enrolment_enquiries")
-    .select("id, school_id, enquiry_reference, parent_name, status, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions), schools(school_name)")
+    .select("id, school_id, enquiry_reference, parent_name, status, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name)")
     .eq("form_token_hash", hashEnrolmentSecret(token))
     .maybeSingle();
   if (!data || !data.form_token_expires_at || new Date(data.form_token_expires_at).getTime() < Date.now()) return null;
@@ -60,6 +67,43 @@ function accessCodeRequiredResponse() {
   );
 }
 
+function savedCustomAnswers(value: unknown, fields: unknown) {
+  const answers = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const configuredFields = Array.isArray(fields) ? fields : [];
+  const result: Record<string, string> = {};
+  for (const field of configuredFields) {
+    if (!field || typeof field !== "object") continue;
+    const definition = field as Record<string, unknown>;
+    const id = text(definition.id, 80);
+    const label = text(definition.label, 120);
+    if (!id || !label) continue;
+    const answer = text(answers[id], 2000);
+    if (definition.required === true && !answer) {
+      throw new Error(`Complete “${label}” before submitting.`);
+    }
+    if (answer) result[id] = answer;
+  }
+  return result;
+}
+
+function uploadedDocuments(value: unknown, requirements: unknown, enquiry: { school_id: number; id: string }) {
+  const uploads = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const names = Array.isArray(requirements) ? requirements.map((item) => text(item, 180)).filter(Boolean).slice(0, 10) : [];
+  const result: Record<string, { name: string; path: string }> = {};
+  for (const documentName of names) {
+    const upload = uploads[documentName];
+    const item = upload && typeof upload === "object" ? upload as Record<string, unknown> : null;
+    const path = text(item?.path, 500);
+    if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) {
+      throw new Error(`Upload “${documentName}” before submitting.`);
+    }
+    result[documentName] = { name: text(item?.name, 180) || documentName, path };
+  }
+  return result;
+}
+
 export async function GET(request: Request) {
   const token = new URL(request.url).searchParams.get("token") || "";
   const enquiry = await findEnquiry(token);
@@ -90,6 +134,17 @@ export async function POST(request: Request) {
   if (!hasFormAccess(request, token, enquiry)) {
     return accessCodeRequiredResponse();
   }
+  if (body.action === "create_document_upload") {
+    const size = Number(body.file_size || 0);
+    const contentType = text(body.content_type, 100).toLowerCase();
+    if (!Number.isFinite(size) || size <= 0 || size > MAX_DOCUMENT_BYTES || !ALLOWED_DOCUMENT_TYPES.has(contentType)) {
+      return NextResponse.json({ error: "Use a PDF, JPG, PNG or WEBP document no larger than 10 MB." }, { status: 400 });
+    }
+    const path = `${enquiry.school_id}/enrolment-submissions/${enquiry.id}/${Date.now()}-${fileName(body.file_name)}`;
+    const { data, error } = await supabaseAdmin.storage.from("school-enrolment-forms").createSignedUploadUrl(path);
+    if (error || !data) return NextResponse.json({ error: error?.message || "Could not prepare the document upload." }, { status: 500 });
+    return NextResponse.json({ path, signed_url: data.signedUrl, token: data.token });
+  }
   const learnerFirstName = text(body.learner_first_name, 120);
   const learnerSurname = text(body.learner_surname, 120);
   const dateOfBirth = text(body.date_of_birth, 30);
@@ -98,6 +153,19 @@ export async function POST(request: Request) {
   const parentPortalPhone = toSouthAfricanSmsNumber(text(body.parent_portal_phone, 40));
   if (!learnerFirstName || !learnerSurname || !dateOfBirth || !guardianName || !guardianPhone || !parentPortalPhone) {
     return NextResponse.json({ error: "Complete the learner, parent or guardian and Parent Portal mobile number before submitting." }, { status: 400 });
+  }
+  const form = one(enquiry.school_enrolment_forms as Record<string, unknown> | Record<string, unknown>[] | null);
+  let customAnswers: Record<string, string>;
+  try {
+    customAnswers = savedCustomAnswers(body.custom_answers, form?.custom_fields);
+  } catch (validationError) {
+    return NextResponse.json({ error: validationError instanceof Error ? validationError.message : "Complete the required custom questions." }, { status: 400 });
+  }
+  let documents: Record<string, { name: string; path: string }>;
+  try {
+    documents = uploadedDocuments(body.uploaded_documents, form?.required_documents, enquiry);
+  } catch (validationError) {
+    return NextResponse.json({ error: validationError instanceof Error ? validationError.message : "Upload the required documents before submitting." }, { status: 400 });
   }
   const submittedData = {
     learner_first_name: learnerFirstName,
@@ -112,6 +180,8 @@ export async function POST(request: Request) {
     guardian_email: text(body.guardian_email, 180),
     home_address: text(body.home_address, 1000),
     medical_notes: text(body.medical_notes, 2000),
+    custom_answers: customAnswers,
+    uploaded_documents: documents,
     submitted_at: new Date().toISOString(),
   };
   const { error } = await supabaseAdmin

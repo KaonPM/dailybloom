@@ -691,10 +691,10 @@ export default function PaymentsPage() {
 
             <button
               type="button"
-              className="db-button-secondary"
+              className="db-collapse-action"
               onClick={() => setShowUnpaidLearners((prev) => !prev)}
             >
-              {showUnpaidLearners ? "Hide" : `View Unpaid (${unpaidLearners.length})`}
+              {showUnpaidLearners ? "Close" : `Open unpaid (${unpaidLearners.length})`}
             </button>
           </div>
 
@@ -741,10 +741,10 @@ export default function PaymentsPage() {
 
             <button
               type="button"
-              className="db-button-secondary"
+              className="db-collapse-action"
               onClick={() => setShowPaymentHistory((prev) => !prev)}
             >
-              {showPaymentHistory ? "Hide" : "View History"}
+              {showPaymentHistory ? "Close" : "Open history"}
             </button>
           </div>
 

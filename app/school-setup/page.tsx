@@ -502,13 +502,13 @@ function CollapsibleSetupSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className={`db-card db-card-${tone}`} style={{ display: "grid", gap: 18, position: "relative" }}>
+    <section className={`db-card db-card-${tone}`} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 18 }}>
       <div style={setupSectionHeader}>
         <div style={{ textAlign: "left" }}>
           <span style={setupSectionTitle}>{title}</span>
           <span className="db-helper" style={{ display: "block", marginTop: 4 }}>{description}</span>
         </div>
-        <button type="button" className="db-collapse-action" style={setupCollapseAction} onClick={onToggle} aria-expanded={isOpen}>
+        <button type="button" className="db-collapse-action" onClick={onToggle} aria-expanded={isOpen}>
           {isOpen ? "Close" : "Open"}
         </button>
       </div>
@@ -518,20 +518,14 @@ function CollapsibleSetupSection({
 }
 
 const setupSectionHeader: React.CSSProperties = {
-  display: "flex",
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto",
   alignItems: "center",
-  justifyContent: "space-between",
   gap: 16,
   width: "100%",
   minWidth: 0,
-  position: "relative",
-  paddingRight: 54,
-};
-
-const setupCollapseAction: React.CSSProperties = {
-  position: "absolute",
-  top: 50,
-  right: 18,
+  gridColumn: "1 / -1",
+  justifySelf: "stretch",
 };
 
 const setupSectionTitle: React.CSSProperties = {

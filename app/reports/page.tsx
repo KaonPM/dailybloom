@@ -1321,10 +1321,10 @@ export default function ReportsPage() {
 
           <button
             type="button"
-            className="db-button-secondary"
+            className="db-collapse-action"
             onClick={() => setShowReportResults((prev) => !prev)}
           >
-            {showReportResults ? "Hide" : "View Results"}
+            {showReportResults ? "Close" : "Open results"}
           </button>
         </div>
 

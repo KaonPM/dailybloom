@@ -224,10 +224,10 @@ export default function MasterAnalyticsPage() {
 
           <button
             type="button"
-            className="db-button-secondary"
+            className="db-collapse-action"
             onClick={() => setShowOverviewCards((prev) => !prev)}
           >
-            {showOverviewCards ? "Hide Overview" : "View Overview"}
+            {showOverviewCards ? "Close" : "Open overview"}
           </button>
         </div>
 

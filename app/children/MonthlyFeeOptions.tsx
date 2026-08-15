@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 export type MonthlyFeeOption = {
   id: number;
   fee_code: string;
@@ -26,6 +28,7 @@ export function MonthlyFeeSetup({
   onAdd: () => void;
   onRemove: (feeId: number) => void;
 }) {
+  const [savedOptionsOpen, setSavedOptionsOpen] = useState(false);
   const additional = options.filter(
     (fee) => fee.fee_code !== "monthly_school_fee"
   );
@@ -66,7 +69,11 @@ export function MonthlyFeeSetup({
       </button>
 
       {additional.length ? (
-        <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+        <div style={{ marginTop: 12 }}>
+          <button type="button" className="db-button-secondary" onClick={() => setSavedOptionsOpen((current) => !current)} aria-expanded={savedOptionsOpen}>
+            {savedOptionsOpen ? "Close" : "Open"} saved monthly fee options ({additional.length})
+          </button>
+          {savedOptionsOpen ? <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
           {additional.map((fee) => (
             <div key={fee.id} style={optionRow}>
               <span>
@@ -84,6 +91,7 @@ export function MonthlyFeeSetup({
               </button>
             </div>
           ))}
+          </div> : null}
         </div>
       ) : null}
     </div>

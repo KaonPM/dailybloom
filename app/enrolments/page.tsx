@@ -109,6 +109,8 @@ export default function EnrolmentsPage() {
   const [parentPhone, setParentPhone] = useState("");
   const [formId, setFormId] = useState("");
   const [creating, setCreating] = useState(false);
+  const [newEnquiryOpen, setNewEnquiryOpen] = useState(true);
+  const [pipelineOpen, setPipelineOpen] = useState(true);
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [paymentFor, setPaymentFor] = useState<string | null>(null);
   const [paymentReference, setPaymentReference] = useState("");
@@ -190,6 +192,8 @@ export default function EnrolmentsPage() {
             ? "The first WhatsApp delivery was not confirmed. DailyBloom has scheduled automatic retries; no manual resend is needed yet."
             : `WhatsApp was not sent: ${body.whatsapp_error || "delivery could not be confirmed."}`,
       });
+      setNewEnquiryOpen(false);
+      setPipelineOpen(true);
       await loadPage();
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "The enrolment enquiry could not be created.");
@@ -304,7 +308,11 @@ export default function EnrolmentsPage() {
           <Link className="db-button-secondary" href={manualEnrolmentHref}>
             + Add Learner Manually
           </Link>
+          <button className="db-button-secondary" type="button" onClick={() => setNewEnquiryOpen((current) => !current)} aria-expanded={newEnquiryOpen}>
+            {newEnquiryOpen ? "Close" : "Open"}
+          </button>
         </div>
+        {newEnquiryOpen ? <>
         {forms.length === 0 ? (
           <div className="db-soft-card" style={{ padding: 14 }}>
             Create at least one active enrolment form in <Link href={`/school-setup${schoolQuery}`}>School Setup</Link> before starting an enquiry.
@@ -317,14 +325,19 @@ export default function EnrolmentsPage() {
           </div>
         )}
         {forms.length > 0 ? <div><button className="db-button-primary" type="button" disabled={creating} onClick={() => void createEnquiry()}>{creating ? "Creating..." : "Create Registration Fee Request"}</button></div> : null}
+        </> : null}
       </section>
 
       <section className="db-card db-card-lavender" style={{ display: "grid", gap: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div><h2 style={{ margin: 0 }}>Enrolment Pipeline</h2><p className="db-helper" style={{ marginBottom: 0 }}>{schoolName} · {enquiries.length} total enquiries</p></div>
-          <button className="db-button-secondary" type="button" onClick={() => void loadPage()} disabled={loading}>{loading ? "Loading..." : "Refresh"}</button>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="db-button-secondary" type="button" onClick={() => void loadPage()} disabled={loading}>{loading ? "Loading..." : "Refresh"}</button>
+            <button className="db-button-secondary" type="button" onClick={() => setPipelineOpen((current) => !current)} aria-expanded={pipelineOpen}>{pipelineOpen ? "Close" : "Open"} list</button>
+          </div>
         </div>
 
+        {pipelineOpen && <>
         {loading ? <p className="db-helper">Loading enrolments...</p> : null}
         {!loading && enquiries.length === 0 ? <div className="db-soft-card" style={{ padding: 16 }}>No enrolment enquiries have been created yet.</div> : null}
         {!loading ? <div style={{ display: "grid", gap: 12 }}>
@@ -393,6 +406,7 @@ export default function EnrolmentsPage() {
           })}
         </div> : null}
         {visibleCount < enquiries.length ? <div><button className="db-button-secondary" type="button" onClick={() => setVisibleCount((count) => count + 20)}>Show Next 20</button></div> : null}
+        </>}
       </section>
     </div>
   );

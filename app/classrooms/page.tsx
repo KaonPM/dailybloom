@@ -59,6 +59,7 @@ export default function ClassroomsPage() {
 
   const [selectedClassroom, setSelectedClassroom] =
     useState<ClassroomRow | null>(null);
+  const [classroomsListOpen, setClassroomsListOpen] = useState(true);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -784,9 +785,14 @@ export default function ClassroomsPage() {
       ) : null}
 
       <div className="db-card db-card-green" style={{ padding: 16 }}>
-        <h3 style={sectionTitle}>Classrooms ({classrooms.length})</h3>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <h3 style={sectionTitle}>Classrooms ({classrooms.length})</h3>
+          <button type="button" className="db-button-secondary" onClick={() => setClassroomsListOpen((current) => !current)} aria-expanded={classroomsListOpen}>
+            {classroomsListOpen ? "Close" : "Open"} list
+          </button>
+        </div>
 
-        {classrooms.length === 0 ? (
+        {classroomsListOpen && (classrooms.length === 0 ? (
           <p className="db-helper">No classrooms added yet.</p>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
@@ -1007,7 +1013,7 @@ export default function ClassroomsPage() {
               );
             })}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

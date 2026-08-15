@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 type OtherFeeOption = {
   id: number;
   fee_name: string;
@@ -25,6 +27,7 @@ export function OtherFeeSetup({
   onAdd: () => void;
   onRemove: (feeId: number) => void;
 }) {
+  const [savedFeesOpen, setSavedFeesOpen] = useState(false);
   return (
     <section style={{ marginTop: 18 }}>
       <h4 style={{ margin: "0 0 8px", color: "#2D2A3E" }}>
@@ -71,7 +74,11 @@ export function OtherFeeSetup({
       </div>
 
       {options.length ? (
-        <div style={savedGrid}>
+        <div style={{ marginTop: 12 }}>
+          <button type="button" className="db-button-secondary" onClick={() => setSavedFeesOpen((current) => !current)} aria-expanded={savedFeesOpen}>
+            {savedFeesOpen ? "Close" : "Open"} saved additional fees ({options.length})
+          </button>
+          {savedFeesOpen ? <div style={savedGrid}>
           {options.map((fee, index) => (
             <article key={fee.id} style={savedFeeBox}>
               <div>
@@ -93,6 +100,7 @@ export function OtherFeeSetup({
               </button>
             </article>
           ))}
+          </div> : null}
         </div>
       ) : null}
     </section>

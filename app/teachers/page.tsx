@@ -33,6 +33,7 @@ export default function TeachersPage() {
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<TeacherRow | null>(null);
+  const [teachersListOpen, setTeachersListOpen] = useState(true);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -446,9 +447,14 @@ export default function TeachersPage() {
       ) : null}
 
       <div className="db-card db-card-green" style={{ padding: 16 }}>
-        <h3 style={sectionTitle}>Practitioners ({teachers.length})</h3>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <h3 style={sectionTitle}>Practitioners ({teachers.length})</h3>
+          <button type="button" className="db-button-secondary" onClick={() => setTeachersListOpen((current) => !current)} aria-expanded={teachersListOpen}>
+            {teachersListOpen ? "Close" : "Open"} list
+          </button>
+        </div>
 
-        {teachers.length === 0 ? (
+        {teachersListOpen && (teachers.length === 0 ? (
           <p className="db-helper">No practitioners added yet.</p>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
@@ -564,7 +570,7 @@ export default function TeachersPage() {
               );
             })}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

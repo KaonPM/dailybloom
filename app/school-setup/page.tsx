@@ -91,6 +91,9 @@ export default function SchoolSetupPage() {
   const [savingForm, setSavingForm] = useState<FormType | null>(null);
   const [uploadingForm, setUploadingForm] = useState<FormType | null>(null);
   const [savingFeeSetup, setSavingFeeSetup] = useState(false);
+  const [schoolFeesOpen, setSchoolFeesOpen] = useState(true);
+  const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
+  const [enrolmentFormsOpen, setEnrolmentFormsOpen] = useState(false);
 
   const schoolQuery = useMemo(() => {
     const value = searchParams.get("school");
@@ -188,7 +191,10 @@ export default function SchoolSetupPage() {
       registration_amount: registrationAmount,
       monthly_amount: monthlyAmount,
     });
-    if (saved) setMessage("School fees saved.");
+    if (saved) {
+      setMessage("School fees saved.");
+      setSchoolFeesOpen(false);
+    }
   }
 
   async function addMonthlySchoolFee() {
@@ -205,6 +211,7 @@ export default function SchoolSetupPage() {
       setNewMonthlyFeeName("");
       setNewMonthlyFeeAmount("");
       setMessage("Monthly fee option saved.");
+      setSchoolFeesOpen(false);
     }
   }
 
@@ -222,6 +229,7 @@ export default function SchoolSetupPage() {
       setNewOtherFeeName("");
       setNewOtherFeeAmount("");
       setMessage("Additional fee saved.");
+      setSchoolFeesOpen(false);
     }
   }
 
@@ -265,6 +273,7 @@ export default function SchoolSetupPage() {
       if (!response.ok) throw new Error(body.error || "School settings could not be saved.");
       setSettings({ ...emptySettings, ...(body.settings || {}) });
       setMessage("School setup saved. The bank details will appear in the registration-fee payment message.");
+      setPaymentDetailsOpen(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "School settings could not be saved.");
     } finally {
@@ -384,11 +393,13 @@ export default function SchoolSetupPage() {
       {error ? <div className="db-soft-card" role="alert" style={{ padding: 14, color: "#a33d45" }}>{error}</div> : null}
       {message ? <div className="db-soft-card" role="status" style={{ padding: 14, color: "#246b45" }}>{message}</div> : null}
 
-      <section className="db-card db-card-yellow" style={{ display: "grid", gap: 18 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>School Fees</h2>
-          <p className="db-helper" style={{ marginBottom: 0 }}>Configure the registration fee, monthly fee options and once-off charges used when adding or editing learners.</p>
-        </div>
+      <CollapsibleSetupSection
+        title="School Fees"
+        description="Configure registration, monthly and once-off charges used for learners."
+        isOpen={schoolFeesOpen}
+        onToggle={() => setSchoolFeesOpen((current) => !current)}
+        tone="yellow"
+      >
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
           <label style={{ display: "grid", gap: 7 }}>
             <strong>Registration Fee</strong>
@@ -420,13 +431,16 @@ export default function SchoolSetupPage() {
           onAdd={() => void addOtherSchoolFee()}
           onRemove={(feeId) => void updateSchoolFeeCatalog("archive_other", { fee_id: feeId })}
         />
-      </section>
+      </CollapsibleSetupSection>
 
-      <section className="db-card db-card-green" style={{ display: "grid", gap: 18 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Payment details and reminders</h2>
-          <p className="db-helper" style={{ marginBottom: 0 }}>Parents receive these bank details in the registration-fee payment message. Choose the day you want payment reminders prepared each month.</p>
-        </div>
+      <CollapsibleSetupSection
+        title="Payment details and reminders"
+        description="Bank details for registration-fee messages and the monthly reminder day."
+        isOpen={paymentDetailsOpen}
+        onToggle={() => setPaymentDetailsOpen((current) => !current)}
+        tone="green"
+      >
+        <p className="db-helper" style={{ margin: 0 }}>Parents receive these bank details in the registration-fee payment message. Choose the day you want payment reminders prepared each month.</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
           <label style={{ display: "grid", gap: 7 }}><strong>Account name</strong><input className="db-input" value={settings.bank_account_name} onChange={(event) => setSettings({ ...settings, bank_account_name: event.target.value })} placeholder="School account name" /></label>
           <label style={{ display: "grid", gap: 7 }}><strong>Bank name</strong><input className="db-input" value={settings.bank_name} onChange={(event) => setSettings({ ...settings, bank_name: event.target.value })} placeholder="Bank name" /></label>
@@ -436,13 +450,16 @@ export default function SchoolSetupPage() {
           <label style={{ display: "grid", gap: 7 }}><strong>Payment reminder day</strong><select className="db-input" value={settings.payment_reminder_day} onChange={(event) => setSettings({ ...settings, payment_reminder_day: Number(event.target.value) })}>{Array.from({ length: 28 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}{index === 0 ? "st" : index === 1 ? "nd" : index === 2 ? "rd" : "th"} of the month</option>)}</select></label>
         </div>
         <div><button className="db-button-primary" type="button" disabled={savingSettings} onClick={() => void saveSettings()}>{savingSettings ? "Saving..." : "Save School Setup"}</button></div>
-      </section>
+      </CollapsibleSetupSection>
 
-      <section className="db-card db-card-lavender" style={{ display: "grid", gap: 18 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Enrolment Forms</h2>
-          <p className="db-helper" style={{ marginBottom: 0 }}>Keep up to three school-specific form types. An uploaded form is kept as your reference; DailyBloom sends a secure digital form link after the Registration Fee is confirmed.</p>
-        </div>
+      <CollapsibleSetupSection
+        title="Enrolment Forms"
+        description="Manage the school-specific forms and reference uploads used for enquiries."
+        isOpen={enrolmentFormsOpen}
+        onToggle={() => setEnrolmentFormsOpen((current) => !current)}
+        tone="lavender"
+      >
+        <p className="db-helper" style={{ margin: 0 }}>Keep up to three school-specific form types. An uploaded form is kept as your reference; DailyBloom sends a secure digital form link after the Registration Fee is confirmed.</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
           {formOptions.map((option) => {
             const form = formFor(option.type) || { id: "", form_type: option.type, form_name: option.defaultName, instructions: "", is_active: true };
@@ -464,7 +481,56 @@ export default function SchoolSetupPage() {
             );
           })}
         </div>
-      </section>
+      </CollapsibleSetupSection>
     </div>
   );
 }
+
+function CollapsibleSetupSection({
+  title,
+  description,
+  isOpen,
+  onToggle,
+  tone,
+  children,
+}: {
+  title: string;
+  description: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  tone: "yellow" | "green" | "lavender";
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={`db-card db-card-${tone}`} style={{ display: "grid", gap: 18 }}>
+      <button type="button" onClick={onToggle} aria-expanded={isOpen} style={setupSectionToggle}>
+        <span style={{ textAlign: "left" }}>
+          <span style={setupSectionTitle}>{title}</span>
+          <span className="db-helper" style={{ display: "block", marginTop: 4 }}>{description}</span>
+        </span>
+        <span className="db-main-pill">{isOpen ? "Close" : "Open"}</span>
+      </button>
+      {isOpen ? children : null}
+    </section>
+  );
+}
+
+const setupSectionToggle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 16,
+  width: "100%",
+  padding: 0,
+  border: 0,
+  background: "transparent",
+  cursor: "pointer",
+  color: "inherit",
+};
+
+const setupSectionTitle: React.CSSProperties = {
+  display: "block",
+  color: "#2D2A3E",
+  fontSize: 20,
+  fontWeight: 700,
+};

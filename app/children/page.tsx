@@ -150,6 +150,7 @@ export default function LearnersPage() {
   const [showForm, setShowForm] = useState(
     () => searchParams.get("action") === "add"
   );
+  const [learnersListOpen, setLearnersListOpen] = useState(true);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1470,6 +1471,11 @@ export default function LearnersPage() {
             : `Learners (${searchedLearners.length})`}
         </h3>
 
+        <button type="button" className="db-button-secondary" onClick={() => setLearnersListOpen((current) => !current)} aria-expanded={learnersListOpen}>
+          {learnersListOpen ? "Close" : "Open"} list
+        </button>
+
+        {learnersListOpen ? <>
         <div
           style={{
             display: "flex",
@@ -1681,6 +1687,7 @@ export default function LearnersPage() {
             ) : null}
           </>
         )}
+        </> : null}
       </div>
     </div>
   );

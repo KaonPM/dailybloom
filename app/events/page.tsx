@@ -25,6 +25,7 @@ export default function EventsPage() {
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<EventRow | null>(null);
+  const [eventsListOpen, setEventsListOpen] = useState(true);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -266,9 +267,14 @@ export default function EventsPage() {
       ) : null}
 
       <div className="db-card db-card-green" style={{ padding: 16 }}>
-        <h3 style={sectionTitle}>Upcoming School Events ({events.length})</h3>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <h3 style={sectionTitle}>Upcoming School Events ({events.length})</h3>
+          <button type="button" className="db-button-secondary" onClick={() => setEventsListOpen((current) => !current)} aria-expanded={eventsListOpen}>
+            {eventsListOpen ? "Close" : "Open"} list
+          </button>
+        </div>
 
-        {events.length === 0 ? (
+        {eventsListOpen && (events.length === 0 ? (
           <p className="db-helper">No upcoming events added yet.</p>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
@@ -352,7 +358,7 @@ export default function EventsPage() {
               );
             })}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

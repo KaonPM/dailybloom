@@ -262,7 +262,7 @@ export async function sendEnrolmentWhatsApp(input: {
     phone: input.phone,
     headerParameters: input.kind === "registration" ? [input.bodyParameters[1] || ""] : undefined,
     bodyParameters: input.kind === "registration"
-      ? [input.bodyParameters[0] || "", input.bodyParameters[2] || "", input.bodyParameters[3] || "", input.bodyParameters[4] || ""]
+      ? [input.bodyParameters[1] || "", input.bodyParameters[0] || "", input.bodyParameters[2] || "", input.bodyParameters[3] || "", input.bodyParameters[4] || ""]
       : input.bodyParameters,
     // Meta dynamic URL buttons append this value to the fixed URL configured in the template.
     buttonUrl: input.kind === "form" && input.bodyParameters[3]

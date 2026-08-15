@@ -244,6 +244,7 @@ export async function sendEnrolmentWhatsApp(input: {
   accessCode?: string;
 }) {
   const templateName = getEnrolmentWhatsAppTemplateDetails(input.kind).templateName;
+  const usesSchoolHeader = input.kind === "registration" || input.kind === "form";
 
   if (input.kind === "access_code") {
     const code = input.accessCode || input.bodyParameters[2];
@@ -260,8 +261,8 @@ export async function sendEnrolmentWhatsApp(input: {
   return sendWhatsAppTemplate({
     templateName,
     phone: input.phone,
-    headerParameters: input.kind === "registration" ? [input.bodyParameters[1] || ""] : undefined,
-    bodyParameters: input.kind === "registration"
+    headerParameters: usesSchoolHeader ? [input.bodyParameters[1] || ""] : undefined,
+    bodyParameters: usesSchoolHeader
       ? [input.bodyParameters[1] || "", input.bodyParameters[0] || "", input.bodyParameters[2] || "", input.bodyParameters[3] || "", input.bodyParameters[4] || ""]
       : input.bodyParameters,
     // Meta dynamic URL buttons append this value to the fixed URL configured in the template.

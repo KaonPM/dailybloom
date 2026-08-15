@@ -217,18 +217,19 @@ textarea {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  min-height: 32px;
-  padding: 6px 11px;
+  min-height: 26px;
+  padding: 4px 8px;
   border: 1px solid #9edbf5;
   border-radius: 999px;
   background: #eaf7fd;
   color: #17607d;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.01em;
   cursor: pointer;
   box-shadow: 0 2px 5px rgba(56, 148, 188, 0.13);
+  margin-left: auto;
 }
 
 .db-collapse-action:hover {

@@ -402,8 +402,8 @@ export default function BroadcastsPage() {
             <h3 style={sectionTitle}>Broadcast History ({broadcasts.length})</h3>
             <p style={smallText}>Open only when you need to review a sent message or draft.</p>
           </div>
-          <button type="button" className="db-button-secondary" onClick={() => setShowHistory((current) => !current)}>
-            {showHistory ? "Hide" : "View History"}
+          <button type="button" className="db-collapse-action" onClick={() => setShowHistory((current) => !current)} aria-expanded={showHistory}>
+            {showHistory ? "Close" : "Open"} list
           </button>
         </div>
 

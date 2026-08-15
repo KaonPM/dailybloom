@@ -522,6 +522,8 @@ const setupSectionHeader: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
   gap: 16,
+  width: "100%",
+  minWidth: 0,
 };
 
 const setupSectionTitle: React.CSSProperties = {

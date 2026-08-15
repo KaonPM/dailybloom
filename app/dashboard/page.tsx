@@ -872,7 +872,7 @@ function CollapsibleSection({
           </p>
         </div>
 
-        <span style={togglePill}>{isOpen ? "Close" : "Open"}</span>
+        <span className="db-collapse-action" style={togglePill}>{isOpen ? "Close" : "Open"}</span>
       </button>
 
       {isOpen && <div style={{ marginTop: "12px" }}>{children}</div>}
@@ -1043,13 +1043,6 @@ const sectionButton = {
 };
 
 const togglePill = {
-  background: "#FFF7D9",
-  border: "1px solid #F3E4A3",
-  borderRadius: "999px",
-  padding: "7px 11px",
-  color: "#2D2A3E",
-  fontSize: "12px",
-  fontWeight: 700,
   whiteSpace: "nowrap" as const,
 };
 

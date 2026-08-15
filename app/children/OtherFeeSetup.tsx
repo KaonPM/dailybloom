@@ -74,8 +74,8 @@ export function OtherFeeSetup({
       </div>
 
       {options.length ? (
-        <div style={{ marginTop: 12 }}>
-          <button type="button" className="db-button-secondary" onClick={() => setSavedFeesOpen((current) => !current)} aria-expanded={savedFeesOpen}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          <button type="button" className="db-collapse-action" onClick={() => setSavedFeesOpen((current) => !current)} aria-expanded={savedFeesOpen}>
             {savedFeesOpen ? "Close" : "Open"} saved additional fees ({options.length})
           </button>
           {savedFeesOpen ? <div style={savedGrid}>

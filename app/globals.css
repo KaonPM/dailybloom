@@ -242,6 +242,44 @@ textarea {
   outline-offset: 2px;
 }
 
+/* Native disclosure sections use the same compact, far-right Open/Close cue. */
+.db-main-content details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.db-main-content details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.db-main-content details > summary::after {
+  content: "Open";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 26px;
+  margin-left: auto;
+  padding: 4px 8px;
+  border: 1px solid #9edbf5;
+  border-radius: 999px;
+  background: #eaf7fd;
+  color: #17607d;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 5px rgba(56, 148, 188, 0.13);
+}
+
+.db-main-content details[open] > summary::after {
+  content: "Close";
+}
+
 .db-main-pill {
   display: inline-flex;
   align-items: center;

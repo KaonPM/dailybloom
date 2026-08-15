@@ -69,8 +69,8 @@ export function MonthlyFeeSetup({
       </button>
 
       {additional.length ? (
-        <div style={{ marginTop: 12 }}>
-          <button type="button" className="db-button-secondary" onClick={() => setSavedOptionsOpen((current) => !current)} aria-expanded={savedOptionsOpen}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          <button type="button" className="db-collapse-action" onClick={() => setSavedOptionsOpen((current) => !current)} aria-expanded={savedOptionsOpen}>
             {savedOptionsOpen ? "Close" : "Open"} saved monthly fee options ({additional.length})
           </button>
           {savedOptionsOpen ? <div style={{ display: "grid", gap: 8, marginTop: 12 }}>

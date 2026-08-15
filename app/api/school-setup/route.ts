@@ -49,14 +49,15 @@ export async function GET(request: Request) {
   const authorization = await requireStaffPermission(request, PERMISSIONS.SCHOOL_MANAGE, schoolId);
   if (!authorization.ok) return authorization.response;
 
-  const [{ data: settings, error: settingsError }, { data: forms, error: formsError }, { data: registrationFee, error: feeError }] = await Promise.all([
+  const [{ data: settings, error: settingsError }, { data: forms, error: formsError }, { data: registrationFee, error: feeError }, { data: school, error: schoolError }] = await Promise.all([
     supabaseAdmin.from("school_setup_settings").select("*").eq("school_id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_enrolment_forms").select("*").eq("school_id", schoolId).order("form_type"),
     supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("school_id", schoolId).eq("fee_code", "registration").maybeSingle(),
+    supabaseAdmin.from("schools").select("school_name, logo_url, primary_color").eq("id", schoolId).maybeSingle(),
   ]);
-  const error = settingsError || formsError || feeError;
+  const error = settingsError || formsError || feeError || schoolError;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ settings, forms: forms || [], registration_fee: registrationFee });
+  return NextResponse.json({ settings, forms: forms || [], registration_fee: registrationFee, school });
 }
 
 export async function POST(request: Request) {

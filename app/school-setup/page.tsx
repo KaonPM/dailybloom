@@ -39,6 +39,8 @@ type SchoolSettings = {
   payment_reminder_day: number;
 };
 
+type SchoolBrand = { school_name?: string | null; logo_url?: string | null; primary_color?: string | null };
+
 type SchoolFeeType = {
   id: number;
   fee_code: string;
@@ -87,6 +89,7 @@ export default function SchoolSetupPage() {
   const searchParams = useSearchParams();
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [settings, setSettings] = useState<SchoolSettings>(emptySettings);
+  const [schoolBrand, setSchoolBrand] = useState<SchoolBrand | null>(null);
   const [forms, setForms] = useState<EnrolmentForm[]>([]);
   const [schoolFeeTypes, setSchoolFeeTypes] = useState<SchoolFeeType[]>([]);
   const [schoolRegistrationFee, setSchoolRegistrationFee] = useState("");
@@ -146,6 +149,7 @@ export default function SchoolSetupPage() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "School Setup could not be loaded.");
       setSettings({ ...emptySettings, ...(body.settings || {}) });
+      setSchoolBrand(body.school || null);
       setForms(body.forms || []);
       await fetchSchoolFeeCatalog(context.schoolId);
     } catch (loadError) {
@@ -528,7 +532,7 @@ export default function SchoolSetupPage() {
                 <div className="db-helper">{form.source_document_name ? `Reference file: ${form.source_document_name}${form.source_document_size ? ` (${formatBytes(form.source_document_size)})` : ""}` : "No reference document uploaded yet."}</div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <button className="db-button-secondary" type="button" onClick={() => void saveForm(option.type)} disabled={savingForm === option.type}>{savingForm === option.type ? "Saving..." : "Save Form"}</button>
-                  <Link className="db-button-secondary" href={`/enrolment/preview?form_name=${encodeURIComponent(form.form_name)}&instructions=${encodeURIComponent(form.instructions || "")}&custom_fields=${encodeURIComponent(JSON.stringify(customFields))}&required_documents=${encodeURIComponent(JSON.stringify(form.required_documents || []))}&stationery_list=${encodeURIComponent(JSON.stringify(form.stationery_list || []))}&school_name=Your%20School`} target="_blank" rel="noreferrer">
+                  <Link className="db-button-secondary" href={`/enrolment/preview?form_name=${encodeURIComponent(form.form_name)}&instructions=${encodeURIComponent(form.instructions || "")}&custom_fields=${encodeURIComponent(JSON.stringify(customFields))}&required_documents=${encodeURIComponent(JSON.stringify(form.required_documents || []))}&stationery_list=${encodeURIComponent(JSON.stringify(form.stationery_list || []))}&school_name=${encodeURIComponent(schoolBrand?.school_name || "Your School")}&school_logo_url=${encodeURIComponent(schoolBrand?.logo_url || "")}&school_primary_color=${encodeURIComponent(schoolBrand?.primary_color || "")}`} target="_blank" rel="noreferrer">
                     Preview Parent Form
                   </Link>
                   <label className="db-button-primary" style={{ cursor: uploadingForm === option.type ? "wait" : "pointer" }}>

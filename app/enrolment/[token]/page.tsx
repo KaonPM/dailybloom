@@ -34,6 +34,8 @@ type FormInfo = {
   parent_name: string;
   status: string;
   school_name: string;
+  school_logo_url?: string | null;
+  school_primary_color?: string | null;
   form: PublicForm | null;
 };
 
@@ -89,6 +91,8 @@ export default function SecureEnrolmentFormPage() {
         parent_name: "Preview Parent",
         status: "preview",
         school_name: searchParams.get("school_name") || "Your School",
+        school_logo_url: searchParams.get("school_logo_url") || null,
+        school_primary_color: searchParams.get("school_primary_color") || null,
         form: { form_name: previewFormName, instructions: previewInstructions, custom_fields: previewCustomFields, required_documents: previewDocuments, stationery_list: previewStationery },
       });
       setFields((current) => ({ ...current, guardian_name: "Preview Parent" }));
@@ -256,6 +260,7 @@ export default function SecureEnrolmentFormPage() {
     <main className="db-public-page">
       <section className="db-card db-card-blue" style={{ display: "grid", gap: 12 }}>
         <div className="db-eyebrow">DAILYBLOOM · SECURE ENROLMENT</div>
+        {info?.school_logo_url ? <img src={info.school_logo_url} alt={`${info.school_name} logo`} style={{ width: 76, height: 76, borderRadius: 14, objectFit: "contain" }} /> : null}
         <h1 className="db-page-title" style={{ margin: 0 }}>
           {info?.school_name || "Secure Enrolment"}
         </h1>
@@ -263,6 +268,7 @@ export default function SecureEnrolmentFormPage() {
           {info?.form?.form_name || "Enrolment Form"}
           {info?.reference ? ` · Reference ${info.reference}` : ""}
         </p>
+        <div className="db-soft-card" style={{ padding: 10, borderLeft: `4px solid ${info?.school_primary_color || "#5ab8de"}` }}><strong>Digital school enrolment form</strong><span className="db-helper" style={{ display: "block", marginTop: 3 }}>Please complete the school’s form sections below. Your school details and enrolment reference are already included.</span></div>
       </section>
 
       {isPreview ? (

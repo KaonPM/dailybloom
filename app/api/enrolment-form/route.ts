@@ -27,7 +27,7 @@ async function findEnquiry(token: string) {
   if (!token || token.length < 30) return null;
   const { data } = await supabaseAdmin
     .from("school_enrolment_enquiries")
-    .select("id, school_id, enquiry_reference, parent_name, status, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name)")
+    .select("id, school_id, enquiry_reference, parent_name, status, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name, logo_url, primary_color)")
     .eq("form_token_hash", hashEnrolmentSecret(token))
     .maybeSingle();
   if (!data || !data.form_token_expires_at || new Date(data.form_token_expires_at).getTime() < Date.now()) return null;
@@ -113,13 +113,15 @@ export async function GET(request: Request) {
   if (!hasFormAccess(request, token, enquiry)) {
     return accessCodeRequiredResponse();
   }
-  const school = one(enquiry.schools as { school_name?: string } | { school_name?: string }[] | null);
+  const school = one(enquiry.schools as { school_name?: string; logo_url?: string; primary_color?: string } | { school_name?: string; logo_url?: string; primary_color?: string }[] | null);
   const form = one(enquiry.school_enrolment_forms as Record<string, unknown> | Record<string, unknown>[] | null);
   return NextResponse.json({
     reference: enquiry.enquiry_reference,
     parent_name: enquiry.parent_name,
     status: enquiry.status,
     school_name: school?.school_name || "School",
+    school_logo_url: school?.logo_url || null,
+    school_primary_color: school?.primary_color || null,
     form,
   });
 }

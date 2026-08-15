@@ -103,6 +103,8 @@ export default function SchoolSetupPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingForm, setSavingForm] = useState<FormType | null>(null);
   const [uploadingForm, setUploadingForm] = useState<FormType | null>(null);
+  const [pastedFormText, setPastedFormText] = useState<Record<FormType, string>>({ general: "", babies: "", grade_r: "" });
+  const [formStatus, setFormStatus] = useState<Partial<Record<FormType, string>>>({});
   const [savingFeeSetup, setSavingFeeSetup] = useState(false);
   const [schoolFeesOpen, setSchoolFeesOpen] = useState(true);
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
@@ -290,6 +292,35 @@ export default function SchoolSetupPage() {
     }]);
   }
 
+  function createDraftFromText(type: FormType) {
+    const source = pastedFormText[type].trim();
+    if (!source) {
+      setFormStatus((current) => ({ ...current, [type]: "Paste the form wording first." }));
+      return;
+    }
+    const existing = formFor(type)?.custom_fields || [];
+    const questions = source
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^[-•\d.)\s]+/, "").trim())
+      .filter((line) => line.length >= 3 && (/[?:]$/.test(line) || /_{3,}|\.{3,}/.test(line)))
+      .map((line, index) => ({
+        id: `paste_${Date.now()}_${index}`,
+        label: line.replace(/[_:.?]+\s*$/, "").trim(),
+        type: "text" as const,
+        required: false,
+      }))
+      .filter((field) => field.label);
+    const available = Math.max(0, 12 - existing.length);
+    const added = questions.slice(0, available);
+    if (!added.length) {
+      setFormStatus((current) => ({ ...current, [type]: existing.length >= 12 ? "This form already has 12 questions." : "No question lines were found. Add question marks, colons, or blank lines (____)." }));
+      return;
+    }
+    updateCustomFields(type, [...existing, ...added]);
+    setPastedFormText((current) => ({ ...current, [type]: "" }));
+    setFormStatus((current) => ({ ...current, [type]: `${added.length} question${added.length === 1 ? "" : "s"} added. Review and save the form.` }));
+  }
+
   async function saveSettings() {
     if (!schoolId) return;
     setSavingSettings(true);
@@ -404,7 +435,7 @@ export default function SchoolSetupPage() {
       const completeBody = await completeResponse.json();
       if (!completeResponse.ok) throw new Error(completeBody.error || "The uploaded form could not be saved.");
       updateForm(type, completeBody.form);
-      setMessage(`${file.name} is now attached to ${form.form_name}.`);
+      setFormStatus((current) => ({ ...current, [type]: `${file.name} attached as the reference document.` }));
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "The form document could not be uploaded.");
     } finally {
@@ -500,12 +531,13 @@ export default function SchoolSetupPage() {
             const form = formFor(option.type) || { id: "", form_type: option.type, form_name: option.defaultName, instructions: "", custom_fields: [], required_documents: [], stationery_list: [], is_active: true };
             const customFields = form.custom_fields || [];
             return (
-              <article className="db-soft-card" key={option.type} style={{ display: "grid", gap: 12, padding: 16 }}>
-                <div><h3 style={{ margin: 0 }}>{option.title}</h3><p className="db-helper" style={{ marginBottom: 0 }}>{option.description}</p></div>
+              <article className="db-soft-card" key={option.type} style={{ display: "grid", gap: 10, padding: 12 }}>
+                <div><h3 style={{ margin: 0 }}>{option.title}</h3><p className="db-helper" style={{ margin: "3px 0 0" }}>{option.type === "general" ? "Main enrolment form." : option.type === "babies" ? "Babies programme form." : "Grade R enquiries."}</p></div>
                 <label style={{ display: "grid", gap: 7 }}><strong>Form name</strong><input className="db-input" value={form.form_name} onChange={(event) => updateForm(option.type, { form_name: event.target.value })} /></label>
-                <label style={{ display: "grid", gap: 7 }}><strong>School instructions</strong><textarea className="db-input" rows={4} value={form.instructions || ""} onChange={(event) => updateForm(option.type, { instructions: event.target.value })} placeholder="Optional school-specific instructions for the parent" /></label>
-                <div style={{ display: "grid", gap: 10 }}>
-                  <div><strong>Custom parent questions</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>Add the extra information this school needs. Core learner and parent details always stay included.</p></div>
+                <label style={{ display: "grid", gap: 5 }}><strong>Instructions <span className="db-helper">(optional)</span></strong><textarea className="db-input" rows={2} value={form.instructions || ""} onChange={(event) => updateForm(option.type, { instructions: event.target.value })} placeholder="Optional note for parents" /></label>
+                <details style={{ display: "grid", gap: 10 }}>
+                  <summary style={{ cursor: "pointer", fontWeight: 700 }}>Extra parent questions {customFields.length ? `(${customFields.length})` : ""}</summary>
+                  <p className="db-helper" style={{ margin: 0 }}>Add questions not covered by the standard learner and parent details.</p>
                   {customFields.map((field, index) => (
                     <div key={field.id} className="db-card" style={{ display: "grid", gap: 8, padding: 12 }}>
                       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 130px", gap: 8 }}>
@@ -521,15 +553,25 @@ export default function SchoolSetupPage() {
                       </div>
                     </div>
                   ))}
-                  <div><button className="db-button-secondary" type="button" onClick={() => addCustomField(option.type)}>Add parent question</button></div>
-                </div>
-                <div style={{ display: "grid", gap: 10 }}>
-                  <div><strong>Parent uploads and stationery</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>These appear in step 3 of the parent form.</p></div>
+                  <div><button className="db-button-secondary" type="button" onClick={() => addCustomField(option.type)}>Add question</button></div>
+                </details>
+                <details style={{ display: "grid", gap: 10 }}>
+                  <summary style={{ cursor: "pointer", fontWeight: 700 }}>Parent uploads and stationery</summary>
                   <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Required document uploads (one per line)</span><textarea className="db-input" rows={3} value={(form.required_documents || []).join("\n")} onChange={(event) => updateForm(option.type, { required_documents: event.target.value.split("\n") })} placeholder={"Birth certificate\nParent ID\nImmunisation record"} /></label>
                   <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Stationery / items to bring (one per line)</span><textarea className="db-input" rows={3} value={(form.stationery_list || []).join("\n")} onChange={(event) => updateForm(option.type, { stationery_list: event.target.value.split("\n") })} placeholder={"Small school bag\nWater bottle\nExtra set of clothes"} /></label>
-                </div>
+                </details>
                 <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={form.is_active} onChange={(event) => updateForm(option.type, { is_active: event.target.checked })} /> Available for new enquiries</label>
-                <div className="db-helper">{form.source_document_name ? `Reference file: ${form.source_document_name}${form.source_document_size ? ` (${formatBytes(form.source_document_size)})` : ""}` : "No reference document uploaded yet."}</div>
+                <details style={{ display: "grid", gap: 8 }}>
+                  <summary style={{ cursor: "pointer", fontWeight: 700 }}>Paste form text to create a draft</summary>
+                  <p className="db-helper" style={{ margin: 0 }}>Paste only the question lines from a Word/PDF form. Questions ending in a colon, question mark, or blank line are added for review.</p>
+                  <textarea className="db-input" rows={4} value={pastedFormText[option.type]} onChange={(event) => setPastedFormText((current) => ({ ...current, [option.type]: event.target.value }))} placeholder={"Learner home language:\nDoes your child have allergies?\nPrevious school: ______"} />
+                  <div><button className="db-button-secondary" type="button" onClick={() => createDraftFromText(option.type)}>Create draft</button></div>
+                </details>
+                <div style={{ display: "grid", gap: 5 }}>
+                  <strong>Reference document</strong>
+                  <span className="db-helper">{form.source_document_name ? `${form.source_document_name}${form.source_document_size ? ` (${formatBytes(form.source_document_size)})` : ""}` : "Optional: upload the original form for your records."}</span>
+                  {formStatus[option.type] ? <span className="db-helper" role="status" style={{ color: "#246b45" }}>{formStatus[option.type]}</span> : null}
+                </div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <button className="db-button-secondary" type="button" onClick={() => void saveForm(option.type)} disabled={savingForm === option.type}>{savingForm === option.type ? "Saving..." : "Save Form"}</button>
                   <Link className="db-button-secondary" href={`/enrolment/preview?form_name=${encodeURIComponent(form.form_name)}&instructions=${encodeURIComponent(form.instructions || "")}&custom_fields=${encodeURIComponent(JSON.stringify(customFields))}&required_documents=${encodeURIComponent(JSON.stringify(form.required_documents || []))}&stationery_list=${encodeURIComponent(JSON.stringify(form.stationery_list || []))}&school_name=${encodeURIComponent(schoolBrand?.school_name || "Your School")}&school_logo_url=${encodeURIComponent(schoolBrand?.logo_url || "")}&school_primary_color=${encodeURIComponent(schoolBrand?.primary_color || "")}`} target="_blank" rel="noreferrer">

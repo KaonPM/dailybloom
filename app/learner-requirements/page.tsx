@@ -842,11 +842,11 @@ export default function LearnerRequirementsPage() {
     <SubscriptionGuard schoolId={schoolId} featureKey="learner_requirements">
       <div style={{ display: "flex", flexDirection: "column" }}>
         <div className="db-soft-card" style={{ padding: 18, marginBottom: 18, order: 0 }}>
-          <h2 className="db-page-title">Learner Requirements</h2>
+          <h2 className="db-page-title">Learner Requirements Tracking</h2>
           <p className="db-page-subtitle">
-            Manage required stationery, required documents, and learner completion
-            tracking.
+            Record stationery received and documents uploaded for each learner. Principals and admins configure the school-wide default lists in School Setup.
           </p>
+          {!isTeacher ? <Link className="db-button-secondary" href={`/school-setup${schoolParam ? `?school=${encodeURIComponent(schoolParam)}` : ""}`}>Manage default lists in School Setup</Link> : null}
         </div>
 
         <div

@@ -368,7 +368,7 @@ export default function SchoolSetupPage() {
     finally { setSavingUniversalConfiguration(false); }
   }
 
-  async function saveDocumentRequirement(requirement = newDocumentRequirement) {
+  async function saveDocumentRequirement(requirement: typeof newDocumentRequirement | DocumentRequirement = newDocumentRequirement) {
     if (!schoolId || !requirement.title.trim()) { setError("Enter a learner document name."); return; }
     setSavingDocumentRequirement(true); setError("");
     try {
@@ -386,13 +386,13 @@ export default function SchoolSetupPage() {
     setDocumentRequirements((current) => current.map((item) => item.id === id ? { ...item, is_active: false } : item));
   }
 
-  async function saveRequirementTemplate() {
-    if (!schoolId || !newRequirementTemplate.item_name.trim()) { setError("Enter a requirement item name."); return; }
+  async function saveRequirementTemplate(requirement: typeof newRequirementTemplate | RequirementTemplate = newRequirementTemplate) {
+    if (!schoolId || !requirement.item_name.trim()) { setError("Enter a requirement item name."); return; }
     setSavingRequirementTemplate(true); setError("");
     try {
-      const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_enrolment_item", kind: "requirement", school_id: schoolId, ...newRequirementTemplate, display_order: requirementTemplates.length }) });
+      const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_enrolment_item", kind: "requirement", school_id: schoolId, ...requirement, display_order: "id" in requirement ? requirement.display_order : requirementTemplates.length }) });
       const body = await response.json(); if (!response.ok) throw new Error(body.error || "Requirement could not be saved.");
-      setRequirementTemplates((current) => [...current, body.item as RequirementTemplate]); setNewRequirementTemplate({ category: "stationery", item_name: "", quantity: "", instructions: "", is_required: false }); setMessage("Learner requirement saved.");
+      setRequirementTemplates((current) => { const item = body.item as RequirementTemplate; return current.some((row) => row.id === item.id) ? current.map((row) => row.id === item.id ? item : row) : [...current, item]; }); setNewRequirementTemplate({ category: "stationery", item_name: "", quantity: "", instructions: "", is_required: false }); setMessage("Learner requirement saved.");
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Requirement could not be saved."); } finally { setSavingRequirementTemplate(false); }
   }
 
@@ -400,6 +400,28 @@ export default function SchoolSetupPage() {
     if (!schoolId) return;
     const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "archive_enrolment_item", kind: "requirement", school_id: schoolId, id }) }); const body = await response.json();
     if (!response.ok) { setError(body.error || "Requirement could not be archived."); return; } setRequirementTemplates((current) => current.map((item) => item.id === id ? { ...item, is_active: false } : item));
+  }
+
+  async function deleteSetupItem(kind: "document" | "requirement", id: string) {
+    if (!schoolId || !window.confirm("Delete this item from the school default list? Existing submitted enrolments will not change.")) return;
+    const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_enrolment_item", kind, school_id: schoolId, id }) });
+    const body = await response.json();
+    if (!response.ok) { setError(body.error || "The item could not be deleted."); return; }
+    if (kind === "document") setDocumentRequirements((current) => current.filter((item) => item.id !== id));
+    else setRequirementTemplates((current) => current.filter((item) => item.id !== id));
+    setMessage("Default-list item deleted.");
+  }
+
+  async function editDocumentRequirement(item: DocumentRequirement) {
+    const title = window.prompt("Document name", item.title); if (title === null || !title.trim()) return;
+    const instructions = window.prompt("Instructions", item.instructions || ""); if (instructions === null) return;
+    await saveDocumentRequirement({ ...item, title, instructions });
+  }
+
+  async function editRequirementTemplate(item: RequirementTemplate) {
+    const itemName = window.prompt("Requirement name", item.item_name); if (itemName === null || !itemName.trim()) return;
+    const quantity = window.prompt("Quantity", item.quantity || ""); if (quantity === null) return;
+    await saveRequirementTemplate({ ...item, item_name: itemName, quantity });
   }
 
   async function saveEnrolmentListItem(kind: "consent" | "term") {
@@ -614,24 +636,24 @@ export default function SchoolSetupPage() {
         <div style={{ display: "grid", gap: 8 }}><input className="db-input" value={newTerm.title} onChange={(event) => setNewTerm({ ...newTerm, title: event.target.value })} placeholder="e.g. Fees and payments" /><textarea className="db-input" rows={3} value={newTerm.content} onChange={(event) => setNewTerm({ ...newTerm, content: event.target.value })} placeholder="Term wording" /><div><button className="db-button-primary" type="button" disabled={savingTerm} onClick={() => void saveEnrolmentListItem("term")}>{savingTerm ? "Saving..." : "Add term"}</button></div></div>
       </CollapsibleSetupSection>
       <CollapsibleSetupSection
-        title="Learner Requirements"
-        description="Configure stationery and hygiene items parents should provide."
+        title="Default Learner Requirements"
+        description="The school-wide stationery and hygiene list used for enrolment. Add, edit, deactivate or delete items here; track received items on Learner Requirements Tracking."
         isOpen={learnerRequirementsOpen}
         onToggle={() => setLearnerRequirementsOpen((current) => !current)}
         tone="yellow"
       >
-        <div style={{ display: "grid", gap: 8 }}>{requirementTemplates.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.item_name}</strong><br /><small className="db-helper">{item.category} {item.quantity ? `· ${item.quantity}` : ""} {item.is_required ? "· Required" : ""}</small></span>{item.is_active ? <button className="db-collapse-action" type="button" onClick={() => void archiveRequirementTemplate(item.id)}>Deactivate</button> : <span className="db-helper">Inactive</span>}</div>)}</div>
+        <div style={{ display: "grid", gap: 8 }}>{requirementTemplates.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.item_name}</strong><br /><small className="db-helper">{item.category} {item.quantity ? `· ${item.quantity}` : ""} {item.is_required ? "· Required" : ""} {!item.is_active ? "· Inactive" : ""}</small></span><span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="db-collapse-action" type="button" onClick={() => void editRequirementTemplate(item)}>Edit</button>{item.is_active ? <button className="db-collapse-action" type="button" onClick={() => void archiveRequirementTemplate(item.id)}>Deactivate</button> : <button className="db-collapse-action" type="button" onClick={() => void saveRequirementTemplate({ ...item, is_active: true })}>Activate</button>}<button className="db-collapse-action" type="button" onClick={() => void deleteSetupItem("requirement", item.id)}>Delete</button></span></div>)}</div>
         <div style={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr) 110px auto", gap: 10, alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Category</span><select className="db-input" value={newRequirementTemplate.category} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, category: event.target.value as "stationery" | "hygiene" })}><option value="stationery">Stationery</option><option value="hygiene">Hygiene</option></select></label><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Item</span><input className="db-input" value={newRequirementTemplate.item_name} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, item_name: event.target.value })} /></label><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Quantity</span><input className="db-input" value={newRequirementTemplate.quantity} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, quantity: event.target.value })} /></label><div style={{ display: "grid", gap: 7 }}><label><input type="checkbox" checked={newRequirementTemplate.is_required} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, is_required: event.target.checked })} /> Required</label><button className="db-button-primary" type="button" disabled={savingRequirementTemplate} onClick={() => void saveRequirementTemplate()}>{savingRequirementTemplate ? "Saving..." : "Add"}</button></div></div>
       </CollapsibleSetupSection>
 
       <CollapsibleSetupSection
-        title="Learner Documents"
-        description="Set the documents parents must upload or provide during enrolment."
+        title="Default Learner Documents"
+        description="The school-wide document list used for enrolment. Manage the list here; upload and track each learner's documents on Learner Requirements Tracking."
         isOpen={learnerDocumentsOpen}
         onToggle={() => setLearnerDocumentsOpen((current) => !current)}
         tone="green"
       >
-        <div style={{ display: "grid", gap: 10 }}>{documentRequirements.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.title}</strong><br /><small className="db-helper">{item.is_required ? "Required" : "Optional"}{item.instructions ? ` · ${item.instructions}` : ""}</small></span>{item.is_active ? <button className="db-collapse-action" type="button" onClick={() => void archiveDocumentRequirement(item.id)}>Deactivate</button> : <span className="db-helper">Inactive</span>}</div>)}</div>
+        <div style={{ display: "grid", gap: 10 }}>{documentRequirements.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.title}</strong><br /><small className="db-helper">{item.is_required ? "Required" : "Optional"}{item.instructions ? ` · ${item.instructions}` : ""}{!item.is_active ? " · Inactive" : ""}</small></span><span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="db-collapse-action" type="button" onClick={() => void editDocumentRequirement(item)}>Edit</button>{item.is_active ? <button className="db-collapse-action" type="button" onClick={() => void archiveDocumentRequirement(item.id)}>Deactivate</button> : <button className="db-collapse-action" type="button" onClick={() => void saveDocumentRequirement({ ...item, is_active: true })}>Activate</button>}<button className="db-collapse-action" type="button" onClick={() => void deleteSetupItem("document", item.id)}>Delete</button></span></div>)}</div>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) auto", gap: 10, alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Document name</span><input className="db-input" value={newDocumentRequirement.title} onChange={(event) => setNewDocumentRequirement({ ...newDocumentRequirement, title: event.target.value })} placeholder="e.g. Birth certificate" /></label><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Instructions</span><input className="db-input" value={newDocumentRequirement.instructions} onChange={(event) => setNewDocumentRequirement({ ...newDocumentRequirement, instructions: event.target.value })} placeholder="Optional note" /></label><div style={{ display: "grid", gap: 7 }}><label><input type="checkbox" checked={newDocumentRequirement.is_required} onChange={(event) => setNewDocumentRequirement({ ...newDocumentRequirement, is_required: event.target.checked })} /> Required</label><button className="db-button-primary" type="button" disabled={savingDocumentRequirement} onClick={() => void saveDocumentRequirement()}>{savingDocumentRequirement ? "Saving..." : "Add"}</button></div></div>
       </CollapsibleSetupSection>
 

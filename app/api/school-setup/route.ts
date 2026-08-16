@@ -51,14 +51,26 @@ const CONFIGURATION_TABLES = {
 } as const;
 
 const STARTER_DOCUMENTS = [
-  { title: "Learner birth certificate or identity document", instructions: "Upload a clear copy of the learner's birth certificate, ID or passport.", is_required: true, display_order: 1 },
-  { title: "Parent or guardian identity document", instructions: "Upload an ID or passport for the responsible parent or guardian.", is_required: true, display_order: 2 },
-  { title: "Immunisation record / clinic card", instructions: "Upload the most recent immunisation record where applicable.", is_required: false, display_order: 3 },
+  { title: "Birth Certificate", instructions: "Upload a clear copy of the learner's birth certificate or identity document.", is_required: true, display_order: 1 },
+  { title: "Immunisation / Clinic Card", instructions: "Upload the learner's most recent immunisation or clinic card.", is_required: true, display_order: 2 },
+  { title: "Parent/Guardian ID", instructions: "Upload an identity document for the responsible parent or guardian.", is_required: true, display_order: 3 },
+  { title: "Signed Parent/Guardian Enrolment Contract", instructions: "Upload the signed enrolment contract where applicable.", is_required: true, display_order: 4 },
 ];
 const STARTER_REQUIREMENTS = [
-  { category: "stationery", item_name: "Labelled school bag", quantity: "1", instructions: "Please label the bag clearly with the learner's name.", is_required: true, display_order: 1 },
-  { category: "hygiene", item_name: "Water bottle", quantity: "1", instructions: "A labelled refillable bottle for daily use.", is_required: true, display_order: 2 },
-  { category: "hygiene", item_name: "Spare clothes", quantity: "1 set", instructions: "Keep a labelled change of clothes at school.", is_required: false, display_order: 3 },
+  { category: "hygiene", item_name: "Toilet Rolls", quantity: "10", instructions: null, is_required: true, display_order: 1 },
+  { category: "hygiene", item_name: "Tissue Box", quantity: "3", instructions: null, is_required: true, display_order: 2 },
+  { category: "hygiene", item_name: "Wipes (80 per pack)", quantity: "6", instructions: null, is_required: true, display_order: 3 },
+  { category: "hygiene", item_name: "Big Vaseline", quantity: "3", instructions: null, is_required: true, display_order: 4 },
+  { category: "hygiene", item_name: "Lifebuoy Soap / Sunlight Bar Soap", quantity: "4", instructions: null, is_required: true, display_order: 5 },
+  { category: "stationery", item_name: "Flip File (20 pages)", quantity: "1", instructions: null, is_required: true, display_order: 6 },
+  { category: "stationery", item_name: "College Book Exercise (72 pages)", quantity: "1", instructions: null, is_required: true, display_order: 7 },
+  { category: "stationery", item_name: "Colouring Book", quantity: "1", instructions: null, is_required: true, display_order: 8 },
+  { category: "stationery", item_name: "Typek", quantity: "1", instructions: null, is_required: true, display_order: 9 },
+  { category: "stationery", item_name: "Wax Crayons (box of 12)", quantity: "1", instructions: null, is_required: true, display_order: 10 },
+  { category: "stationery", item_name: "Long Pencils", quantity: "4", instructions: null, is_required: true, display_order: 11 },
+  { category: "stationery", item_name: "Rubber (eraser)", quantity: "1", instructions: null, is_required: true, display_order: 12 },
+  { category: "stationery", item_name: "Glue Stick (Pritt)", quantity: "1", instructions: null, is_required: true, display_order: 13 },
+  { category: "stationery", item_name: "Sharpener", quantity: "1", instructions: null, is_required: true, display_order: 14 },
 ];
 const STARTER_CONSENTS = [
   { title: "Emergency Medical Treatment", wording: "I authorise the school to obtain reasonable emergency medical assistance for the learner when necessary and when the parent or guardian cannot be reached promptly.", is_required: true, display_order: 1 },

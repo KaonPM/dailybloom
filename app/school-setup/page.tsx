@@ -127,7 +127,7 @@ export default function SchoolSetupPage() {
   const [pastedFormText, setPastedFormText] = useState<Record<FormType, string>>({ general: "", babies: "", grade_r: "" });
   const [formStatus, setFormStatus] = useState<Partial<Record<FormType, string>>>({});
   const [savingFeeSetup, setSavingFeeSetup] = useState(false);
-  const [schoolFeesOpen, setSchoolFeesOpen] = useState(true);
+  const [schoolFeesOpen, setSchoolFeesOpen] = useState(false);
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
   const [enrolmentFormsOpen, setEnrolmentFormsOpen] = useState(false);
 

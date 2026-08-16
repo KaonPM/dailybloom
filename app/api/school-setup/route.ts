@@ -43,21 +43,33 @@ function textList(value: unknown, maximum = 20) {
   return value.map((item) => text(item, 180)).filter(Boolean).slice(0, maximum);
 }
 
+const CONFIGURATION_TABLES = {
+  document: "school_enrolment_document_requirements",
+  requirement: "school_enrolment_requirement_templates",
+  consent: "school_enrolment_consents",
+  term: "school_enrolment_terms_sections",
+} as const;
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const schoolId = Number(searchParams.get("school_id"));
   const authorization = await requireStaffPermission(request, PERMISSIONS.SCHOOL_MANAGE, schoolId);
   if (!authorization.ok) return authorization.response;
 
-  const [{ data: settings, error: settingsError }, { data: forms, error: formsError }, { data: registrationFee, error: feeError }, { data: school, error: schoolError }] = await Promise.all([
+  const [{ data: settings, error: settingsError }, { data: forms, error: formsError }, { data: registrationFee, error: feeError }, { data: school, error: schoolError }, { data: enrolmentConfiguration, error: configurationError }, { data: documentRequirements, error: documentsError }, { data: requirementTemplates, error: requirementsError }, { data: consents, error: consentsError }, { data: terms, error: termsError }] = await Promise.all([
     supabaseAdmin.from("school_setup_settings").select("*").eq("school_id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_enrolment_forms").select("*").eq("school_id", schoolId).order("form_type"),
     supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("school_id", schoolId).eq("fee_code", "registration").maybeSingle(),
     supabaseAdmin.from("schools").select("school_name, logo_url, primary_color").eq("id", schoolId).maybeSingle(),
+    supabaseAdmin.from("school_enrolment_configurations").select("*").eq("school_id", schoolId).maybeSingle(),
+    supabaseAdmin.from("school_enrolment_document_requirements").select("*").eq("school_id", schoolId).order("display_order"),
+    supabaseAdmin.from("school_enrolment_requirement_templates").select("*").eq("school_id", schoolId).order("display_order"),
+    supabaseAdmin.from("school_enrolment_consents").select("*").eq("school_id", schoolId).order("display_order"),
+    supabaseAdmin.from("school_enrolment_terms_sections").select("*").eq("school_id", schoolId).order("display_order"),
   ]);
-  const error = settingsError || formsError || feeError || schoolError;
+  const error = settingsError || formsError || feeError || schoolError || configurationError || documentsError || requirementsError || consentsError || termsError;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ settings, forms: forms || [], registration_fee: registrationFee, school });
+  return NextResponse.json({ settings, forms: forms || [], registration_fee: registrationFee, school, enrolment_configuration: enrolmentConfiguration, document_requirements: documentRequirements || [], requirement_templates: requirementTemplates || [], consents: consents || [], terms: terms || [] });
 }
 
 export async function POST(request: Request) {
@@ -99,6 +111,62 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     await writeSecurityAudit(authorization.staff, "school_setup.settings_saved", { school_id: schoolId });
     return NextResponse.json({ settings: data });
+  }
+
+  if (action === "save_universal_enrolment_configuration") {
+    const formTitle = text(body.form_title, 180) || "Enrolment Form";
+    const secondGuardianMode = text(body.second_guardian_mode, 20);
+    const emergencyContactMode = text(body.emergency_contact_mode, 20);
+    if (!["hidden", "optional", "required"].includes(secondGuardianMode) || !["hidden", "optional", "required"].includes(emergencyContactMode)) {
+      return NextResponse.json({ error: "Choose valid guardian and emergency-contact settings." }, { status: 400 });
+    }
+    const { data, error } = await supabaseAdmin.from("school_enrolment_configurations").upsert({
+      school_id: schoolId, form_title: formTitle, introduction: text(body.introduction, 3000) || null,
+      is_open: body.is_open !== false, second_guardian_mode: secondGuardianMode,
+      emergency_contact_mode: emergencyContactMode, previous_school_enabled: body.previous_school_enabled !== false,
+      additional_declaration: text(body.additional_declaration, 3000) || null,
+      custom_fields: customFields(body.custom_fields),
+      updated_by: authorization.staff.userId, updated_at: new Date().toISOString(),
+    }, { onConflict: "school_id" }).select().single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await writeSecurityAudit(authorization.staff, "school_setup.universal_enrolment_saved", { school_id: schoolId });
+    return NextResponse.json({ enrolment_configuration: data });
+  }
+
+  if (action === "save_enrolment_item") {
+    const kind = text(body.kind, 20) as keyof typeof CONFIGURATION_TABLES;
+    const table = CONFIGURATION_TABLES[kind];
+    if (!table) return NextResponse.json({ error: "Choose a valid enrolment setting." }, { status: 400 });
+    const id = text(body.id, 80);
+    const base = { school_id: schoolId, is_active: body.is_active !== false, display_order: Math.max(0, Number(body.display_order) || 0), updated_by: authorization.staff.userId, updated_at: new Date().toISOString() };
+    const values = kind === "document"
+      ? { ...base, title: text(body.title, 180), instructions: text(body.instructions, 1000) || null, is_required: body.is_required === true }
+      : kind === "requirement"
+        ? { ...base, category: ["stationery", "hygiene"].includes(text(body.category, 20)) ? text(body.category, 20) : "stationery", item_name: text(body.item_name, 180), quantity: text(body.quantity, 80) || null, instructions: text(body.instructions, 1000) || null, is_required: body.is_required === true }
+        : kind === "consent"
+          ? { ...base, title: text(body.title, 180), wording: text(body.wording, 3000), is_required: body.is_required !== false }
+          : { ...base, title: text(body.title, 180), content: text(body.content, 5000) };
+    const title = text(body.title, 180);
+    const itemName = text(body.item_name, 180);
+    const wording = text(body.wording, 3000);
+    const content = text(body.content, 5000);
+    if (!(kind === "requirement" ? itemName : title) || (kind === "consent" && !wording) || (kind === "term" && !content)) return NextResponse.json({ error: "Complete the required setting information." }, { status: 400 });
+    const query = id ? supabaseAdmin.from(table).update(values).eq("id", id).eq("school_id", schoolId) : supabaseAdmin.from(table).insert({ ...values, created_by: authorization.staff.userId });
+    const { data, error } = await query.select().single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await writeSecurityAudit(authorization.staff, `school_setup.enrolment_${kind}_saved`, { school_id: schoolId, id: data.id });
+    return NextResponse.json({ item: data });
+  }
+
+  if (action === "archive_enrolment_item") {
+    const kind = text(body.kind, 20) as keyof typeof CONFIGURATION_TABLES;
+    const table = CONFIGURATION_TABLES[kind];
+    const id = text(body.id, 80);
+    if (!table || !id) return NextResponse.json({ error: "Choose a valid enrolment setting." }, { status: 400 });
+    const { error } = await supabaseAdmin.from(table).update({ is_active: false, updated_by: authorization.staff.userId, updated_at: new Date().toISOString() }).eq("id", id).eq("school_id", schoolId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await writeSecurityAudit(authorization.staff, `school_setup.enrolment_${kind}_archived`, { school_id: schoolId, id });
+    return NextResponse.json({ success: true });
   }
 
   const formType = text(body.form_type, 30);

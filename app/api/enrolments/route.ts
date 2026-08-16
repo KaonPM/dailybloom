@@ -53,11 +53,11 @@ export async function GET(request: Request) {
   const [{ data: enquiries, error: enquiryError }, { data: forms, error: formError }, { data: school, error: schoolError }] = await Promise.all([
     supabaseAdmin
       .from("school_enrolment_enquiries")
-      .select("id, school_id, form_id, enquiry_reference, parent_name, parent_phone, registration_fee_amount, registration_payment_status, registration_payment_reference, registration_payment_verified_at, status, submitted_data, submitted_at, reviewed_at, decline_reason, created_at, school_enrolment_forms(form_name, form_type)")
+      .select("id, school_id, form_id, enquiry_reference, parent_name, parent_phone, registration_fee_amount, registration_payment_status, registration_payment_reference, registration_payment_verified_at, status, enrolment_source, academic_year, printed_at, paper_received_at, submitted_data, submitted_at, reviewed_at, decline_reason, created_at, school_enrolment_forms(form_name, form_type)")
       .eq("school_id", schoolId)
       .order("created_at", { ascending: false })
       .limit(100),
-    supabaseAdmin.from("school_enrolment_forms").select("id, form_name, form_type, is_active").eq("school_id", schoolId).eq("is_active", true).order("form_type"),
+    supabaseAdmin.from("school_enrolment_forms").select("id, form_name, form_type, is_active").eq("school_id", schoolId).eq("form_type", "general").eq("is_active", true).order("form_type"),
     supabaseAdmin.from("schools").select("school_name").eq("id", schoolId).maybeSingle(),
   ]);
   const error = enquiryError || formError || schoolError;
@@ -96,12 +96,11 @@ export async function POST(request: Request) {
   if (action === "create") {
     const parentName = text(body.parent_name, 180);
     const parentPhone = text(body.parent_phone, 40);
-    const formId = text(body.form_id, 80);
-    if (!parentName || !parentPhone || !formId) {
-      return NextResponse.json({ error: "Choose a form and enter the parent name and mobile number." }, { status: 400 });
+    if (!parentName || !parentPhone) {
+      return NextResponse.json({ error: "Enter the parent name and mobile number." }, { status: 400 });
     }
     const [{ data: form }, { data: fee }, { data: school }, { data: setup }] = await Promise.all([
-      supabaseAdmin.from("school_enrolment_forms").select("id, form_name").eq("id", formId).eq("school_id", schoolId).eq("is_active", true).maybeSingle(),
+      supabaseAdmin.from("school_enrolment_forms").select("id, form_name").eq("school_id", schoolId).eq("form_type", "general").eq("is_active", true).maybeSingle(),
       supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("school_id", schoolId).eq("fee_code", "registration").maybeSingle(),
       supabaseAdmin.from("schools").select("school_name").eq("id", schoolId).maybeSingle(),
       supabaseAdmin.from("school_setup_settings").select("bank_account_name, bank_name, bank_account_number, bank_branch_code").eq("school_id", schoolId).maybeSingle(),
@@ -158,6 +157,43 @@ export async function POST(request: Request) {
       whatsapp_retry_scheduled: delivery.retryScheduled,
       whatsapp_error: delivery.error || null,
     });
+  }
+
+  if (action === "start_manual_application") {
+    const academicYear = Number(body.academic_year);
+    const source = text(body.enrolment_source, 40);
+    if (!Number.isInteger(academicYear) || academicYear < 2020 || academicYear > 2100 || !["paper_manual_capture", "printed_blank_form"].includes(source)) {
+      return NextResponse.json({ error: "Choose a valid academic year and manual enrolment pathway." }, { status: 400 });
+    }
+    const [{ data: form }, { data: fee }] = await Promise.all([
+      supabaseAdmin.from("school_enrolment_forms").select("id").eq("school_id", schoolId).eq("form_type", "general").maybeSingle(),
+      supabaseAdmin.from("school_fee_types").select("id, amount").eq("school_id", schoolId).eq("fee_code", "registration").maybeSingle(),
+    ]);
+    if (!form) return NextResponse.json({ error: "Set up the universal enrolment form first." }, { status: 400 });
+    const { data: reference, error: referenceError } = await supabaseAdmin.rpc("next_school_enrolment_reference_for_year", { p_school_id: schoolId, p_academic_year: academicYear });
+    if (referenceError || !reference) return NextResponse.json({ error: referenceError?.message || "Could not create an enrolment reference." }, { status: 500 });
+    const now = new Date().toISOString();
+    const { data: enquiry, error } = await supabaseAdmin.from("school_enrolment_enquiries").insert({
+      school_id: schoolId, form_id: form.id, enquiry_reference: reference, parent_name: "Paper enrolment", parent_phone: "Pending", academic_year: academicYear, enrolment_source: source,
+      registration_fee_type_id: fee?.id || null, registration_fee_amount: Number(fee?.amount || 0), created_by: authorization.staff.userId,
+      ...(source === "printed_blank_form" ? { printed_at: now, printed_by: authorization.staff.userId } : {}),
+    }).select("id, enquiry_reference, academic_year, enrolment_source").single();
+    if (error || !enquiry) return NextResponse.json({ error: error?.message || "Could not start the manual enrolment." }, { status: 500 });
+    await writeSecurityAudit(authorization.staff, source === "printed_blank_form" ? "enrolment.blank_form_printed" : "enrolment.manual_capture_started", { school_id: schoolId, enquiry_id: enquiry.id, reference, academic_year: academicYear });
+    return NextResponse.json({ enquiry });
+  }
+
+  if (action === "mark_paper_received") {
+    const enquiryId = text(body.enquiry_id, 80);
+    if (!enquiryId) return NextResponse.json({ error: "Choose the returned paper form." }, { status: 400 });
+    const { data: enquiry, error: enquiryError } = await supabaseAdmin.from("school_enrolment_enquiries").select("id, enrolment_source, paper_received_at").eq("id", enquiryId).eq("school_id", schoolId).maybeSingle();
+    if (enquiryError || !enquiry || !["printed_blank_form", "paper_manual_capture"].includes(String(enquiry.enrolment_source))) return NextResponse.json({ error: "Paper enrolment application not found." }, { status: 404 });
+    if (!enquiry.paper_received_at) {
+      const { error } = await supabaseAdmin.from("school_enrolment_enquiries").update({ paper_received_at: new Date().toISOString(), paper_captured_by: authorization.staff.userId, updated_at: new Date().toISOString() }).eq("id", enquiryId).eq("school_id", schoolId);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      await writeSecurityAudit(authorization.staff, "enrolment.paper_received", { school_id: schoolId, enquiry_id: enquiryId });
+    }
+    return NextResponse.json({ success: true });
   }
 
   const enquiryId = text(body.enquiry_id, 80);

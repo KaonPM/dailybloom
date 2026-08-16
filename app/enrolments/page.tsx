@@ -46,6 +46,10 @@ type Enquiry = {
   submitted_at: string | null;
   reviewed_at: string | null;
   decline_reason: string | null;
+  enrolment_source?: "digital_parent" | "paper_manual_capture" | "printed_blank_form" | "re_enrolment" | "existing_manual_learner";
+  academic_year?: number;
+  printed_at?: string | null;
+  paper_received_at?: string | null;
   created_at: string;
   school_enrolment_forms: RelatedForm;
   deliveries?: EnrolmentDelivery[];
@@ -82,6 +86,10 @@ function statusLabel(status: Enquiry["status"]) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function sourceLabel(source?: Enquiry["enrolment_source"]) {
+  return source === "printed_blank_form" ? "Printed blank form" : source === "paper_manual_capture" ? "Paper capture" : source === "re_enrolment" ? "Re-enrolment" : "Digital parent";
+}
+
 function deliveryKindLabel(kind: EnrolmentDelivery["message_kind"]) {
   return kind === "registration" ? "Registration Fee request" : kind === "form" ? "Secure enrolment form" : "Access code";
 }
@@ -105,9 +113,9 @@ export default function EnrolmentsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [visibleCount, setVisibleCount] = useState(20);
+  const [pipelineSearch, setPipelineSearch] = useState("");
   const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
-  const [formId, setFormId] = useState("");
   const [creating, setCreating] = useState(false);
   const [newEnquiryOpen, setNewEnquiryOpen] = useState(true);
   const [pipelineOpen, setPipelineOpen] = useState(true);
@@ -117,6 +125,9 @@ export default function EnrolmentsPage() {
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [share, setShare] = useState<ShareDetails | null>(null);
+  const [manualSource, setManualSource] = useState<"paper_manual_capture" | "printed_blank_form" | null>(null);
+  const [manualYear, setManualYear] = useState(new Date().getFullYear());
+  const [startingManual, setStartingManual] = useState(false);
 
   const schoolQuery = useMemo(() => {
     const school = searchParams.get("school");
@@ -146,7 +157,6 @@ export default function EnrolmentsPage() {
       setForms(loadedForms);
       setEnquiries((body.enquiries || []) as Enquiry[]);
       setSchoolName(body.school_name || "Your school");
-      setFormId((current) => current || loadedForms[0]?.id || "");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Enrolments could not be loaded.");
     } finally {
@@ -170,7 +180,7 @@ export default function EnrolmentsPage() {
       const response = await authenticatedFetch("/api/enrolments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create", school_id: schoolId, parent_name: parentName, parent_phone: parentPhone, form_id: formId }),
+        body: JSON.stringify({ action: "create", school_id: schoolId, parent_name: parentName, parent_phone: parentPhone }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "The enrolment enquiry could not be created.");
@@ -202,7 +212,7 @@ export default function EnrolmentsPage() {
     }
   }
 
-  async function runAction(enquiry: Enquiry, action: "verify_registration_payment" | "issue_form" | "review", extras: Record<string, string> = {}) {
+  async function runAction(enquiry: Enquiry, action: "verify_registration_payment" | "issue_form" | "review" | "mark_paper_received", extras: Record<string, string> = {}) {
     if (!schoolId) return;
     setWorkingId(enquiry.id);
     setError("");
@@ -235,6 +245,8 @@ export default function EnrolmentsPage() {
             : `Secure form issued for ${enquiry.enquiry_reference}, but WhatsApp could not be sent.`);
       } else if (action === "review") {
         setMessage(extras.decision === "approved" ? "Enrolment approved. It is ready for learner capture and class allocation." : "Enrolment declined and the reason was recorded.");
+      } else if (action === "mark_paper_received") {
+        setMessage(`Paper form received for ${enquiry.enquiry_reference}. You can now capture it into DailyBloom.`);
       } else {
         setPaymentFor(null);
         setPaymentReference("");
@@ -258,7 +270,18 @@ export default function EnrolmentsPage() {
     }
   }
 
-  const displayedEnquiries = enquiries.slice(0, visibleCount);
+  async function startManualApplication() {
+    if (!schoolId || !manualSource) return;
+    setStartingManual(true); setError(""); setMessage("");
+    try {
+      const response = await authenticatedFetch("/api/enrolments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start_manual_application", school_id: schoolId, enrolment_source: manualSource, academic_year: manualYear }) });
+      const body = await response.json(); if (!response.ok) throw new Error(body.error || "Could not start the enrolment.");
+      setMessage(`${manualSource === "printed_blank_form" ? "Blank form ready to print" : "Manual enrolment started"}: ${body.enquiry.enquiry_reference} (${body.enquiry.academic_year}).`);
+      setManualSource(null); await loadPage();
+    } catch (startError) { setError(startError instanceof Error ? startError.message : "Could not start the enrolment."); } finally { setStartingManual(false); }
+  }
+
+  const displayedEnquiries = enquiries.filter((enquiry) => `${enquiry.enquiry_reference} ${enquiry.parent_name} ${enquiry.parent_phone}`.toLowerCase().includes(pipelineSearch.trim().toLowerCase())).slice(0, visibleCount);
   const manualEnrolmentHref = schoolQuery
     ? `/children${schoolQuery}&action=add`
     : "/children?action=add";
@@ -321,10 +344,12 @@ export default function EnrolmentsPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
             <label style={{ display: "grid", gap: 7 }}><strong>Parent or guardian name</strong><input className="db-input" value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Parent or guardian name" /></label>
             <label style={{ display: "grid", gap: 7 }}><strong>Parent mobile number</strong><input className="db-input" inputMode="tel" value={parentPhone} onChange={(event) => setParentPhone(event.target.value)} placeholder="e.g. 082 000 0000" /></label>
-            <label style={{ display: "grid", gap: 7 }}><strong>Enrolment form</strong><select className="db-input" value={formId} onChange={(event) => setFormId(event.target.value)}>{forms.map((form) => <option value={form.id} key={form.id}>{form.form_name}</option>)}</select></label>
+            <div className="db-soft-card" style={{ padding: 12 }}><strong>Universal enrolment form</strong><br /><small className="db-helper">DailyBloom uses your School Setup configuration for every new application.</small></div>
           </div>
         )}
         {forms.length > 0 ? <div><button className="db-button-primary" type="button" disabled={creating} onClick={() => void createEnquiry()}>{creating ? "Creating..." : "Create Registration Fee Request"}</button></div> : null}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-secondary" type="button" onClick={() => setManualSource("printed_blank_form")}>Print Blank Enrolment Form</button><button className="db-button-secondary" type="button" onClick={() => setManualSource("paper_manual_capture")}>Start Digital Enrolment</button></div>
+        {manualSource ? <div className="db-soft-card" style={{ padding: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Academic year</span><select className="db-input" value={manualYear} onChange={(event) => setManualYear(Number(event.target.value))}><option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option><option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option></select></label><button className="db-button-primary" type="button" disabled={startingManual} onClick={() => void startManualApplication()}>{startingManual ? "Creating..." : manualSource === "printed_blank_form" ? "Generate reference" : "Start capture"}</button><button className="db-button-secondary" type="button" onClick={() => setManualSource(null)}>Cancel</button></div> : null}
         </> : null}
       </section>
 
@@ -332,6 +357,7 @@ export default function EnrolmentsPage() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div><h2 style={{ margin: 0 }}>Enrolment Pipeline</h2><p className="db-helper" style={{ marginBottom: 0 }}>{schoolName} · {enquiries.length} total enquiries</p></div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <input className="db-input" value={pipelineSearch} onChange={(event) => { setPipelineSearch(event.target.value); setVisibleCount(20); }} placeholder="Search reference, parent or mobile" aria-label="Search enrolments" />
             <button className="db-button-secondary" type="button" onClick={() => void loadPage()} disabled={loading}>{loading ? "Loading..." : "Refresh"}</button>
             <button className="db-collapse-action" type="button" onClick={() => setPipelineOpen((current) => !current)} aria-expanded={pipelineOpen}>{pipelineOpen ? "Close" : "Open"} list</button>
           </div>
@@ -354,6 +380,8 @@ export default function EnrolmentsPage() {
                   <div><strong>Registration Fee</strong><br />{formatMoney(enquiry.registration_fee_amount)}</div>
                   <div><strong>Payment status</strong><br />{enquiry.registration_payment_status === "verified" ? "Confirmed" : enquiry.registration_payment_status === "waived" ? "Waived" : "Awaiting confirmation"}</div>
                   <div><strong>Created</strong><br />{formatDate(enquiry.created_at)}</div>
+                  <div><strong>Academic year</strong><br />{enquiry.academic_year || new Date(enquiry.created_at).getFullYear()}</div>
+                  <div><strong>Source</strong><br />{sourceLabel(enquiry.enrolment_source)}</div>
                   {enquiry.registration_payment_reference ? <div><strong>Payment reference</strong><br />{enquiry.registration_payment_reference}</div> : null}
                 </div>
 
@@ -400,12 +428,15 @@ export default function EnrolmentsPage() {
                 ) : null}
 
                 {enquiry.status === "approved" ? <div className="db-helper">Approved. Capture the learner in the existing learner flow, then allocate the class. This keeps learner billing and duplicate protection in their current safe workflow. <Link href={manualEnrolmentHref}>Open Add Learner</Link></div> : null}
+                {enquiry.enrolment_source === "printed_blank_form" ? <Link className="db-button-secondary" href={`/enrolments/print/${enquiry.id}${schoolQuery}`}>Print / Reprint Blank Form</Link> : null}
+                {["printed_blank_form", "paper_manual_capture"].includes(enquiry.enrolment_source || "") && !enquiry.paper_received_at ? <button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "mark_paper_received")}>Mark Paper Form Received</button> : null}
+                {enquiry.paper_received_at ? <div className="db-helper">Paper received {formatDate(enquiry.paper_received_at)}. Capture the returned form before approval.</div> : null}
                 {enquiry.status === "declined" && enquiry.decline_reason ? <div className="db-helper"><strong>Decline reason:</strong> {enquiry.decline_reason}</div> : null}
               </article>
             );
           })}
         </div> : null}
-        {visibleCount < enquiries.length ? <div><button className="db-button-secondary" type="button" onClick={() => setVisibleCount((count) => count + 20)}>Show Next 20</button></div> : null}
+        {visibleCount < enquiries.filter((enquiry) => `${enquiry.enquiry_reference} ${enquiry.parent_name} ${enquiry.parent_phone}`.toLowerCase().includes(pipelineSearch.trim().toLowerCase())).length ? <div><button className="db-button-secondary" type="button" onClick={() => setVisibleCount((count) => count + 20)}>Show Next 20</button></div> : null}
         </>}
       </section>
     </div>

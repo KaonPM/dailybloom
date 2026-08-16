@@ -37,6 +37,11 @@ type FormInfo = {
   school_logo_url?: string | null;
   school_primary_color?: string | null;
   form: PublicForm | null;
+  document_requirements?: Array<{ title: string; instructions?: string | null; is_required: boolean }>;
+  requirement_templates?: Array<{ category: string; item_name: string; quantity?: string | null; instructions?: string | null }>;
+  consents?: Array<{ id: string; title: string; wording: string; is_required: boolean }>;
+  terms?: Array<{ id: string; title: string; content: string }>;
+  enrolment_configuration?: { additional_declaration?: string | null } | null;
 };
 
 const emptyFields = {
@@ -62,6 +67,10 @@ export default function SecureEnrolmentFormPage() {
   const [info, setInfo] = useState<FormInfo | null>(null);
   const [fields, setFields] = useState(emptyFields);
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
+  const [consentResponses, setConsentResponses] = useState<Record<string, boolean>>({});
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [declarationName, setDeclarationName] = useState("");
+  const [declarationRelationship, setDeclarationRelationship] = useState("");
   const [documentUploads, setDocumentUploads] = useState<Record<string, { name: string; path: string }>>({});
   const [uploadingDocument, setUploadingDocument] = useState("");
   const [step, setStep] = useState(1);
@@ -196,7 +205,7 @@ export default function SecureEnrolmentFormPage() {
       const response = await fetch("/api/enrolment-form", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, ...fields, custom_answers: customAnswers, uploaded_documents: documentUploads }),
+        body: JSON.stringify({ token, ...fields, custom_answers: customAnswers, uploaded_documents: documentUploads, consent_responses: consentResponses, terms_accepted: termsAccepted, declaration_name: declarationName, declaration_relationship: declarationRelationship }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -221,8 +230,10 @@ export default function SecureEnrolmentFormPage() {
   }
 
   const customFields = getCustomFields(info?.form?.custom_fields);
-  const requiredDocuments = getTextList(info?.form?.required_documents);
-  const stationeryList = getTextList(info?.form?.stationery_list);
+  const requiredDocuments = info?.document_requirements?.map((item) => item.title) || getTextList(info?.form?.required_documents);
+  const stationeryList = info?.requirement_templates?.map((item) => `${item.item_name}${item.quantity ? ` (${item.quantity})` : ""}`) || getTextList(info?.form?.stationery_list);
+  const consents = info?.consents || [];
+  const terms = info?.terms || [];
 
   async function uploadDocument(documentName: string, file?: File) {
     if (!file || isPreview) return;
@@ -375,7 +386,7 @@ export default function SecureEnrolmentFormPage() {
             {step === 3 ? <div style={{ display: "grid", gap: 16 }}>
               <div>
                 <h3 style={{ margin: "0 0 10px" }}>Required document uploads</h3>
-                {requiredDocuments.length ? <div style={{ display: "grid", gap: 10 }}>{requiredDocuments.map((documentName) => <label key={documentName} className="db-soft-card" style={{ padding: 12, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}><span><strong>{documentName}</strong><br /><small className="db-helper">{documentUploads[documentName]?.name || "PDF, JPG, PNG or WEBP up to 10 MB"}</small></span><span className="db-button-secondary" style={{ cursor: isPreview ? "default" : "pointer" }}><input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden disabled={isPreview || uploadingDocument === documentName} onChange={(event) => void uploadDocument(documentName, event.target.files?.[0])} />{uploadingDocument === documentName ? "Uploading..." : documentUploads[documentName] ? "Replace" : "Upload"}</span></label>)}</div> : <p className="db-helper">The school has not requested any document uploads for this form.</p>}
+                {requiredDocuments.length ? <div style={{ display: "grid", gap: 10 }}>{requiredDocuments.map((documentName) => { const configured = info?.document_requirements?.find((item) => item.title === documentName); return <label key={documentName} className="db-soft-card" style={{ padding: 12, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}><span><strong>{documentName}{configured?.is_required ? " *" : ""}</strong><br /><small className="db-helper">{documentUploads[documentName]?.name || configured?.instructions || "PDF, JPG, PNG or WEBP up to 10 MB"}</small></span><span className="db-button-secondary" style={{ cursor: isPreview ? "default" : "pointer" }}><input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden disabled={isPreview || uploadingDocument === documentName} onChange={(event) => void uploadDocument(documentName, event.target.files?.[0])} />{uploadingDocument === documentName ? "Uploading..." : documentUploads[documentName] ? "Replace" : "Upload"}</span></label>; })}</div> : <p className="db-helper">The school has not requested any document uploads for this form.</p>}
               </div>
               <div>
                 <h3 style={{ margin: "0 0 10px" }}>Stationery and items to bring</h3>
@@ -393,6 +404,9 @@ export default function SecureEnrolmentFormPage() {
                 {customFields.map((field) => <label key={field.id} style={{ display: "grid", gap: 7 }}><strong>{field.label}{field.required ? " *" : ""}</strong>{field.type === "textarea" ? <textarea className="db-input" rows={4} value={customAnswers[field.id] || ""} onChange={(event) => setCustomAnswers((current) => ({ ...current, [field.id]: event.target.value }))} disabled={isPreview} required={field.required} /> : field.type === "select" ? <select className="db-input" value={customAnswers[field.id] || ""} onChange={(event) => setCustomAnswers((current) => ({ ...current, [field.id]: event.target.value }))} disabled={isPreview} required={field.required}><option value="">Select</option>{(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}</select> : <input className="db-input" value={customAnswers[field.id] || ""} onChange={(event) => setCustomAnswers((current) => ({ ...current, [field.id]: event.target.value }))} disabled={isPreview} required={field.required} />}</label>)}
               </div>
               </div> : null}
+              {consents.length ? <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>Consent & permissions</h3>{consents.map((consent) => <label key={consent.id} className="db-soft-card" style={{ padding: 12, display: "flex", gap: 10, alignItems: "flex-start" }}><input type="checkbox" checked={Boolean(consentResponses[consent.id])} onChange={(event) => setConsentResponses((current) => ({ ...current, [consent.id]: event.target.checked }))} disabled={isPreview} /><span><strong>{consent.title}{consent.is_required ? " *" : ""}</strong><br /><small className="db-helper">{consent.wording}</small></span></label>)}</div> : null}
+              {terms.length ? <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>Terms & conditions</h3>{terms.map((term) => <div key={term.id} className="db-soft-card" style={{ padding: 12 }}><strong>{term.title}</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>{term.content}</p></div>)}<label><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} disabled={isPreview} /> I accept the terms and conditions.</label></div> : null}
+              <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>Declaration</h3>{info?.enrolment_configuration?.additional_declaration ? <p className="db-helper" style={{ margin: 0 }}>{info.enrolment_configuration.additional_declaration}</p> : null}<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}><label style={{ display: "grid", gap: 5 }}><strong>Parent/guardian full name</strong><input className="db-input" value={declarationName} onChange={(event) => setDeclarationName(event.target.value)} disabled={isPreview} /></label><label style={{ display: "grid", gap: 5 }}><strong>Relationship to learner</strong><input className="db-input" value={declarationRelationship} onChange={(event) => setDeclarationRelationship(event.target.value)} disabled={isPreview} /></label></div></div>
               <div className="db-soft-card" style={{ padding: 12 }}><strong>Ready to submit</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>Check that the information and requested documents are complete before submitting.</p></div>
             </div> : null}
           </div>

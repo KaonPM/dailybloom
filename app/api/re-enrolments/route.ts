@@ -89,7 +89,7 @@ export async function GET(request: Request) {
     supabaseAdmin.from("schools").select("id, school_name").eq("id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("school_id", schoolId).eq("fee_code", "registration").maybeSingle(),
     supabaseAdmin.from("school_reenrolment_campaigns").select("id, school_year, source_form_id, form_snapshot, registration_fee_type_id, registration_fee_amount, response_deadline, status, rollover_applied_at, created_at").eq("school_id", schoolId).order("school_year", { ascending: false }),
-    supabaseAdmin.from("school_enrolment_forms").select("id, form_name, form_type, instructions").eq("school_id", schoolId).eq("is_active", true).order("form_name"),
+    supabaseAdmin.from("school_enrolment_forms").select("id, form_name, form_type, instructions").eq("school_id", schoolId).eq("form_type", "general").eq("is_active", true).order("form_name"),
     supabaseAdmin.from("classrooms").select("id, classroom_name").eq("school_id", schoolId).order("classroom_name"),
   ]);
   const failure = schoolResult.error || feeResult.error || campaignsResult.error || formsResult.error || classroomsResult.error;

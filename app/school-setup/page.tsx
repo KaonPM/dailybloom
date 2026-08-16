@@ -40,6 +40,12 @@ type SchoolSettings = {
 };
 
 type SchoolBrand = { school_name?: string | null; logo_url?: string | null; primary_color?: string | null };
+type UniversalEnrolmentConfiguration = { form_title: string; introduction?: string | null; is_open: boolean; second_guardian_mode: "hidden" | "optional" | "required"; emergency_contact_mode: "hidden" | "optional" | "required"; previous_school_enabled: boolean; additional_declaration?: string | null; custom_fields?: CustomFormField[] };
+type DocumentRequirement = { id: string; title: string; instructions?: string | null; is_required: boolean; is_active: boolean; display_order: number };
+type RequirementTemplate = { id: string; category: "stationery" | "hygiene"; item_name: string; quantity?: string | null; instructions?: string | null; is_required: boolean; is_active: boolean; display_order: number };
+type ConsentItem = { id: string; title: string; wording: string; is_required: boolean; is_active: boolean };
+type TermItem = { id: string; title: string; content: string; is_active: boolean };
+const emptyUniversalConfiguration: UniversalEnrolmentConfiguration = { form_title: "Enrolment Form", introduction: "", is_open: true, second_guardian_mode: "optional", emergency_contact_mode: "required", previous_school_enabled: true, additional_declaration: "", custom_fields: [] };
 
 type SchoolFeeType = {
   id: number;
@@ -90,6 +96,21 @@ export default function SchoolSetupPage() {
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [settings, setSettings] = useState<SchoolSettings>(emptySettings);
   const [schoolBrand, setSchoolBrand] = useState<SchoolBrand | null>(null);
+  const [universalConfiguration, setUniversalConfiguration] = useState<UniversalEnrolmentConfiguration>(emptyUniversalConfiguration);
+  const [documentRequirements, setDocumentRequirements] = useState<DocumentRequirement[]>([]);
+  const [requirementTemplates, setRequirementTemplates] = useState<RequirementTemplate[]>([]);
+  const [consents, setConsents] = useState<ConsentItem[]>([]); const [terms, setTerms] = useState<TermItem[]>([]);
+  const [newConsent, setNewConsent] = useState({ title: "", wording: "", is_required: true }); const [newTerm, setNewTerm] = useState({ title: "", content: "" });
+  const [savingConsent, setSavingConsent] = useState(false); const [savingTerm, setSavingTerm] = useState(false);
+  const [consentsOpen, setConsentsOpen] = useState(false); const [termsOpen, setTermsOpen] = useState(false);
+  const [newRequirementTemplate, setNewRequirementTemplate] = useState<{ category: "stationery" | "hygiene"; item_name: string; quantity: string; instructions: string; is_required: boolean }>({ category: "stationery", item_name: "", quantity: "", instructions: "", is_required: false });
+  const [savingRequirementTemplate, setSavingRequirementTemplate] = useState(false);
+  const [learnerRequirementsOpen, setLearnerRequirementsOpen] = useState(false);
+  const [newDocumentRequirement, setNewDocumentRequirement] = useState({ title: "", instructions: "", is_required: false });
+  const [savingDocumentRequirement, setSavingDocumentRequirement] = useState(false);
+  const [learnerDocumentsOpen, setLearnerDocumentsOpen] = useState(false);
+  const [savingUniversalConfiguration, setSavingUniversalConfiguration] = useState(false);
+  const [universalEnrolmentOpen, setUniversalEnrolmentOpen] = useState(false);
   const [forms, setForms] = useState<EnrolmentForm[]>([]);
   const [schoolFeeTypes, setSchoolFeeTypes] = useState<SchoolFeeType[]>([]);
   const [schoolRegistrationFee, setSchoolRegistrationFee] = useState("");
@@ -152,6 +173,10 @@ export default function SchoolSetupPage() {
       if (!response.ok) throw new Error(body.error || "School Setup could not be loaded.");
       setSettings({ ...emptySettings, ...(body.settings || {}) });
       setSchoolBrand(body.school || null);
+      setUniversalConfiguration({ ...emptyUniversalConfiguration, ...(body.enrolment_configuration || {}) });
+      setDocumentRequirements(body.document_requirements || []);
+      setRequirementTemplates(body.requirement_templates || []);
+      setConsents(body.consents || []); setTerms(body.terms || []);
       setForms(body.forms || []);
       await fetchSchoolFeeCatalog(context.schoolId);
     } catch (loadError) {
@@ -344,6 +369,89 @@ export default function SchoolSetupPage() {
     }
   }
 
+  async function saveUniversalConfiguration() {
+    if (!schoolId) return;
+    setSavingUniversalConfiguration(true); setError(""); setMessage("");
+    try {
+      const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_universal_enrolment_configuration", school_id: schoolId, ...universalConfiguration }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Universal enrolment settings could not be saved.");
+      setUniversalConfiguration({ ...emptyUniversalConfiguration, ...body.enrolment_configuration });
+      setMessage("Universal enrolment settings saved."); setUniversalEnrolmentOpen(false);
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Universal enrolment settings could not be saved."); }
+    finally { setSavingUniversalConfiguration(false); }
+  }
+
+  async function saveDocumentRequirement(requirement = newDocumentRequirement) {
+    if (!schoolId || !requirement.title.trim()) { setError("Enter a learner document name."); return; }
+    setSavingDocumentRequirement(true); setError("");
+    try {
+      const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_enrolment_item", kind: "document", school_id: schoolId, ...requirement, display_order: documentRequirements.findIndex((item) => item.id === (requirement as DocumentRequirement).id) + 1 }) });
+      const body = await response.json(); if (!response.ok) throw new Error(body.error || "Learner document could not be saved.");
+      setDocumentRequirements((current) => { const item = body.item as DocumentRequirement; return current.some((row) => row.id === item.id) ? current.map((row) => row.id === item.id ? item : row) : [...current, item]; });
+      setNewDocumentRequirement({ title: "", instructions: "", is_required: false }); setMessage("Learner document saved.");
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Learner document could not be saved."); } finally { setSavingDocumentRequirement(false); }
+  }
+
+  async function archiveDocumentRequirement(id: string) {
+    if (!schoolId) return;
+    const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "archive_enrolment_item", kind: "document", school_id: schoolId, id }) });
+    const body = await response.json(); if (!response.ok) { setError(body.error || "Learner document could not be archived."); return; }
+    setDocumentRequirements((current) => current.map((item) => item.id === id ? { ...item, is_active: false } : item));
+  }
+
+  async function saveRequirementTemplate() {
+    if (!schoolId || !newRequirementTemplate.item_name.trim()) { setError("Enter a requirement item name."); return; }
+    setSavingRequirementTemplate(true); setError("");
+    try {
+      const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_enrolment_item", kind: "requirement", school_id: schoolId, ...newRequirementTemplate, display_order: requirementTemplates.length }) });
+      const body = await response.json(); if (!response.ok) throw new Error(body.error || "Requirement could not be saved.");
+      setRequirementTemplates((current) => [...current, body.item as RequirementTemplate]); setNewRequirementTemplate({ category: "stationery", item_name: "", quantity: "", instructions: "", is_required: false }); setMessage("Learner requirement saved.");
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Requirement could not be saved."); } finally { setSavingRequirementTemplate(false); }
+  }
+
+  async function archiveRequirementTemplate(id: string) {
+    if (!schoolId) return;
+    const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "archive_enrolment_item", kind: "requirement", school_id: schoolId, id }) }); const body = await response.json();
+    if (!response.ok) { setError(body.error || "Requirement could not be archived."); return; } setRequirementTemplates((current) => current.map((item) => item.id === id ? { ...item, is_active: false } : item));
+  }
+
+  async function saveEnrolmentListItem(kind: "consent" | "term") {
+    if (!schoolId) return;
+    const item = kind === "consent" ? newConsent : newTerm;
+    if (!item.title.trim() || !(kind === "consent" ? newConsent.wording.trim() : newTerm.content.trim())) { setError(`Complete the ${kind} title and wording.`); return; }
+    kind === "consent" ? setSavingConsent(true) : setSavingTerm(true); setError("");
+    try { const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_enrolment_item", kind, school_id: schoolId, ...item, display_order: kind === "consent" ? consents.length : terms.length }) }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "Item could not be saved."); if (kind === "consent") { setConsents((current) => [...current, body.item as ConsentItem]); setNewConsent({ title: "", wording: "", is_required: true }); } else { setTerms((current) => [...current, body.item as TermItem]); setNewTerm({ title: "", content: "" }); } setMessage(`${kind === "consent" ? "Consent" : "Term"} saved.`); } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Item could not be saved."); } finally { kind === "consent" ? setSavingConsent(false) : setSavingTerm(false); }
+  }
+
+  async function archiveEnrolmentListItem(kind: "consent" | "term", id: string) {
+    if (!schoolId) return;
+    const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "archive_enrolment_item", kind, school_id: schoolId, id }) });
+    const body = await response.json();
+    if (!response.ok) { setError(body.error || "The item could not be deactivated."); return; }
+    if (kind === "consent") setConsents((current) => current.map((item) => item.id === id ? { ...item, is_active: false } : item));
+    else setTerms((current) => current.map((item) => item.id === id ? { ...item, is_active: false } : item));
+    setMessage(`${kind === "consent" ? "Consent" : "Term"} deactivated.`);
+  }
+
+  async function editEnrolmentListItem(kind: "consent" | "term", item: ConsentItem | TermItem) {
+    if (!schoolId) return;
+    const title = window.prompt(`${kind === "consent" ? "Consent" : "Term"} title`, item.title);
+    if (title === null || !title.trim()) return;
+    const currentText = kind === "consent" ? (item as ConsentItem).wording : (item as TermItem).content;
+    const wording = window.prompt(`${kind === "consent" ? "Consent wording" : "Term wording"}`, currentText);
+    if (wording === null || !wording.trim()) return;
+    const payload = kind === "consent"
+      ? { id: item.id, title, wording, is_required: (item as ConsentItem).is_required, is_active: item.is_active, display_order: consents.findIndex((row) => row.id === item.id) }
+      : { id: item.id, title, content: wording, is_active: item.is_active, display_order: terms.findIndex((row) => row.id === item.id) };
+    const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_enrolment_item", kind, school_id: schoolId, ...payload }) });
+    const body = await response.json();
+    if (!response.ok) { setError(body.error || "The item could not be updated."); return; }
+    if (kind === "consent") setConsents((current) => current.map((row) => row.id === item.id ? body.item as ConsentItem : row));
+    else setTerms((current) => current.map((row) => row.id === item.id ? body.item as TermItem : row));
+    setMessage(`${kind === "consent" ? "Consent" : "Term"} updated.`);
+  }
+
   async function saveForm(type: FormType) {
     if (!schoolId) return null;
     const form = formFor(type);
@@ -460,6 +568,70 @@ export default function SchoolSetupPage() {
       {message ? <div className="db-soft-card" role="status" style={{ padding: 14, color: "#246b45" }}>{message}</div> : null}
 
       <CollapsibleSetupSection
+        title="Consent & Permissions" description="Set the parent acknowledgements required for enrolment." isOpen={consentsOpen} onToggle={() => setConsentsOpen((current) => !current)} tone="lavender">
+        <div style={{ display: "grid", gap: 8 }}>{consents.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.title}</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>{item.wording}</p></span>{item.is_active ? <span style={{ display: "flex", gap: 8, alignItems: "start" }}><button className="db-collapse-action" type="button" onClick={() => void editEnrolmentListItem("consent", item)}>Edit</button><button className="db-collapse-action" type="button" onClick={() => void archiveEnrolmentListItem("consent", item.id)}>Deactivate</button></span> : <span className="db-helper">Inactive</span>}</div>)}</div>
+        <div style={{ display: "grid", gap: 8 }}><input className="db-input" value={newConsent.title} onChange={(event) => setNewConsent({ ...newConsent, title: event.target.value })} placeholder="Consent title" /><textarea className="db-input" rows={3} value={newConsent.wording} onChange={(event) => setNewConsent({ ...newConsent, wording: event.target.value })} placeholder="Consent wording shown to the parent" /><div><label><input type="checkbox" checked={newConsent.is_required} onChange={(event) => setNewConsent({ ...newConsent, is_required: event.target.checked })} /> Required</label> <button className="db-button-primary" type="button" disabled={savingConsent} onClick={() => void saveEnrolmentListItem("consent")}>{savingConsent ? "Saving..." : "Add consent"}</button></div></div>
+      </CollapsibleSetupSection>
+      <CollapsibleSetupSection
+        title="Enrolment Terms & Conditions" description="Create editable sections that parents accept and submitted enrolments retain." isOpen={termsOpen} onToggle={() => setTermsOpen((current) => !current)} tone="yellow">
+        <div style={{ display: "grid", gap: 8 }}>{terms.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.title}</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>{item.content}</p></span>{item.is_active ? <span style={{ display: "flex", gap: 8, alignItems: "start" }}><button className="db-collapse-action" type="button" onClick={() => void editEnrolmentListItem("term", item)}>Edit</button><button className="db-collapse-action" type="button" onClick={() => void archiveEnrolmentListItem("term", item.id)}>Deactivate</button></span> : <span className="db-helper">Inactive</span>}</div>)}</div>
+        <div style={{ display: "grid", gap: 8 }}><input className="db-input" value={newTerm.title} onChange={(event) => setNewTerm({ ...newTerm, title: event.target.value })} placeholder="e.g. Fees and payments" /><textarea className="db-input" rows={3} value={newTerm.content} onChange={(event) => setNewTerm({ ...newTerm, content: event.target.value })} placeholder="Term wording" /><div><button className="db-button-primary" type="button" disabled={savingTerm} onClick={() => void saveEnrolmentListItem("term")}>{savingTerm ? "Saving..." : "Add term"}</button></div></div>
+      </CollapsibleSetupSection>
+      <CollapsibleSetupSection
+        title="Learner Requirements"
+        description="Configure stationery and hygiene items parents should provide."
+        isOpen={learnerRequirementsOpen}
+        onToggle={() => setLearnerRequirementsOpen((current) => !current)}
+        tone="yellow"
+      >
+        <div style={{ display: "grid", gap: 8 }}>{requirementTemplates.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.item_name}</strong><br /><small className="db-helper">{item.category} {item.quantity ? `· ${item.quantity}` : ""} {item.is_required ? "· Required" : ""}</small></span>{item.is_active ? <button className="db-collapse-action" type="button" onClick={() => void archiveRequirementTemplate(item.id)}>Deactivate</button> : <span className="db-helper">Inactive</span>}</div>)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr) 110px auto", gap: 10, alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Category</span><select className="db-input" value={newRequirementTemplate.category} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, category: event.target.value as "stationery" | "hygiene" })}><option value="stationery">Stationery</option><option value="hygiene">Hygiene</option></select></label><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Item</span><input className="db-input" value={newRequirementTemplate.item_name} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, item_name: event.target.value })} /></label><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Quantity</span><input className="db-input" value={newRequirementTemplate.quantity} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, quantity: event.target.value })} /></label><div style={{ display: "grid", gap: 7 }}><label><input type="checkbox" checked={newRequirementTemplate.is_required} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, is_required: event.target.checked })} /> Required</label><button className="db-button-primary" type="button" disabled={savingRequirementTemplate} onClick={() => void saveRequirementTemplate()}>{savingRequirementTemplate ? "Saving..." : "Add"}</button></div></div>
+      </CollapsibleSetupSection>
+
+      <CollapsibleSetupSection
+        title="Learner Documents"
+        description="Set the documents parents must upload or provide during enrolment."
+        isOpen={learnerDocumentsOpen}
+        onToggle={() => setLearnerDocumentsOpen((current) => !current)}
+        tone="green"
+      >
+        <div style={{ display: "grid", gap: 10 }}>{documentRequirements.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.title}</strong><br /><small className="db-helper">{item.is_required ? "Required" : "Optional"}{item.instructions ? ` · ${item.instructions}` : ""}</small></span>{item.is_active ? <button className="db-collapse-action" type="button" onClick={() => void archiveDocumentRequirement(item.id)}>Deactivate</button> : <span className="db-helper">Inactive</span>}</div>)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) auto", gap: 10, alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Document name</span><input className="db-input" value={newDocumentRequirement.title} onChange={(event) => setNewDocumentRequirement({ ...newDocumentRequirement, title: event.target.value })} placeholder="e.g. Birth certificate" /></label><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Instructions</span><input className="db-input" value={newDocumentRequirement.instructions} onChange={(event) => setNewDocumentRequirement({ ...newDocumentRequirement, instructions: event.target.value })} placeholder="Optional note" /></label><div style={{ display: "grid", gap: 7 }}><label><input type="checkbox" checked={newDocumentRequirement.is_required} onChange={(event) => setNewDocumentRequirement({ ...newDocumentRequirement, is_required: event.target.checked })} /> Required</label><button className="db-button-primary" type="button" disabled={savingDocumentRequirement} onClick={() => void saveDocumentRequirement()}>{savingDocumentRequirement ? "Saving..." : "Add"}</button></div></div>
+      </CollapsibleSetupSection>
+
+      <CollapsibleSetupSection
+        title="Enrolment Form Settings"
+        description="One universal school-branded form used for new enrolments and re-enrolments."
+        isOpen={universalEnrolmentOpen}
+        onToggle={() => setUniversalEnrolmentOpen((current) => !current)}
+        tone="lavender"
+      >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+          <label style={{ display: "grid", gap: 7 }}><strong>Form title</strong><input className="db-input" value={universalConfiguration.form_title} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, form_title: event.target.value })} /></label>
+          <label style={{ display: "grid", gap: 7 }}><strong>Second guardian</strong><select className="db-input" value={universalConfiguration.second_guardian_mode} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, second_guardian_mode: event.target.value as UniversalEnrolmentConfiguration["second_guardian_mode"] })}><option value="hidden">Hidden</option><option value="optional">Optional</option><option value="required">Required</option></select></label>
+          <label style={{ display: "grid", gap: 7 }}><strong>Emergency contact</strong><select className="db-input" value={universalConfiguration.emergency_contact_mode} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, emergency_contact_mode: event.target.value as UniversalEnrolmentConfiguration["emergency_contact_mode"] })}><option value="hidden">Hidden</option><option value="optional">Optional</option><option value="required">Required</option></select></label>
+        </div>
+        <label style={{ display: "grid", gap: 7 }}><strong>Parent introduction</strong><textarea className="db-input" rows={3} value={universalConfiguration.introduction || ""} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, introduction: event.target.value })} /></label>
+        <label style={{ display: "grid", gap: 7 }}><strong>Additional declaration <span className="db-helper">(optional)</span></strong><textarea className="db-input" rows={3} value={universalConfiguration.additional_declaration || ""} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, additional_declaration: event.target.value })} /></label>
+        <details style={{ display: "grid", gap: 10 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 700 }}>Custom parent questions ({universalConfiguration.custom_fields?.length || 0})</summary>
+          <p className="db-helper" style={{ margin: 0 }}>Add only the school-specific questions that are not already collected in the main enrolment form.</p>
+          {(universalConfiguration.custom_fields || []).map((field) => (
+            <div className="db-soft-card" key={field.id} style={{ padding: 10, display: "grid", gridTemplateColumns: "minmax(0, 1fr) 130px auto", gap: 8, alignItems: "end" }}>
+              <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Question</span><input className="db-input" value={field.label} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, custom_fields: (universalConfiguration.custom_fields || []).map((item) => item.id === field.id ? { ...item, label: event.target.value } : item) })} /></label>
+              <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Answer type</span><select className="db-input" value={field.type} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, custom_fields: (universalConfiguration.custom_fields || []).map((item) => item.id === field.id ? { ...item, type: event.target.value as CustomFormField["type"], options: event.target.value === "select" ? item.options || ["Option 1"] : undefined } : item) })}><option value="text">Short answer</option><option value="textarea">Long answer</option><option value="select">Choose one</option></select></label>
+              <button className="db-collapse-action" type="button" onClick={() => setUniversalConfiguration({ ...universalConfiguration, custom_fields: (universalConfiguration.custom_fields || []).filter((item) => item.id !== field.id) })}>Remove</button>
+              {field.type === "select" ? <label style={{ gridColumn: "1 / -1", display: "grid", gap: 5 }}><span className="db-helper">Options (one per line)</span><textarea className="db-input" rows={2} value={(field.options || []).join("\n")} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, custom_fields: (universalConfiguration.custom_fields || []).map((item) => item.id === field.id ? { ...item, options: event.target.value.split("\n").map((option) => option.trim()).filter(Boolean) } : item) })} /></label> : null}
+              <label style={{ gridColumn: "1 / -1" }}><input type="checkbox" checked={field.required} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, custom_fields: (universalConfiguration.custom_fields || []).map((item) => item.id === field.id ? { ...item, required: event.target.checked } : item) })} /> Required for parents</label>
+            </div>
+          ))}
+          <div><button className="db-button-secondary" type="button" onClick={() => setUniversalConfiguration({ ...universalConfiguration, custom_fields: [...(universalConfiguration.custom_fields || []), { id: `question_${Date.now()}`, label: "New question", type: "text", required: false }] })}>Add question</button></div>
+        </details>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}><label><input type="checkbox" checked={universalConfiguration.is_open} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, is_open: event.target.checked })} /> Enrolment open</label><label><input type="checkbox" checked={universalConfiguration.previous_school_enabled} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, previous_school_enabled: event.target.checked })} /> Ask about previous school</label></div>
+        <div><button className="db-button-primary" type="button" disabled={savingUniversalConfiguration} onClick={() => void saveUniversalConfiguration()}>{savingUniversalConfiguration ? "Saving..." : "Save Enrolment Settings"}</button></div>
+      </CollapsibleSetupSection>
+
+      <CollapsibleSetupSection
         title="School Fees"
         description="Configure registration, monthly and once-off charges used for learners."
         isOpen={schoolFeesOpen}
@@ -519,15 +691,15 @@ export default function SchoolSetupPage() {
       </CollapsibleSetupSection>
 
       <CollapsibleSetupSection
-        title="Enrolment Forms"
-        description="Manage the school-specific forms and reference uploads used for enquiries."
+        title="Reference Form Upload"
+        description="Optional original form for your records. New enrolments use the Universal Enrolment Form Settings above."
         isOpen={enrolmentFormsOpen}
         onToggle={() => setEnrolmentFormsOpen((current) => !current)}
         tone="lavender"
       >
         <p className="db-helper" style={{ margin: 0 }}>Keep up to three school-specific form types. An uploaded form is kept as your reference; DailyBloom sends a secure digital form link after the Registration Fee is confirmed.</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-          {formOptions.map((option) => {
+          {formOptions.filter((option) => option.type === "general").map((option) => {
             const form = formFor(option.type) || { id: "", form_type: option.type, form_name: option.defaultName, instructions: "", custom_fields: [], required_documents: [], stationery_list: [], is_active: true };
             const customFields = form.custom_fields || [];
             return (
@@ -574,7 +746,7 @@ export default function SchoolSetupPage() {
                 </div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <button className="db-button-secondary" type="button" onClick={() => void saveForm(option.type)} disabled={savingForm === option.type}>{savingForm === option.type ? "Saving..." : "Save Form"}</button>
-                  <Link className="db-button-secondary" href={`/enrolment/preview?form_name=${encodeURIComponent(form.form_name)}&instructions=${encodeURIComponent(form.instructions || "")}&custom_fields=${encodeURIComponent(JSON.stringify(customFields))}&required_documents=${encodeURIComponent(JSON.stringify(form.required_documents || []))}&stationery_list=${encodeURIComponent(JSON.stringify(form.stationery_list || []))}&school_name=${encodeURIComponent(schoolBrand?.school_name || "Your School")}&school_logo_url=${encodeURIComponent(schoolBrand?.logo_url || "")}&school_primary_color=${encodeURIComponent(schoolBrand?.primary_color || "")}`} target="_blank" rel="noreferrer">
+                  <Link className="db-button-secondary" href={`/enrolment/preview?form_name=${encodeURIComponent(universalConfiguration.form_title || form.form_name)}&instructions=${encodeURIComponent(universalConfiguration.introduction || "")}&custom_fields=${encodeURIComponent(JSON.stringify(universalConfiguration.custom_fields || []))}&required_documents=${encodeURIComponent(JSON.stringify(documentRequirements.filter((item) => item.is_active).map((item) => item.title)))}&stationery_list=${encodeURIComponent(JSON.stringify(requirementTemplates.filter((item) => item.is_active).map((item) => `${item.item_name}${item.quantity ? ` (${item.quantity})` : ""}`)))}&school_name=${encodeURIComponent(schoolBrand?.school_name || "Your School")}&school_logo_url=${encodeURIComponent(schoolBrand?.logo_url || "")}&school_primary_color=${encodeURIComponent(schoolBrand?.primary_color || "")}`} target="_blank" rel="noreferrer">
                     Preview Parent Form
                   </Link>
                   <label className="db-button-primary" style={{ cursor: uploadingForm === option.type ? "wait" : "pointer" }}>

@@ -394,6 +394,7 @@ export default function LearnerProfilePage() {
   const schoolParam = searchParams.get("school");
 
   const [learner, setLearner] = useState<LearnerRow | null>(null);
+  const [enrolmentHistory, setEnrolmentHistory] = useState<Array<{ id: string; enquiry_reference: string; academic_year: number; status: string; enrolment_source: string }>>([]);
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [requirementNote, setRequirementNote] = useState("");
   const [savingRequirementNote, setSavingRequirementNote] = useState(false);
@@ -461,6 +462,9 @@ export default function LearnerProfilePage() {
 
     const currentLearner = data as LearnerRow;
     setLearner(currentLearner);
+    const historyResponse = await authenticatedFetch(`/api/learners/enrolment-history?school_id=${context.schoolId}&learner_id=${encodeURIComponent(currentLearner.id)}`);
+    const historyBody = await historyResponse.json().catch(() => ({}));
+    if (historyResponse.ok) setEnrolmentHistory(historyBody.history || []);
     setRequirementNote(currentLearner.notes || "");
 
     if (currentLearner.classroom_id) {
@@ -1248,6 +1252,7 @@ export default function LearnerProfilePage() {
             <Info label="Email" value={learner.parent_email} />
             <Info label="ID Number" value={learner.guardian_id_number} />
           </div>
+          <div style={{ marginTop: 18 }}><h3 style={sectionTitle}>Enrolment History</h3>{enrolmentHistory.length ? <div style={{ display: "grid", gap: 8 }}>{enrolmentHistory.map((record) => <div className="db-soft-card" key={record.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong>{record.academic_year} · {record.status.replace(/_/g, " ")}</strong><span className="db-helper">Ref: {record.enquiry_reference} · {record.enrolment_source.replace(/_/g, " ")}</span></div>)}</div> : <p className="db-helper">No enrolment history is linked to this learner yet.</p>}</div>
 
           <div className="db-soft-card" style={{ padding: 12, marginTop: 10 }}>
             <strong style={labelText}>Parent Portal Phone Number</strong>

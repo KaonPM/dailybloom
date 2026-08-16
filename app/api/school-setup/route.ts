@@ -68,7 +68,7 @@ const STARTER_CONSENTS = [
   { title: "Processing of Learner and Parent Information", wording: "I consent to the school processing the learner and parent or guardian information supplied for enrolment, administration, learner support and related school purposes.", is_required: true, display_order: 5 },
 ];
 const STARTER_TERMS = [
-  { title: "Learner information and enrolment", content: "The parent or legal guardian confirms that the learner information supplied is accurate and agrees to notify the school promptly of any changes.", display_order: 1 },
+  { title: "Learner Information and Enrolment", content: "The parent or legal guardian confirms that the learner information supplied is accurate and agrees to notify the school promptly of any changes.", display_order: 1 },
   { title: "Health, Safety and Emergency Care", content: "The parent or legal guardian must disclose information reasonably required for the safe care of the learner, including medical conditions, allergies, medication and emergency contact information.", display_order: 2 },
   { title: "Fees and Payment Obligations", content: "The parent or legal guardian agrees to pay applicable school fees and charges according to the school's current fee structure and payment terms.", display_order: 3 },
   { title: "Registration Fee", content: "Add this school's registration-fee terms, including any applicable refund or transfer arrangements.", display_order: 4 },
@@ -81,6 +81,7 @@ const STARTER_TERMS = [
   { title: "Notice and Withdrawal", content: "The parent or legal guardian agrees to comply with the school's applicable notice requirements when withdrawing the learner.", display_order: 11 },
   { title: "Refunds", content: "Add this school's refund policy and any conditions that apply.", display_order: 12 },
   { title: "Information Updates", content: "The parent or legal guardian must inform the school when important learner, parent, guardian, medical, address or contact information changes.", display_order: 13 },
+  { title: "Parent Declaration", content: "I confirm that the information provided in this enrolment application is true and complete to the best of my knowledge and that I have read and accepted the applicable school terms and requirements.", display_order: 14 },
 ];
 const DEFAULT_PARENT_DECLARATION = "I confirm that the information provided in this enrolment application is true and complete to the best of my knowledge and that I have read and accepted the applicable school terms and requirements.";
 

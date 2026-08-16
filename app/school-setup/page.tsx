@@ -122,7 +122,7 @@ export default function SchoolSetupPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
-  const [savingForm, setSavingForm] = useState<FormType | null>(null);
+  const [, setSavingForm] = useState<FormType | null>(null);
   const [uploadingForm, setUploadingForm] = useState<FormType | null>(null);
   const [pastedFormText, setPastedFormText] = useState<Record<FormType, string>>({ general: "", babies: "", grade_r: "" });
   const [formStatus, setFormStatus] = useState<Partial<Record<FormType, string>>>({});
@@ -301,20 +301,6 @@ export default function SchoolSetupPage() {
 
   function updateCustomFields(type: FormType, customFields: CustomFormField[]) {
     updateForm(type, { custom_fields: customFields });
-  }
-
-  function addCustomField(type: FormType) {
-    const fields = formFor(type)?.custom_fields || [];
-    if (fields.length >= 12) {
-      setError("You can add up to 12 custom parent questions per form.");
-      return;
-    }
-    updateCustomFields(type, [...fields, {
-      id: `question_${Date.now()}`,
-      label: "New question",
-      type: "text",
-      required: false,
-    }]);
   }
 
   function createDraftFromText(type: FormType) {
@@ -692,61 +678,24 @@ export default function SchoolSetupPage() {
 
       <CollapsibleSetupSection
         title="Reference Form Upload"
-        description="Optional original form for your records. New enrolments use the Universal Enrolment Form Settings above."
+        description="Optional original form for your records. It does not change the digital form sent to parents."
         isOpen={enrolmentFormsOpen}
         onToggle={() => setEnrolmentFormsOpen((current) => !current)}
         tone="lavender"
       >
-        <p className="db-helper" style={{ margin: 0 }}>Keep up to three school-specific form types. An uploaded form is kept as your reference; DailyBloom sends a secure digital form link after the Registration Fee is confirmed.</p>
+        <p className="db-helper" style={{ margin: 0 }}>The Universal Enrolment Form is the only editable parent form. Upload an old PDF or image here only as a school reference; it is never sent to parents and does not overwrite the digital form.</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
           {formOptions.filter((option) => option.type === "general").map((option) => {
             const form = formFor(option.type) || { id: "", form_type: option.type, form_name: option.defaultName, instructions: "", custom_fields: [], required_documents: [], stationery_list: [], is_active: true };
-            const customFields = form.custom_fields || [];
             return (
               <article className="db-soft-card" key={option.type} style={{ display: "grid", gap: 10, padding: 12 }}>
-                <div><h3 style={{ margin: 0 }}>{option.title}</h3><p className="db-helper" style={{ margin: "3px 0 0" }}>{option.type === "general" ? "Main enrolment form." : option.type === "babies" ? "Babies programme form." : "Grade R enquiries."}</p></div>
-                <label style={{ display: "grid", gap: 7 }}><strong>Form name</strong><input className="db-input" value={form.form_name} onChange={(event) => updateForm(option.type, { form_name: event.target.value })} /></label>
-                <label style={{ display: "grid", gap: 5 }}><strong>Instructions <span className="db-helper">(optional)</span></strong><textarea className="db-input" rows={2} value={form.instructions || ""} onChange={(event) => updateForm(option.type, { instructions: event.target.value })} placeholder="Optional note for parents" /></label>
-                <details style={{ display: "grid", gap: 10 }}>
-                  <summary style={{ cursor: "pointer", fontWeight: 700 }}>Extra parent questions {customFields.length ? `(${customFields.length})` : ""}</summary>
-                  <p className="db-helper" style={{ margin: 0 }}>Add questions not covered by the standard learner and parent details.</p>
-                  {customFields.map((field, index) => (
-                    <div key={field.id} className="db-card" style={{ display: "grid", gap: 8, padding: 12 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 130px", gap: 8 }}>
-                        <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Question</span><input className="db-input" value={field.label} onChange={(event) => updateCustomFields(option.type, customFields.map((item) => item.id === field.id ? { ...item, label: event.target.value } : item))} /></label>
-                        <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Answer type</span><select className="db-input" value={field.type} onChange={(event) => updateCustomFields(option.type, customFields.map((item) => item.id === field.id ? { ...item, type: event.target.value as CustomFormField["type"], options: event.target.value === "select" ? item.options?.length ? item.options : ["Option 1", "Option 2"] : undefined } : item))}><option value="text">Short text</option><option value="textarea">Long text</option><option value="select">Choose from list</option></select></label>
-                      </div>
-                      {field.type === "select" ? <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Choices (one per line)</span><textarea className="db-input" rows={3} value={(field.options || []).join("\n")} onChange={(event) => updateCustomFields(option.type, customFields.map((item) => item.id === field.id ? { ...item, options: event.target.value.split("\n") } : item))} /></label> : null}
-                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                        <label style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={field.required} onChange={(event) => updateCustomFields(option.type, customFields.map((item) => item.id === field.id ? { ...item, required: event.target.checked } : item))} /> Required</label>
-                        <button className="db-collapse-action" type="button" disabled={index === 0} onClick={() => updateCustomFields(option.type, customFields.map((item, position) => position === index ? customFields[index - 1] : position === index - 1 ? customFields[index] : item))}>Up</button>
-                        <button className="db-collapse-action" type="button" disabled={index === customFields.length - 1} onClick={() => updateCustomFields(option.type, customFields.map((item, position) => position === index ? customFields[index + 1] : position === index + 1 ? customFields[index] : item))}>Down</button>
-                        <button className="db-collapse-action" type="button" onClick={() => updateCustomFields(option.type, customFields.filter((item) => item.id !== field.id))}>Remove</button>
-                      </div>
-                    </div>
-                  ))}
-                  <div><button className="db-button-secondary" type="button" onClick={() => addCustomField(option.type)}>Add question</button></div>
-                </details>
-                <details style={{ display: "grid", gap: 10 }}>
-                  <summary style={{ cursor: "pointer", fontWeight: 700 }}>Parent uploads and stationery</summary>
-                  <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Required document uploads (one per line)</span><textarea className="db-input" rows={3} value={(form.required_documents || []).join("\n")} onChange={(event) => updateForm(option.type, { required_documents: event.target.value.split("\n") })} placeholder={"Birth certificate\nParent ID\nImmunisation record"} /></label>
-                  <label style={{ display: "grid", gap: 5 }}><span className="db-helper">Stationery / items to bring (one per line)</span><textarea className="db-input" rows={3} value={(form.stationery_list || []).join("\n")} onChange={(event) => updateForm(option.type, { stationery_list: event.target.value.split("\n") })} placeholder={"Small school bag\nWater bottle\nExtra set of clothes"} /></label>
-                </details>
-                <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={form.is_active} onChange={(event) => updateForm(option.type, { is_active: event.target.checked })} /> Available for new enquiries</label>
-                <details style={{ display: "grid", gap: 8 }}>
-                  <summary style={{ cursor: "pointer", fontWeight: 700 }}>Paste form text to create a draft</summary>
-                  <p className="db-helper" style={{ margin: 0 }}>Paste only the question lines from a Word/PDF form. Questions ending in a colon, question mark, or blank line are added for review.</p>
-                  <textarea className="db-input" rows={4} value={pastedFormText[option.type]} onChange={(event) => setPastedFormText((current) => ({ ...current, [option.type]: event.target.value }))} placeholder={"Learner home language:\nDoes your child have allergies?\nPrevious school: ______"} />
-                  <div><button className="db-button-secondary" type="button" onClick={() => createDraftFromText(option.type)}>Create draft</button></div>
-                </details>
+                <div><h3 style={{ margin: 0 }}>School reference document</h3><p className="db-helper" style={{ margin: "3px 0 0" }}>For staff records only. Edit the parent form in Universal Enrolment Form Settings.</p></div>
                 <div style={{ display: "grid", gap: 5 }}>
-                  <strong>Reference document</strong>
                   <span className="db-helper">{form.source_document_name ? `${form.source_document_name}${form.source_document_size ? ` (${formatBytes(form.source_document_size)})` : ""}` : "Optional: upload the original form for your records."}</span>
                   {formStatus[option.type] ? <span className="db-helper" role="status" style={{ color: "#246b45" }}>{formStatus[option.type]}</span> : null}
                 </div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button className="db-button-secondary" type="button" onClick={() => void saveForm(option.type)} disabled={savingForm === option.type}>{savingForm === option.type ? "Saving..." : "Save Form"}</button>
-                  <Link className="db-button-secondary" href={`/enrolment/preview?form_name=${encodeURIComponent(universalConfiguration.form_title || form.form_name)}&instructions=${encodeURIComponent(universalConfiguration.introduction || "")}&custom_fields=${encodeURIComponent(JSON.stringify(universalConfiguration.custom_fields || []))}&required_documents=${encodeURIComponent(JSON.stringify(documentRequirements.filter((item) => item.is_active).map((item) => item.title)))}&stationery_list=${encodeURIComponent(JSON.stringify(requirementTemplates.filter((item) => item.is_active).map((item) => `${item.item_name}${item.quantity ? ` (${item.quantity})` : ""}`)))}&school_name=${encodeURIComponent(schoolBrand?.school_name || "Your School")}&school_logo_url=${encodeURIComponent(schoolBrand?.logo_url || "")}&school_primary_color=${encodeURIComponent(schoolBrand?.primary_color || "")}`} target="_blank" rel="noreferrer">
+                  <Link className="db-button-secondary" href={`/enrolment/preview?form_name=${encodeURIComponent(universalConfiguration.form_title || form.form_name)}&instructions=${encodeURIComponent(universalConfiguration.introduction || "")}&custom_fields=${encodeURIComponent(JSON.stringify(universalConfiguration.custom_fields || []))}&document_requirements=${encodeURIComponent(JSON.stringify(documentRequirements.filter((item) => item.is_active)))}&requirement_templates=${encodeURIComponent(JSON.stringify(requirementTemplates.filter((item) => item.is_active)))}&consents=${encodeURIComponent(JSON.stringify(consents.filter((item) => item.is_active)))}&terms=${encodeURIComponent(JSON.stringify(terms.filter((item) => item.is_active)))}&enrolment_configuration=${encodeURIComponent(JSON.stringify(universalConfiguration))}&school_name=${encodeURIComponent(schoolBrand?.school_name || "Your School")}&school_logo_url=${encodeURIComponent(schoolBrand?.logo_url || "")}&school_primary_color=${encodeURIComponent(schoolBrand?.primary_color || "")}`} target="_blank" rel="noreferrer">
                     Preview Parent Form
                   </Link>
                   <label className="db-button-primary" style={{ cursor: uploadingForm === option.type ? "wait" : "pointer" }}>

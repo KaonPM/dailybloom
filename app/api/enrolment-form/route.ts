@@ -193,6 +193,16 @@ export async function POST(request: Request) {
   const declarationName = text(body.declaration_name, 180);
   const declarationRelationship = text(body.declaration_relationship, 80);
   if (!declarationName || !declarationRelationship) return NextResponse.json({ error: "Complete the declaration name and relationship before submitting." }, { status: 400 });
+  const secondGuardianName = text(body.second_guardian_name, 180);
+  const secondGuardianPhone = text(body.second_guardian_phone, 40);
+  const emergencyContactName = text(body.emergency_contact_name, 180);
+  const emergencyContactPhone = text(body.emergency_contact_phone, 40);
+  if (configuration?.second_guardian_mode === "required" && (!secondGuardianName || !secondGuardianPhone)) {
+    return NextResponse.json({ error: "Complete the required second parent or guardian details." }, { status: 400 });
+  }
+  if (configuration?.emergency_contact_mode === "required" && (!emergencyContactName || !emergencyContactPhone)) {
+    return NextResponse.json({ error: "Complete the required emergency contact details." }, { status: 400 });
+  }
   let customAnswers: Record<string, string>;
   try {
     customAnswers = savedCustomAnswers(
@@ -219,6 +229,9 @@ export async function POST(request: Request) {
     guardian_phone: guardianPhone,
     parent_portal_phone: parentPortalPhone,
     guardian_email: text(body.guardian_email, 180),
+    second_guardian: configuration?.second_guardian_mode === "hidden" ? null : { name: secondGuardianName, phone: secondGuardianPhone },
+    emergency_contact: configuration?.emergency_contact_mode === "hidden" ? null : { name: emergencyContactName, phone: emergencyContactPhone },
+    previous_school: configuration?.previous_school_enabled ? text(body.previous_school, 180) : null,
     home_address: text(body.home_address, 1000),
     medical_notes: text(body.medical_notes, 2000),
     custom_answers: customAnswers,

@@ -41,7 +41,7 @@ type FormInfo = {
   requirement_templates?: Array<{ category: string; item_name: string; quantity?: string | null; instructions?: string | null }>;
   consents?: Array<{ id: string; title: string; wording: string; is_required: boolean }>;
   terms?: Array<{ id: string; title: string; content: string }>;
-  enrolment_configuration?: { additional_declaration?: string | null } | null;
+  enrolment_configuration?: { additional_declaration?: string | null; second_guardian_mode?: "hidden" | "optional" | "required"; emergency_contact_mode?: "hidden" | "optional" | "required"; previous_school_enabled?: boolean } | null;
 };
 
 const emptyFields = {
@@ -55,6 +55,11 @@ const emptyFields = {
   guardian_phone: "",
   parent_portal_phone: "",
   guardian_email: "",
+  second_guardian_name: "",
+  second_guardian_phone: "",
+  emergency_contact_name: "",
+  emergency_contact_phone: "",
+  previous_school: "",
   home_address: "",
   medical_notes: "",
 };
@@ -90,11 +95,17 @@ export default function SecureEnrolmentFormPage() {
       const previewFormName = searchParams.get("form_name") || "Enrolment Form";
       const previewInstructions = searchParams.get("instructions") || "";
       let previewCustomFields: CustomFormField[] = [];
+      let previewDocuments: FormInfo["document_requirements"] = [];
+      let previewRequirements: FormInfo["requirement_templates"] = [];
+      let previewConsents: FormInfo["consents"] = [];
+      let previewTerms: FormInfo["terms"] = [];
+      let previewConfiguration: FormInfo["enrolment_configuration"] = null;
       try { previewCustomFields = getCustomFields(JSON.parse(searchParams.get("custom_fields") || "[]")); } catch { previewCustomFields = []; }
-      let previewDocuments: string[] = [];
-      let previewStationery: string[] = [];
-      try { previewDocuments = getTextList(JSON.parse(searchParams.get("required_documents") || "[]")); } catch { previewDocuments = []; }
-      try { previewStationery = getTextList(JSON.parse(searchParams.get("stationery_list") || "[]")); } catch { previewStationery = []; }
+      try { previewDocuments = JSON.parse(searchParams.get("document_requirements") || "[]"); } catch { previewDocuments = []; }
+      try { previewRequirements = JSON.parse(searchParams.get("requirement_templates") || "[]"); } catch { previewRequirements = []; }
+      try { previewConsents = JSON.parse(searchParams.get("consents") || "[]"); } catch { previewConsents = []; }
+      try { previewTerms = JSON.parse(searchParams.get("terms") || "[]"); } catch { previewTerms = []; }
+      try { previewConfiguration = JSON.parse(searchParams.get("enrolment_configuration") || "null"); } catch { previewConfiguration = null; }
       setInfo({
         reference: "PREVIEW",
         parent_name: "Preview Parent",
@@ -102,7 +113,12 @@ export default function SecureEnrolmentFormPage() {
         school_name: searchParams.get("school_name") || "Your School",
         school_logo_url: searchParams.get("school_logo_url") || null,
         school_primary_color: searchParams.get("school_primary_color") || null,
-        form: { form_name: previewFormName, instructions: previewInstructions, custom_fields: previewCustomFields, required_documents: previewDocuments, stationery_list: previewStationery },
+        form: { form_name: previewFormName, instructions: previewInstructions, custom_fields: previewCustomFields },
+        document_requirements: Array.isArray(previewDocuments) ? previewDocuments : [],
+        requirement_templates: Array.isArray(previewRequirements) ? previewRequirements : [],
+        consents: Array.isArray(previewConsents) ? previewConsents : [],
+        terms: Array.isArray(previewTerms) ? previewTerms : [],
+        enrolment_configuration: previewConfiguration,
       });
       setFields((current) => ({ ...current, guardian_name: "Preview Parent" }));
       setNeedsAccessCode(false);
@@ -234,6 +250,7 @@ export default function SecureEnrolmentFormPage() {
   const stationeryList = info?.requirement_templates?.map((item) => `${item.item_name}${item.quantity ? ` (${item.quantity})` : ""}`) || getTextList(info?.form?.stationery_list);
   const consents = info?.consents || [];
   const terms = info?.terms || [];
+  const configuration = info?.enrolment_configuration;
 
   async function uploadDocument(documentName: string, file?: File) {
     if (!file || isPreview) return;
@@ -370,6 +387,7 @@ export default function SecureEnrolmentFormPage() {
                 <label style={{ display: "grid", gap: 7 }}><strong>Date of birth</strong><input className="db-input" type="date" value={fields.date_of_birth} onChange={(event) => setField("date_of_birth", event.target.value)} disabled={isPreview} required /></label>
                 <label style={{ display: "grid", gap: 7 }}><strong>Gender</strong><select className="db-input" value={fields.gender} onChange={(event) => setField("gender", event.target.value)} disabled={isPreview}><option value="">Select</option><option>Female</option><option>Male</option><option>Prefer not to say</option></select></label>
                 <label style={{ display: "grid", gap: 7, gridColumn: "1 / -1" }}><strong>Birth certificate, ID or passport number</strong><input className="db-input" value={fields.learner_id_or_birth_certificate} onChange={(event) => setField("learner_id_or_birth_certificate", event.target.value)} disabled={isPreview} /></label>
+                {configuration?.previous_school_enabled ? <label style={{ display: "grid", gap: 7, gridColumn: "1 / -1" }}><strong>Previous school or ECD programme <span className="db-helper">(if applicable)</span></strong><input className="db-input" value={fields.previous_school} onChange={(event) => setField("previous_school", event.target.value)} disabled={isPreview} /></label> : null}
               </div>
             </div> : null}
             {step === 2 ? <div>
@@ -380,6 +398,8 @@ export default function SecureEnrolmentFormPage() {
                 <label style={{ display: "grid", gap: 7 }}><strong>Contact mobile number</strong><input className="db-input" inputMode="tel" value={fields.guardian_phone} onChange={(event) => setField("guardian_phone", event.target.value)} disabled={isPreview} required /></label>
                 <label style={{ display: "grid", gap: 7 }}><strong>Parent Portal mobile number</strong><input className="db-input" inputMode="tel" value={fields.parent_portal_phone} onChange={(event) => setField("parent_portal_phone", event.target.value)} disabled={isPreview} placeholder="Choose one number for Parent Portal access" required /><small className="db-helper">Use one South African mobile number for Parent Portal access and important updates.</small></label>
                 <label style={{ display: "grid", gap: 7 }}><strong>Email address</strong><input className="db-input" type="email" value={fields.guardian_email} onChange={(event) => setField("guardian_email", event.target.value)} disabled={isPreview} /></label>
+                {configuration?.second_guardian_mode !== "hidden" ? <><label style={{ display: "grid", gap: 7 }}><strong>Second parent/guardian name{configuration?.second_guardian_mode === "required" ? " *" : ""}</strong><input className="db-input" value={fields.second_guardian_name} onChange={(event) => setField("second_guardian_name", event.target.value)} disabled={isPreview} required={configuration?.second_guardian_mode === "required"} /></label><label style={{ display: "grid", gap: 7 }}><strong>Second parent/guardian mobile{configuration?.second_guardian_mode === "required" ? " *" : ""}</strong><input className="db-input" inputMode="tel" value={fields.second_guardian_phone} onChange={(event) => setField("second_guardian_phone", event.target.value)} disabled={isPreview} required={configuration?.second_guardian_mode === "required"} /></label></> : null}
+                {configuration?.emergency_contact_mode !== "hidden" ? <><label style={{ display: "grid", gap: 7 }}><strong>Emergency contact name{configuration?.emergency_contact_mode === "required" ? " *" : ""}</strong><input className="db-input" value={fields.emergency_contact_name} onChange={(event) => setField("emergency_contact_name", event.target.value)} disabled={isPreview} required={configuration?.emergency_contact_mode === "required"} /></label><label style={{ display: "grid", gap: 7 }}><strong>Emergency contact mobile{configuration?.emergency_contact_mode === "required" ? " *" : ""}</strong><input className="db-input" inputMode="tel" value={fields.emergency_contact_phone} onChange={(event) => setField("emergency_contact_phone", event.target.value)} disabled={isPreview} required={configuration?.emergency_contact_mode === "required"} /></label></> : null}
                 <label style={{ display: "grid", gap: 7, gridColumn: "1 / -1" }}><strong>Home address</strong><textarea className="db-input" rows={3} value={fields.home_address} onChange={(event) => setField("home_address", event.target.value)} disabled={isPreview} /></label>
               </div>
             </div> : null}

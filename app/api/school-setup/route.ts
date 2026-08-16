@@ -56,21 +56,19 @@ const STARTER_DOCUMENTS = [
   { title: "Parent/Guardian ID", instructions: "Upload an identity document for the responsible parent or guardian.", is_required: true, display_order: 3 },
   { title: "Signed Parent/Guardian Enrolment Contract", instructions: "Upload the signed enrolment contract where applicable.", is_required: true, display_order: 4 },
 ];
+const HYGIENE_REQUIREMENTS = [
+  ["Toilet Rolls", "10"], ["Tissue Box", "3"], ["Wipes (80 per pack)", "6"],
+  ["Big Vaseline", "3"], ["Lifebuoy Soap / Sunlight Bar Soap", "4"],
+] as const;
+const OLDER_LEARNER_STATIONERY = [
+  ["Flip File (20 pages)", "1"], ["College Book Exercise (72 pages)", "1"], ["Colouring Book", "1"],
+  ["Typek", "1"], ["Wax Crayons (box of 12)", "1"], ["Long Pencils", "4"], ["Rubber (eraser)", "1"],
+  ["Glue Stick (Pritt)", "1"], ["Sharpener", "1"],
+] as const;
 const STARTER_REQUIREMENTS = [
-  { category: "hygiene", item_name: "Toilet Rolls", quantity: "10", instructions: null, is_required: true, display_order: 1 },
-  { category: "hygiene", item_name: "Tissue Box", quantity: "3", instructions: null, is_required: true, display_order: 2 },
-  { category: "hygiene", item_name: "Wipes (80 per pack)", quantity: "6", instructions: null, is_required: true, display_order: 3 },
-  { category: "hygiene", item_name: "Big Vaseline", quantity: "3", instructions: null, is_required: true, display_order: 4 },
-  { category: "hygiene", item_name: "Lifebuoy Soap / Sunlight Bar Soap", quantity: "4", instructions: null, is_required: true, display_order: 5 },
-  { category: "stationery", item_name: "Flip File (20 pages)", quantity: "1", instructions: null, is_required: true, display_order: 6 },
-  { category: "stationery", item_name: "College Book Exercise (72 pages)", quantity: "1", instructions: null, is_required: true, display_order: 7 },
-  { category: "stationery", item_name: "Colouring Book", quantity: "1", instructions: null, is_required: true, display_order: 8 },
-  { category: "stationery", item_name: "Typek", quantity: "1", instructions: null, is_required: true, display_order: 9 },
-  { category: "stationery", item_name: "Wax Crayons (box of 12)", quantity: "1", instructions: null, is_required: true, display_order: 10 },
-  { category: "stationery", item_name: "Long Pencils", quantity: "4", instructions: null, is_required: true, display_order: 11 },
-  { category: "stationery", item_name: "Rubber (eraser)", quantity: "1", instructions: null, is_required: true, display_order: 12 },
-  { category: "stationery", item_name: "Glue Stick (Pritt)", quantity: "1", instructions: null, is_required: true, display_order: 13 },
-  { category: "stationery", item_name: "Sharpener", quantity: "1", instructions: null, is_required: true, display_order: 14 },
+  ...HYGIENE_REQUIREMENTS.map(([item_name, quantity], index) => ({ template_key: "0_2", available_from_months: 6, category: "hygiene", item_name, quantity, instructions: null, is_required: true, display_order: index + 1 })),
+  ...HYGIENE_REQUIREMENTS.map(([item_name, quantity], index) => ({ template_key: "2_6", available_from_months: 24, category: "hygiene", item_name, quantity, instructions: null, is_required: true, display_order: index + 1 })),
+  ...OLDER_LEARNER_STATIONERY.map(([item_name, quantity], index) => ({ template_key: "2_6", available_from_months: 24, category: "stationery", item_name, quantity, instructions: null, is_required: true, display_order: HYGIENE_REQUIREMENTS.length + index + 1 })),
 ];
 const STARTER_CONSENTS = [
   { title: "Emergency Medical Treatment", wording: "I authorise the school to obtain reasonable emergency medical assistance for the learner when necessary and when the parent or guardian cannot be reached promptly.", is_required: true, display_order: 1 },
@@ -110,7 +108,7 @@ export async function GET(request: Request) {
     supabaseAdmin.from("schools").select("school_name, logo_url, primary_color").eq("id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_enrolment_configurations").select("*").eq("school_id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_enrolment_document_requirements").select("*").eq("school_id", schoolId).order("display_order"),
-    supabaseAdmin.from("school_enrolment_requirement_templates").select("*").eq("school_id", schoolId).order("display_order"),
+    supabaseAdmin.from("school_enrolment_requirement_templates").select("*").eq("school_id", schoolId).order("template_key").order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("*").eq("school_id", schoolId).order("display_order"),
     supabaseAdmin.from("school_enrolment_terms_sections").select("*").eq("school_id", schoolId).order("display_order"),
   ]);
@@ -198,7 +196,7 @@ export async function POST(request: Request) {
     const values = kind === "document"
       ? { ...base, title: text(body.title, 180), instructions: text(body.instructions, 1000) || null, is_required: body.is_required === true }
       : kind === "requirement"
-        ? { ...base, category: ["stationery", "hygiene"].includes(text(body.category, 20)) ? text(body.category, 20) : "stationery", item_name: text(body.item_name, 180), quantity: text(body.quantity, 80) || null, instructions: text(body.instructions, 1000) || null, is_required: body.is_required === true }
+        ? { ...base, template_key: text(body.template_key, 10) === "0_2" ? "0_2" : "2_6", available_from_months: Math.max(0, Math.min(84, Number(body.available_from_months) || 0)), category: ["stationery", "hygiene"].includes(text(body.category, 20)) ? text(body.category, 20) : "stationery", item_name: text(body.item_name, 180), quantity: text(body.quantity, 80) || null, instructions: text(body.instructions, 1000) || null, is_required: body.is_required === true }
         : kind === "consent"
           ? { ...base, title: text(body.title, 180), wording: text(body.wording, 3000), is_required: body.is_required !== false }
           : { ...base, title: text(body.title, 180), content: text(body.content, 5000) };
@@ -212,6 +210,14 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     await writeSecurityAudit(authorization.staff, `school_setup.enrolment_${kind}_saved`, { school_id: schoolId, id: data.id });
     return NextResponse.json({ item: data });
+  }
+
+  if (action === "save_requirement_template_months") {
+    const templateKey = text(body.template_key, 10) === "0_2" ? "0_2" : "2_6";
+    const months = Math.max(0, Math.min(84, Number(body.available_from_months) || 0));
+    const { error } = await supabaseAdmin.from("school_enrolment_requirement_templates").update({ available_from_months: months, updated_by: authorization.staff.userId, updated_at: new Date().toISOString() }).eq("school_id", schoolId).eq("template_key", templateKey);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, available_from_months: months });
   }
 
   if (action === "archive_enrolment_item") {

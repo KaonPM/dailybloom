@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     supabaseAdmin.from("school_setup_settings").select("bank_account_name, bank_name, bank_account_number, bank_branch_code").eq("school_id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_enrolment_configurations").select("form_title, introduction, additional_declaration").eq("school_id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_enrolment_document_requirements").select("title, instructions, is_required").eq("school_id", schoolId).eq("is_active", true).order("display_order"),
-    supabaseAdmin.from("school_enrolment_requirement_templates").select("category, item_name, quantity").eq("school_id", schoolId).eq("is_active", true).order("display_order"),
+    supabaseAdmin.from("school_enrolment_requirement_templates").select("template_key, available_from_months, category, item_name, quantity").eq("school_id", schoolId).eq("is_active", true).order("template_key").order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("title, wording").eq("school_id", schoolId).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_terms_sections").select("title, content").eq("school_id", schoolId).eq("is_active", true).order("display_order"),
   ]);

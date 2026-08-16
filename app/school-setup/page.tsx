@@ -42,7 +42,8 @@ type SchoolSettings = {
 type SchoolBrand = { school_name?: string | null; logo_url?: string | null; primary_color?: string | null };
 type UniversalEnrolmentConfiguration = { form_title: string; introduction?: string | null; is_open: boolean; second_guardian_mode: "hidden" | "optional" | "required"; emergency_contact_mode: "hidden" | "optional" | "required"; previous_school_enabled: boolean; additional_declaration?: string | null; custom_fields?: CustomFormField[] };
 type DocumentRequirement = { id: string; title: string; instructions?: string | null; is_required: boolean; is_active: boolean; display_order: number };
-type RequirementTemplate = { id: string; category: "stationery" | "hygiene"; item_name: string; quantity?: string | null; instructions?: string | null; is_required: boolean; is_active: boolean; display_order: number };
+type RequirementTemplateKey = "0_2" | "2_6";
+type RequirementTemplate = { id: string; template_key: RequirementTemplateKey; available_from_months: number; category: "stationery" | "hygiene"; item_name: string; quantity?: string | null; instructions?: string | null; is_required: boolean; is_active: boolean; display_order: number };
 type ConsentItem = { id: string; title: string; wording: string; is_required: boolean; is_active: boolean; display_order: number };
 type TermItem = { id: string; title: string; content: string; is_active: boolean; display_order: number };
 const emptyUniversalConfiguration: UniversalEnrolmentConfiguration = { form_title: "Enrolment Form", introduction: "", is_open: true, second_guardian_mode: "optional", emergency_contact_mode: "required", previous_school_enabled: true, additional_declaration: "", custom_fields: [] };
@@ -104,6 +105,7 @@ export default function SchoolSetupPage() {
   const [savingConsent, setSavingConsent] = useState(false); const [savingTerm, setSavingTerm] = useState(false);
   const [consentsOpen, setConsentsOpen] = useState(false); const [termsOpen, setTermsOpen] = useState(false);
   const [newRequirementTemplate, setNewRequirementTemplate] = useState<{ category: "stationery" | "hygiene"; item_name: string; quantity: string; instructions: string; is_required: boolean }>({ category: "stationery", item_name: "", quantity: "", instructions: "", is_required: false });
+  const [requirementStartMonths, setRequirementStartMonths] = useState<Record<RequirementTemplateKey, number>>({ "0_2": 6, "2_6": 24 });
   const [savingRequirementTemplate, setSavingRequirementTemplate] = useState(false);
   const [learnerRequirementsOpen, setLearnerRequirementsOpen] = useState(false);
   const [newDocumentRequirement, setNewDocumentRequirement] = useState({ title: "", instructions: "", is_required: false });
@@ -175,7 +177,9 @@ export default function SchoolSetupPage() {
       setSchoolBrand(body.school || null);
       setUniversalConfiguration({ ...emptyUniversalConfiguration, ...(body.enrolment_configuration || {}) });
       setDocumentRequirements(body.document_requirements || []);
-      setRequirementTemplates(body.requirement_templates || []);
+      const loadedRequirements = (body.requirement_templates || []) as RequirementTemplate[];
+      setRequirementTemplates(loadedRequirements);
+      setRequirementStartMonths({ "0_2": loadedRequirements.find((item) => item.template_key === "0_2")?.available_from_months ?? 6, "2_6": loadedRequirements.find((item) => item.template_key === "2_6")?.available_from_months ?? 24 });
       setConsents(body.consents || []); setTerms(body.terms || []);
       setForms(body.forms || []);
       await fetchSchoolFeeCatalog(context.schoolId);
@@ -386,11 +390,12 @@ export default function SchoolSetupPage() {
     setDocumentRequirements((current) => current.map((item) => item.id === id ? { ...item, is_active: false } : item));
   }
 
-  async function saveRequirementTemplate(requirement: typeof newRequirementTemplate | RequirementTemplate = newRequirementTemplate) {
+  async function saveRequirementTemplate(requirement: typeof newRequirementTemplate | RequirementTemplate = newRequirementTemplate, templateKey?: RequirementTemplateKey) {
     if (!schoolId || !requirement.item_name.trim()) { setError("Enter a requirement item name."); return; }
     setSavingRequirementTemplate(true); setError("");
     try {
-      const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_enrolment_item", kind: "requirement", school_id: schoolId, ...requirement, display_order: "id" in requirement ? requirement.display_order : requirementTemplates.length }) });
+      const resolvedTemplateKey = "id" in requirement ? requirement.template_key : templateKey || "2_6";
+      const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_enrolment_item", kind: "requirement", school_id: schoolId, ...requirement, template_key: resolvedTemplateKey, available_from_months: "id" in requirement ? requirement.available_from_months : requirementStartMonths[resolvedTemplateKey], display_order: "id" in requirement ? requirement.display_order : requirementTemplates.filter((item) => item.template_key === resolvedTemplateKey).length }) });
       const body = await response.json(); if (!response.ok) throw new Error(body.error || "Requirement could not be saved.");
       setRequirementTemplates((current) => { const item = body.item as RequirementTemplate; return current.some((row) => row.id === item.id) ? current.map((row) => row.id === item.id ? item : row) : [...current, item]; }); setNewRequirementTemplate({ category: "stationery", item_name: "", quantity: "", instructions: "", is_required: false }); setMessage("Learner requirement saved.");
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Requirement could not be saved."); } finally { setSavingRequirementTemplate(false); }
@@ -400,6 +405,15 @@ export default function SchoolSetupPage() {
     if (!schoolId) return;
     const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "archive_enrolment_item", kind: "requirement", school_id: schoolId, id }) }); const body = await response.json();
     if (!response.ok) { setError(body.error || "Requirement could not be archived."); return; } setRequirementTemplates((current) => current.map((item) => item.id === id ? { ...item, is_active: false } : item));
+  }
+
+  async function saveRequirementStartMonths(templateKey: RequirementTemplateKey) {
+    if (!schoolId) return;
+    const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_requirement_template_months", school_id: schoolId, template_key: templateKey, available_from_months: requirementStartMonths[templateKey] }) });
+    const body = await response.json();
+    if (!response.ok) { setError(body.error || "The starting age could not be saved."); return; }
+    setRequirementTemplates((current) => current.map((item) => item.template_key === templateKey ? { ...item, available_from_months: body.available_from_months } : item));
+    setMessage(`${templateKey === "0_2" ? "0–2" : "2–6"} template starting age saved.`);
   }
 
   async function deleteSetupItem(kind: "document" | "requirement", id: string) {
@@ -642,8 +656,18 @@ export default function SchoolSetupPage() {
         onToggle={() => setLearnerRequirementsOpen((current) => !current)}
         tone="yellow"
       >
-        <div style={{ display: "grid", gap: 8 }}>{requirementTemplates.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.item_name}</strong><br /><small className="db-helper">{item.category} {item.quantity ? `· ${item.quantity}` : ""} {item.is_required ? "· Required" : ""} {!item.is_active ? "· Inactive" : ""}</small></span><span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="db-collapse-action" type="button" onClick={() => void editRequirementTemplate(item)}>Edit</button>{item.is_active ? <button className="db-collapse-action" type="button" onClick={() => void archiveRequirementTemplate(item.id)}>Deactivate</button> : <button className="db-collapse-action" type="button" onClick={() => void saveRequirementTemplate({ ...item, is_active: true })}>Activate</button>}<button className="db-collapse-action" type="button" onClick={() => void deleteSetupItem("requirement", item.id)}>Delete</button></span></div>)}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr) 110px auto", gap: 10, alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Category</span><select className="db-input" value={newRequirementTemplate.category} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, category: event.target.value as "stationery" | "hygiene" })}><option value="stationery">Stationery</option><option value="hygiene">Hygiene</option></select></label><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Item</span><input className="db-input" value={newRequirementTemplate.item_name} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, item_name: event.target.value })} /></label><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Quantity</span><input className="db-input" value={newRequirementTemplate.quantity} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, quantity: event.target.value })} /></label><div style={{ display: "grid", gap: 7 }}><label><input type="checkbox" checked={newRequirementTemplate.is_required} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, is_required: event.target.checked })} /> Required</label><button className="db-button-primary" type="button" disabled={savingRequirementTemplate} onClick={() => void saveRequirementTemplate()}>{savingRequirementTemplate ? "Saving..." : "Add"}</button></div></div>
+        {(["0_2", "2_6"] as RequirementTemplateKey[]).map((templateKey) => {
+          const templateItems = requirementTemplates.filter((item) => item.template_key === templateKey);
+          const templateLabel = templateKey === "0_2" ? "0–2 Years Template" : "2–6 Years Template";
+          return <details key={templateKey} className="db-soft-card" style={{ padding: 12 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>{templateLabel} ({templateItems.filter((item) => item.is_active).length} active items)</summary>
+            <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+              <div className="db-soft-card" style={{ padding: 10 }}><strong>Age disclaimer</strong><p className="db-helper" style={{ margin: "4px 0 8px" }}>The enrolment form will state that these items are requested from the selected age.</p><span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><label>Requested from <input className="db-input" style={{ width: 90 }} type="number" min={0} max={84} value={requirementStartMonths[templateKey]} onChange={(event) => setRequirementStartMonths((current) => ({ ...current, [templateKey]: Number(event.target.value) }))} /> months</label><button className="db-button-secondary" type="button" onClick={() => void saveRequirementStartMonths(templateKey)}>Save age</button></span></div>
+              {templateItems.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.item_name}</strong><br /><small className="db-helper">{item.category} {item.quantity ? `· ${item.quantity}` : ""} {item.is_required ? "· Required" : ""} {!item.is_active ? "· Inactive" : ""}</small></span><span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="db-collapse-action" type="button" onClick={() => void editRequirementTemplate(item)}>Edit</button>{item.is_active ? <button className="db-collapse-action" type="button" onClick={() => void archiveRequirementTemplate(item.id)}>Deactivate</button> : <button className="db-collapse-action" type="button" onClick={() => void saveRequirementTemplate({ ...item, is_active: true })}>Activate</button>}<button className="db-collapse-action" type="button" onClick={() => void deleteSetupItem("requirement", item.id)}>Delete</button></span></div>)}
+              <div style={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr) 110px auto", gap: 10, alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Category</span><select className="db-input" value={newRequirementTemplate.category} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, category: event.target.value as "stationery" | "hygiene" })}><option value="stationery">Stationery</option><option value="hygiene">Hygiene</option></select></label><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Item</span><input className="db-input" value={newRequirementTemplate.item_name} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, item_name: event.target.value })} /></label><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Quantity</span><input className="db-input" value={newRequirementTemplate.quantity} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, quantity: event.target.value })} /></label><div style={{ display: "grid", gap: 7 }}><label><input type="checkbox" checked={newRequirementTemplate.is_required} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, is_required: event.target.checked })} /> Required</label><button className="db-button-primary" type="button" disabled={savingRequirementTemplate} onClick={() => void saveRequirementTemplate(newRequirementTemplate, templateKey)}>{savingRequirementTemplate ? "Saving..." : `Add to ${templateLabel}`}</button></div></div>
+            </div>
+          </details>;
+        })}
       </CollapsibleSetupSection>
 
       <CollapsibleSetupSection

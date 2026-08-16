@@ -38,7 +38,7 @@ type FormInfo = {
   school_primary_color?: string | null;
   form: PublicForm | null;
   document_requirements?: Array<{ title: string; instructions?: string | null; is_required: boolean }>;
-  requirement_templates?: Array<{ category: string; item_name: string; quantity?: string | null; instructions?: string | null }>;
+  requirement_templates?: Array<{ template_key?: "0_2" | "2_6"; available_from_months?: number; category: string; item_name: string; quantity?: string | null; instructions?: string | null }>;
   consents?: Array<{ id: string; title: string; wording: string; is_required: boolean }>;
   terms?: Array<{ id: string; title: string; content: string }>;
   enrolment_configuration?: { additional_declaration?: string | null; second_guardian_mode?: "hidden" | "optional" | "required"; emergency_contact_mode?: "hidden" | "optional" | "required"; previous_school_enabled?: boolean } | null;
@@ -247,7 +247,8 @@ export default function SecureEnrolmentFormPage() {
 
   const customFields = getCustomFields(info?.form?.custom_fields);
   const requiredDocuments = info?.document_requirements?.map((item) => item.title) || getTextList(info?.form?.required_documents);
-  const stationeryList = info?.requirement_templates?.map((item) => `${item.item_name}${item.quantity ? ` (${item.quantity})` : ""}`) || getTextList(info?.form?.stationery_list);
+  const requirementTemplates = info?.requirement_templates || [];
+  const legacyStationeryList = requirementTemplates.length ? [] : getTextList(info?.form?.stationery_list);
   const consents = info?.consents || [];
   const terms = info?.terms || [];
   const configuration = info?.enrolment_configuration;
@@ -410,7 +411,7 @@ export default function SecureEnrolmentFormPage() {
               </div>
               <div>
                 <h3 style={{ margin: "0 0 10px" }}>Stationery and items to bring</h3>
-                {stationeryList.length ? <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>{stationeryList.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="db-helper">The school has not added a stationery list yet.</p>}
+                {requirementTemplates.length ? <div style={{ display: "grid", gap: 12 }}>{(["0_2", "2_6"] as const).map((templateKey) => { const items = requirementTemplates.filter((item) => (item.template_key || "2_6") === templateKey); if (!items.length) return null; const months = items[0]?.available_from_months ?? (templateKey === "0_2" ? 6 : 24); return <div key={templateKey} className="db-soft-card" style={{ padding: 12 }}><strong>{templateKey === "0_2" ? "0–2 Years Template" : "2–6 Years Template"}</strong><p className="db-helper" style={{ margin: "4px 0 8px" }}>Items in this template are requested from {months} months.</p><ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>{items.map((item) => <li key={`${templateKey}-${item.category}-${item.item_name}`}>{item.item_name}{item.quantity ? ` (${item.quantity})` : ""}</li>)}</ul></div>; })}</div> : legacyStationeryList.length ? <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>{legacyStationeryList.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="db-helper">The school has not added a stationery list yet.</p>}
               </div>
             </div> : null}
             {step === 4 ? <div style={{ display: "grid", gap: 16 }}>

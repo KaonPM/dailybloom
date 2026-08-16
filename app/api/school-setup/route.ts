@@ -61,16 +61,28 @@ const STARTER_REQUIREMENTS = [
   { category: "hygiene", item_name: "Spare clothes", quantity: "1 set", instructions: "Keep a labelled change of clothes at school.", is_required: false, display_order: 3 },
 ];
 const STARTER_CONSENTS = [
-  { title: "Personal information consent", wording: "I consent to the school collecting and using the learner and parent information needed for enrolment, care, education, communication and lawful record-keeping.", is_required: true, display_order: 1 },
-  { title: "Emergency care consent", wording: "If the school cannot reach me in an emergency, I authorise reasonable emergency care for the learner and understand that the school will contact me as soon as possible.", is_required: true, display_order: 2 },
-  { title: "Photographs and school communication", wording: "I give permission for the school to use the learner's image in private parent communication and school activities as described in the school's policy.", is_required: false, display_order: 3 },
+  { title: "Emergency Medical Treatment", wording: "I authorise the school to obtain reasonable emergency medical assistance for the learner when necessary and when the parent or guardian cannot be reached promptly.", is_required: true, display_order: 1 },
+  { title: "Administration of Medication", wording: "I understand that medication may only be administered according to the school's procedures and any instructions or authorisation provided by the parent or guardian.", is_required: true, display_order: 2 },
+  { title: "Educational Outings and Excursions", wording: "I give permission for the learner to participate in school-approved educational outings or excursions, subject to the school's applicable procedures.", is_required: false, display_order: 3 },
+  { title: "Electronic Communication", wording: "I consent to the school using the contact information supplied for relevant school communication, including WhatsApp, SMS, email or Parent Portal communication where applicable.", is_required: true, display_order: 4 },
+  { title: "Processing of Learner and Parent Information", wording: "I consent to the school processing the learner and parent or guardian information supplied for enrolment, administration, learner support and related school purposes.", is_required: true, display_order: 5 },
 ];
 const STARTER_TERMS = [
   { title: "Learner information and enrolment", content: "The parent or legal guardian confirms that the learner information supplied is accurate and agrees to notify the school promptly of any changes.", display_order: 1 },
-  { title: "Health, safety and emergency care", content: "The parent or legal guardian must disclose information needed to support the learner safely, keep emergency contacts current, and authorises reasonable emergency action when the school cannot reach a responsible adult.", display_order: 2 },
-  { title: "Fees, attendance and school rules", content: "The parent or legal guardian agrees to the school fee arrangement, attendance expectations and school policies provided by the school. The school will communicate material policy or fee changes in writing.", display_order: 3 },
-  { title: "Privacy and records", content: "The school will use learner and parent information for enrolment, care, education, communication, administration and lawful record-keeping. The parent or legal guardian may ask the school about the information it holds and request corrections where appropriate.", display_order: 4 },
+  { title: "Health, Safety and Emergency Care", content: "The parent or legal guardian must disclose information reasonably required for the safe care of the learner, including medical conditions, allergies, medication and emergency contact information.", display_order: 2 },
+  { title: "Fees and Payment Obligations", content: "The parent or legal guardian agrees to pay applicable school fees and charges according to the school's current fee structure and payment terms.", display_order: 3 },
+  { title: "Registration Fee", content: "Add this school's registration-fee terms, including any applicable refund or transfer arrangements.", display_order: 4 },
+  { title: "Operating Hours and Collection", content: "The parent or legal guardian agrees to observe the school's operating hours and collection arrangements, including any applicable late collection rules.", display_order: 5 },
+  { title: "Late Collection", content: "Add this school's late collection policy, including any grace period or charges where applicable.", display_order: 6 },
+  { title: "Aftercare", content: "Add this school's aftercare conditions, availability, collection arrangements and charges where applicable.", display_order: 7 },
+  { title: "Illness and Attendance", content: "A learner who is ill, has a contagious condition, or presents a health risk to others may be required to remain at home in accordance with the school's health procedures.", display_order: 8 },
+  { title: "Medication", content: "Parents or legal guardians must provide the school with relevant information and instructions regarding medication required by the learner.", display_order: 9 },
+  { title: "Personal Belongings", content: "Personal belongings brought to school should be clearly marked with the learner's name. The school may apply its own rules regarding responsibility for lost or damaged items.", display_order: 10 },
+  { title: "Notice and Withdrawal", content: "The parent or legal guardian agrees to comply with the school's applicable notice requirements when withdrawing the learner.", display_order: 11 },
+  { title: "Refunds", content: "Add this school's refund policy and any conditions that apply.", display_order: 12 },
+  { title: "Information Updates", content: "The parent or legal guardian must inform the school when important learner, parent, guardian, medical, address or contact information changes.", display_order: 13 },
 ];
+const DEFAULT_PARENT_DECLARATION = "I confirm that the information provided in this enrolment application is true and complete to the best of my knowledge and that I have read and accepted the applicable school terms and requirements.";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -100,7 +112,7 @@ export async function GET(request: Request) {
   ]);
   const seedError = seededDocuments.error || seededRequirements.error || seededConsents.error || seededTerms.error;
   if (seedError) return NextResponse.json({ error: seedError.message }, { status: 500 });
-  return NextResponse.json({ settings, forms: forms || [], registration_fee: registrationFee, school, enrolment_configuration: enrolmentConfiguration, document_requirements: seededDocuments.data || [], requirement_templates: seededRequirements.data || [], consents: seededConsents.data || [], terms: seededTerms.data || [] });
+  return NextResponse.json({ settings, forms: forms || [], registration_fee: registrationFee, school, enrolment_configuration: enrolmentConfiguration ? { ...enrolmentConfiguration, additional_declaration: enrolmentConfiguration.additional_declaration || DEFAULT_PARENT_DECLARATION } : null, document_requirements: seededDocuments.data || [], requirement_templates: seededRequirements.data || [], consents: seededConsents.data || [], terms: seededTerms.data || [] });
 }
 
 export async function POST(request: Request) {
@@ -197,6 +209,17 @@ export async function POST(request: Request) {
     const { error } = await supabaseAdmin.from(table).update({ is_active: false, updated_by: authorization.staff.userId, updated_at: new Date().toISOString() }).eq("id", id).eq("school_id", schoolId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     await writeSecurityAudit(authorization.staff, `school_setup.enrolment_${kind}_archived`, { school_id: schoolId, id });
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === "delete_enrolment_item") {
+    const kind = text(body.kind, 20) as keyof typeof CONFIGURATION_TABLES;
+    const table = CONFIGURATION_TABLES[kind];
+    const id = text(body.id, 80);
+    if (!table || !id) return NextResponse.json({ error: "Choose a valid enrolment setting." }, { status: 400 });
+    const { error } = await supabaseAdmin.from(table).delete().eq("id", id).eq("school_id", schoolId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await writeSecurityAudit(authorization.staff, `school_setup.enrolment_${kind}_deleted`, { school_id: schoolId, id });
     return NextResponse.json({ success: true });
   }
 

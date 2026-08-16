@@ -43,8 +43,8 @@ type SchoolBrand = { school_name?: string | null; logo_url?: string | null; prim
 type UniversalEnrolmentConfiguration = { form_title: string; introduction?: string | null; is_open: boolean; second_guardian_mode: "hidden" | "optional" | "required"; emergency_contact_mode: "hidden" | "optional" | "required"; previous_school_enabled: boolean; additional_declaration?: string | null; custom_fields?: CustomFormField[] };
 type DocumentRequirement = { id: string; title: string; instructions?: string | null; is_required: boolean; is_active: boolean; display_order: number };
 type RequirementTemplate = { id: string; category: "stationery" | "hygiene"; item_name: string; quantity?: string | null; instructions?: string | null; is_required: boolean; is_active: boolean; display_order: number };
-type ConsentItem = { id: string; title: string; wording: string; is_required: boolean; is_active: boolean };
-type TermItem = { id: string; title: string; content: string; is_active: boolean };
+type ConsentItem = { id: string; title: string; wording: string; is_required: boolean; is_active: boolean; display_order: number };
+type TermItem = { id: string; title: string; content: string; is_active: boolean; display_order: number };
 const emptyUniversalConfiguration: UniversalEnrolmentConfiguration = { form_title: "Enrolment Form", introduction: "", is_open: true, second_guardian_mode: "optional", emergency_contact_mode: "required", previous_school_enabled: true, additional_declaration: "", custom_fields: [] };
 
 type SchoolFeeType = {
@@ -420,6 +420,43 @@ export default function SchoolSetupPage() {
     setMessage(`${kind === "consent" ? "Consent" : "Term"} deactivated.`);
   }
 
+  async function deleteEnrolmentListItem(kind: "consent" | "term", id: string) {
+    if (!schoolId || !window.confirm("Delete this item? It will not change enrolments already submitted.")) return;
+    const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_enrolment_item", kind, school_id: schoolId, id }) });
+    const body = await response.json();
+    if (!response.ok) { setError(body.error || "The item could not be deleted."); return; }
+    if (kind === "consent") setConsents((current) => current.filter((item) => item.id !== id));
+    else setTerms((current) => current.filter((item) => item.id !== id));
+    setMessage(`${kind === "consent" ? "Consent" : "Term"} deleted.`);
+  }
+
+  async function moveEnrolmentListItem(kind: "consent" | "term", id: string, direction: -1 | 1) {
+    if (!schoolId) return;
+    const source = kind === "consent" ? consents : terms;
+    const index = source.findIndex((item) => item.id === id);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= source.length) return;
+    const reordered = [...source];
+    [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+    const withOrder = reordered.map((item, display_order) => ({ ...item, display_order }));
+    if (kind === "consent") setConsents(withOrder as ConsentItem[]); else setTerms(withOrder as TermItem[]);
+    const results = await Promise.all(withOrder.slice(Math.min(index, targetIndex), Math.max(index, targetIndex) + 1).map(async (item) => {
+      const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_enrolment_item", kind, school_id: schoolId, ...item }) });
+      return response.ok;
+    }));
+    if (results.some((saved) => !saved)) { setError("The display order could not be saved. Refresh and try again."); return; }
+    setMessage(`${kind === "consent" ? "Consent" : "Terms"} order updated.`);
+  }
+
+  async function toggleConsentRequired(item: ConsentItem) {
+    if (!schoolId) return;
+    const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_enrolment_item", kind: "consent", school_id: schoolId, ...item, is_required: !item.is_required }) });
+    const body = await response.json();
+    if (!response.ok) { setError(body.error || "The consent requirement could not be updated."); return; }
+    setConsents((current) => current.map((row) => row.id === item.id ? body.item as ConsentItem : row));
+    setMessage(`Consent marked ${item.is_required ? "optional" : "required"}.`);
+  }
+
   async function editEnrolmentListItem(kind: "consent" | "term", item: ConsentItem | TermItem) {
     if (!schoolId) return;
     const title = window.prompt(`${kind === "consent" ? "Consent" : "Term"} title`, item.title);
@@ -555,12 +592,12 @@ export default function SchoolSetupPage() {
 
       <CollapsibleSetupSection
         title="Consent & Permissions" description="Set the parent acknowledgements required for enrolment." isOpen={consentsOpen} onToggle={() => setConsentsOpen((current) => !current)} tone="lavender">
-        <div style={{ display: "grid", gap: 8 }}>{consents.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.title}</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>{item.wording}</p></span>{item.is_active ? <span style={{ display: "flex", gap: 8, alignItems: "start" }}><button className="db-collapse-action" type="button" onClick={() => void editEnrolmentListItem("consent", item)}>Edit</button><button className="db-collapse-action" type="button" onClick={() => void archiveEnrolmentListItem("consent", item.id)}>Deactivate</button></span> : <span className="db-helper">Inactive</span>}</div>)}</div>
+        <div style={{ display: "grid", gap: 8 }}>{consents.map((item, index) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.title}</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>{item.wording}</p></span>{item.is_active ? <span style={{ display: "flex", gap: 8, alignItems: "start" }}><button className="db-collapse-action" type="button" disabled={index === 0} onClick={() => void moveEnrolmentListItem("consent", item.id, -1)}>Up</button><button className="db-collapse-action" type="button" disabled={index === consents.length - 1} onClick={() => void moveEnrolmentListItem("consent", item.id, 1)}>Down</button><button className="db-collapse-action" type="button" onClick={() => void toggleConsentRequired(item)}>{item.is_required ? "Make optional" : "Make required"}</button><button className="db-collapse-action" type="button" onClick={() => void editEnrolmentListItem("consent", item)}>Edit</button><button className="db-collapse-action" type="button" onClick={() => void archiveEnrolmentListItem("consent", item.id)}>Deactivate</button><button className="db-collapse-action" type="button" onClick={() => void deleteEnrolmentListItem("consent", item.id)}>Delete</button></span> : <span className="db-helper">Inactive</span>}</div>)}</div>
         <div style={{ display: "grid", gap: 8 }}><input className="db-input" value={newConsent.title} onChange={(event) => setNewConsent({ ...newConsent, title: event.target.value })} placeholder="Consent title" /><textarea className="db-input" rows={3} value={newConsent.wording} onChange={(event) => setNewConsent({ ...newConsent, wording: event.target.value })} placeholder="Consent wording shown to the parent" /><div><label><input type="checkbox" checked={newConsent.is_required} onChange={(event) => setNewConsent({ ...newConsent, is_required: event.target.checked })} /> Required</label> <button className="db-button-primary" type="button" disabled={savingConsent} onClick={() => void saveEnrolmentListItem("consent")}>{savingConsent ? "Saving..." : "Add consent"}</button></div></div>
       </CollapsibleSetupSection>
       <CollapsibleSetupSection
         title="Enrolment Terms & Conditions" description="Create editable sections that parents accept and submitted enrolments retain." isOpen={termsOpen} onToggle={() => setTermsOpen((current) => !current)} tone="yellow">
-        <div style={{ display: "grid", gap: 8 }}>{terms.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.title}</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>{item.content}</p></span>{item.is_active ? <span style={{ display: "flex", gap: 8, alignItems: "start" }}><button className="db-collapse-action" type="button" onClick={() => void editEnrolmentListItem("term", item)}>Edit</button><button className="db-collapse-action" type="button" onClick={() => void archiveEnrolmentListItem("term", item.id)}>Deactivate</button></span> : <span className="db-helper">Inactive</span>}</div>)}</div>
+        <div style={{ display: "grid", gap: 8 }}>{terms.map((item, index) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.title}</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>{item.content}</p></span>{item.is_active ? <span style={{ display: "flex", gap: 8, alignItems: "start" }}><button className="db-collapse-action" type="button" disabled={index === 0} onClick={() => void moveEnrolmentListItem("term", item.id, -1)}>Up</button><button className="db-collapse-action" type="button" disabled={index === terms.length - 1} onClick={() => void moveEnrolmentListItem("term", item.id, 1)}>Down</button><button className="db-collapse-action" type="button" onClick={() => void editEnrolmentListItem("term", item)}>Edit</button><button className="db-collapse-action" type="button" onClick={() => void archiveEnrolmentListItem("term", item.id)}>Deactivate</button><button className="db-collapse-action" type="button" onClick={() => void deleteEnrolmentListItem("term", item.id)}>Delete</button></span> : <span className="db-helper">Inactive</span>}</div>)}</div>
         <div style={{ display: "grid", gap: 8 }}><input className="db-input" value={newTerm.title} onChange={(event) => setNewTerm({ ...newTerm, title: event.target.value })} placeholder="e.g. Fees and payments" /><textarea className="db-input" rows={3} value={newTerm.content} onChange={(event) => setNewTerm({ ...newTerm, content: event.target.value })} placeholder="Term wording" /><div><button className="db-button-primary" type="button" disabled={savingTerm} onClick={() => void saveEnrolmentListItem("term")}>{savingTerm ? "Saving..." : "Add term"}</button></div></div>
       </CollapsibleSetupSection>
       <CollapsibleSetupSection

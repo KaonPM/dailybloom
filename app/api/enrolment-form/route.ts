@@ -10,6 +10,7 @@ import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
 const ALLOWED_DOCUMENT_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+const DEFAULT_PARENT_DECLARATION = "I confirm that the information provided in this enrolment application is true and complete to the best of my knowledge and that I have read and accepted the applicable school terms and requirements.";
 
 function text(value: unknown, max = 250) {
   return String(value || "").trim().slice(0, max);
@@ -142,7 +143,7 @@ export async function GET(request: Request) {
     school_logo_url: school?.logo_url || null,
     school_primary_color: school?.primary_color || null,
     form: { ...form, form_name: configuration?.form_title || form?.form_name, instructions: configuration?.introduction || form?.instructions, custom_fields: configuration ? configuration.custom_fields : form?.custom_fields },
-    enrolment_configuration: configuration,
+    enrolment_configuration: configuration ? { ...configuration, additional_declaration: configuration.additional_declaration || DEFAULT_PARENT_DECLARATION } : { additional_declaration: DEFAULT_PARENT_DECLARATION },
     document_requirements: documents || [], requirement_templates: requirements || [], consents: consents || [], terms: terms || [],
   });
 }
@@ -183,7 +184,7 @@ export async function POST(request: Request) {
     supabaseAdmin.from("school_enrolment_document_requirements").select("title, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_requirement_templates").select("category, item_name, quantity, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("id, title, wording, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
-    supabaseAdmin.from("school_enrolment_terms_sections").select("title, content, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
+    supabaseAdmin.from("school_enrolment_terms_sections").select("id, title, content, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
   ]);
   if (configuration?.is_open === false) return NextResponse.json({ error: "Enrolments are currently closed by the school." }, { status: 403 });
   const consentResponses = body.consent_responses && typeof body.consent_responses === "object" && !Array.isArray(body.consent_responses) ? body.consent_responses as Record<string, unknown> : {};
@@ -235,9 +236,10 @@ export async function POST(request: Request) {
     home_address: text(body.home_address, 1000),
     medical_notes: text(body.medical_notes, 2000),
     custom_answers: customAnswers,
-    consent_responses: (consents || []).map((consent) => ({ title: consent.title, wording: consent.wording, required: consent.is_required, accepted: consentResponses[String(consent.id)] === true })),
+    consent_responses: (consents || []).map((consent) => ({ id: consent.id, title: consent.title, wording: consent.wording, required: consent.is_required, accepted: consentResponses[String(consent.id)] === true, responded_at: new Date().toISOString() })),
+    terms: (terms || []).map((term) => ({ id: term.id, title: term.title, content: term.content, accepted: body.terms_accepted === true, accepted_at: new Date().toISOString() })),
     terms_accepted: body.terms_accepted === true,
-    declaration: { name: declarationName, relationship: declarationRelationship, acknowledged_at: new Date().toISOString() },
+    declaration: { statement: configuration?.additional_declaration || DEFAULT_PARENT_DECLARATION, name: declarationName, relationship: declarationRelationship, acknowledged_at: new Date().toISOString() },
     uploaded_documents: documents,
     submitted_at: new Date().toISOString(),
   };

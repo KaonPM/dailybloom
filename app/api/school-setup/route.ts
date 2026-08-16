@@ -50,6 +50,28 @@ const CONFIGURATION_TABLES = {
   term: "school_enrolment_terms_sections",
 } as const;
 
+const STARTER_DOCUMENTS = [
+  { title: "Learner birth certificate or identity document", instructions: "Upload a clear copy of the learner's birth certificate, ID or passport.", is_required: true, display_order: 1 },
+  { title: "Parent or guardian identity document", instructions: "Upload an ID or passport for the responsible parent or guardian.", is_required: true, display_order: 2 },
+  { title: "Immunisation record / clinic card", instructions: "Upload the most recent immunisation record where applicable.", is_required: false, display_order: 3 },
+];
+const STARTER_REQUIREMENTS = [
+  { category: "stationery", item_name: "Labelled school bag", quantity: "1", instructions: "Please label the bag clearly with the learner's name.", is_required: true, display_order: 1 },
+  { category: "hygiene", item_name: "Water bottle", quantity: "1", instructions: "A labelled refillable bottle for daily use.", is_required: true, display_order: 2 },
+  { category: "hygiene", item_name: "Spare clothes", quantity: "1 set", instructions: "Keep a labelled change of clothes at school.", is_required: false, display_order: 3 },
+];
+const STARTER_CONSENTS = [
+  { title: "Personal information consent", wording: "I consent to the school collecting and using the learner and parent information needed for enrolment, care, education, communication and lawful record-keeping.", is_required: true, display_order: 1 },
+  { title: "Emergency care consent", wording: "If the school cannot reach me in an emergency, I authorise reasonable emergency care for the learner and understand that the school will contact me as soon as possible.", is_required: true, display_order: 2 },
+  { title: "Photographs and school communication", wording: "I give permission for the school to use the learner's image in private parent communication and school activities as described in the school's policy.", is_required: false, display_order: 3 },
+];
+const STARTER_TERMS = [
+  { title: "Learner information and enrolment", content: "The parent or legal guardian confirms that the learner information supplied is accurate and agrees to notify the school promptly of any changes.", display_order: 1 },
+  { title: "Health, safety and emergency care", content: "The parent or legal guardian must disclose information needed to support the learner safely, keep emergency contacts current, and authorises reasonable emergency action when the school cannot reach a responsible adult.", display_order: 2 },
+  { title: "Fees, attendance and school rules", content: "The parent or legal guardian agrees to the school fee arrangement, attendance expectations and school policies provided by the school. The school will communicate material policy or fee changes in writing.", display_order: 3 },
+  { title: "Privacy and records", content: "The school will use learner and parent information for enrolment, care, education, communication, administration and lawful record-keeping. The parent or legal guardian may ask the school about the information it holds and request corrections where appropriate.", display_order: 4 },
+];
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const schoolId = Number(searchParams.get("school_id"));
@@ -69,7 +91,16 @@ export async function GET(request: Request) {
   ]);
   const error = settingsError || formsError || feeError || schoolError || configurationError || documentsError || requirementsError || consentsError || termsError;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ settings, forms: forms || [], registration_fee: registrationFee, school, enrolment_configuration: enrolmentConfiguration, document_requirements: documentRequirements || [], requirement_templates: requirementTemplates || [], consents: consents || [], terms: terms || [] });
+  const audit = { school_id: schoolId, created_by: authorization.staff.userId, updated_by: authorization.staff.userId };
+  const [seededDocuments, seededRequirements, seededConsents, seededTerms] = await Promise.all([
+    (documentRequirements || []).length ? Promise.resolve({ data: documentRequirements, error: null }) : supabaseAdmin.from("school_enrolment_document_requirements").insert(STARTER_DOCUMENTS.map((item) => ({ ...audit, ...item }))).select(),
+    (requirementTemplates || []).length ? Promise.resolve({ data: requirementTemplates, error: null }) : supabaseAdmin.from("school_enrolment_requirement_templates").insert(STARTER_REQUIREMENTS.map((item) => ({ ...audit, ...item }))).select(),
+    (consents || []).length ? Promise.resolve({ data: consents, error: null }) : supabaseAdmin.from("school_enrolment_consents").insert(STARTER_CONSENTS.map((item) => ({ ...audit, ...item }))).select(),
+    (terms || []).length ? Promise.resolve({ data: terms, error: null }) : supabaseAdmin.from("school_enrolment_terms_sections").insert(STARTER_TERMS.map((item) => ({ ...audit, ...item }))).select(),
+  ]);
+  const seedError = seededDocuments.error || seededRequirements.error || seededConsents.error || seededTerms.error;
+  if (seedError) return NextResponse.json({ error: seedError.message }, { status: 500 });
+  return NextResponse.json({ settings, forms: forms || [], registration_fee: registrationFee, school, enrolment_configuration: enrolmentConfiguration, document_requirements: seededDocuments.data || [], requirement_templates: seededRequirements.data || [], consents: seededConsents.data || [], terms: seededTerms.data || [] });
 }
 
 export async function POST(request: Request) {

@@ -265,7 +265,7 @@ export default function Sidebar() {
         permission: PERMISSIONS.BILLING_MANAGE,
       },
       {
-        label: "Learner Requirements",
+        label: "Learner Requirements & Documents",
         href: "/learner-requirements",
         match: ["/learner-requirements"],
         featureKey: "learner_requirements",
@@ -752,8 +752,7 @@ export default function Sidebar() {
             "Learners",
             "Enrolments",
             "Re-enrolments",
-            "Parent Consent",
-            "Learner Requirements"
+            "Parent Consent"
           ),
         },
         {
@@ -776,7 +775,7 @@ export default function Sidebar() {
           label: "School Administration",
           color: "#F59E0B",
           items: [
-            ...itemsNamed("Classrooms", "School Setup", "School Printable Documents", "Trust & Security"),
+            ...itemsNamed("Classrooms", "Learner Requirements & Documents", "School Setup", "School Printable Documents", "Trust & Security"),
             ...(canViewDbe ? dbeNav : []),
           ],
         },

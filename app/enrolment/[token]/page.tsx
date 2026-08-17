@@ -36,6 +36,9 @@ type FormInfo = {
   school_name: string;
   school_logo_url?: string | null;
   school_primary_color?: string | null;
+  school_contact_number?: string | null;
+  school_email_address?: string | null;
+  school_physical_address?: string | null;
   form: PublicForm | null;
   document_requirements?: Array<{ title: string; instructions?: string | null; is_required: boolean }>;
   requirement_templates?: Array<{ template_key?: "0_2" | "2_6"; available_from_months?: number; available_to_months?: number; category: string; item_name: string; quantity?: string | null; instructions?: string | null }>;
@@ -65,7 +68,13 @@ const emptyFields = {
   emergency_contact_phone: "",
   previous_school: "",
   home_address: "",
-  medical_notes: "",
+  allergies: "",
+  medical_conditions: "",
+  medical_aid_name: "",
+  medical_aid_number: "",
+  medical_aid_main_member: "",
+  preferred_doctor_name: "",
+  preferred_doctor_phone: "",
 };
 
 export default function SecureEnrolmentFormPage() {
@@ -262,9 +271,13 @@ export default function SecureEnrolmentFormPage() {
 
   const customFields = getCustomFields(info?.form?.custom_fields);
   const configuration = info?.enrolment_configuration;
+  const responsibleGuardianDocument = "Responsible parent/guardian identification document";
   const secondGuardianDocument = "Second parent/guardian identification document";
   const configuredDocumentNames = info?.document_requirements?.map((item) => item.title) || getTextList(info?.form?.required_documents);
-  const requiredDocuments = configuration?.second_guardian_mode === "required" && !configuredDocumentNames.includes(secondGuardianDocument) ? [...configuredDocumentNames, secondGuardianDocument] : configuredDocumentNames;
+  const hasResponsibleId = configuredDocumentNames.some((name) => /(parent|guardian).*(id|identity|passport)|(id|identity|passport).*(parent|guardian)/i.test(name));
+  const secondGuardianProvided = Boolean(fields.second_guardian_name.trim() || fields.second_guardian_phone.trim());
+  const guardianDocuments = hasResponsibleId ? configuredDocumentNames : [...configuredDocumentNames, responsibleGuardianDocument];
+  const requiredDocuments = (configuration?.second_guardian_mode === "required" || secondGuardianProvided) && !guardianDocuments.includes(secondGuardianDocument) ? [...guardianDocuments, secondGuardianDocument] : guardianDocuments;
   const requirementTemplates = info?.requirement_templates || [];
   const legacyStationeryList = requirementTemplates.length ? [] : getTextList(info?.form?.stationery_list);
   const consents = info?.consents || [];
@@ -314,6 +327,8 @@ export default function SecureEnrolmentFormPage() {
           {info?.form?.form_name || "Enrolment Form"}
           {info?.reference ? ` · Reference ${info.reference}` : ""}
         </p>
+        {info?.school_physical_address ? <p className="db-helper" style={{ margin: 0 }}>{info.school_physical_address}</p> : null}
+        {info?.school_contact_number || info?.school_email_address ? <p className="db-helper" style={{ margin: 0 }}>{[info.school_contact_number, info.school_email_address].filter(Boolean).join(" · ")}</p> : null}
         <div className="db-soft-card" style={{ padding: 10, borderLeft: `4px solid ${info?.school_primary_color || "#5ab8de"}` }}><strong>Digital school enrolment form</strong><span className="db-helper" style={{ display: "block", marginTop: 3 }}>Please complete the school’s form sections below. Your school details and enrolment reference are already included.</span></div>
       </section>
 
@@ -428,7 +443,7 @@ export default function SecureEnrolmentFormPage() {
             {step === 3 ? <div style={{ display: "grid", gap: 16 }}>
               <div>
                 <h3 style={{ margin: "0 0 10px" }}>Required document uploads</h3>
-                {requiredDocuments.length ? <div style={{ display: "grid", gap: 8 }}>{requiredDocuments.map((documentName) => { const configured = info?.document_requirements?.find((item) => item.title === documentName); const isSecondGuardianDocument = documentName === secondGuardianDocument; return <label key={documentName} className="db-soft-card" style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}><span><strong>{documentName}{configured?.is_required || isSecondGuardianDocument ? " *" : ""}</strong><br /><small className="db-helper">{documentUploads[documentName]?.name || configured?.instructions || (isSecondGuardianDocument ? "Required because the second guardian is mandatory." : "PDF, JPG, PNG or WEBP up to 10 MB")}</small></span><span className="db-button-secondary" style={{ cursor: isPreview ? "default" : "pointer" }}><input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden disabled={isPreview || uploadingDocument === documentName} onChange={(event) => void uploadDocument(documentName, event.target.files?.[0])} />{uploadingDocument === documentName ? "Uploading..." : documentUploads[documentName] ? "Replace" : "Upload"}</span></label>; })}</div> : <p className="db-helper">The school has not requested any document uploads for this form.</p>}
+                {requiredDocuments.length ? <div style={{ display: "grid", gap: 8 }}>{requiredDocuments.map((documentName) => { const configured = info?.document_requirements?.find((item) => item.title === documentName); const isResponsibleDocument = documentName === responsibleGuardianDocument || /(parent|guardian).*(id|identity|passport)|(id|identity|passport).*(parent|guardian)/i.test(documentName) && documentName !== secondGuardianDocument; const isGuardianDocument = documentName === secondGuardianDocument || isResponsibleDocument; return <label key={documentName} className="db-soft-card" style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}><span><strong>{documentName}{configured?.is_required || isGuardianDocument ? " *" : ""}</strong><br /><small className="db-helper">{documentUploads[documentName]?.name || configured?.instructions || (documentName === secondGuardianDocument ? "Required when second guardian details are supplied." : isResponsibleDocument ? "Upload an ID or passport for the responsible parent or guardian." : "PDF, JPG, PNG or WEBP up to 10 MB")}</small></span><span className="db-button-secondary" style={{ cursor: isPreview ? "default" : "pointer" }}><input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden disabled={isPreview || uploadingDocument === documentName} onChange={(event) => void uploadDocument(documentName, event.target.files?.[0])} />{uploadingDocument === documentName ? "Uploading..." : documentUploads[documentName] ? "Replace" : "Upload"}</span></label>; })}</div> : <p className="db-helper">The school has not requested any document uploads for this form.</p>}
               </div>
               <div>
                 <h3 style={{ margin: "0 0 10px" }}>Stationery and items to bring</h3>
@@ -438,7 +453,7 @@ export default function SecureEnrolmentFormPage() {
             {step === 4 ? <div style={{ display: "grid", gap: 16 }}>
               <div>
                 <h3 style={{ margin: "0 0 10px" }}>Important health information</h3>
-                <label style={{ display: "grid", gap: 7 }}><strong>Allergies, medical aid or medical notes (optional)</strong><textarea className="db-input" rows={3} value={fields.medical_notes} onChange={(event) => setField("medical_notes", event.target.value)} disabled={isPreview} placeholder="Share only information the school should know to support the learner safely." /></label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}><label style={{ display: "grid", gap: 7 }}><strong>Allergies (optional)</strong><textarea className="db-input" rows={2} value={fields.allergies} onChange={(event) => setField("allergies", event.target.value)} disabled={isPreview} /></label><label style={{ display: "grid", gap: 7 }}><strong>Medical conditions (optional)</strong><textarea className="db-input" rows={2} value={fields.medical_conditions} onChange={(event) => setField("medical_conditions", event.target.value)} disabled={isPreview} /></label><label style={{ display: "grid", gap: 7 }}><strong>Medical aid name</strong><input className="db-input" value={fields.medical_aid_name} onChange={(event) => setField("medical_aid_name", event.target.value)} disabled={isPreview} /></label><label style={{ display: "grid", gap: 7 }}><strong>Medical aid membership number</strong><input className="db-input" value={fields.medical_aid_number} onChange={(event) => setField("medical_aid_number", event.target.value)} disabled={isPreview} /></label><label style={{ display: "grid", gap: 7 }}><strong>Main member</strong><input className="db-input" value={fields.medical_aid_main_member} onChange={(event) => setField("medical_aid_main_member", event.target.value)} disabled={isPreview} /></label><label style={{ display: "grid", gap: 7 }}><strong>Preferred doctor</strong><input className="db-input" value={fields.preferred_doctor_name} onChange={(event) => setField("preferred_doctor_name", event.target.value)} disabled={isPreview} /></label><label style={{ display: "grid", gap: 7 }}><strong>Doctor contact number</strong><input className="db-input" inputMode="tel" value={fields.preferred_doctor_phone} onChange={(event) => setField("preferred_doctor_phone", event.target.value)} disabled={isPreview} /></label></div>
               </div>
               {customFields.length ? <div>
               <h3 style={{ margin: "0 0 10px" }}>Additional information</h3>

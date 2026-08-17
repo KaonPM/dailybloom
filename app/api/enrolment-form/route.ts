@@ -196,10 +196,11 @@ export async function POST(request: Request) {
   const learnerSurname = text(body.learner_surname, 120);
   const dateOfBirth = text(body.date_of_birth, 30);
   const guardianName = text(body.guardian_name, 180);
+  const guardianIdOrPassport = text(body.guardian_id_or_passport, 120);
   const guardianPhone = text(body.guardian_phone, 40);
   const parentPortalPhone = toSouthAfricanSmsNumber(text(body.parent_portal_phone, 40));
-  if (!learnerFirstName || !learnerSurname || !dateOfBirth || !guardianName || !guardianPhone || !parentPortalPhone) {
-    return NextResponse.json({ error: "Complete the learner, parent or guardian and Parent Portal mobile number before submitting." }, { status: 400 });
+  if (!learnerFirstName || !learnerSurname || !dateOfBirth || !guardianName || !guardianIdOrPassport || !guardianPhone || !parentPortalPhone) {
+    return NextResponse.json({ error: "Complete the learner, responsible guardian ID or passport, guardian contact and Parent Portal mobile number before submitting." }, { status: 400 });
   }
   const form = one(enquiry.school_enrolment_forms as Record<string, unknown> | Record<string, unknown>[] | null);
   const [{ data: configuration }, { data: configuredDocuments }, { data: requirements }, { data: consents }, { data: terms }, { data: fees }] = await Promise.all([
@@ -220,11 +221,15 @@ export async function POST(request: Request) {
   const declarationRelationship = text(body.declaration_relationship, 80);
   if (!declarationName || !declarationRelationship) return NextResponse.json({ error: "Complete the declaration name and relationship before submitting." }, { status: 400 });
   const secondGuardianName = text(body.second_guardian_name, 180);
+  const secondGuardianIdOrPassport = text(body.second_guardian_id_or_passport, 120);
   const secondGuardianPhone = text(body.second_guardian_phone, 40);
   const emergencyContactName = text(body.emergency_contact_name, 180);
   const emergencyContactPhone = text(body.emergency_contact_phone, 40);
-  if (configuration?.second_guardian_mode === "required" && (!secondGuardianName || !secondGuardianPhone)) {
+  if (configuration?.second_guardian_mode === "required" && (!secondGuardianName || !secondGuardianIdOrPassport || !secondGuardianPhone)) {
     return NextResponse.json({ error: "Complete the required second parent or guardian details." }, { status: 400 });
+  }
+  if (configuration?.second_guardian_mode === "optional" && (secondGuardianName || secondGuardianIdOrPassport || secondGuardianPhone) && (!secondGuardianName || !secondGuardianIdOrPassport || !secondGuardianPhone)) {
+    return NextResponse.json({ error: "Complete the second parent or guardian name, ID or passport number and mobile number." }, { status: 400 });
   }
   if (configuration?.emergency_contact_mode === "required" && (!emergencyContactName || !emergencyContactPhone)) {
     return NextResponse.json({ error: "Complete the required emergency contact details." }, { status: 400 });
@@ -290,16 +295,17 @@ export async function POST(request: Request) {
     learner_id_or_birth_certificate: text(body.learner_id_or_birth_certificate, 120),
     guardian_name: guardianName,
     guardian_relationship: text(body.guardian_relationship, 80),
+    guardian_id_or_passport: guardianIdOrPassport,
     guardian_phone: guardianPhone,
     guardian_daytime_phone: text(body.guardian_daytime_phone, 40),
     parent_portal_phone: parentPortalPhone,
     guardian_email: text(body.guardian_email, 180),
     guardian_employment: { employer: text(body.guardian_employer, 180), occupation: text(body.guardian_occupation, 120), work_phone: text(body.guardian_work_phone, 40) },
-    second_guardian: configuration?.second_guardian_mode === "hidden" ? null : { name: secondGuardianName, phone: secondGuardianPhone },
+    second_guardian: configuration?.second_guardian_mode === "hidden" ? null : { name: secondGuardianName, id_or_passport: secondGuardianIdOrPassport, phone: secondGuardianPhone },
     emergency_contact: configuration?.emergency_contact_mode === "hidden" ? null : { name: emergencyContactName, phone: emergencyContactPhone },
     previous_school: configuration?.previous_school_enabled ? text(body.previous_school, 180) : null,
     home_address: text(body.home_address, 1000),
-    medical: { allergies: text(body.allergies, 2000), conditions: text(body.medical_conditions, 2000), medical_aid_name: text(body.medical_aid_name, 180), medical_aid_number: text(body.medical_aid_number, 120), medical_aid_main_member: text(body.medical_aid_main_member, 180), preferred_doctor_name: text(body.preferred_doctor_name, 180), preferred_doctor_phone: text(body.preferred_doctor_phone, 40) },
+    medical: { allergies: text(body.allergies, 2000), conditions: text(body.medical_conditions, 2000), medical_aid_name: text(body.medical_aid_name, 180), medical_aid_number: text(body.medical_aid_number, 120), medical_aid_main_member: text(body.medical_aid_main_member, 180), preferred_doctor_name: text(body.preferred_doctor_name, 180), preferred_doctor_phone: text(body.preferred_doctor_phone, 40), immunisation_status: text(body.immunisation_status, 40), immunisation_notes: text(body.immunisation_notes, 1000) },
     custom_answers: customAnswers,
     consent_responses: (consents || []).map((consent) => ({ id: consent.id, title: consent.title, wording: consent.wording, required: consent.is_required, accepted: consentResponses[String(consent.id)] === true, responded_at: new Date().toISOString() })),
     terms: presentedTerms.map((term) => ({ id: term.id, title: term.title, content: term.content, accepted: body.terms_accepted === true, accepted_at: new Date().toISOString() })),

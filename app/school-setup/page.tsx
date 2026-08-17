@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
@@ -8,7 +8,6 @@ import { resolveSchoolContext } from "@/app/lib/school-context";
 import { MonthlyFeeSetup } from "@/app/children/MonthlyFeeOptions";
 import { OtherFeeSetup } from "@/app/children/OtherFeeSetup";
 
-type FormType = "general" | "babies" | "grade_r";
 type CustomFormField = {
   id: string;
   label: string;
@@ -17,18 +16,6 @@ type CustomFormField = {
   options?: string[];
 };
 
-type EnrolmentForm = {
-  id: string;
-  form_type: FormType;
-  form_name: string;
-  instructions?: string | null;
-  custom_fields?: CustomFormField[] | null;
-  required_documents?: string[] | null;
-  stationery_list?: string[] | null;
-  source_document_name?: string | null;
-  source_document_size?: number | null;
-  is_active: boolean;
-};
 
 type SchoolSettings = {
   bank_account_name: string;
@@ -66,31 +53,6 @@ const emptySettings: SchoolSettings = {
   payment_reminder_day: 1,
 };
 
-const formOptions: { type: FormType; title: string; description: string; defaultName: string }[] = [
-  {
-    type: "general",
-    title: "General Enrolment Form",
-    description: "Use for the main preschool enrolment process.",
-    defaultName: "Enrolment Form",
-  },
-  {
-    type: "babies",
-    title: "Babies Enrolment Form",
-    description: "Use where your babies programme needs its own form or instructions.",
-    defaultName: "Babies Enrolment Form",
-  },
-  {
-    type: "grade_r",
-    title: "Grade R Enrolment Form",
-    description: "Use for Grade R enquiries and school-readiness information.",
-    defaultName: "Grade R Enrolment Form",
-  },
-];
-
-function formatBytes(value?: number | null) {
-  if (!value) return "";
-  return `${(value / 1024 / 1024).toFixed(value >= 1024 * 1024 ? 1 : 2)} MB`;
-}
 
 export default function SchoolSetupPage() {
   const router = useRouter();
@@ -114,7 +76,6 @@ export default function SchoolSetupPage() {
   const [learnerDocumentsOpen, setLearnerDocumentsOpen] = useState(false);
   const [savingUniversalConfiguration, setSavingUniversalConfiguration] = useState(false);
   const [universalEnrolmentOpen, setUniversalEnrolmentOpen] = useState(false);
-  const [forms, setForms] = useState<EnrolmentForm[]>([]);
   const [schoolFeeTypes, setSchoolFeeTypes] = useState<SchoolFeeType[]>([]);
   const [schoolRegistrationFee, setSchoolRegistrationFee] = useState("");
   const [schoolMonthlyFee, setSchoolMonthlyFee] = useState("");
@@ -125,14 +86,9 @@ export default function SchoolSetupPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
-  const [, setSavingForm] = useState<FormType | null>(null);
-  const [uploadingForm, setUploadingForm] = useState<FormType | null>(null);
-  const [pastedFormText, setPastedFormText] = useState<Record<FormType, string>>({ general: "", babies: "", grade_r: "" });
-  const [formStatus, setFormStatus] = useState<Partial<Record<FormType, string>>>({});
   const [savingFeeSetup, setSavingFeeSetup] = useState(false);
   const [schoolFeesOpen, setSchoolFeesOpen] = useState(false);
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
-  const [enrolmentFormsOpen, setEnrolmentFormsOpen] = useState(false);
 
   const schoolQuery = useMemo(() => {
     const value = searchParams.get("school");
@@ -185,7 +141,6 @@ export default function SchoolSetupPage() {
       setRequirementTemplates(loadedRequirements);
       setRequirementAgeRanges((current) => Object.fromEntries(Object.entries(current).map(([key, fallback]) => { const [templateKey, category] = key.split(":"); const item = loadedRequirements.find((row) => row.template_key === templateKey && row.category === category); return [key, item ? { from: item.available_from_months, to: item.available_to_months } : fallback]; })));
       setConsents(body.consents || []); setTerms(body.terms || []);
-      setForms(body.forms || []);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "School Setup could not be loaded.");
     }
@@ -286,58 +241,6 @@ export default function SchoolSetupPage() {
     // Resolve the active school once when this page opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function formFor(type: FormType) {
-    return forms.find((form) => form.form_type === type) || null;
-  }
-
-  function updateForm(type: FormType, updates: Partial<EnrolmentForm>) {
-    setForms((current) => {
-      const existing = current.find((form) => form.form_type === type);
-      if (existing) return current.map((form) => form.form_type === type ? { ...form, ...updates } : form);
-      return [...current, {
-        id: "",
-        form_type: type,
-        form_name: formOptions.find((option) => option.type === type)?.defaultName || "Enrolment Form",
-        instructions: "",
-        is_active: true,
-        ...updates,
-      }];
-    });
-  }
-
-  function updateCustomFields(type: FormType, customFields: CustomFormField[]) {
-    updateForm(type, { custom_fields: customFields });
-  }
-
-  function createDraftFromText(type: FormType) {
-    const source = pastedFormText[type].trim();
-    if (!source) {
-      setFormStatus((current) => ({ ...current, [type]: "Paste the form wording first." }));
-      return;
-    }
-    const existing = formFor(type)?.custom_fields || [];
-    const questions = source
-      .split(/\r?\n/)
-      .map((line) => line.replace(/^[-•\d.)\s]+/, "").trim())
-      .filter((line) => line.length >= 3 && (/[?:]$/.test(line) || /_{3,}|\.{3,}/.test(line)))
-      .map((line, index) => ({
-        id: `paste_${Date.now()}_${index}`,
-        label: line.replace(/[_:.?]+\s*$/, "").trim(),
-        type: "text" as const,
-        required: false,
-      }))
-      .filter((field) => field.label);
-    const available = Math.max(0, 12 - existing.length);
-    const added = questions.slice(0, available);
-    if (!added.length) {
-      setFormStatus((current) => ({ ...current, [type]: existing.length >= 12 ? "This form already has 12 questions." : "No question lines were found. Add question marks, colons, or blank lines (____)." }));
-      return;
-    }
-    updateCustomFields(type, [...existing, ...added]);
-    setPastedFormText((current) => ({ ...current, [type]: "" }));
-    setFormStatus((current) => ({ ...current, [type]: `${added.length} question${added.length === 1 ? "" : "s"} added. Review and save the form.` }));
-  }
 
   async function saveSettings() {
     if (!schoolId) return;
@@ -447,8 +350,13 @@ export default function SchoolSetupPage() {
     if (!schoolId) return;
     const item = kind === "consent" ? newConsent : newTerm;
     if (!item.title.trim() || !(kind === "consent" ? newConsent.wording.trim() : newTerm.content.trim())) { setError(`Complete the ${kind} title and wording.`); return; }
-    kind === "consent" ? setSavingConsent(true) : setSavingTerm(true); setError("");
-    try { const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_enrolment_item", kind, school_id: schoolId, ...item, display_order: kind === "consent" ? consents.length : terms.length }) }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "Item could not be saved."); if (kind === "consent") { setConsents((current) => [...current, body.item as ConsentItem]); setNewConsent({ title: "", wording: "", is_required: true }); } else { setTerms((current) => [...current, body.item as TermItem]); setNewTerm({ title: "", content: "" }); } setMessage(`${kind === "consent" ? "Consent" : "Term"} saved.`); } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Item could not be saved."); } finally { kind === "consent" ? setSavingConsent(false) : setSavingTerm(false); }
+    if (kind === "consent") setSavingConsent(true);
+    else setSavingTerm(true);
+    setError("");
+    try { const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_enrolment_item", kind, school_id: schoolId, ...item, display_order: kind === "consent" ? consents.length : terms.length }) }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "Item could not be saved."); if (kind === "consent") { setConsents((current) => [...current, body.item as ConsentItem]); setNewConsent({ title: "", wording: "", is_required: true }); } else { setTerms((current) => [...current, body.item as TermItem]); setNewTerm({ title: "", content: "" }); } setMessage(`${kind === "consent" ? "Consent" : "Term"} saved.`); } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Item could not be saved."); } finally {
+      if (kind === "consent") setSavingConsent(false);
+      else setSavingTerm(false);
+    }
   }
 
   async function archiveEnrolmentListItem(kind: "consent" | "term", id: string) {
@@ -527,111 +435,12 @@ export default function SchoolSetupPage() {
     setMessage(`${kind === "consent" ? "Consent" : "Term"} updated.`);
   }
 
-  async function saveForm(type: FormType) {
-    if (!schoolId) return null;
-    const form = formFor(type);
-    if (!form?.form_name.trim()) {
-      setError("Enter a name for the enrolment form first.");
-      return null;
-    }
-    setSavingForm(type);
-    setMessage("");
-    setError("");
-    try {
-      const response = await authenticatedFetch("/api/school-setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "save_form",
-          school_id: schoolId,
-          form_type: type,
-          form_name: form.form_name,
-          instructions: form.instructions || "",
-          custom_fields: form.custom_fields || [],
-          required_documents: form.required_documents || [],
-          stationery_list: form.stationery_list || [],
-          is_active: form.is_active,
-        }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "The enrolment form could not be saved.");
-      updateForm(type, body.form);
-      setMessage(`${form.form_name} saved.`);
-      return body.form as EnrolmentForm;
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "The enrolment form could not be saved.");
-      return null;
-    } finally {
-      setSavingForm(null);
-    }
-  }
-
-  async function uploadTemplate(type: FormType, event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file || !schoolId) return;
-    const supportedTypes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-    if (!supportedTypes.includes(file.type) || file.size > 10 * 1024 * 1024) {
-      setError("Use a PDF, JPG, PNG or WEBP form no larger than 10 MB.");
-      return;
-    }
-    setUploadingForm(type);
-    setMessage("");
-    setError("");
-    try {
-      let form = formFor(type);
-      if (!form?.id) form = await saveForm(type);
-      if (!form?.id) return;
-      const createResponse = await authenticatedFetch("/api/school-setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "create_form_upload",
-          school_id: schoolId,
-          form_id: form.id,
-          file_name: file.name,
-          file_size: file.size,
-          content_type: file.type,
-        }),
-      });
-      const createBody = await createResponse.json();
-      if (!createResponse.ok) throw new Error(createBody.error || "The form upload could not be prepared.");
-      const uploadResponse = await fetch(createBody.signed_url, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!uploadResponse.ok) throw new Error("The form document could not be uploaded. Please try again.");
-      const completeResponse = await authenticatedFetch("/api/school-setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "complete_form_upload",
-          school_id: schoolId,
-          form_id: form.id,
-          path: createBody.path,
-          file_name: file.name,
-          file_size: file.size,
-          content_type: file.type,
-        }),
-      });
-      const completeBody = await completeResponse.json();
-      if (!completeResponse.ok) throw new Error(completeBody.error || "The uploaded form could not be saved.");
-      updateForm(type, completeBody.form);
-      setFormStatus((current) => ({ ...current, [type]: `${file.name} attached as the reference document.` }));
-    } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "The form document could not be uploaded.");
-    } finally {
-      setUploadingForm(null);
-    }
-  }
-
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <section className="db-page-header db-card-blue">
         <div>
           <h1 className="db-page-title">School Setup</h1>
-          <p className="db-page-subtitle">Set your bank details, payment reminder date and the enrolment forms used by your school.</p>
+          <p className="db-page-subtitle">Configure the universal enrolment form, school policies, fees, payment details and parent requirements.</p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Link className="db-main-pill db-main-pill-yellow" href={`/dashboard${schoolQuery}`}>Dashboard</Link>
@@ -688,8 +497,8 @@ export default function SchoolSetupPage() {
       </CollapsibleSetupSection>
 
       <CollapsibleSetupSection
-        title="Enrolment Form Settings"
-        description="One universal school-branded form used for new enrolments and re-enrolments."
+        title="Main Universal Enrolment Form"
+        description="Configure the school-branded form parents complete for new enrolments and re-enrolments. The introduction, declaration and custom questions entered here appear directly on that form."
         isOpen={universalEnrolmentOpen}
         onToggle={() => setUniversalEnrolmentOpen((current) => !current)}
         tone="lavender"
@@ -716,7 +525,7 @@ export default function SchoolSetupPage() {
           <div><button className="db-button-secondary" type="button" onClick={() => setUniversalConfiguration({ ...universalConfiguration, custom_fields: [...(universalConfiguration.custom_fields || []), { id: `question_${Date.now()}`, label: "New question", type: "text", required: false }] })}>Add question</button></div>
         </details>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}><label><input type="checkbox" checked={universalConfiguration.is_open} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, is_open: event.target.checked })} /> Enrolment open</label><label><input type="checkbox" checked={universalConfiguration.previous_school_enabled} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, previous_school_enabled: event.target.checked })} /> Ask about previous school</label></div>
-        <div><button className="db-button-primary" type="button" disabled={savingUniversalConfiguration} onClick={() => void saveUniversalConfiguration()}>{savingUniversalConfiguration ? "Saving..." : "Save Enrolment Settings"}</button></div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={savingUniversalConfiguration} onClick={() => void saveUniversalConfiguration()}>{savingUniversalConfiguration ? "Saving..." : "Save Enrolment Settings"}</button><Link className="db-button-secondary" href={`/enrolment/preview?form_name=${encodeURIComponent(universalConfiguration.form_title || "Enrolment Form")}&instructions=${encodeURIComponent(universalConfiguration.introduction || "")}&custom_fields=${encodeURIComponent(JSON.stringify(universalConfiguration.custom_fields || []))}&document_requirements=${encodeURIComponent(JSON.stringify(documentRequirements.filter((item) => item.is_active)))}&requirement_templates=${encodeURIComponent(JSON.stringify(requirementTemplates.filter((item) => item.is_active)))}&consents=${encodeURIComponent(JSON.stringify(consents.filter((item) => item.is_active)))}&terms=${encodeURIComponent(JSON.stringify(terms.filter((item) => item.is_active)))}&enrolment_configuration=${encodeURIComponent(JSON.stringify(universalConfiguration))}&school_name=${encodeURIComponent(schoolBrand?.school_name || "Your School")}&school_logo_url=${encodeURIComponent(schoolBrand?.logo_url || "")}&school_primary_color=${encodeURIComponent(schoolBrand?.primary_color || "")}`} target="_blank" rel="noreferrer">Preview Parent Form</Link></div>
       </CollapsibleSetupSection>
 
       <CollapsibleSetupSection
@@ -778,38 +587,6 @@ export default function SchoolSetupPage() {
         <div><button className="db-button-primary" type="button" disabled={savingSettings} onClick={() => void saveSettings()}>{savingSettings ? "Saving..." : "Save School Setup"}</button></div>
       </CollapsibleSetupSection>
 
-      <CollapsibleSetupSection
-        title="Reference Form Upload"
-        description="Optional original form for your records. It does not change the digital form sent to parents."
-        isOpen={enrolmentFormsOpen}
-        onToggle={() => setEnrolmentFormsOpen((current) => !current)}
-        tone="lavender"
-      >
-        <p className="db-helper" style={{ margin: 0 }}>The Universal Enrolment Form is the only editable parent form. Upload an old PDF or image here only as a school reference; it is never sent to parents and does not overwrite the digital form.</p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-          {formOptions.filter((option) => option.type === "general").map((option) => {
-            const form = formFor(option.type) || { id: "", form_type: option.type, form_name: option.defaultName, instructions: "", custom_fields: [], required_documents: [], stationery_list: [], is_active: true };
-            return (
-              <article className="db-soft-card" key={option.type} style={{ display: "grid", gap: 10, padding: 12 }}>
-                <div><h3 style={{ margin: 0 }}>School reference document</h3><p className="db-helper" style={{ margin: "3px 0 0" }}>For staff records only. Edit the parent form in Universal Enrolment Form Settings.</p></div>
-                <div style={{ display: "grid", gap: 5 }}>
-                  <span className="db-helper">{form.source_document_name ? `${form.source_document_name}${form.source_document_size ? ` (${formatBytes(form.source_document_size)})` : ""}` : "Optional: upload the original form for your records."}</span>
-                  {formStatus[option.type] ? <span className="db-helper" role="status" style={{ color: "#246b45" }}>{formStatus[option.type]}</span> : null}
-                </div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <Link className="db-button-secondary" href={`/enrolment/preview?form_name=${encodeURIComponent(universalConfiguration.form_title || form.form_name)}&instructions=${encodeURIComponent(universalConfiguration.introduction || "")}&custom_fields=${encodeURIComponent(JSON.stringify(universalConfiguration.custom_fields || []))}&document_requirements=${encodeURIComponent(JSON.stringify(documentRequirements.filter((item) => item.is_active)))}&requirement_templates=${encodeURIComponent(JSON.stringify(requirementTemplates.filter((item) => item.is_active)))}&consents=${encodeURIComponent(JSON.stringify(consents.filter((item) => item.is_active)))}&terms=${encodeURIComponent(JSON.stringify(terms.filter((item) => item.is_active)))}&enrolment_configuration=${encodeURIComponent(JSON.stringify(universalConfiguration))}&school_name=${encodeURIComponent(schoolBrand?.school_name || "Your School")}&school_logo_url=${encodeURIComponent(schoolBrand?.logo_url || "")}&school_primary_color=${encodeURIComponent(schoolBrand?.primary_color || "")}`} target="_blank" rel="noreferrer">
-                    Preview Parent Form
-                  </Link>
-                  <label className="db-button-primary" style={{ cursor: uploadingForm === option.type ? "wait" : "pointer" }}>
-                    <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden disabled={uploadingForm === option.type} onChange={(event) => void uploadTemplate(option.type, event)} />
-                    {uploadingForm === option.type ? "Uploading..." : form.source_document_name ? "Replace File" : "Upload Reference"}
-                  </label>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </CollapsibleSetupSection>
     </div>
   );
 }

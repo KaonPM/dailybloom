@@ -171,7 +171,10 @@ export async function POST(request: Request) {
     ]);
     if (!form) return NextResponse.json({ error: "Set up the universal enrolment form first." }, { status: 400 });
     const { data: reference, error: referenceError } = await supabaseAdmin.rpc("next_school_enrolment_reference_for_year", { p_school_id: schoolId, p_academic_year: academicYear });
-    if (referenceError || !reference) return NextResponse.json({ error: referenceError?.message || "Could not create an enrolment reference." }, { status: 500 });
+    if (referenceError || !reference) {
+      const missingReferenceFunction = referenceError?.message?.includes("next_school_enrolment_reference_for_year");
+      return NextResponse.json({ error: missingReferenceFunction ? "The enrolment reference generator is not installed in Supabase. Run migration 20260823_restore_enrolment_reference_function.sql, then try again." : referenceError?.message || "Could not create an enrolment reference." }, { status: 500 });
+    }
     const now = new Date().toISOString();
     const { data: enquiry, error } = await supabaseAdmin.from("school_enrolment_enquiries").insert({
       school_id: schoolId, form_id: form.id, enquiry_reference: reference, parent_name: "Paper enrolment", parent_phone: "Pending", academic_year: academicYear, enrolment_source: source,

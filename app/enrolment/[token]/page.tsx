@@ -92,27 +92,38 @@ export default function SecureEnrolmentFormPage() {
 
   const loadForm = useCallback(async () => {
     if (isPreview) {
-      const previewFormName = searchParams.get("form_name") || "Enrolment Form";
-      const previewInstructions = searchParams.get("instructions") || "";
+      let storedPreview: Partial<FormInfo> & { form_name?: string; instructions?: string; custom_fields?: CustomFormField[] } = {};
+      const previewId = searchParams.get("preview_id");
+      if (previewId) {
+        const storageKey = `dailybloom:enrolment-preview:${previewId}`;
+        try {
+          storedPreview = JSON.parse(localStorage.getItem(storageKey) || "{}");
+          window.setTimeout(() => localStorage.removeItem(storageKey), 60_000);
+        } catch {
+          storedPreview = {};
+        }
+      }
+      const previewFormName = storedPreview.form_name || searchParams.get("form_name") || "Enrolment Form";
+      const previewInstructions = storedPreview.instructions || searchParams.get("instructions") || "";
       let previewCustomFields: CustomFormField[] = [];
       let previewDocuments: FormInfo["document_requirements"] = [];
       let previewRequirements: FormInfo["requirement_templates"] = [];
       let previewConsents: FormInfo["consents"] = [];
       let previewTerms: FormInfo["terms"] = [];
       let previewConfiguration: FormInfo["enrolment_configuration"] = null;
-      try { previewCustomFields = getCustomFields(JSON.parse(searchParams.get("custom_fields") || "[]")); } catch { previewCustomFields = []; }
-      try { previewDocuments = JSON.parse(searchParams.get("document_requirements") || "[]"); } catch { previewDocuments = []; }
-      try { previewRequirements = JSON.parse(searchParams.get("requirement_templates") || "[]"); } catch { previewRequirements = []; }
-      try { previewConsents = JSON.parse(searchParams.get("consents") || "[]"); } catch { previewConsents = []; }
-      try { previewTerms = JSON.parse(searchParams.get("terms") || "[]"); } catch { previewTerms = []; }
-      try { previewConfiguration = JSON.parse(searchParams.get("enrolment_configuration") || "null"); } catch { previewConfiguration = null; }
+      try { previewCustomFields = getCustomFields(storedPreview.custom_fields || JSON.parse(searchParams.get("custom_fields") || "[]")); } catch { previewCustomFields = []; }
+      try { previewDocuments = storedPreview.document_requirements || JSON.parse(searchParams.get("document_requirements") || "[]"); } catch { previewDocuments = []; }
+      try { previewRequirements = storedPreview.requirement_templates || JSON.parse(searchParams.get("requirement_templates") || "[]"); } catch { previewRequirements = []; }
+      try { previewConsents = storedPreview.consents || JSON.parse(searchParams.get("consents") || "[]"); } catch { previewConsents = []; }
+      try { previewTerms = storedPreview.terms || JSON.parse(searchParams.get("terms") || "[]"); } catch { previewTerms = []; }
+      try { previewConfiguration = storedPreview.enrolment_configuration || JSON.parse(searchParams.get("enrolment_configuration") || "null"); } catch { previewConfiguration = null; }
       setInfo({
         reference: "PREVIEW",
         parent_name: "Preview Parent",
         status: "preview",
-        school_name: searchParams.get("school_name") || "Your School",
-        school_logo_url: searchParams.get("school_logo_url") || null,
-        school_primary_color: searchParams.get("school_primary_color") || null,
+        school_name: storedPreview.school_name || searchParams.get("school_name") || "Your School",
+        school_logo_url: storedPreview.school_logo_url || searchParams.get("school_logo_url") || null,
+        school_primary_color: storedPreview.school_primary_color || searchParams.get("school_primary_color") || null,
         form: { form_name: previewFormName, instructions: previewInstructions, custom_fields: previewCustomFields },
         document_requirements: Array.isArray(previewDocuments) ? previewDocuments : [],
         requirement_templates: Array.isArray(previewRequirements) ? previewRequirements : [],

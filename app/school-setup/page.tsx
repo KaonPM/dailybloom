@@ -65,6 +65,8 @@ export default function SchoolSetupPage() {
   const [requirementTemplates, setRequirementTemplates] = useState<RequirementTemplate[]>([]);
   const [consents, setConsents] = useState<ConsentItem[]>([]); const [terms, setTerms] = useState<TermItem[]>([]);
   const [newConsent, setNewConsent] = useState({ title: "", wording: "", is_required: true }); const [newTerm, setNewTerm] = useState({ title: "", content: "" });
+  const [termDrafts, setTermDrafts] = useState<Record<string, { title: string; content: string }>>({});
+  const [savingTermId, setSavingTermId] = useState("");
   const [savingConsent, setSavingConsent] = useState(false); const [savingTerm, setSavingTerm] = useState(false);
   const [consentsOpen, setConsentsOpen] = useState(false); const [termsOpen, setTermsOpen] = useState(false);
   const [newRequirementTemplate, setNewRequirementTemplate] = useState<{ category: "stationery" | "hygiene"; item_name: string; quantity: string; instructions: string; is_required: boolean }>({ category: "stationery", item_name: "", quantity: "", instructions: "", is_required: false });
@@ -140,7 +142,10 @@ export default function SchoolSetupPage() {
       const loadedRequirements = ((body.requirement_templates || []) as Array<Partial<RequirementTemplate> & Pick<RequirementTemplate, "id" | "category" | "item_name" | "is_required" | "is_active" | "display_order">>).map((item) => ({ ...item, template_key: item.template_key === "0_2" ? "0_2" : "2_6", available_from_months: item.available_from_months ?? (item.template_key === "0_2" ? (item.category === "hygiene" ? 0 : 6) : 24), available_to_months: item.available_to_months ?? (item.template_key === "0_2" ? 24 : 72) })) as RequirementTemplate[];
       setRequirementTemplates(loadedRequirements);
       setRequirementAgeRanges((current) => Object.fromEntries(Object.entries(current).map(([key, fallback]) => { const [templateKey, category] = key.split(":"); const item = loadedRequirements.find((row) => row.template_key === templateKey && row.category === category); return [key, item ? { from: item.available_from_months, to: item.available_to_months } : fallback]; })));
-      setConsents(body.consents || []); setTerms(body.terms || []);
+      setConsents(body.consents || []);
+      const loadedTerms = (body.terms || []) as TermItem[];
+      setTerms(loadedTerms);
+      setTermDrafts(Object.fromEntries(loadedTerms.map((item) => [item.id, { title: item.title, content: item.content }])));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "School Setup could not be loaded.");
     }
@@ -435,6 +440,56 @@ export default function SchoolSetupPage() {
     setMessage(`${kind === "consent" ? "Consent" : "Term"} updated.`);
   }
 
+  async function saveTermDetails(item: TermItem) {
+    if (!schoolId) return;
+    const draft = termDrafts[item.id] || { title: item.title, content: item.content };
+    if (!draft.title.trim() || !draft.content.trim()) {
+      setError("Complete the policy title and school-specific details.");
+      return;
+    }
+    setSavingTermId(item.id);
+    setError("");
+    try {
+      const response = await authenticatedFetch("/api/school-setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save_enrolment_item", kind: "term", school_id: schoolId, id: item.id, title: draft.title, content: draft.content, is_active: item.is_active, display_order: terms.findIndex((row) => row.id === item.id) }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "The policy details could not be saved.");
+      setTerms((current) => current.map((row) => row.id === item.id ? body.item as TermItem : row));
+      setMessage(`${draft.title} details saved.`);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "The policy details could not be saved.");
+    } finally {
+      setSavingTermId("");
+    }
+  }
+
+  function openParentFormPreview() {
+    const previewId = crypto.randomUUID();
+    const previewData = {
+      form_name: universalConfiguration.form_title || "Enrolment Form",
+      instructions: universalConfiguration.introduction || "",
+      custom_fields: universalConfiguration.custom_fields || [],
+      document_requirements: documentRequirements.filter((item) => item.is_active),
+      requirement_templates: requirementTemplates.filter((item) => item.is_active),
+      consents: consents.filter((item) => item.is_active),
+      terms: terms.filter((item) => item.is_active),
+      enrolment_configuration: universalConfiguration,
+      school_name: schoolBrand?.school_name || "Your School",
+      school_logo_url: schoolBrand?.logo_url || null,
+      school_primary_color: schoolBrand?.primary_color || null,
+    };
+
+    try {
+      localStorage.setItem(`dailybloom:enrolment-preview:${previewId}`, JSON.stringify(previewData));
+      window.open(`/enrolment/preview?preview_id=${encodeURIComponent(previewId)}`, "_blank", "noopener,noreferrer");
+    } catch {
+      setError("The parent form preview could not be opened. Please try again.");
+    }
+  }
+
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <section className="db-page-header db-card-blue">
@@ -460,9 +515,16 @@ export default function SchoolSetupPage() {
       </CollapsibleSetupSection>
       <CollapsibleSetupSection
         title="Enrolment Terms & Conditions" description="Create editable sections that parents accept and submitted enrolments retain." isOpen={termsOpen} onToggle={() => setTermsOpen((current) => !current)} tone="yellow">
-        <div className="db-soft-card" style={{ padding: 10 }}><strong>School-specific policies and updates</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>Additional policy details, material updates and any request for fresh parent acceptance will be sent through the Parent Portal when required. Submitted enrolments retain the exact terms accepted at the time.</p></div>
+        <div className="db-soft-card" style={{ padding: 10 }}><strong>Enter the school&apos;s actual values</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>Type exact details such as “Open 06:30–17:30”, “Collect by 17:30”, “R50 per 15 minutes late”, “Aftercare until 18:00”, or “30 calendar days&apos; notice”. Save each policy after editing it. Submitted enrolments retain the exact terms accepted at the time.</p></div>
         {terms.some((item) => !item.is_active) ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{terms.filter((item) => !item.is_active).map((item) => <button key={item.id} className="db-collapse-action" type="button" onClick={() => void activateEnrolmentListItem("term", item)}>Activate {item.title}</button>)}</div> : null}
-        <div style={{ display: "grid", gap: 8 }}>{terms.map((item, index) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.title}</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>{item.content}</p></span>{item.is_active ? <span style={{ display: "flex", gap: 8, alignItems: "start" }}><button className="db-collapse-action" type="button" disabled={index === 0} onClick={() => void moveEnrolmentListItem("term", item.id, -1)}>Up</button><button className="db-collapse-action" type="button" disabled={index === terms.length - 1} onClick={() => void moveEnrolmentListItem("term", item.id, 1)}>Down</button><button className="db-collapse-action" type="button" onClick={() => void editEnrolmentListItem("term", item)}>Edit</button><button className="db-collapse-action" type="button" onClick={() => void archiveEnrolmentListItem("term", item.id)}>Deactivate</button><button className="db-collapse-action" type="button" onClick={() => void deleteEnrolmentListItem("term", item.id)}>Delete</button></span> : <span className="db-helper">Inactive</span>}</div>)}</div>
+        <div style={{ display: "grid", gap: 10 }}>{terms.map((item, index) => {
+          const draft = termDrafts[item.id] || { title: item.title, content: item.content };
+          return <div className="db-soft-card" key={item.id} style={{ padding: 12, display: "grid", gap: 8 }}>
+            <label style={{ display: "grid", gap: 4 }}><strong>Policy title</strong><input className="db-input" value={draft.title} disabled={!item.is_active} onChange={(event) => setTermDrafts((current) => ({ ...current, [item.id]: { ...draft, title: event.target.value } }))} /></label>
+            <label style={{ display: "grid", gap: 4 }}><strong>School-specific details</strong><textarea className="db-input" rows={3} value={draft.content} disabled={!item.is_active} onChange={(event) => setTermDrafts((current) => ({ ...current, [item.id]: { ...draft, content: event.target.value } }))} placeholder="Enter exact times, amounts, notice periods and conditions shown to parents." /></label>
+            {item.is_active ? <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={savingTermId === item.id} onClick={() => void saveTermDetails(item)}>{savingTermId === item.id ? "Saving..." : "Save policy details"}</button><button className="db-collapse-action" type="button" disabled={index === 0} onClick={() => void moveEnrolmentListItem("term", item.id, -1)}>Up</button><button className="db-collapse-action" type="button" disabled={index === terms.length - 1} onClick={() => void moveEnrolmentListItem("term", item.id, 1)}>Down</button><button className="db-collapse-action" type="button" onClick={() => void archiveEnrolmentListItem("term", item.id)}>Deactivate</button><button className="db-collapse-action" type="button" onClick={() => void deleteEnrolmentListItem("term", item.id)}>Delete</button></div> : <span className="db-helper">Inactive</span>}
+          </div>;
+        })}</div>
         <div style={{ display: "grid", gap: 8 }}><input className="db-input" value={newTerm.title} onChange={(event) => setNewTerm({ ...newTerm, title: event.target.value })} placeholder="e.g. Fees and payments" /><textarea className="db-input" rows={3} value={newTerm.content} onChange={(event) => setNewTerm({ ...newTerm, content: event.target.value })} placeholder="Term wording" /><div><button className="db-button-primary" type="button" disabled={savingTerm} onClick={() => void saveEnrolmentListItem("term")}>{savingTerm ? "Saving..." : "Add term"}</button></div></div>
       </CollapsibleSetupSection>
       <CollapsibleSetupSection
@@ -525,7 +587,7 @@ export default function SchoolSetupPage() {
           <div><button className="db-button-secondary" type="button" onClick={() => setUniversalConfiguration({ ...universalConfiguration, custom_fields: [...(universalConfiguration.custom_fields || []), { id: `question_${Date.now()}`, label: "New question", type: "text", required: false }] })}>Add question</button></div>
         </details>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}><label><input type="checkbox" checked={universalConfiguration.is_open} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, is_open: event.target.checked })} /> Enrolment open</label><label><input type="checkbox" checked={universalConfiguration.previous_school_enabled} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, previous_school_enabled: event.target.checked })} /> Ask about previous school</label></div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={savingUniversalConfiguration} onClick={() => void saveUniversalConfiguration()}>{savingUniversalConfiguration ? "Saving..." : "Save Enrolment Settings"}</button><Link className="db-button-secondary" href={`/enrolment/preview?form_name=${encodeURIComponent(universalConfiguration.form_title || "Enrolment Form")}&instructions=${encodeURIComponent(universalConfiguration.introduction || "")}&custom_fields=${encodeURIComponent(JSON.stringify(universalConfiguration.custom_fields || []))}&document_requirements=${encodeURIComponent(JSON.stringify(documentRequirements.filter((item) => item.is_active)))}&requirement_templates=${encodeURIComponent(JSON.stringify(requirementTemplates.filter((item) => item.is_active)))}&consents=${encodeURIComponent(JSON.stringify(consents.filter((item) => item.is_active)))}&terms=${encodeURIComponent(JSON.stringify(terms.filter((item) => item.is_active)))}&enrolment_configuration=${encodeURIComponent(JSON.stringify(universalConfiguration))}&school_name=${encodeURIComponent(schoolBrand?.school_name || "Your School")}&school_logo_url=${encodeURIComponent(schoolBrand?.logo_url || "")}&school_primary_color=${encodeURIComponent(schoolBrand?.primary_color || "")}`} target="_blank" rel="noreferrer">Preview Parent Form</Link></div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={savingUniversalConfiguration} onClick={() => void saveUniversalConfiguration()}>{savingUniversalConfiguration ? "Saving..." : "Save Enrolment Settings"}</button><button className="db-button-secondary" type="button" onClick={openParentFormPreview}>Preview Parent Form</button></div>
       </CollapsibleSetupSection>
 
       <CollapsibleSetupSection

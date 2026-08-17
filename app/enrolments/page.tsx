@@ -362,10 +362,10 @@ export default function EnrolmentsPage() {
       <section className="db-card db-card-lavender" style={{ display: "grid", gap: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div><h2 style={{ margin: 0 }}>Enrolment Pipeline</h2><p className="db-helper" style={{ marginBottom: 0 }}>{schoolName} · {enquiries.length} total enquiries</p></div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <input className="db-input" value={pipelineSearch} onChange={(event) => { setPipelineSearch(event.target.value); setPipelinePage(0); }} placeholder="Search reference, parent or mobile" aria-label="Search enrolments" />
+          <div className="enrolment-pipeline-controls" style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) auto 96px", gap: 10, alignItems: "center" }}>
+            <input className="db-input" style={{ marginBottom: 0 }} value={pipelineSearch} onChange={(event) => { setPipelineSearch(event.target.value); setPipelinePage(0); }} placeholder="Search reference, parent or mobile" aria-label="Search enrolments" />
             <button className="db-button-secondary" type="button" onClick={() => void loadPage()} disabled={loading}>{loading ? "Loading..." : "Refresh"}</button>
-            <button className="db-collapse-action" type="button" onClick={() => setPipelineOpen((current) => !current)} aria-expanded={pipelineOpen}>{pipelineOpen ? "Close" : "Open"} list</button>
+            <button className="db-collapse-action" style={{ width: 96, justifySelf: "end" }} type="button" onClick={() => setPipelineOpen((current) => !current)} aria-expanded={pipelineOpen}>{pipelineOpen ? "Close" : "Open"} list</button>
           </div>
         </div>
 

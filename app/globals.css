@@ -263,6 +263,8 @@ textarea {
 .enrolment-pipeline-details { display: grid; gap: 10px; padding: 12px; border-top: 1px solid var(--db-border); }
 
 @media (max-width: 900px) {
+  .enrolment-pipeline-controls { grid-template-columns: 1fr auto 96px !important; width: 100%; }
+  .enrolment-pipeline-controls .db-input { grid-column: 1 / -1; }
   .enrolment-pipeline-summary { grid-template-columns: 1fr auto; }
   .enrolment-pipeline-summary > span:not(.db-status-pill):not(.db-collapse-action) { display: none; }
 }

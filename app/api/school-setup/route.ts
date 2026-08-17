@@ -74,7 +74,7 @@ const STARTER_REQUIREMENTS = [
 const STARTER_CONSENTS = [
   { title: "Emergency Medical Treatment", wording: "I authorise the school to obtain reasonable emergency medical assistance for the learner when necessary and when the parent or guardian cannot be reached promptly.", is_required: true, display_order: 1 },
   { title: "Administration of Medication", wording: "I understand that medication may only be administered according to the school's procedures and any instructions or authorisation provided by the parent or guardian.", is_required: true, display_order: 2 },
-  { title: "Educational Outings and Excursions", wording: "I give permission for the learner to participate in school-approved educational outings or excursions, subject to the school's applicable procedures.", is_required: false, display_order: 3 },
+  { title: "Educational Outings and Excursions", wording: "I give permission for the learner to participate in school-approved educational outings or excursions, subject to the school's applicable procedures. A detailed consent request for a specific outing or excursion will be sent through the Parent Portal when required by the school.", is_required: false, display_order: 3 },
   { title: "Electronic Communication", wording: "I consent to the school using the contact information supplied for relevant school communication, including WhatsApp, SMS, email or Parent Portal communication where applicable.", is_required: true, display_order: 4 },
   { title: "Processing of Learner and Parent Information", wording: "I consent to the school processing the learner and parent or guardian information supplied for enrolment, administration, learner support and related school purposes.", is_required: true, display_order: 5 },
 ];

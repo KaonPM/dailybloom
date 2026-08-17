@@ -38,7 +38,7 @@ type FormInfo = {
   school_primary_color?: string | null;
   form: PublicForm | null;
   document_requirements?: Array<{ title: string; instructions?: string | null; is_required: boolean }>;
-  requirement_templates?: Array<{ template_key?: "0_2" | "2_6"; available_from_months?: number; category: string; item_name: string; quantity?: string | null; instructions?: string | null }>;
+  requirement_templates?: Array<{ template_key?: "0_2" | "2_6"; available_from_months?: number; available_to_months?: number; category: string; item_name: string; quantity?: string | null; instructions?: string | null }>;
   consents?: Array<{ id: string; title: string; wording: string; is_required: boolean }>;
   terms?: Array<{ id: string; title: string; content: string }>;
   enrolment_configuration?: { additional_declaration?: string | null; second_guardian_mode?: "hidden" | "optional" | "required"; emergency_contact_mode?: "hidden" | "optional" | "required"; previous_school_enabled?: boolean } | null;

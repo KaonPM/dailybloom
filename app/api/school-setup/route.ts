@@ -66,9 +66,10 @@ const OLDER_LEARNER_STATIONERY = [
   ["Glue Stick (Pritt)", "1"], ["Sharpener", "1"],
 ] as const;
 const STARTER_REQUIREMENTS = [
-  ...HYGIENE_REQUIREMENTS.map(([item_name, quantity], index) => ({ template_key: "0_2", available_from_months: 6, category: "hygiene", item_name, quantity, instructions: null, is_required: true, display_order: index + 1 })),
-  ...HYGIENE_REQUIREMENTS.map(([item_name, quantity], index) => ({ template_key: "2_6", available_from_months: 24, category: "hygiene", item_name, quantity, instructions: null, is_required: true, display_order: index + 1 })),
-  ...OLDER_LEARNER_STATIONERY.map(([item_name, quantity], index) => ({ template_key: "2_6", available_from_months: 24, category: "stationery", item_name, quantity, instructions: null, is_required: true, display_order: HYGIENE_REQUIREMENTS.length + index + 1 })),
+  ...HYGIENE_REQUIREMENTS.map(([item_name, quantity], index) => ({ template_key: "0_2", available_from_months: 0, available_to_months: 24, category: "hygiene", item_name, quantity, instructions: null, is_required: true, display_order: index + 1 })),
+  ...OLDER_LEARNER_STATIONERY.map(([item_name, quantity], index) => ({ template_key: "0_2", available_from_months: 6, available_to_months: 24, category: "stationery", item_name, quantity, instructions: null, is_required: true, display_order: HYGIENE_REQUIREMENTS.length + index + 1 })),
+  ...HYGIENE_REQUIREMENTS.map(([item_name, quantity], index) => ({ template_key: "2_6", available_from_months: 24, available_to_months: 72, category: "hygiene", item_name, quantity, instructions: null, is_required: true, display_order: index + 1 })),
+  ...OLDER_LEARNER_STATIONERY.map(([item_name, quantity], index) => ({ template_key: "2_6", available_from_months: 24, available_to_months: 72, category: "stationery", item_name, quantity, instructions: null, is_required: true, display_order: HYGIENE_REQUIREMENTS.length + index + 1 })),
 ];
 const STARTER_CONSENTS = [
   { title: "Emergency Medical Treatment", wording: "I authorise the school to obtain reasonable emergency medical assistance for the learner when necessary and when the parent or guardian cannot be reached promptly.", is_required: true, display_order: 1 },
@@ -196,7 +197,7 @@ export async function POST(request: Request) {
     const values = kind === "document"
       ? { ...base, title: text(body.title, 180), instructions: text(body.instructions, 1000) || null, is_required: body.is_required === true }
       : kind === "requirement"
-        ? { ...base, template_key: text(body.template_key, 10) === "0_2" ? "0_2" : "2_6", available_from_months: Math.max(0, Math.min(84, Number(body.available_from_months) || 0)), category: ["stationery", "hygiene"].includes(text(body.category, 20)) ? text(body.category, 20) : "stationery", item_name: text(body.item_name, 180), quantity: text(body.quantity, 80) || null, instructions: text(body.instructions, 1000) || null, is_required: body.is_required === true }
+        ? { ...base, template_key: text(body.template_key, 10) === "0_2" ? "0_2" : "2_6", available_from_months: Math.max(0, Math.min(84, Number(body.available_from_months) || 0)), available_to_months: Math.max(0, Math.min(84, Number(body.available_to_months) || 0)), category: ["stationery", "hygiene"].includes(text(body.category, 20)) ? text(body.category, 20) : "stationery", item_name: text(body.item_name, 180), quantity: text(body.quantity, 80) || null, instructions: text(body.instructions, 1000) || null, is_required: body.is_required === true }
         : kind === "consent"
           ? { ...base, title: text(body.title, 180), wording: text(body.wording, 3000), is_required: body.is_required !== false }
           : { ...base, title: text(body.title, 180), content: text(body.content, 5000) };
@@ -214,10 +215,12 @@ export async function POST(request: Request) {
 
   if (action === "save_requirement_template_months") {
     const templateKey = text(body.template_key, 10) === "0_2" ? "0_2" : "2_6";
+    const category = text(body.category, 20) === "hygiene" ? "hygiene" : "stationery";
     const months = Math.max(0, Math.min(84, Number(body.available_from_months) || 0));
-    const { error } = await supabaseAdmin.from("school_enrolment_requirement_templates").update({ available_from_months: months, updated_by: authorization.staff.userId, updated_at: new Date().toISOString() }).eq("school_id", schoolId).eq("template_key", templateKey);
+    const toMonths = Math.max(months, Math.min(84, Number(body.available_to_months) || months));
+    const { error } = await supabaseAdmin.from("school_enrolment_requirement_templates").update({ available_from_months: months, available_to_months: toMonths, updated_by: authorization.staff.userId, updated_at: new Date().toISOString() }).eq("school_id", schoolId).eq("template_key", templateKey).eq("category", category);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, available_from_months: months });
+    return NextResponse.json({ success: true, available_from_months: months, available_to_months: toMonths });
   }
 
   if (action === "archive_enrolment_item") {

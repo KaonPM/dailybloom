@@ -131,7 +131,7 @@ export async function GET(request: Request) {
   if (configuration?.is_open === false) return NextResponse.json({ error: "Enrolments are not open at the moment. Please contact the school." }, { status: 403 });
   const [{ data: documents }, { data: requirements }, { data: consents }, { data: terms }] = await Promise.all([
     supabaseAdmin.from("school_enrolment_document_requirements").select("title, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
-    supabaseAdmin.from("school_enrolment_requirement_templates").select("template_key, available_from_months, category, item_name, quantity, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("template_key").order("display_order"),
+    supabaseAdmin.from("school_enrolment_requirement_templates").select("template_key, available_from_months, available_to_months, category, item_name, quantity, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("template_key").order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("id, title, wording, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_terms_sections").select("id, title, content, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
   ]);
@@ -182,7 +182,7 @@ export async function POST(request: Request) {
   const [{ data: configuration }, { data: configuredDocuments }, { data: requirements }, { data: consents }, { data: terms }] = await Promise.all([
     supabaseAdmin.from("school_enrolment_configurations").select("form_title, introduction, is_open, second_guardian_mode, emergency_contact_mode, previous_school_enabled, additional_declaration, custom_fields").eq("school_id", enquiry.school_id).maybeSingle(),
     supabaseAdmin.from("school_enrolment_document_requirements").select("title, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
-    supabaseAdmin.from("school_enrolment_requirement_templates").select("template_key, available_from_months, category, item_name, quantity, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("template_key").order("display_order"),
+    supabaseAdmin.from("school_enrolment_requirement_templates").select("template_key, available_from_months, available_to_months, category, item_name, quantity, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("template_key").order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("id, title, wording, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_terms_sections").select("id, title, content, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
   ]);

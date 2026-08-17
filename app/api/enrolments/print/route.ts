@@ -21,9 +21,9 @@ export async function GET(request: Request) {
   const schoolId = Number(params.get("school_id")); const enquiryId = String(params.get("enquiry_id") || "");
   const access = await requireStaffPermission(request, PERMISSIONS.LEARNERS_MANAGE, schoolId);
   if (!access.ok) return access.response;
-  const [{ data: enquiry }, { data: school }, { data: settings }, { data: configuration }, { data: documents }, { data: requirements }, { data: consents }, { data: terms }, { data: fees }, { data: registration }] = await Promise.all([
+  const [{ data: enquiry }, { data: school }, { data: settings }, { data: configuration }, { data: documents }, { data: requirements }, { data: consents }, { data: terms }, { data: fees }, { data: registration }, { data: signupRows }] = await Promise.all([
     supabaseAdmin.from("school_enrolment_enquiries").select("enquiry_reference, academic_year, enrolment_source").eq("id", enquiryId).eq("school_id", schoolId).maybeSingle(),
-    supabaseAdmin.from("schools").select("school_name, logo_url, contact_number").eq("id", schoolId).maybeSingle(),
+    supabaseAdmin.from("schools").select("school_name, logo_url, contact_number, emis_number").eq("id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_setup_settings").select("bank_account_name, bank_name, bank_account_number, bank_branch_code, bank_account_type").eq("school_id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_enrolment_configurations").select("form_title, introduction, additional_declaration, second_guardian_mode, emergency_contact_mode, previous_school_enabled, custom_fields").eq("school_id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_enrolment_document_requirements").select("title, instructions, is_required").eq("school_id", schoolId).eq("is_active", true).order("display_order"),
@@ -31,8 +31,10 @@ export async function GET(request: Request) {
     supabaseAdmin.from("school_enrolment_consents").select("title, wording").eq("school_id", schoolId).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_terms_sections").select("title, content").eq("school_id", schoolId).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_fee_types").select("fee_code, fee_name, fee_category, amount").eq("school_id", schoolId).eq("is_active", true),
-    supabaseAdmin.from("dbe_registration").select("email_address, physical_address, contact_number").eq("school_id", schoolId).maybeSingle(),
+    supabaseAdmin.from("dbe_registration").select("registration_number, email_address, physical_address, contact_number").eq("school_id", schoolId).maybeSingle(),
+    supabaseAdmin.from("school_signup_requests").select("school_email, school_phone, school_address").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(1),
   ]);
   if (!enquiry || enquiry.enrolment_source !== "printed_blank_form") return NextResponse.json({ error: "Printed blank enrolment application not found." }, { status: 404 });
-  return NextResponse.json({ enquiry, school: { ...school, contact_number: registration?.contact_number || school?.contact_number || null, email_address: registration?.email_address || null, physical_address: registration?.physical_address || null }, settings, configuration, fees: fees || [], documents: documents || [], requirements: requirements || [], consents: consents || [], terms: termsWithFees(terms, fees) });
+  const signup = signupRows?.[0];
+  return NextResponse.json({ enquiry, school: { ...school, registration_number: registration?.registration_number || school?.emis_number || null, contact_number: registration?.contact_number || signup?.school_phone || school?.contact_number || null, email_address: registration?.email_address || signup?.school_email || null, physical_address: registration?.physical_address || signup?.school_address || null }, settings, configuration, fees: fees || [], documents: documents || [], requirements: requirements || [], consents: consents || [], terms: termsWithFees(terms, fees) });
 }

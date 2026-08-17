@@ -39,6 +39,7 @@ type FormInfo = {
   school_contact_number?: string | null;
   school_email_address?: string | null;
   school_physical_address?: string | null;
+  school_registration_number?: string | null;
   form: PublicForm | null;
   document_requirements?: Array<{ title: string; instructions?: string | null; is_required: boolean }>;
   requirement_templates?: Array<{ template_key?: "0_2" | "2_6"; available_from_months?: number; available_to_months?: number; category: string; item_name: string; quantity?: string | null; instructions?: string | null }>;
@@ -331,7 +332,7 @@ export default function SecureEnrolmentFormPage() {
           {info?.form?.form_name || "Enrolment Form"}
           {info?.reference ? ` · Reference ${info.reference}` : ""}
         </p>
-        <div className="db-helper" style={{ display: "grid", gap: 2 }}><p style={{ margin: 0 }}><strong>Registered address:</strong> {info?.school_physical_address || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Contact number:</strong> {info?.school_contact_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Email:</strong> {info?.school_email_address || "Not provided by the school"}</p></div>
+        <div className="db-helper" style={{ display: "grid", gap: 2 }}><p style={{ margin: 0 }}><strong>Registration / EMIS / NPO number:</strong> {info?.school_registration_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Registered address:</strong> {info?.school_physical_address || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Contact number:</strong> {info?.school_contact_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Email:</strong> {info?.school_email_address || "Not provided by the school"}</p></div>
         <div className="db-soft-card" style={{ padding: 10, borderLeft: `4px solid ${info?.school_primary_color || "#5ab8de"}` }}><strong>Digital school enrolment form</strong><span className="db-helper" style={{ display: "block", marginTop: 3 }}>Please complete the school’s form sections below. Your school details and enrolment reference are already included.</span></div>
       </section>
 

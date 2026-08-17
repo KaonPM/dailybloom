@@ -28,7 +28,7 @@ async function findEnquiry(token: string) {
   if (!token || token.length < 30) return null;
   const { data } = await supabaseAdmin
     .from("school_enrolment_enquiries")
-    .select("id, school_id, enquiry_reference, parent_name, status, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name, logo_url, primary_color, contact_number)")
+    .select("id, school_id, enquiry_reference, parent_name, status, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name, logo_url, primary_color, contact_number, emis_number)")
     .eq("form_token_hash", hashEnrolmentSecret(token))
     .maybeSingle();
   if (!data || !data.form_token_expires_at || new Date(data.form_token_expires_at).getTime() < Date.now()) return null;
@@ -137,7 +137,7 @@ export async function GET(request: Request) {
   if (!hasFormAccess(request, token, enquiry)) {
     return accessCodeRequiredResponse();
   }
-  const school = one(enquiry.schools as { school_name?: string; logo_url?: string; primary_color?: string; contact_number?: string } | { school_name?: string; logo_url?: string; primary_color?: string; contact_number?: string }[] | null);
+  const school = one(enquiry.schools as { school_name?: string; logo_url?: string; primary_color?: string; contact_number?: string; emis_number?: string } | { school_name?: string; logo_url?: string; primary_color?: string; contact_number?: string; emis_number?: string }[] | null);
   const form = one(enquiry.school_enrolment_forms as Record<string, unknown> | Record<string, unknown>[] | null);
   const { data: configuration, error: configurationError } = await supabaseAdmin
     .from("school_enrolment_configurations")
@@ -146,15 +146,17 @@ export async function GET(request: Request) {
     .maybeSingle();
   if (configurationError) return NextResponse.json({ error: configurationError.message }, { status: 500 });
   if (configuration?.is_open === false) return NextResponse.json({ error: "Enrolments are not open at the moment. Please contact the school." }, { status: 403 });
-  const [{ data: documents }, { data: requirements }, { data: consents }, { data: terms }, { data: fees }, { data: registration }] = await Promise.all([
+  const [{ data: documents }, { data: requirements }, { data: consents }, { data: terms }, { data: fees }, { data: registration }, { data: signupRows }] = await Promise.all([
     supabaseAdmin.from("school_enrolment_document_requirements").select("title, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_requirement_templates").select("template_key, available_from_months, available_to_months, category, item_name, quantity, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("template_key").order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("id, title, wording, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_terms_sections").select("id, title, content, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_fee_types").select("fee_code, fee_name, fee_category, amount").eq("school_id", enquiry.school_id).eq("is_active", true),
-    supabaseAdmin.from("dbe_registration").select("email_address, physical_address, contact_number").eq("school_id", enquiry.school_id).maybeSingle(),
+    supabaseAdmin.from("dbe_registration").select("registration_number, email_address, physical_address, contact_number").eq("school_id", enquiry.school_id).maybeSingle(),
+    supabaseAdmin.from("school_signup_requests").select("school_email, school_phone, school_address").eq("school_id", enquiry.school_id).order("created_at", { ascending: false }).limit(1),
   ]);
   const presentedTerms = termsWithConfiguredFees(terms as EnrolmentTerm[] | null, fees);
+  const signup = signupRows?.[0];
   return NextResponse.json({
     reference: enquiry.enquiry_reference,
     parent_name: enquiry.parent_name,
@@ -162,9 +164,10 @@ export async function GET(request: Request) {
     school_name: school?.school_name || "School",
     school_logo_url: school?.logo_url || null,
     school_primary_color: school?.primary_color || null,
-    school_contact_number: registration?.contact_number || school?.contact_number || null,
-    school_email_address: registration?.email_address || null,
-    school_physical_address: registration?.physical_address || null,
+    school_registration_number: registration?.registration_number || school?.emis_number || null,
+    school_contact_number: registration?.contact_number || signup?.school_phone || school?.contact_number || null,
+    school_email_address: registration?.email_address || signup?.school_email || null,
+    school_physical_address: registration?.physical_address || signup?.school_address || null,
     form: { ...form, form_name: configuration?.form_title || form?.form_name, instructions: configuration?.introduction || form?.instructions, custom_fields: configuration ? configuration.custom_fields : form?.custom_fields },
     enrolment_configuration: configuration ? { ...configuration, additional_declaration: configuration.additional_declaration || DEFAULT_PARENT_DECLARATION } : { additional_declaration: DEFAULT_PARENT_DECLARATION },
     document_requirements: documents || [], requirement_templates: requirements || [], consents: consents || [], terms: presentedTerms,

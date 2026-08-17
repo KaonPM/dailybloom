@@ -256,6 +256,17 @@ textarea {
 .blank-fee-grid small { color: var(--db-muted); text-transform: capitalize; }
 .blank-form-sheet footer { border-top: 1px solid var(--db-border); padding-top: 6px; font-size: 11px; color: var(--db-muted); }
 
+.enrolment-pipeline-row { overflow: hidden; }
+.enrolment-pipeline-summary { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(150px, 1fr) minmax(120px, .8fr) 110px auto auto; gap: 10px; align-items: center; padding: 11px 12px; cursor: pointer; list-style: none; }
+.enrolment-pipeline-summary::-webkit-details-marker { display: none; }
+.enrolment-pipeline-summary > span:not(.db-status-pill):not(.db-collapse-action) { color: var(--db-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.enrolment-pipeline-details { display: grid; gap: 10px; padding: 12px; border-top: 1px solid var(--db-border); }
+
+@media (max-width: 900px) {
+  .enrolment-pipeline-summary { grid-template-columns: 1fr auto; }
+  .enrolment-pipeline-summary > span:not(.db-status-pill):not(.db-collapse-action) { display: none; }
+}
+
 @media (max-width: 700px) {
   .db-requirement-categories {
     grid-template-columns: 1fr;

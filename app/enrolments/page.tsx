@@ -112,7 +112,7 @@ export default function EnrolmentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [visibleCount, setVisibleCount] = useState(20);
+  const [pipelinePage, setPipelinePage] = useState(0);
   const [pipelineSearch, setPipelineSearch] = useState("");
   const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
@@ -212,7 +212,7 @@ export default function EnrolmentsPage() {
     }
   }
 
-  async function runAction(enquiry: Enquiry, action: "verify_registration_payment" | "issue_form" | "review" | "mark_paper_received", extras: Record<string, string> = {}) {
+  async function runAction(enquiry: Enquiry, action: "verify_registration_payment" | "issue_form" | "review" | "mark_paper_received" | "withdraw", extras: Record<string, string> = {}) {
     if (!schoolId) return;
     setWorkingId(enquiry.id);
     setError("");
@@ -285,7 +285,9 @@ export default function EnrolmentsPage() {
     } catch (startError) { setError(startError instanceof Error ? startError.message : "Could not start the enrolment."); } finally { setStartingManual(false); }
   }
 
-  const displayedEnquiries = enquiries.filter((enquiry) => `${enquiry.enquiry_reference} ${enquiry.parent_name} ${enquiry.parent_phone}`.toLowerCase().includes(pipelineSearch.trim().toLowerCase())).slice(0, visibleCount);
+  const filteredEnquiries = enquiries.filter((enquiry) => `${enquiry.enquiry_reference} ${enquiry.parent_name} ${enquiry.parent_phone}`.toLowerCase().includes(pipelineSearch.trim().toLowerCase()));
+  const pipelinePageCount = Math.max(1, Math.ceil(filteredEnquiries.length / 20));
+  const displayedEnquiries = filteredEnquiries.slice(pipelinePage * 20, pipelinePage * 20 + 20);
   const manualEnrolmentHref = schoolQuery
     ? `/children${schoolQuery}&action=add`
     : "/children?action=add";
@@ -361,7 +363,7 @@ export default function EnrolmentsPage() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div><h2 style={{ margin: 0 }}>Enrolment Pipeline</h2><p className="db-helper" style={{ marginBottom: 0 }}>{schoolName} · {enquiries.length} total enquiries</p></div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <input className="db-input" value={pipelineSearch} onChange={(event) => { setPipelineSearch(event.target.value); setVisibleCount(20); }} placeholder="Search reference, parent or mobile" aria-label="Search enrolments" />
+            <input className="db-input" value={pipelineSearch} onChange={(event) => { setPipelineSearch(event.target.value); setPipelinePage(0); }} placeholder="Search reference, parent or mobile" aria-label="Search enrolments" />
             <button className="db-button-secondary" type="button" onClick={() => void loadPage()} disabled={loading}>{loading ? "Loading..." : "Refresh"}</button>
             <button className="db-collapse-action" type="button" onClick={() => setPipelineOpen((current) => !current)} aria-expanded={pipelineOpen}>{pipelineOpen ? "Close" : "Open"} list</button>
           </div>
@@ -375,7 +377,11 @@ export default function EnrolmentsPage() {
             const form = first(enquiry.school_enrolment_forms);
             const isWorking = workingId === enquiry.id;
             return (
-              <article className="db-soft-card" key={enquiry.id} style={{ padding: 16, display: "grid", gap: 12 }}>
+              <details className="db-soft-card enrolment-pipeline-row" key={enquiry.id}>
+                <summary className="enrolment-pipeline-summary">
+                  <strong>{enquiry.enquiry_reference}</strong><span>{enquiry.parent_name}</span><span>{enquiry.parent_phone}</span><span>{formatDate(enquiry.created_at)}</span><span className="db-status-pill">{statusLabel(enquiry.status)}</span><span className="db-collapse-action">Actions</span>
+                </summary>
+                <div className="enrolment-pipeline-details">
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
                   <div><h3 style={{ margin: 0 }}>{enquiry.enquiry_reference}</h3><p className="db-helper" style={{ marginBottom: 0 }}>{enquiry.parent_name} · {enquiry.parent_phone} · {form?.form_name || "Enrolment Form"}</p></div>
                   <span className="db-status-pill">{statusLabel(enquiry.status)}</span>
@@ -436,11 +442,14 @@ export default function EnrolmentsPage() {
                 {["printed_blank_form", "paper_manual_capture"].includes(enquiry.enrolment_source || "") && !enquiry.paper_received_at ? <button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "mark_paper_received")}>Mark Paper Form Received</button> : null}
                 {enquiry.paper_received_at ? <div className="db-helper">Paper received {formatDate(enquiry.paper_received_at)}. Capture the returned form before approval.</div> : null}
                 {enquiry.status === "declined" && enquiry.decline_reason ? <div className="db-helper"><strong>Decline reason:</strong> {enquiry.decline_reason}</div> : null}
-              </article>
+                {!['approved', 'withdrawn'].includes(enquiry.status) ? <button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => { const reason = window.prompt("Reason for withdrawing this enrolment reference"); if (reason?.trim()) void runAction(enquiry, "withdraw", { withdraw_reason: reason.trim() }); }}>Withdraw enrolment</button> : null}
+                {enquiry.status === "withdrawn" ? <div className="db-helper"><strong>Withdrawn:</strong> {enquiry.decline_reason || "No reason recorded."} The reference remains reserved for audit history and will not be reused.</div> : null}
+                </div>
+              </details>
             );
           })}
         </div> : null}
-        {visibleCount < enquiries.filter((enquiry) => `${enquiry.enquiry_reference} ${enquiry.parent_name} ${enquiry.parent_phone}`.toLowerCase().includes(pipelineSearch.trim().toLowerCase())).length ? <div><button className="db-button-secondary" type="button" onClick={() => setVisibleCount((count) => count + 20)}>Show Next 20</button></div> : null}
+        {filteredEnquiries.length > 20 ? <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}><button className="db-button-secondary" type="button" disabled={pipelinePage === 0} onClick={() => setPipelinePage((page) => Math.max(0, page - 1))}>Previous 20</button><span className="db-helper">Page {pipelinePage + 1} of {pipelinePageCount} · {filteredEnquiries.length} records</span><button className="db-button-secondary" type="button" disabled={pipelinePage + 1 >= pipelinePageCount} onClick={() => setPipelinePage((page) => Math.min(pipelinePageCount - 1, page + 1))}>Next 20</button></div> : null}
         </>}
       </section>
     </div>

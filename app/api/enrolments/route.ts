@@ -284,5 +284,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   }
 
+  if (action === "withdraw") {
+    const reason = text(body.withdraw_reason, 1000);
+    if (!reason) return NextResponse.json({ error: "Add a reason for withdrawing this enrolment." }, { status: 400 });
+    if (["approved", "withdrawn"].includes(String(enquiry.status))) return NextResponse.json({ error: "This enrolment cannot be withdrawn." }, { status: 400 });
+    const { error } = await supabaseAdmin.from("school_enrolment_enquiries").update({ status: "withdrawn", decline_reason: reason, form_token_hash: null, form_token_expires_at: null, form_access_session_hash: null, form_access_session_expires_at: null, updated_at: new Date().toISOString() }).eq("id", enquiryId).eq("school_id", schoolId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await writeSecurityAudit(authorization.staff, "enrolment.withdrawn", { school_id: schoolId, enquiry_id: enquiryId, reason });
+    return NextResponse.json({ success: true });
+  }
+
   return NextResponse.json({ error: "Unknown enrolment action." }, { status: 400 });
 }

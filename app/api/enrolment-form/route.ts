@@ -111,6 +111,23 @@ function uploadedDocuments(value: unknown, requirements: unknown, enquiry: { sch
   return result;
 }
 
+type EnrolmentFee = { fee_code?: string | null; fee_name?: string | null; fee_category?: string | null; amount?: number | string | null };
+type EnrolmentTerm = { id: string; title: string; content: string; display_order?: number };
+
+function termsWithConfiguredFees(terms: EnrolmentTerm[] | null, fees: EnrolmentFee[] | null) {
+  return (terms || []).map((term) => {
+    const title = term.title.trim().toLowerCase();
+    let applicable: EnrolmentFee[] = [];
+    if (title === "registration fee") applicable = (fees || []).filter((fee) => fee.fee_code === "registration");
+    else if (title === "fees and payment obligations") applicable = (fees || []).filter((fee) => fee.fee_category === "monthly");
+    else if (title === "aftercare") applicable = (fees || []).filter((fee) => `${fee.fee_code || ""} ${fee.fee_name || ""}`.toLowerCase().includes("aftercare"));
+    else if (title === "late collection") applicable = (fees || []).filter((fee) => `${fee.fee_code || ""} ${fee.fee_name || ""}`.toLowerCase().includes("late collect"));
+    if (!applicable.length) return term;
+    const amounts = applicable.map((fee) => `${fee.fee_name || "Applicable fee"}: ${new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(Number(fee.amount || 0))}`).join("; ");
+    return { ...term, content: `${term.content}\n\nCurrent amount from School Fees: ${amounts}` };
+  });
+}
+
 export async function GET(request: Request) {
   const token = new URL(request.url).searchParams.get("token") || "";
   const enquiry = await findEnquiry(token);
@@ -129,12 +146,14 @@ export async function GET(request: Request) {
     .maybeSingle();
   if (configurationError) return NextResponse.json({ error: configurationError.message }, { status: 500 });
   if (configuration?.is_open === false) return NextResponse.json({ error: "Enrolments are not open at the moment. Please contact the school." }, { status: 403 });
-  const [{ data: documents }, { data: requirements }, { data: consents }, { data: terms }] = await Promise.all([
+  const [{ data: documents }, { data: requirements }, { data: consents }, { data: terms }, { data: fees }] = await Promise.all([
     supabaseAdmin.from("school_enrolment_document_requirements").select("title, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_requirement_templates").select("template_key, available_from_months, available_to_months, category, item_name, quantity, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("template_key").order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("id, title, wording, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_terms_sections").select("id, title, content, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
+    supabaseAdmin.from("school_fee_types").select("fee_code, fee_name, fee_category, amount").eq("school_id", enquiry.school_id).eq("is_active", true),
   ]);
+  const presentedTerms = termsWithConfiguredFees(terms as EnrolmentTerm[] | null, fees);
   return NextResponse.json({
     reference: enquiry.enquiry_reference,
     parent_name: enquiry.parent_name,
@@ -144,7 +163,7 @@ export async function GET(request: Request) {
     school_primary_color: school?.primary_color || null,
     form: { ...form, form_name: configuration?.form_title || form?.form_name, instructions: configuration?.introduction || form?.instructions, custom_fields: configuration ? configuration.custom_fields : form?.custom_fields },
     enrolment_configuration: configuration ? { ...configuration, additional_declaration: configuration.additional_declaration || DEFAULT_PARENT_DECLARATION } : { additional_declaration: DEFAULT_PARENT_DECLARATION },
-    document_requirements: documents || [], requirement_templates: requirements || [], consents: consents || [], terms: terms || [],
+    document_requirements: documents || [], requirement_templates: requirements || [], consents: consents || [], terms: presentedTerms,
   });
 }
 
@@ -179,18 +198,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Complete the learner, parent or guardian and Parent Portal mobile number before submitting." }, { status: 400 });
   }
   const form = one(enquiry.school_enrolment_forms as Record<string, unknown> | Record<string, unknown>[] | null);
-  const [{ data: configuration }, { data: configuredDocuments }, { data: requirements }, { data: consents }, { data: terms }] = await Promise.all([
+  const [{ data: configuration }, { data: configuredDocuments }, { data: requirements }, { data: consents }, { data: terms }, { data: fees }] = await Promise.all([
     supabaseAdmin.from("school_enrolment_configurations").select("form_title, introduction, is_open, second_guardian_mode, emergency_contact_mode, previous_school_enabled, additional_declaration, custom_fields").eq("school_id", enquiry.school_id).maybeSingle(),
     supabaseAdmin.from("school_enrolment_document_requirements").select("title, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_requirement_templates").select("template_key, available_from_months, available_to_months, category, item_name, quantity, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("template_key").order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("id, title, wording, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_terms_sections").select("id, title, content, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
+    supabaseAdmin.from("school_fee_types").select("fee_code, fee_name, fee_category, amount").eq("school_id", enquiry.school_id).eq("is_active", true),
   ]);
+  const presentedTerms = termsWithConfiguredFees(terms as EnrolmentTerm[] | null, fees);
   if (configuration?.is_open === false) return NextResponse.json({ error: "Enrolments are currently closed by the school." }, { status: 403 });
   const consentResponses = body.consent_responses && typeof body.consent_responses === "object" && !Array.isArray(body.consent_responses) ? body.consent_responses as Record<string, unknown> : {};
   const missingConsent = (consents || []).find((consent) => consent.is_required && consentResponses[String(consent.id)] !== true);
   if (missingConsent) return NextResponse.json({ error: `Please accept “${missingConsent.title}” before submitting.` }, { status: 400 });
-  if ((terms || []).length && body.terms_accepted !== true) return NextResponse.json({ error: "Accept the school terms and conditions before submitting." }, { status: 400 });
+  if (presentedTerms.length && body.terms_accepted !== true) return NextResponse.json({ error: "Accept the school terms and conditions before submitting." }, { status: 400 });
   const declarationName = text(body.declaration_name, 180);
   const declarationRelationship = text(body.declaration_relationship, 80);
   if (!declarationName || !declarationRelationship) return NextResponse.json({ error: "Complete the declaration name and relationship before submitting." }, { status: 400 });
@@ -237,7 +258,7 @@ export async function POST(request: Request) {
     medical_notes: text(body.medical_notes, 2000),
     custom_answers: customAnswers,
     consent_responses: (consents || []).map((consent) => ({ id: consent.id, title: consent.title, wording: consent.wording, required: consent.is_required, accepted: consentResponses[String(consent.id)] === true, responded_at: new Date().toISOString() })),
-    terms: (terms || []).map((term) => ({ id: term.id, title: term.title, content: term.content, accepted: body.terms_accepted === true, accepted_at: new Date().toISOString() })),
+    terms: presentedTerms.map((term) => ({ id: term.id, title: term.title, content: term.content, accepted: body.terms_accepted === true, accepted_at: new Date().toISOString() })),
     terms_accepted: body.terms_accepted === true,
     declaration: { statement: configuration?.additional_declaration || DEFAULT_PARENT_DECLARATION, name: declarationName, relationship: declarationRelationship, acknowledged_at: new Date().toISOString() },
     uploaded_documents: documents,
@@ -248,7 +269,7 @@ export async function POST(request: Request) {
     .update({
       status: "submitted",
       submitted_data: submittedData,
-      configuration_snapshot: { configuration: configuration || {}, documents: configuredDocuments || [], requirements: requirements || [], consents: consents || [], terms: terms || [] },
+      configuration_snapshot: { configuration: configuration || {}, documents: configuredDocuments || [], requirements: requirements || [], consents: consents || [], terms: presentedTerms },
       submitted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       form_access_session_hash: null,

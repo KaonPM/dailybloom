@@ -198,6 +198,64 @@ textarea {
   margin-bottom: 3px;
 }
 
+.blank-enrolment-print {
+  width: min(980px, calc(100% - 28px));
+  margin-block: 18px;
+}
+
+.blank-form-sheet {
+  display: grid;
+  gap: 14px;
+  padding: 22px !important;
+}
+
+.blank-form-sheet section {
+  display: grid;
+  gap: 8px;
+  break-inside: avoid;
+}
+
+.blank-form-sheet h1,
+.blank-form-sheet h2,
+.blank-form-sheet h3,
+.blank-form-sheet p {
+  margin: 0;
+}
+
+.blank-form-sheet h1 { font-size: 22px; }
+.blank-form-sheet h2 { font-size: 16px; border-bottom: 1px solid var(--db-border); padding-bottom: 4px; }
+.blank-form-sheet h3 { font-size: 14px; }
+
+.blank-form-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.blank-form-header img { width: 58px; height: 58px; object-fit: contain; }
+.blank-logo-placeholder { width: 58px; height: 58px; display: grid; place-items: center; border: 1px dashed var(--db-border); border-radius: 10px; color: var(--db-muted); font-size: 10px; text-align: center; }
+.blank-form-header p, .blank-form-note { color: var(--db-muted); }
+.blank-form-reference { display: flex; gap: 8px 16px; flex-wrap: wrap; padding: 8px 10px; background: #fffaf3; border: 1px solid var(--db-border); border-radius: 10px; }
+.blank-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 18px; }
+.blank-form-field { display: grid; gap: 9px; font-size: 12px; }
+.blank-form-field span { display: block; min-height: 18px; border-bottom: 1px solid #6f6a80; }
+.blank-form-field-wide { grid-column: 1 / -1; }
+.blank-form-field-wide span { min-height: 28px; }
+.blank-check-list { display: grid; gap: 4px; }
+.blank-requirement-template { display: grid; gap: 6px; }
+.blank-requirement-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.blank-requirement-columns > div { columns: 2; column-gap: 14px; }
+.blank-category-title { display: block; column-span: all; text-transform: capitalize; margin-bottom: 4px; }
+.blank-requirement-columns p { font-size: 12px; margin-bottom: 3px; break-inside: avoid; }
+.blank-term { break-inside: avoid; }
+.blank-term p { color: var(--db-muted); margin-top: 2px; }
+.blank-fee-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.blank-fee-grid p { display: grid; padding: 7px 9px; border: 1px solid var(--db-border); border-radius: 8px; }
+.blank-fee-grid span { font-size: 15px; font-weight: 700; }
+.blank-fee-grid small { color: var(--db-muted); text-transform: capitalize; }
+.blank-form-sheet footer { border-top: 1px solid var(--db-border); padding-top: 6px; font-size: 11px; color: var(--db-muted); }
+
 @media (max-width: 700px) {
   .db-requirement-categories {
     grid-template-columns: 1fr;
@@ -1182,6 +1240,31 @@ line-height:1.45;
   .db-enrolment-page * {
     visibility: visible !important;
   }
+
+  .blank-enrolment-print,
+  .blank-enrolment-print * {
+    visibility: visible !important;
+  }
+
+  .blank-enrolment-print {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .blank-form-sheet {
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    gap: 10px !important;
+    font-size: 11px !important;
+  }
+
+  .blank-form-sheet .no-print { display: none !important; }
+  .blank-form-sheet section { break-inside: auto; }
+  .blank-form-sheet h2, .blank-form-sheet h3, .blank-term, .blank-requirement-columns > div { break-after: avoid; break-inside: avoid; }
 
   .db-enrolment-page {
     position: absolute !important;

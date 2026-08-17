@@ -158,6 +158,56 @@ textarea {
   gap: 18px;
 }
 
+.db-enrolment-page {
+  width: min(1080px, calc(100% - 28px));
+  gap: 12px;
+  margin-block: 18px;
+}
+
+.db-enrolment-form .db-input {
+  min-height: 38px;
+  padding: 8px 10px;
+  margin-bottom: 0;
+}
+
+.db-enrolment-form textarea.db-input {
+  min-height: 72px;
+}
+
+.db-enrolment-form label {
+  font-size: 13px;
+}
+
+.db-requirement-categories {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 22px;
+}
+
+.db-compact-list {
+  margin: 5px 0 0;
+  padding-left: 18px;
+  columns: 2;
+  column-gap: 22px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.db-compact-list li {
+  break-inside: avoid;
+  margin-bottom: 3px;
+}
+
+@media (max-width: 700px) {
+  .db-requirement-categories {
+    grid-template-columns: 1fr;
+  }
+
+  .db-compact-list {
+    columns: 1;
+  }
+}
+
 .db-status-pill {
   display: inline-flex;
   align-items: center;
@@ -1126,6 +1176,43 @@ line-height:1.45;
 
   body * {
     visibility: hidden !important;
+  }
+
+  .db-enrolment-page,
+  .db-enrolment-page * {
+    visibility: visible !important;
+  }
+
+  .db-enrolment-page {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    gap: 6px !important;
+    color: #17132f !important;
+  }
+
+  .db-enrolment-page .db-card,
+  .db-enrolment-page .db-soft-card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  .db-enrolment-page button,
+  .db-enrolment-page input[type="file"] {
+    display: none !important;
+  }
+
+  .db-enrolment-page .db-input {
+    min-height: 28px !important;
+    padding: 4px 6px !important;
+    margin: 0 !important;
+    border-color: #aaa !important;
+    background: #fff !important;
+  }
+
+  .db-enrolment-page textarea.db-input {
+    min-height: 48px !important;
   }
 
   .fee-print-statement,

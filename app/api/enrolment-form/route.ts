@@ -240,6 +240,16 @@ export async function POST(request: Request) {
   } catch (validationError) {
     return NextResponse.json({ error: validationError instanceof Error ? validationError.message : "Upload the required documents before submitting." }, { status: 400 });
   }
+  if (configuration?.second_guardian_mode === "required") {
+    const documentName = "Second parent/guardian identification document";
+    const uploads = body.uploaded_documents && typeof body.uploaded_documents === "object" && !Array.isArray(body.uploaded_documents) ? body.uploaded_documents as Record<string, unknown> : {};
+    const upload = uploads[documentName] && typeof uploads[documentName] === "object" ? uploads[documentName] as Record<string, unknown> : null;
+    const path = text(upload?.path, 500);
+    if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) {
+      return NextResponse.json({ error: `Upload “${documentName}” before submitting.` }, { status: 400 });
+    }
+    documents[documentName] = { name: text(upload?.name, 180) || documentName, path };
+  }
   const submittedData = {
     learner_first_name: learnerFirstName,
     learner_surname: learnerSurname,
@@ -249,8 +259,10 @@ export async function POST(request: Request) {
     guardian_name: guardianName,
     guardian_relationship: text(body.guardian_relationship, 80),
     guardian_phone: guardianPhone,
+    guardian_daytime_phone: text(body.guardian_daytime_phone, 40),
     parent_portal_phone: parentPortalPhone,
     guardian_email: text(body.guardian_email, 180),
+    guardian_employment: { employer: text(body.guardian_employer, 180), occupation: text(body.guardian_occupation, 120), work_phone: text(body.guardian_work_phone, 40) },
     second_guardian: configuration?.second_guardian_mode === "hidden" ? null : { name: secondGuardianName, phone: secondGuardianPhone },
     emergency_contact: configuration?.emergency_contact_mode === "hidden" ? null : { name: emergencyContactName, phone: emergencyContactPhone },
     previous_school: configuration?.previous_school_enabled ? text(body.previous_school, 180) : null,

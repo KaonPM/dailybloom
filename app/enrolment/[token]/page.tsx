@@ -53,8 +53,12 @@ const emptyFields = {
   guardian_name: "",
   guardian_relationship: "",
   guardian_phone: "",
+  guardian_daytime_phone: "",
   parent_portal_phone: "",
   guardian_email: "",
+  guardian_employer: "",
+  guardian_occupation: "",
+  guardian_work_phone: "",
   second_guardian_name: "",
   second_guardian_phone: "",
   emergency_contact_name: "",
@@ -257,12 +261,14 @@ export default function SecureEnrolmentFormPage() {
   }
 
   const customFields = getCustomFields(info?.form?.custom_fields);
-  const requiredDocuments = info?.document_requirements?.map((item) => item.title) || getTextList(info?.form?.required_documents);
+  const configuration = info?.enrolment_configuration;
+  const secondGuardianDocument = "Second parent/guardian identification document";
+  const configuredDocumentNames = info?.document_requirements?.map((item) => item.title) || getTextList(info?.form?.required_documents);
+  const requiredDocuments = configuration?.second_guardian_mode === "required" && !configuredDocumentNames.includes(secondGuardianDocument) ? [...configuredDocumentNames, secondGuardianDocument] : configuredDocumentNames;
   const requirementTemplates = info?.requirement_templates || [];
   const legacyStationeryList = requirementTemplates.length ? [] : getTextList(info?.form?.stationery_list);
   const consents = info?.consents || [];
   const terms = info?.terms || [];
-  const configuration = info?.enrolment_configuration;
 
   async function uploadDocument(documentName: string, file?: File) {
     if (!file || isPreview) return;
@@ -297,7 +303,7 @@ export default function SecureEnrolmentFormPage() {
   }
 
   return (
-    <main className="db-public-page">
+    <main className="db-public-page db-enrolment-page">
       <section className="db-card db-card-blue" style={{ display: "grid", gap: 12 }}>
         <div className="db-eyebrow">DAILYBLOOM · SECURE ENROLMENT</div>
         {info?.school_logo_url ? <img src={info.school_logo_url} alt={`${info.school_name} logo`} style={{ width: 76, height: 76, borderRadius: 14, objectFit: "contain" }} /> : null}
@@ -373,7 +379,7 @@ export default function SecureEnrolmentFormPage() {
       ) : null}
 
       {info && !needsAccessCode && !error && !success ? (
-        <section className="db-card" style={{ display: "grid", gap: 20 }}>
+        <section className="db-card db-enrolment-form" style={{ display: "grid", gap: 16 }}>
           <div>
             <h2 style={{ margin: 0 }}>Learner and parent details</h2>
             <p className="db-helper" style={{ marginBottom: 0 }}>
@@ -408,8 +414,12 @@ export default function SecureEnrolmentFormPage() {
                 <label style={{ display: "grid", gap: 7 }}><strong>Full name</strong><input className="db-input" value={fields.guardian_name} onChange={(event) => setField("guardian_name", event.target.value)} disabled={isPreview} required /></label>
                 <label style={{ display: "grid", gap: 7 }}><strong>Relationship to learner</strong><input className="db-input" value={fields.guardian_relationship} onChange={(event) => setField("guardian_relationship", event.target.value)} disabled={isPreview} placeholder="e.g. Mother, father, guardian" /></label>
                 <label style={{ display: "grid", gap: 7 }}><strong>Contact mobile number</strong><input className="db-input" inputMode="tel" value={fields.guardian_phone} onChange={(event) => setField("guardian_phone", event.target.value)} disabled={isPreview} required /></label>
+                <label style={{ display: "grid", gap: 7 }}><strong>Contact number during the day</strong><input className="db-input" inputMode="tel" value={fields.guardian_daytime_phone} onChange={(event) => setField("guardian_daytime_phone", event.target.value)} disabled={isPreview} placeholder="Work or alternative daytime number" /></label>
                 <label style={{ display: "grid", gap: 7 }}><strong>Parent Portal mobile number</strong><input className="db-input" inputMode="tel" value={fields.parent_portal_phone} onChange={(event) => setField("parent_portal_phone", event.target.value)} disabled={isPreview} placeholder="Choose one number for Parent Portal access" required /><small className="db-helper">Use one South African mobile number for Parent Portal access and important updates.</small></label>
                 <label style={{ display: "grid", gap: 7 }}><strong>Email address</strong><input className="db-input" type="email" value={fields.guardian_email} onChange={(event) => setField("guardian_email", event.target.value)} disabled={isPreview} /></label>
+                <label style={{ display: "grid", gap: 7 }}><strong>Employer or business</strong><input className="db-input" value={fields.guardian_employer} onChange={(event) => setField("guardian_employer", event.target.value)} disabled={isPreview} /></label>
+                <label style={{ display: "grid", gap: 7 }}><strong>Occupation</strong><input className="db-input" value={fields.guardian_occupation} onChange={(event) => setField("guardian_occupation", event.target.value)} disabled={isPreview} /></label>
+                <label style={{ display: "grid", gap: 7 }}><strong>Work contact number</strong><input className="db-input" inputMode="tel" value={fields.guardian_work_phone} onChange={(event) => setField("guardian_work_phone", event.target.value)} disabled={isPreview} /></label>
                 {configuration?.second_guardian_mode !== "hidden" ? <><label style={{ display: "grid", gap: 7 }}><strong>Second parent/guardian name{configuration?.second_guardian_mode === "required" ? " *" : ""}</strong><input className="db-input" value={fields.second_guardian_name} onChange={(event) => setField("second_guardian_name", event.target.value)} disabled={isPreview} required={configuration?.second_guardian_mode === "required"} /></label><label style={{ display: "grid", gap: 7 }}><strong>Second parent/guardian mobile{configuration?.second_guardian_mode === "required" ? " *" : ""}</strong><input className="db-input" inputMode="tel" value={fields.second_guardian_phone} onChange={(event) => setField("second_guardian_phone", event.target.value)} disabled={isPreview} required={configuration?.second_guardian_mode === "required"} /></label></> : null}
                 {configuration?.emergency_contact_mode !== "hidden" ? <><label style={{ display: "grid", gap: 7 }}><strong>Emergency contact name{configuration?.emergency_contact_mode === "required" ? " *" : ""}</strong><input className="db-input" value={fields.emergency_contact_name} onChange={(event) => setField("emergency_contact_name", event.target.value)} disabled={isPreview} required={configuration?.emergency_contact_mode === "required"} /></label><label style={{ display: "grid", gap: 7 }}><strong>Emergency contact mobile{configuration?.emergency_contact_mode === "required" ? " *" : ""}</strong><input className="db-input" inputMode="tel" value={fields.emergency_contact_phone} onChange={(event) => setField("emergency_contact_phone", event.target.value)} disabled={isPreview} required={configuration?.emergency_contact_mode === "required"} /></label></> : null}
                 <label style={{ display: "grid", gap: 7, gridColumn: "1 / -1" }}><strong>Home address</strong><textarea className="db-input" rows={3} value={fields.home_address} onChange={(event) => setField("home_address", event.target.value)} disabled={isPreview} /></label>
@@ -418,17 +428,17 @@ export default function SecureEnrolmentFormPage() {
             {step === 3 ? <div style={{ display: "grid", gap: 16 }}>
               <div>
                 <h3 style={{ margin: "0 0 10px" }}>Required document uploads</h3>
-                {requiredDocuments.length ? <div style={{ display: "grid", gap: 10 }}>{requiredDocuments.map((documentName) => { const configured = info?.document_requirements?.find((item) => item.title === documentName); return <label key={documentName} className="db-soft-card" style={{ padding: 12, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}><span><strong>{documentName}{configured?.is_required ? " *" : ""}</strong><br /><small className="db-helper">{documentUploads[documentName]?.name || configured?.instructions || "PDF, JPG, PNG or WEBP up to 10 MB"}</small></span><span className="db-button-secondary" style={{ cursor: isPreview ? "default" : "pointer" }}><input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden disabled={isPreview || uploadingDocument === documentName} onChange={(event) => void uploadDocument(documentName, event.target.files?.[0])} />{uploadingDocument === documentName ? "Uploading..." : documentUploads[documentName] ? "Replace" : "Upload"}</span></label>; })}</div> : <p className="db-helper">The school has not requested any document uploads for this form.</p>}
+                {requiredDocuments.length ? <div style={{ display: "grid", gap: 8 }}>{requiredDocuments.map((documentName) => { const configured = info?.document_requirements?.find((item) => item.title === documentName); const isSecondGuardianDocument = documentName === secondGuardianDocument; return <label key={documentName} className="db-soft-card" style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}><span><strong>{documentName}{configured?.is_required || isSecondGuardianDocument ? " *" : ""}</strong><br /><small className="db-helper">{documentUploads[documentName]?.name || configured?.instructions || (isSecondGuardianDocument ? "Required because the second guardian is mandatory." : "PDF, JPG, PNG or WEBP up to 10 MB")}</small></span><span className="db-button-secondary" style={{ cursor: isPreview ? "default" : "pointer" }}><input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden disabled={isPreview || uploadingDocument === documentName} onChange={(event) => void uploadDocument(documentName, event.target.files?.[0])} />{uploadingDocument === documentName ? "Uploading..." : documentUploads[documentName] ? "Replace" : "Upload"}</span></label>; })}</div> : <p className="db-helper">The school has not requested any document uploads for this form.</p>}
               </div>
               <div>
                 <h3 style={{ margin: "0 0 10px" }}>Stationery and items to bring</h3>
-                {requirementTemplates.length ? <div style={{ display: "grid", gap: 12 }}>{(["0_2", "2_6"] as const).map((templateKey) => { const items = requirementTemplates.filter((item) => (item.template_key || "2_6") === templateKey); if (!items.length) return null; const months = items[0]?.available_from_months ?? (templateKey === "0_2" ? 6 : 24); return <div key={templateKey} className="db-soft-card" style={{ padding: 12 }}><strong>{templateKey === "0_2" ? "0–2 Years Template" : "2–6 Years Template"}</strong><p className="db-helper" style={{ margin: "4px 0 8px" }}>Items in this template are requested from {months} months.</p>{(["stationery", "hygiene"] as const).map((category) => { const categoryItems = items.filter((item) => item.category === category); if (!categoryItems.length) return null; return <div key={category} style={{ marginTop: 10 }}><strong style={{ textTransform: "capitalize" }}>{category}</strong><ul style={{ margin: "6px 0 0", paddingLeft: 20, display: "grid", gap: 6 }}>{categoryItems.map((item) => <li key={`${templateKey}-${category}-${item.item_name}`}>{item.item_name}{item.quantity ? ` (${item.quantity})` : ""}</li>)}</ul></div>; })}</div>; })}</div> : legacyStationeryList.length ? <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>{legacyStationeryList.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="db-helper">The school has not added a stationery list yet.</p>}
+                {requirementTemplates.length ? <div style={{ display: "grid", gap: 10 }}>{(["0_2", "2_6"] as const).map((templateKey) => { const items = requirementTemplates.filter((item) => (item.template_key || "2_6") === templateKey); if (!items.length) return null; return <div key={templateKey} className="db-soft-card" style={{ padding: 10 }}><strong>{templateKey === "0_2" ? "0–2 Years Template" : "2–6 Years Template"}</strong><div className="db-requirement-categories">{(["stationery", "hygiene"] as const).map((category) => { const categoryItems = items.filter((item) => item.category === category); if (!categoryItems.length) return null; const fromMonths = Math.min(...categoryItems.map((item) => item.available_from_months ?? (templateKey === "0_2" && category === "hygiene" ? 0 : templateKey === "0_2" ? 6 : 24))); const toMonths = Math.max(...categoryItems.map((item) => item.available_to_months ?? (templateKey === "0_2" ? 24 : 72))); return <div key={category} style={{ marginTop: 8 }}><strong style={{ textTransform: "capitalize" }}>{category}</strong><small className="db-helper" style={{ display: "block", marginTop: 2 }}>Age requirement: {fromMonths}–{toMonths} months</small><ul className="db-compact-list">{categoryItems.map((item) => <li key={`${templateKey}-${category}-${item.item_name}`}>{item.item_name}{item.quantity ? ` (${item.quantity})` : ""}</li>)}</ul></div>; })}</div></div>; })}</div> : legacyStationeryList.length ? <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>{legacyStationeryList.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="db-helper">The school has not added a stationery list yet.</p>}
               </div>
             </div> : null}
             {step === 4 ? <div style={{ display: "grid", gap: 16 }}>
               <div>
                 <h3 style={{ margin: "0 0 10px" }}>Important health information</h3>
-                <label style={{ display: "grid", gap: 7 }}><strong>Allergies, medical aid or medical notes (optional)</strong><textarea className="db-input" rows={4} value={fields.medical_notes} onChange={(event) => setField("medical_notes", event.target.value)} disabled={isPreview} placeholder="Share only information the school should know to support the learner safely." /></label>
+                <label style={{ display: "grid", gap: 7 }}><strong>Allergies, medical aid or medical notes (optional)</strong><textarea className="db-input" rows={3} value={fields.medical_notes} onChange={(event) => setField("medical_notes", event.target.value)} disabled={isPreview} placeholder="Share only information the school should know to support the learner safely." /></label>
               </div>
               {customFields.length ? <div>
               <h3 style={{ margin: "0 0 10px" }}>Additional information</h3>

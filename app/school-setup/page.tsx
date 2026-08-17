@@ -169,6 +169,9 @@ export default function SchoolSetupPage() {
       return;
     }
     setSchoolId(context.schoolId);
+    // Fees are an independent School Setup module. Load them even when a newer
+    // enrolment migration has not yet been applied, so existing fee data remains visible.
+    await fetchSchoolFeeCatalog(context.schoolId);
     try {
       const response = await authenticatedFetch(`/api/school-setup?school_id=${context.schoolId}`, { cache: "no-store" });
       const body = await response.json();
@@ -177,12 +180,11 @@ export default function SchoolSetupPage() {
       setSchoolBrand(body.school || null);
       setUniversalConfiguration({ ...emptyUniversalConfiguration, ...(body.enrolment_configuration || {}) });
       setDocumentRequirements(body.document_requirements || []);
-      const loadedRequirements = (body.requirement_templates || []) as RequirementTemplate[];
+      const loadedRequirements = ((body.requirement_templates || []) as Array<Partial<RequirementTemplate> & Pick<RequirementTemplate, "id" | "category" | "item_name" | "is_required" | "is_active" | "display_order">>).map((item) => ({ ...item, template_key: item.template_key === "0_2" ? "0_2" : "2_6", available_from_months: item.available_from_months ?? (item.template_key === "0_2" ? 6 : 24) })) as RequirementTemplate[];
       setRequirementTemplates(loadedRequirements);
       setRequirementStartMonths({ "0_2": loadedRequirements.find((item) => item.template_key === "0_2")?.available_from_months ?? 6, "2_6": loadedRequirements.find((item) => item.template_key === "2_6")?.available_from_months ?? 24 });
       setConsents(body.consents || []); setTerms(body.terms || []);
       setForms(body.forms || []);
-      await fetchSchoolFeeCatalog(context.schoolId);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "School Setup could not be loaded.");
     }

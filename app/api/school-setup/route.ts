@@ -108,7 +108,7 @@ export async function GET(request: Request) {
     supabaseAdmin.from("schools").select("school_name, logo_url, primary_color").eq("id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_enrolment_configurations").select("*").eq("school_id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_enrolment_document_requirements").select("*").eq("school_id", schoolId).order("display_order"),
-    supabaseAdmin.from("school_enrolment_requirement_templates").select("*").eq("school_id", schoolId).order("template_key").order("display_order"),
+    supabaseAdmin.from("school_enrolment_requirement_templates").select("*").eq("school_id", schoolId).order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("*").eq("school_id", schoolId).order("display_order"),
     supabaseAdmin.from("school_enrolment_terms_sections").select("*").eq("school_id", schoolId).order("display_order"),
   ]);

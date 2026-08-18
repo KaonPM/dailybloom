@@ -363,7 +363,7 @@ export default function EnrolmentsPage() {
         </> : null}
       </section>
 
-      <section className="db-card db-card-lavender enrolment-pipeline-card" style={{ display: "grid", gap: 14 }}>
+      <section className="db-card db-card-lavender enrolment-pipeline-card" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", justifyContent: "stretch", gap: 14 }}>
         <div className="enrolment-pipeline-header" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div><h2 style={{ margin: 0 }}>Enrolment Pipeline</h2><p className="db-helper" style={{ marginBottom: 0 }}>{schoolName} · {enquiries.length} total enquiries</p></div>
           <button className="db-collapse-action db-section-toggle" style={{ width: 96 }} type="button" onClick={() => setPipelineOpen((current) => !current)} aria-expanded={pipelineOpen}>{pipelineOpen ? "Close" : "Open"} list</button>

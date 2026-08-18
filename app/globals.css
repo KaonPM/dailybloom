@@ -262,7 +262,7 @@ textarea {
 .enrolment-pipeline-card > *,
 .enrolment-pipeline-header { width: 100%; min-width: 0; }
 .enrolment-pipeline-controls { min-width: 0; }
-.enrolment-pipeline-summary { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(150px, 1fr) minmax(120px, .8fr) 110px auto; gap: 10px; align-items: center; padding: 11px 12px; cursor: pointer; list-style: none; }
+.enrolment-pipeline-summary { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(150px, 1fr) minmax(120px, .8fr) 110px auto auto; gap: 10px; align-items: center; padding: 11px 12px; cursor: pointer; list-style: none; }
 .db-main-content details > summary.enrolment-pipeline-summary { display: grid; }
 .enrolment-pipeline-summary::-webkit-details-marker { display: none; }
 .enrolment-pipeline-summary > span:not(.db-status-pill):not(.db-collapse-action) { color: var(--db-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -271,7 +271,7 @@ textarea {
 @media (max-width: 900px) {
   .enrolment-pipeline-controls { grid-template-columns: 1fr auto !important; width: 100%; }
   .enrolment-pipeline-controls .db-input { grid-column: 1 / -1; }
-  .enrolment-pipeline-summary { grid-template-columns: 1fr auto; }
+  .enrolment-pipeline-summary { grid-template-columns: minmax(0, 1fr) auto auto; }
   .enrolment-pipeline-summary > span:not(.db-status-pill):not(.db-collapse-action) { display: none; }
 }
 

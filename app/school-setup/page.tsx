@@ -482,6 +482,8 @@ export default function SchoolSetupPage() {
       school_name: schoolBrand?.school_name || "Your School",
       school_logo_url: schoolBrand?.logo_url || null,
       school_primary_color: schoolBrand?.primary_color || null,
+      fees: schoolFeeTypes,
+      banking_details: settings,
     };
 
     try {

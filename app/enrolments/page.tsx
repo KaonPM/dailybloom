@@ -337,7 +337,7 @@ export default function EnrolmentsPage() {
           <Link className="db-button-secondary" href={manualEnrolmentHref}>
             + Add Learner Manually
           </Link>
-          <button className="db-collapse-action db-section-toggle" type="button" onClick={() => setNewEnquiryOpen((current) => !current)} aria-expanded={newEnquiryOpen}>
+          <button className="db-collapse-action db-section-toggle" style={{ width: 96 }} type="button" onClick={() => setNewEnquiryOpen((current) => !current)} aria-expanded={newEnquiryOpen}>
             {newEnquiryOpen ? "Close" : "Open"}
           </button>
         </div>
@@ -360,16 +360,16 @@ export default function EnrolmentsPage() {
       </section>
 
       <section className="db-card db-card-lavender" style={{ display: "grid", gap: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div><h2 style={{ margin: 0 }}>Enrolment Pipeline</h2><p className="db-helper" style={{ marginBottom: 0 }}>{schoolName} · {enquiries.length} total enquiries</p></div>
-          <div className="enrolment-pipeline-controls" style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) auto 96px", gap: 10, alignItems: "center", marginLeft: "auto", flex: "1 1 620px" }}>
-            <input className="db-input" style={{ marginBottom: 0 }} value={pipelineSearch} onChange={(event) => { setPipelineSearch(event.target.value); setPipelinePage(0); }} placeholder="Search reference, parent or mobile" aria-label="Search enrolments" />
-            <button className="db-button-secondary" type="button" onClick={() => void loadPage()} disabled={loading}>{loading ? "Loading..." : "Refresh"}</button>
-            <button className="db-collapse-action db-section-toggle" style={{ width: 96 }} type="button" onClick={() => setPipelineOpen((current) => !current)} aria-expanded={pipelineOpen}>{pipelineOpen ? "Close" : "Open"} list</button>
-          </div>
+          <button className="db-collapse-action db-section-toggle" style={{ width: 96 }} type="button" onClick={() => setPipelineOpen((current) => !current)} aria-expanded={pipelineOpen}>{pipelineOpen ? "Close" : "Open"} list</button>
         </div>
 
         {pipelineOpen && <>
+          <div className="enrolment-pipeline-controls" style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) auto", gap: 10, alignItems: "center" }}>
+            <input className="db-input" style={{ marginBottom: 0 }} value={pipelineSearch} onChange={(event) => { setPipelineSearch(event.target.value); setPipelinePage(0); }} placeholder="Search reference, parent or mobile" aria-label="Search enrolments" />
+            <button className="db-button-secondary" type="button" onClick={() => void loadPage()} disabled={loading}>{loading ? "Loading..." : "Refresh"}</button>
+          </div>
         {loading ? <p className="db-helper">Loading enrolments...</p> : null}
         {!loading && enquiries.length === 0 ? <div className="db-soft-card" style={{ padding: 16 }}>No enrolment enquiries have been created yet.</div> : null}
         {!loading ? <div style={{ display: "grid", gap: 12 }}>

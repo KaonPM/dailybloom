@@ -212,7 +212,7 @@ export default function EnrolmentsPage() {
     }
   }
 
-  async function runAction(enquiry: Enquiry, action: "verify_registration_payment" | "issue_form" | "review" | "mark_paper_received" | "withdraw", extras: Record<string, string> = {}) {
+  async function runAction(enquiry: Enquiry, action: "verify_registration_payment" | "issue_form" | "review" | "mark_paper_received" | "withdraw" | "delete_withdrawn", extras: Record<string, string> = {}) {
     if (!schoolId) return;
     setWorkingId(enquiry.id);
     setError("");
@@ -247,6 +247,10 @@ export default function EnrolmentsPage() {
         setMessage(extras.decision === "approved" ? "Enrolment approved. It is ready for learner capture and class allocation." : "Enrolment declined and the reason was recorded.");
       } else if (action === "mark_paper_received") {
         setMessage(`Paper form received for ${enquiry.enquiry_reference}. You can now capture it into DailyBloom.`);
+      } else if (action === "withdraw") {
+        setMessage(`Enrolment ${enquiry.enquiry_reference} was withdrawn.`);
+      } else if (action === "delete_withdrawn") {
+        setMessage(`Withdrawn enrolment ${enquiry.enquiry_reference} was permanently deleted.`);
       } else {
         setPaymentFor(null);
         setPaymentReference("");
@@ -379,7 +383,7 @@ export default function EnrolmentsPage() {
             return (
               <details className="db-soft-card enrolment-pipeline-row" key={enquiry.id}>
                 <summary className="enrolment-pipeline-summary">
-                  <strong>{enquiry.enquiry_reference}</strong><span>{enquiry.parent_name}</span><span>{enquiry.parent_phone}</span><span>{formatDate(enquiry.created_at)}</span><span className="db-status-pill">{statusLabel(enquiry.status)}</span><span className="db-collapse-action">Actions</span>
+                  <strong>{enquiry.enquiry_reference}</strong><span>{enquiry.parent_name}</span><span>{enquiry.parent_phone}</span><span>{formatDate(enquiry.created_at)}</span><span className="db-status-pill">{statusLabel(enquiry.status)}</span>
                 </summary>
                 <div className="enrolment-pipeline-details">
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
@@ -443,7 +447,7 @@ export default function EnrolmentsPage() {
                 {enquiry.paper_received_at ? <div className="db-helper">Paper received {formatDate(enquiry.paper_received_at)}. Capture the returned form before approval.</div> : null}
                 {enquiry.status === "declined" && enquiry.decline_reason ? <div className="db-helper"><strong>Decline reason:</strong> {enquiry.decline_reason}</div> : null}
                 {!['approved', 'withdrawn'].includes(enquiry.status) ? <button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => { const reason = window.prompt("Reason for withdrawing this enrolment reference"); if (reason?.trim()) void runAction(enquiry, "withdraw", { withdraw_reason: reason.trim() }); }}>Withdraw enrolment</button> : null}
-                {enquiry.status === "withdrawn" ? <div className="db-helper"><strong>Withdrawn:</strong> {enquiry.decline_reason || "No reason recorded."} The reference remains reserved for audit history and will not be reused.</div> : null}
+                {enquiry.status === "withdrawn" ? <><div className="db-helper"><strong>Withdrawn:</strong> {enquiry.decline_reason || "No reason recorded."}</div><button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => { if (window.confirm(`Permanently delete withdrawn enrolment ${enquiry.enquiry_reference}? This cannot be undone and its reference will not be reused.`)) void runAction(enquiry, "delete_withdrawn"); }}>{isWorking ? "Deleting..." : "Delete withdrawn enrolment"}</button></> : null}
                 </div>
               </details>
             );

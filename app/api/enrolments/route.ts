@@ -89,7 +89,7 @@ export async function POST(request: Request) {
   const body = await request.json();
   const schoolId = Number(body.school_id);
   const action = text(body.action, 60);
-  const requestedPermission = action === "review" ? PERMISSIONS.SCHOOL_MANAGE : PERMISSIONS.LEARNERS_MANAGE;
+  const requestedPermission = ["review", "delete_withdrawn"].includes(action) ? PERMISSIONS.SCHOOL_MANAGE : PERMISSIONS.LEARNERS_MANAGE;
   const authorization = await requireStaffPermission(request, requestedPermission, schoolId);
   if (!authorization.ok) return authorization.response;
 
@@ -291,6 +291,14 @@ export async function POST(request: Request) {
     const { error } = await supabaseAdmin.from("school_enrolment_enquiries").update({ status: "withdrawn", decline_reason: reason, form_token_hash: null, form_token_expires_at: null, form_access_session_hash: null, form_access_session_expires_at: null, updated_at: new Date().toISOString() }).eq("id", enquiryId).eq("school_id", schoolId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     await writeSecurityAudit(authorization.staff, "enrolment.withdrawn", { school_id: schoolId, enquiry_id: enquiryId, reason });
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === "delete_withdrawn") {
+    if (enquiry.status !== "withdrawn") return NextResponse.json({ error: "Only withdrawn enrolments can be deleted." }, { status: 400 });
+    const { data: deleted, error } = await supabaseAdmin.from("school_enrolment_enquiries").delete().eq("id", enquiryId).eq("school_id", schoolId).eq("status", "withdrawn").select("id").maybeSingle();
+    if (error || !deleted) return NextResponse.json({ error: error?.message || "The withdrawn enrolment could not be deleted." }, { status: 500 });
+    await writeSecurityAudit(authorization.staff, "enrolment.withdrawn_deleted", { school_id: schoolId, enquiry_id: enquiryId, reference: enquiry.enquiry_reference });
     return NextResponse.json({ success: true });
   }
 

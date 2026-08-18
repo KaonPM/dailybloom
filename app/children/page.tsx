@@ -1471,7 +1471,7 @@ export default function LearnersPage() {
               ? `Birthdays Today (${searchedLearners.length})`
               : `Learners (${searchedLearners.length})`}
           </h3>
-          <button type="button" className="db-collapse-action" onClick={() => setLearnersListOpen((current) => !current)} aria-expanded={learnersListOpen}>
+          <button type="button" className="db-collapse-action db-section-toggle" onClick={() => setLearnersListOpen((current) => !current)} aria-expanded={learnersListOpen}>
             {learnersListOpen ? "Close" : "Open"} list
           </button>
         </div>

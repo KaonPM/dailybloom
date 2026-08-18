@@ -677,7 +677,7 @@ function CollapsibleSetupSection({
           <span style={setupSectionTitle}>{title}</span>
           <span className="db-helper" style={{ display: "block", marginTop: 4 }}>{description}</span>
         </div>
-        <button type="button" className="db-collapse-action" onClick={onToggle} aria-expanded={isOpen}>
+        <button type="button" className="db-collapse-action db-section-toggle" onClick={onToggle} aria-expanded={isOpen}>
           {isOpen ? "Close" : "Open"}
         </button>
       </div>

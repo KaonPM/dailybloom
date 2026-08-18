@@ -1321,7 +1321,7 @@ export default function ReportsPage() {
 
           <button
             type="button"
-            className="db-collapse-action"
+            className="db-collapse-action db-section-toggle"
             onClick={() => setShowReportResults((prev) => !prev)}
           >
             {showReportResults ? "Close" : "Open results"}

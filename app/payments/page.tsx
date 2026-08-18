@@ -691,7 +691,7 @@ export default function PaymentsPage() {
 
             <button
               type="button"
-              className="db-collapse-action"
+              className="db-collapse-action db-section-toggle"
               onClick={() => setShowUnpaidLearners((prev) => !prev)}
             >
               {showUnpaidLearners ? "Close" : `Open unpaid (${unpaidLearners.length})`}
@@ -741,7 +741,7 @@ export default function PaymentsPage() {
 
             <button
               type="button"
-              className="db-collapse-action"
+              className="db-collapse-action db-section-toggle"
               onClick={() => setShowPaymentHistory((prev) => !prev)}
             >
               {showPaymentHistory ? "Close" : "Open history"}

@@ -2048,7 +2048,7 @@ export default function ProgressReportsPage() {
             <h3 style={{ ...sectionTitle, margin: 0 }}>
               Report Period Management
             </h3>
-            <span className="db-collapse-action">{showPeriodManagement ? "Close" : "Open"}</span>
+            <span className="db-collapse-action db-section-toggle">{showPeriodManagement ? "Close" : "Open"}</span>
           </div>
 
           {showPeriodManagement && (
@@ -2434,7 +2434,7 @@ export default function ProgressReportsPage() {
             <h3 style={{ ...sectionTitle, margin: 0 }}>
               Practitioner Report Workspace
             </h3>
-            <span className="db-collapse-action">{showTeacherChecklist ? "Close" : "Open"}</span>
+            <span className="db-collapse-action db-section-toggle">{showTeacherChecklist ? "Close" : "Open"}</span>
           </div>
 
           {showTeacherChecklist && (
@@ -2596,7 +2596,7 @@ export default function ProgressReportsPage() {
             <h3 style={{ ...sectionTitle, margin: 0 }}>
               My Saved and Submitted Reports
             </h3>
-            <span className="db-collapse-action">{showTeacherSavedReports ? "Close" : "Open"}</span>
+            <span className="db-collapse-action db-section-toggle">{showTeacherSavedReports ? "Close" : "Open"}</span>
           </div>
 
           {showTeacherSavedReports && (
@@ -2768,7 +2768,7 @@ export default function ProgressReportsPage() {
               ? "Reviewed Reports"
               : "Reports Awaiting Principal Review"}
           </h3>
-          <span className="db-collapse-action">{showAssessments ? "Close" : "Open"}</span>
+          <span className="db-collapse-action db-section-toggle">{showAssessments ? "Close" : "Open"}</span>
         </div>
 
         {showAssessments && (
@@ -2807,7 +2807,7 @@ export default function ProgressReportsPage() {
           <h3 style={{ ...sectionTitle, margin: 0 }}>
             Generated Progress Reports
           </h3>
-          <span className="db-collapse-action">{showGeneratedReports ? "Close" : "Open"}</span>
+          <span className="db-collapse-action db-section-toggle">{showGeneratedReports ? "Close" : "Open"}</span>
         </div>
 
         {showGeneratedReports && (

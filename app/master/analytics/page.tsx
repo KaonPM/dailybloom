@@ -224,7 +224,7 @@ export default function MasterAnalyticsPage() {
 
           <button
             type="button"
-            className="db-collapse-action"
+            className="db-collapse-action db-section-toggle"
             onClick={() => setShowOverviewCards((prev) => !prev)}
           >
             {showOverviewCards ? "Close" : "Open overview"}

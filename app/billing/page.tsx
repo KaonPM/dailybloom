@@ -754,7 +754,7 @@ export default function BillingPage() {
           <span>
             {isMaster ? "School Subscriptions" : "Your DailyBloom Subscription"}
           </span>
-          <span className="db-collapse-action">{subscriptionsOpen ? "Close" : "Open"}</span>
+          <span className="db-collapse-action db-section-toggle">{subscriptionsOpen ? "Close" : "Open"}</span>
         </button>
 
         {subscriptionsOpen ? (

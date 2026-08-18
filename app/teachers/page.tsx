@@ -449,7 +449,7 @@ export default function TeachersPage() {
       <div className="db-card db-card-green" style={{ padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <h3 style={sectionTitle}>Practitioners ({teachers.length})</h3>
-          <button type="button" className="db-collapse-action" onClick={() => setTeachersListOpen((current) => !current)} aria-expanded={teachersListOpen}>
+          <button type="button" className="db-collapse-action db-section-toggle" onClick={() => setTeachersListOpen((current) => !current)} aria-expanded={teachersListOpen}>
             {teachersListOpen ? "Close" : "Open"} list
           </button>
         </div>

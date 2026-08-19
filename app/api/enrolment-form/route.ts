@@ -95,6 +95,33 @@ function uploadedDocuments(value: unknown, requirements: unknown, enquiry: { sch
 
 type EnrolmentFee = { fee_code?: string | null; fee_name?: string | null; fee_category?: string | null; amount?: number | string | null };
 type EnrolmentTerm = { id: string; title: string; content: string; display_order?: number };
+type EnrolmentConfiguration = {
+  form_title?: string | null;
+  introduction?: string | null;
+  is_open?: boolean | null;
+  second_guardian_mode?: "hidden" | "optional" | "required" | null;
+  emergency_contact_mode?: "hidden" | "optional" | "required" | null;
+  previous_school_enabled?: boolean | null;
+  additional_declaration?: string | null;
+  custom_fields?: unknown;
+};
+
+async function loadEnrolmentConfiguration(schoolId: number) {
+  const fullResult = await supabaseAdmin
+    .from("school_enrolment_configurations")
+    .select("form_title, introduction, is_open, second_guardian_mode, emergency_contact_mode, previous_school_enabled, additional_declaration, custom_fields")
+    .eq("school_id", schoolId)
+    .maybeSingle();
+  if (!fullResult.error || !fullResult.error.message.includes("custom_fields")) {
+    return { data: fullResult.data as EnrolmentConfiguration | null, error: fullResult.error };
+  }
+  const compatibleResult = await supabaseAdmin
+    .from("school_enrolment_configurations")
+    .select("form_title, introduction, is_open, second_guardian_mode, emergency_contact_mode, previous_school_enabled, additional_declaration")
+    .eq("school_id", schoolId)
+    .maybeSingle();
+  return { data: compatibleResult.data as EnrolmentConfiguration | null, error: compatibleResult.error };
+}
 
 function termsWithConfiguredFees(terms: EnrolmentTerm[] | null, fees: EnrolmentFee[] | null) {
   return (terms || []).map((term) => {
@@ -123,11 +150,7 @@ export async function GET(request: Request) {
   }
   const school = one(enquiry.schools as { school_name?: string; logo_url?: string; primary_color?: string; contact_number?: string; emis_number?: string } | { school_name?: string; logo_url?: string; primary_color?: string; contact_number?: string; emis_number?: string }[] | null);
   const form = one(enquiry.school_enrolment_forms as Record<string, unknown> | Record<string, unknown>[] | null);
-  const { data: configuration, error: configurationError } = await supabaseAdmin
-    .from("school_enrolment_configurations")
-    .select("form_title, introduction, is_open, second_guardian_mode, emergency_contact_mode, previous_school_enabled, additional_declaration, custom_fields")
-    .eq("school_id", enquiry.school_id)
-    .maybeSingle();
+  const { data: configuration, error: configurationError } = await loadEnrolmentConfiguration(enquiry.school_id);
   if (configurationError) return NextResponse.json({ error: configurationError.message }, { status: 500 });
   if (!staffCaptureId && configuration?.is_open === false) return NextResponse.json({ error: "Enrolments are not open at the moment. Please contact the school." }, { status: 403 });
   const [{ data: documents }, { data: requirements }, { data: consents }, { data: terms }, { data: fees }, { data: settings }, { data: registration }, { data: signupRows }] = await Promise.all([
@@ -153,7 +176,7 @@ export async function GET(request: Request) {
     school_contact_number: registration?.contact_number || signup?.school_phone || school?.contact_number || null,
     school_email_address: registration?.email_address || signup?.school_email || null,
     school_physical_address: registration?.physical_address || signup?.school_address || null,
-    form: { ...form, form_name: configuration?.form_title || form?.form_name, instructions: configuration?.introduction || form?.instructions, custom_fields: configuration ? configuration.custom_fields : form?.custom_fields },
+    form: { ...form, form_name: configuration?.form_title || form?.form_name, instructions: configuration?.introduction || form?.instructions, custom_fields: configuration?.custom_fields || form?.custom_fields },
     enrolment_configuration: configuration ? { ...configuration, additional_declaration: configuration.additional_declaration || DEFAULT_PARENT_DECLARATION } : { additional_declaration: DEFAULT_PARENT_DECLARATION },
     document_requirements: documents || [], requirement_templates: requirements || [], consents: consents || [], terms: presentedTerms,
     fees: fees || [], banking_details: settings || null,
@@ -195,7 +218,7 @@ export async function POST(request: Request) {
   }
   const form = one(enquiry.school_enrolment_forms as Record<string, unknown> | Record<string, unknown>[] | null);
   const [{ data: configuration }, { data: configuredDocuments }, { data: requirements }, { data: consents }, { data: terms }, { data: fees }] = await Promise.all([
-    supabaseAdmin.from("school_enrolment_configurations").select("form_title, introduction, is_open, second_guardian_mode, emergency_contact_mode, previous_school_enabled, additional_declaration, custom_fields").eq("school_id", enquiry.school_id).maybeSingle(),
+    loadEnrolmentConfiguration(enquiry.school_id),
     supabaseAdmin.from("school_enrolment_document_requirements").select("title, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_requirement_templates").select("template_key, available_from_months, available_to_months, category, item_name, quantity, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("template_key").order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("id, title, wording, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
@@ -229,7 +252,7 @@ export async function POST(request: Request) {
   try {
     customAnswers = savedCustomAnswers(
       body.custom_answers,
-      configuration ? configuration.custom_fields : form?.custom_fields,
+      configuration?.custom_fields || form?.custom_fields,
     );
   } catch (validationError) {
     return NextResponse.json({ error: validationError instanceof Error ? validationError.message : "Complete the required custom questions." }, { status: 400 });

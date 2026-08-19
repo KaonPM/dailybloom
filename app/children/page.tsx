@@ -273,6 +273,8 @@ export default function LearnersPage() {
 
   async function openReturnedFormByReference() {
     if (!schoolId || !captureReference.trim()) return;
+    const formWindow = window.open("", "_blank");
+    if (formWindow) formWindow.opener = null;
     setFindingReference(true);
     try {
       const response = await authenticatedFetch("/api/enrolments", {
@@ -282,8 +284,11 @@ export default function LearnersPage() {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "The enrolment form could not be found.");
-      router.push(`/enrolment/staff?staff_capture_id=${encodeURIComponent(body.enquiry_id)}&school_id=${schoolId}`);
+      const formUrl = `/enrolment/staff?staff_capture_id=${encodeURIComponent(body.enquiry_id)}&school_id=${schoolId}`;
+      if (formWindow) formWindow.location.href = formUrl;
+      else router.push(formUrl);
     } catch (referenceError) {
+      formWindow?.close();
       alert(referenceError instanceof Error ? referenceError.message : "The enrolment form could not be found.");
     } finally {
       setFindingReference(false);
@@ -971,20 +976,7 @@ export default function LearnersPage() {
               <button type="button" className="db-button-secondary" onClick={() => setReferenceCaptureOpen((current) => !current)}>
                 Capture Form by Reference
               </button>
-              <button
-                type="button"
-                className="db-button-primary"
-                onClick={() => {
-                  if (showForm) {
-                    resetForm();
-                    setShowForm(false);
-                    return;
-                  }
-                  router.push(`/enrolments${schoolId ? `?school=${schoolId}&action=add` : "?action=add"}`);
-                }}
-              >
-                {showForm ? "Close" : "+ Add Learner"}
-              </button>
+              {showForm ? <button type="button" className="db-button-primary" onClick={() => { resetForm(); setShowForm(false); }}>Close</button> : <Link className="db-button-primary" href={`/enrolments${schoolId ? `?school=${schoolId}&action=add` : "?action=add"}`} target="_blank" rel="noopener noreferrer">+ Add Learner</Link>}
             </div>
           ) : null}
         </div>

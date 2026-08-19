@@ -34,6 +34,7 @@ type NavItem = {
   view?: string;
   featureKey?: string;
   permission?: Permission;
+  newTab?: boolean;
 };
 
 type WorkflowGroup = {
@@ -137,7 +138,7 @@ export default function Sidebar() {
 
   const quickActionsNav = useMemo<NavItem[]>(
     () => [
-      { label: "Add Learner", href: "/enrolments?action=add", match: ["/enrolments"], permission: PERMISSIONS.LEARNERS_MANAGE },
+      { label: "Add Learner", href: "/enrolments?action=add", match: ["/enrolments"], permission: PERMISSIONS.LEARNERS_MANAGE, newTab: true },
       { label: "Add Practitioner", href: "/teachers?action=add", match: ["/teachers"], permission: PERMISSIONS.STAFF_MANAGE },
       { label: "Add Event", href: "/events", match: ["/events"], permission: PERMISSIONS.EVENTS_MANAGE },
       {
@@ -1143,6 +1144,8 @@ export default function Sidebar() {
                   <Link
                     key={item.label}
                     href={withSchoolContext(item.href)}
+                    target={item.newTab ? "_blank" : undefined}
+                    rel={item.newTab ? "noopener noreferrer" : undefined}
                     style={navStyle(item)}
                   >
                     {item.label}

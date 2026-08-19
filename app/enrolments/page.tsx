@@ -285,8 +285,10 @@ export default function EnrolmentsPage() {
     }
   }
 
-  async function startManualApplication() {
+  async function startManualApplication(openInNewTab = false) {
     if (!schoolId || !manualSource) return;
+    const captureWindow = openInNewTab && manualSource !== "printed_blank_form" ? window.open("", "_blank") : null;
+    if (captureWindow) captureWindow.opener = null;
     setStartingManual(true); setError(""); setMessage("");
     try {
       const response = await authenticatedFetch("/api/enrolments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start_manual_application", school_id: schoolId, enrolment_source: manualSource, academic_year: manualYear }) });
@@ -296,9 +298,11 @@ export default function EnrolmentsPage() {
         router.push(`/enrolments/print/${encodeURIComponent(body.enquiry.id)}${schoolQuery}`);
         return;
       }
-      router.push(`/enrolment/staff?staff_capture_id=${encodeURIComponent(body.enquiry.id)}&school_id=${schoolId}`);
+      const captureUrl = `/enrolment/staff?staff_capture_id=${encodeURIComponent(body.enquiry.id)}&school_id=${schoolId}`;
+      if (captureWindow) captureWindow.location.href = captureUrl;
+      else router.push(captureUrl);
       return;
-    } catch (startError) { setError(startError instanceof Error ? startError.message : "Could not start the enrolment."); } finally { setStartingManual(false); }
+    } catch (startError) { captureWindow?.close(); setError(startError instanceof Error ? startError.message : "Could not start the enrolment."); } finally { setStartingManual(false); }
   }
 
   useEffect(() => {
@@ -376,7 +380,7 @@ export default function EnrolmentsPage() {
         )}
         {forms.length > 0 ? <div><button className="db-button-primary" type="button" disabled={creating} onClick={() => void createEnquiry()}>{creating ? "Creating..." : "Create Registration Fee Request"}</button></div> : null}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-secondary" type="button" onClick={() => setManualSource("printed_blank_form")}>Print Blank Enrolment Form</button><button className="db-button-secondary" type="button" onClick={() => setManualSource("paper_manual_capture")}>Start Digital Enrolment</button></div>
-        {manualSource ? <div className="db-soft-card" style={{ padding: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Academic year</span><select className="db-input" value={manualYear} onChange={(event) => setManualYear(Number(event.target.value))}><option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option><option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option></select></label><button className="db-button-primary" type="button" disabled={startingManual} onClick={() => void startManualApplication()}>{startingManual ? "Creating..." : manualSource === "printed_blank_form" ? "Create and open printable form" : "Start capture"}</button><button className="db-button-secondary" type="button" onClick={() => setManualSource(null)}>Cancel</button></div> : null}
+        {manualSource ? <div className="db-soft-card" style={{ padding: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Academic year</span><select className="db-input" value={manualYear} onChange={(event) => setManualYear(Number(event.target.value))}><option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option><option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option></select></label><button className="db-button-primary" type="button" disabled={startingManual} onClick={() => void startManualApplication(true)}>{startingManual ? "Creating..." : manualSource === "printed_blank_form" ? "Create and open printable form" : "Start capture"}</button><button className="db-button-secondary" type="button" onClick={() => setManualSource(null)}>Cancel</button></div> : null}
         </> : null}
       </section>
 

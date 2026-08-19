@@ -350,13 +350,13 @@ export default function EnrolmentsPage() {
         </section>
       ) : null}
 
-      <section className="db-card db-card-yellow" style={{ display: "grid", gap: 16 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "start", gap: 12, width: "100%" }}>
+      <section className="db-card db-card-yellow" style={{ display: "grid", gap: 16, position: "relative" }}>
+        <div style={{ width: "100%", paddingRight: 120 }}>
           <div>
             <h2 style={{ margin: 0 }}>New Enquiry</h2>
             <p className="db-helper" style={{ marginBottom: 0 }}>The form uses the single Registration Fee already set in School Fee Setup. No second fee is created here.</p>
           </div>
-          <button className="db-collapse-action db-section-toggle" style={{ width: 96 }} type="button" onClick={() => setNewEnquiryOpen((current) => !current)} aria-expanded={newEnquiryOpen}>
+          <button className="db-collapse-action" style={{ width: 96, position: "absolute", top: 24, right: 24 }} type="button" onClick={() => setNewEnquiryOpen((current) => !current)} aria-expanded={newEnquiryOpen}>
             {newEnquiryOpen ? "Close" : "Open"}
           </button>
         </div>

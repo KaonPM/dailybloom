@@ -135,6 +135,7 @@ export async function sendWhatsAppTemplate(input: WhatsAppTemplateInput): Promis
   const phoneNumberId = requiredEnvironment("WHATSAPP_PHONE_NUMBER_ID");
   const accessToken = requiredEnvironment("WHATSAPP_ACCESS_TOKEN");
   const to = toSouthAfricanSmsNumber(input.phone).replace(/^\+/, "");
+  if (!/^27\d{9}$/.test(to)) throw new Error("Enter a valid 10-digit South African mobile number, for example 082 000 0000.");
   const language = templateLanguage();
 
   const components: Array<Record<string, unknown>> = [];
@@ -205,6 +206,7 @@ export async function sendWhatsAppAuthenticationCode(input: WhatsAppAuthenticati
   const phoneNumberId = requiredEnvironment("WHATSAPP_PHONE_NUMBER_ID");
   const accessToken = requiredEnvironment("WHATSAPP_ACCESS_TOKEN");
   const to = toSouthAfricanSmsNumber(input.phone).replace(/^\+/, "");
+  if (!/^27\d{9}$/.test(to)) throw new Error("Enter a valid 10-digit South African mobile number, for example 082 000 0000.");
   const code = cleanTemplateParameter(input.code);
   const language = templateLanguage();
   logTemplateDispatch({ templateName: input.templateName, language, headerParameterCount: 0, bodyParameterCount: 1 });

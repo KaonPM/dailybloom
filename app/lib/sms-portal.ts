@@ -2,7 +2,8 @@ import "server-only";
 
 export function toSouthAfricanSmsNumber(value: string) {
   let digits = value.replace(/\D/g, "");
-  if (digits.startsWith("0")) digits = `27${digits.slice(1)}`;
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (/^0\d{9}$/.test(digits)) digits = `27${digits.slice(1)}`;
   return digits;
 }
 

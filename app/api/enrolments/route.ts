@@ -5,6 +5,7 @@ import { PERMISSIONS } from "@/app/lib/permissions";
 import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 import { sendTrackedEnrolmentWhatsApp } from "@/app/lib/enrolment-whatsapp-delivery";
+import { toSouthAfricanSmsNumber } from "@/app/lib/sms-portal";
 
 function text(value: unknown, max = 300) {
   return String(value || "").trim().slice(0, max);
@@ -104,12 +105,19 @@ export async function POST(request: Request) {
   if (action === "create") {
     const parentName = text(body.parent_name, 180);
     const parentPhone = text(body.parent_phone, 40);
+    const normalizedParentPhone = toSouthAfricanSmsNumber(parentPhone);
     const requestedAcademicYear = Number(body.academic_year);
     const academicYear = Number.isInteger(requestedAcademicYear) && requestedAcademicYear >= 2020 && requestedAcademicYear <= 2100
       ? requestedAcademicYear
       : new Date().getFullYear();
     if (!parentName || !parentPhone) {
       return NextResponse.json({ error: "Enter the parent name and mobile number." }, { status: 400 });
+    }
+    if (!/\p{L}/u.test(parentName)) {
+      return NextResponse.json({ error: "Enter the parent or guardian's name in the name field, not their mobile number." }, { status: 400 });
+    }
+    if (!/^27\d{9}$/.test(normalizedParentPhone)) {
+      return NextResponse.json({ error: "Enter a valid 10-digit South African mobile number, for example 082 000 0000." }, { status: 400 });
     }
     const [{ data: form }, { data: fee }, { data: school }, { data: setup }] = await Promise.all([
       supabaseAdmin.from("school_enrolment_forms").select("id, form_name").eq("school_id", schoolId).eq("form_type", "general").eq("is_active", true).maybeSingle(),
@@ -130,7 +138,7 @@ export async function POST(request: Request) {
         enquiry_reference: reference,
         academic_year: academicYear,
         parent_name: parentName,
-        parent_phone: parentPhone,
+        parent_phone: `+${normalizedParentPhone}`,
         registration_fee_type_id: fee.id,
         registration_fee_amount: Number(fee.amount || 0),
         created_by: authorization.staff.userId,
@@ -158,7 +166,7 @@ export async function POST(request: Request) {
     const delivery = await sendEnrolmentWhatsAppMessage({
       enquiryId: enquiry.id,
       schoolId,
-      phone: parentPhone,
+      phone: normalizedParentPhone,
       kind: "registration",
       bodyParameters: [parentName, school?.school_name || "your school", money, reference, bankSummary],
     });

@@ -265,7 +265,9 @@ export default function EnrolmentsPage() {
       } else {
         setPaymentFor(null);
         setPaymentReference("");
-        setMessage("Registration Fee payment confirmed. You can now issue the secure digital form.");
+        setPipelineSearch(enquiry.enquiry_reference);
+        setPipelinePage(0);
+        setMessage(`Registration Fee payment confirmed for ${enquiry.enquiry_reference}. Select Issue Secure Form on the learner row below.`);
       }
       await loadPage();
     } catch (actionError) {
@@ -358,9 +360,6 @@ export default function EnrolmentsPage() {
             <h2 style={{ margin: 0 }}>New Enquiry</h2>
             <p className="db-helper" style={{ marginBottom: 0 }}>The form uses the single Registration Fee already set in School Fee Setup. No second fee is created here.</p>
           </div>
-          <button className="db-button-secondary" type="button" onClick={() => setManualSource("paper_manual_capture")}>
-            + Add Learner Manually
-          </button>
           <button className="db-collapse-action db-section-toggle" style={{ width: 96 }} type="button" onClick={() => setNewEnquiryOpen((current) => !current)} aria-expanded={newEnquiryOpen}>
             {newEnquiryOpen ? "Close" : "Open"}
           </button>
@@ -373,7 +372,7 @@ export default function EnrolmentsPage() {
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
             <label style={{ display: "grid", gap: 7 }}><strong>Parent or guardian name</strong><input className="db-input" value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Parent or guardian name" /></label>
-            <label style={{ display: "grid", gap: 7 }}><strong>Parent mobile number</strong><input className="db-input" inputMode="tel" value={parentPhone} onChange={(event) => setParentPhone(event.target.value)} placeholder="e.g. 082 000 0000" /></label>
+            <label style={{ display: "grid", gap: 7 }}><strong>Parent mobile number</strong><input className="db-input" inputMode="tel" autoComplete="tel" value={parentPhone} onChange={(event) => setParentPhone(event.target.value)} placeholder="10 digits, e.g. 082 000 0000" /><small className="db-helper">Use the parent&apos;s 10-digit South African WhatsApp number.</small></label>
             <label style={{ display: "grid", gap: 7 }}><strong>Academic year</strong><select className="db-input" value={enquiryYear} onChange={(event) => setEnquiryYear(Number(event.target.value))}><option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option><option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option></select></label>
             <div className="db-soft-card" style={{ padding: 12 }}><strong>Universal enrolment form</strong><br /><small className="db-helper">DailyBloom uses your School Setup configuration for every new application.</small></div>
           </div>
@@ -425,6 +424,7 @@ export default function EnrolmentsPage() {
               <details className="db-soft-card enrolment-pipeline-row" key={enquiry.id}>
                 <summary className="enrolment-pipeline-summary">
                   <strong>{enquiry.enquiry_reference}</strong><span>{enquiry.parent_name}</span><span>{enquiry.parent_phone}</span><span>{formatDate(enquiry.created_at)}</span><span className="db-status-pill">{statusLabel(enquiry.status)}</span>
+                  {enquiry.status === "payment_pending" && ["verified", "waived"].includes(enquiry.registration_payment_status) ? <button className="db-button-primary" type="button" disabled={isWorking} onClick={(event) => { event.preventDefault(); event.stopPropagation(); void runAction(enquiry, "issue_form"); }}>{isWorking ? "Preparing..." : "Issue Secure Form"}</button> : <span className="db-collapse-action">Open</span>}
                 </summary>
                 <div className="enrolment-pipeline-details">
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>

@@ -67,7 +67,7 @@ type AwardRow = {
 };
 type ReprintRow = { certificate_id: number };
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 10;
 const CURRENT_YEAR = new Date().getFullYear();
 
 export default function AchievementAwardsPage() {

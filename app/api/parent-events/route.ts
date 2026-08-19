@@ -11,7 +11,7 @@ import { supabaseAdmin } from "@/app/lib/supabase-admin";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 const EVENT_RANGES: ParentEventRange[] = [
   "Today",
   "This Week",

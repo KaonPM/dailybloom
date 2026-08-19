@@ -217,7 +217,7 @@ export default function ProgressReportsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const pageSize = 5;
+  const pageSize = 10;
 
   const activeCategories = useMemo(() => {
     return getProgressReportCategories(reportType);

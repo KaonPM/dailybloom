@@ -113,7 +113,7 @@ type ParentContext = {
   name?: string | null;
 };
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 
 export default function ParentDashboardClient({
   learners,

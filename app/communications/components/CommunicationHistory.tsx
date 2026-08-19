@@ -94,7 +94,7 @@ export default function CommunicationHistory({ rows, pagination, onPage, onView 
             disabled={pagination.page >= pagination.totalPages}
             onClick={() => onPage(pagination.page + 1)}
           >
-            Next 20
+            Next 10
           </button>
         </div>
       </div>

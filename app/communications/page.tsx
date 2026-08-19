@@ -16,7 +16,7 @@ const EMPTY_SUMMARY: CommunicationSummaryData = {
   failed: 0,
   awaiting: 0,
 };
-const DEFAULT_PAGINATION: PaginationData = { page: 1, pageSize: 20, total: 0, totalPages: 1 };
+const DEFAULT_PAGINATION: PaginationData = { page: 1, pageSize: 10, total: 0, totalPages: 1 };
 const channels = ["", "parent_portal", "in_app", "push", "sms", "whatsapp", "email"];
 const statuses = ["", "queued", "sending", "sent", "delivered", "read", "retry_scheduled", "failed", "skipped"];
 
@@ -90,7 +90,7 @@ export default function CommunicationsPage() {
       const params = new URLSearchParams({
         school_id: String(schoolId),
         page: String(requestedPage),
-        page_size: "20",
+        page_size: "10",
         from: appliedFilters.from,
         to: appliedFilters.to,
       });

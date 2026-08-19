@@ -79,7 +79,7 @@ type SchoolFeeType = {
   amount: number;
 };
 
-const LEARNERS_PER_PAGE = 20;
+const LEARNERS_PER_PAGE = 10;
 
 function nextMonthStart() {
   const now = new Date();
@@ -1713,7 +1713,7 @@ export default function LearnersPage() {
                     )
                   }
                 >
-                  Previous 20
+                  Previous 10
                 </button>
                 <span className="db-helper" style={{ margin: 0 }}>
                   Page {activeLearnerPage} of {learnerPageCount}
@@ -1728,7 +1728,7 @@ export default function LearnersPage() {
                     )
                   }
                 >
-                  Next 20
+                  Next 10
                 </button>
               </div>
             ) : null}

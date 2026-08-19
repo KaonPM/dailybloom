@@ -9,7 +9,7 @@ export type ParentGroup = {
   invite_error?: string | null;
 };
 
-export const PARENTS_PER_PAGE = 20;
+export const PARENTS_PER_PAGE = 10;
 
 type ParentAccessListProps = {
   groups: ParentGroup[];
@@ -161,7 +161,7 @@ export function ParentAccessList({
             disabled={page === 1}
             onClick={() => onPageChange(Math.max(1, page - 1))}
           >
-            Previous 20
+            Previous 10
           </button>
           <strong>
             Page {page} of {totalPages}
@@ -172,7 +172,7 @@ export function ParentAccessList({
             disabled={page === totalPages}
             onClick={() => onPageChange(Math.min(totalPages, page + 1))}
           >
-            Next 20
+            Next 10
           </button>
         </div>
       ) : null}

@@ -320,8 +320,8 @@ export default function EnrolmentsPage() {
   }, [schoolId, searchParams]);
 
   const filteredEnquiries = enquiries.filter((enquiry) => `${enquiry.enquiry_reference} ${enquiry.parent_name} ${enquiry.parent_phone}`.toLowerCase().includes(pipelineSearch.trim().toLowerCase()));
-  const pipelinePageCount = Math.max(1, Math.ceil(filteredEnquiries.length / 20));
-  const displayedEnquiries = filteredEnquiries.slice(pipelinePage * 20, pipelinePage * 20 + 20);
+  const pipelinePageCount = Math.max(1, Math.ceil(filteredEnquiries.length / 10));
+  const displayedEnquiries = filteredEnquiries.slice(pipelinePage * 10, pipelinePage * 10 + 10);
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <section className="db-page-header db-card-blue">
@@ -490,7 +490,7 @@ export default function EnrolmentsPage() {
             );
           })}
         </div> : null}
-        {filteredEnquiries.length > 20 ? <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}><button className="db-button-secondary" type="button" disabled={pipelinePage === 0} onClick={() => setPipelinePage((page) => Math.max(0, page - 1))}>Previous 20</button><span className="db-helper">Page {pipelinePage + 1} of {pipelinePageCount} · {filteredEnquiries.length} records</span><button className="db-button-secondary" type="button" disabled={pipelinePage + 1 >= pipelinePageCount} onClick={() => setPipelinePage((page) => Math.min(pipelinePageCount - 1, page + 1))}>Next 20</button></div> : null}
+        {filteredEnquiries.length > 10 ? <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}><button className="db-button-secondary" type="button" disabled={pipelinePage === 0} onClick={() => setPipelinePage((page) => Math.max(0, page - 1))}>Previous 10</button><span className="db-helper">Page {pipelinePage + 1} of {pipelinePageCount} · {filteredEnquiries.length} records</span><button className="db-button-secondary" type="button" disabled={pipelinePage + 1 >= pipelinePageCount} onClick={() => setPipelinePage((page) => Math.min(pipelinePageCount - 1, page + 1))}>Next 10</button></div> : null}
         </>}
       </section>
     </div>

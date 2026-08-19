@@ -48,7 +48,7 @@ export async function GET(request: Request) {
   const communicationType = String(url.searchParams.get("communication_type") || "").trim().toLowerCase();
   const search = String(url.searchParams.get("search") || "").trim().slice(0, 100).toLowerCase();
   const page = Math.max(1, Number(url.searchParams.get("page") || 1));
-  const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("page_size") || 20)));
+  const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("page_size") || 10)));
 
   let query = supabaseAdmin
     .from("communication_notifications")

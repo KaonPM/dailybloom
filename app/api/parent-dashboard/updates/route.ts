@@ -6,7 +6,7 @@ import { parentCanAccessLearnerAtSchool } from "@/app/lib/parent-authorization-p
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 const TIMEZONE_OFFSET_HOURS = 2;
 
 function toDateOnly(date: Date) {

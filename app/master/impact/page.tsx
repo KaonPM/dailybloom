@@ -620,10 +620,10 @@ export default function ImpactSponsorshipDashboard() {
             100
         );
 
-  const visibleSponsors = sponsors.slice(sponsorPage * 5, sponsorPage * 5 + 5);
+  const visibleSponsors = sponsors.slice(sponsorPage * 10, sponsorPage * 10 + 10);
   const visibleSponsoredSchools = schoolsForSponsor.slice(
-    schoolPage * 5,
-    schoolPage * 5 + 5
+    schoolPage * 10,
+    schoolPage * 10 + 10
   );
 
   function getReportingPeriodLabel() {
@@ -1729,7 +1729,7 @@ function PaginationButtons({
   onNext: () => void;
 }) {
   const hasPrevious = currentPage > 0;
-  const hasNext = (currentPage + 1) * 5 < totalItems;
+  const hasNext = (currentPage + 1) * 10 < totalItems;
 
   if (!hasPrevious && !hasNext) {
     return null;

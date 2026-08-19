@@ -104,6 +104,10 @@ export async function POST(request: Request) {
   if (action === "create") {
     const parentName = text(body.parent_name, 180);
     const parentPhone = text(body.parent_phone, 40);
+    const requestedAcademicYear = Number(body.academic_year);
+    const academicYear = Number.isInteger(requestedAcademicYear) && requestedAcademicYear >= 2020 && requestedAcademicYear <= 2100
+      ? requestedAcademicYear
+      : new Date().getFullYear();
     if (!parentName || !parentPhone) {
       return NextResponse.json({ error: "Enter the parent name and mobile number." }, { status: 400 });
     }
@@ -116,7 +120,7 @@ export async function POST(request: Request) {
     if (!form) return NextResponse.json({ error: "Set up an active enrolment form before creating an enquiry." }, { status: 400 });
     if (!fee) return NextResponse.json({ error: "Registration Fee is not available. Open School Fee Setup first." }, { status: 400 });
 
-    const { data: reference, error: referenceError } = await supabaseAdmin.rpc("next_school_enrolment_reference", { p_school_id: schoolId });
+    const { data: reference, error: referenceError } = await supabaseAdmin.rpc("next_school_enrolment_reference_for_year", { p_school_id: schoolId, p_academic_year: academicYear });
     if (referenceError || !reference) return NextResponse.json({ error: referenceError?.message || "Could not create an enrolment reference." }, { status: 500 });
     const { data: enquiry, error: createError } = await supabaseAdmin
       .from("school_enrolment_enquiries")
@@ -124,13 +128,14 @@ export async function POST(request: Request) {
         school_id: schoolId,
         form_id: form.id,
         enquiry_reference: reference,
+        academic_year: academicYear,
         parent_name: parentName,
         parent_phone: parentPhone,
         registration_fee_type_id: fee.id,
         registration_fee_amount: Number(fee.amount || 0),
         created_by: authorization.staff.userId,
       })
-      .select("id, enquiry_reference, registration_fee_amount")
+      .select("id, enquiry_reference, academic_year, registration_fee_amount")
       .single();
     if (createError || !enquiry) return NextResponse.json({ error: createError?.message || "Could not save enrolment enquiry." }, { status: 500 });
     const whatsappMessage = paymentMessage({

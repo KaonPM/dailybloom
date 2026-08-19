@@ -121,6 +121,7 @@ export default function EnrolmentsPage() {
   const [pipelineSearch, setPipelineSearch] = useState("");
   const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
+  const [enquiryYear, setEnquiryYear] = useState(new Date().getFullYear());
   const [creating, setCreating] = useState(false);
   const [newEnquiryOpen, setNewEnquiryOpen] = useState(true);
   const [pipelineOpen, setPipelineOpen] = useState(true);
@@ -187,7 +188,7 @@ export default function EnrolmentsPage() {
       const response = await authenticatedFetch("/api/enrolments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create", school_id: schoolId, parent_name: parentName, parent_phone: parentPhone }),
+        body: JSON.stringify({ action: "create", school_id: schoolId, parent_name: parentName, parent_phone: parentPhone, academic_year: enquiryYear }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "The enrolment enquiry could not be created.");
@@ -360,6 +361,7 @@ export default function EnrolmentsPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
             <label style={{ display: "grid", gap: 7 }}><strong>Parent or guardian name</strong><input className="db-input" value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Parent or guardian name" /></label>
             <label style={{ display: "grid", gap: 7 }}><strong>Parent mobile number</strong><input className="db-input" inputMode="tel" value={parentPhone} onChange={(event) => setParentPhone(event.target.value)} placeholder="e.g. 082 000 0000" /></label>
+            <label style={{ display: "grid", gap: 7 }}><strong>Academic year</strong><select className="db-input" value={enquiryYear} onChange={(event) => setEnquiryYear(Number(event.target.value))}><option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option><option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option></select></label>
             <div className="db-soft-card" style={{ padding: 12 }}><strong>Universal enrolment form</strong><br /><small className="db-helper">DailyBloom uses your School Setup configuration for every new application.</small></div>
           </div>
         )}

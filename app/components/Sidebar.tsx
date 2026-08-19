@@ -775,7 +775,7 @@ export default function Sidebar() {
           label: "School Administration",
           color: "#F59E0B",
           items: [
-            ...itemsNamed("Classrooms"),
+            ...itemsNamed("Learners", "Classrooms"),
             ...(canViewTeachers
               ? [{ label: "Practitioners", href: "/teachers", match: ["/teachers"] }]
               : []),

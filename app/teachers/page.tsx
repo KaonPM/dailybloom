@@ -35,7 +35,7 @@ export default function TeachersPage() {
   const [selectedTeacher, setSelectedTeacher] = useState<TeacherRow | null>(null);
   const [teachersListOpen, setTeachersListOpen] = useState(true);
 
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(() => searchParams.get("action") === "add");
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [fullName, setFullName] = useState("");

@@ -138,7 +138,7 @@ export default function Sidebar() {
   const quickActionsNav = useMemo<NavItem[]>(
     () => [
       { label: "Add Learner", href: "/enrolments?action=add", match: ["/enrolments"], permission: PERMISSIONS.LEARNERS_MANAGE },
-      { label: "Add Practitioner", href: "/teachers", match: ["/teachers"], permission: PERMISSIONS.STAFF_MANAGE },
+      { label: "Add Practitioner", href: "/teachers?action=add", match: ["/teachers"], permission: PERMISSIONS.STAFF_MANAGE },
       { label: "Add Event", href: "/events", match: ["/events"], permission: PERMISSIONS.EVENTS_MANAGE },
       {
         label: "Create Broadcast",
@@ -775,7 +775,11 @@ export default function Sidebar() {
           label: "School Administration",
           color: "#F59E0B",
           items: [
-            ...itemsNamed("Classrooms", "Learner Requirements Tracking", "School Setup", "School Printable Documents", "Trust & Security"),
+            ...itemsNamed("Classrooms"),
+            ...(canViewTeachers
+              ? [{ label: "Practitioners", href: "/teachers", match: ["/teachers"] }]
+              : []),
+            ...itemsNamed("Learner Requirements Tracking", "School Setup", "School Printable Documents", "Trust & Security"),
             ...(canViewDbe ? dbeNav : []),
           ],
         },
@@ -792,9 +796,6 @@ export default function Sidebar() {
           items: [
             ...(canManagePreschoolAdmins
               ? [{ label: "Admin", href: "/staff-access", match: ["/staff-access"] }]
-              : []),
-            ...(canViewTeachers
-              ? [{ label: "Practitioners", href: "/teachers", match: ["/teachers"] }]
               : []),
           ],
           externalItems: showWageFlowStaffManagement

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 import { resolveSchoolContext } from "@/app/lib/school-context";
@@ -135,6 +135,7 @@ export default function EnrolmentsPage() {
   const [manualYear, setManualYear] = useState(new Date().getFullYear());
   const [startingManual, setStartingManual] = useState(false);
   const [waitingClassrooms, setWaitingClassrooms] = useState<Record<string, string>>({});
+  const directAddStarted = useRef(false);
 
   const schoolQuery = useMemo(() => {
     const school = searchParams.get("school");
@@ -299,6 +300,14 @@ export default function EnrolmentsPage() {
       return;
     } catch (startError) { setError(startError instanceof Error ? startError.message : "Could not start the enrolment."); } finally { setStartingManual(false); }
   }
+
+  useEffect(() => {
+    if (searchParams.get("action") !== "add" || !schoolId || directAddStarted.current) return;
+    directAddStarted.current = true;
+    void startManualApplication();
+    // The direct Add Learner action should run once after the school context is available.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolId, searchParams]);
 
   const filteredEnquiries = enquiries.filter((enquiry) => `${enquiry.enquiry_reference} ${enquiry.parent_name} ${enquiry.parent_phone}`.toLowerCase().includes(pipelineSearch.trim().toLowerCase()));
   const pipelinePageCount = Math.max(1, Math.ceil(filteredEnquiries.length / 20));

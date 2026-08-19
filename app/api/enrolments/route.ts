@@ -105,13 +105,15 @@ export async function POST(request: Request) {
   if (action === "create") {
     const parentName = text(body.parent_name, 180);
     const parentPhone = text(body.parent_phone, 40);
+    const learnerFirstName = text(body.learner_first_name, 120);
+    const learnerSurname = text(body.learner_surname, 120);
     const normalizedParentPhone = toSouthAfricanSmsNumber(parentPhone);
     const requestedAcademicYear = Number(body.academic_year);
     const academicYear = Number.isInteger(requestedAcademicYear) && requestedAcademicYear >= 2020 && requestedAcademicYear <= 2100
       ? requestedAcademicYear
       : new Date().getFullYear();
-    if (!parentName || !parentPhone) {
-      return NextResponse.json({ error: "Enter the parent name and mobile number." }, { status: 400 });
+    if (!learnerFirstName || !learnerSurname || !parentName || !parentPhone) {
+      return NextResponse.json({ error: "Enter the learner's first name and surname, plus the parent name and mobile number." }, { status: 400 });
     }
     if (!/\p{L}/u.test(parentName)) {
       return NextResponse.json({ error: "Enter the parent or guardian's name in the name field, not their mobile number." }, { status: 400 });
@@ -139,6 +141,13 @@ export async function POST(request: Request) {
         academic_year: academicYear,
         parent_name: parentName,
         parent_phone: `+${normalizedParentPhone}`,
+        submitted_data: {
+          learner_first_name: learnerFirstName,
+          learner_surname: learnerSurname,
+          guardian_name: parentName,
+          guardian_phone: `+${normalizedParentPhone}`,
+          parent_portal_phone: `+${normalizedParentPhone}`,
+        },
         registration_fee_type_id: fee.id,
         registration_fee_amount: Number(fee.amount || 0),
         created_by: authorization.staff.userId,

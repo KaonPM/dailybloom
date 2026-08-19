@@ -121,6 +121,8 @@ export default function EnrolmentsPage() {
   const [pipelineSearch, setPipelineSearch] = useState("");
   const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
+  const [learnerFirstName, setLearnerFirstName] = useState("");
+  const [learnerSurname, setLearnerSurname] = useState("");
   const [enquiryYear, setEnquiryYear] = useState(new Date().getFullYear());
   const [creating, setCreating] = useState(false);
   const [newEnquiryOpen, setNewEnquiryOpen] = useState(true);
@@ -189,12 +191,14 @@ export default function EnrolmentsPage() {
       const response = await authenticatedFetch("/api/enrolments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create", school_id: schoolId, parent_name: parentName, parent_phone: parentPhone, academic_year: enquiryYear }),
+        body: JSON.stringify({ action: "create", school_id: schoolId, learner_first_name: learnerFirstName, learner_surname: learnerSurname, parent_name: parentName, parent_phone: parentPhone, academic_year: enquiryYear }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "The enrolment enquiry could not be created.");
       setParentName("");
       setParentPhone("");
+      setLearnerFirstName("");
+      setLearnerSurname("");
       const sent = Boolean(body.whatsapp_sent);
       const retryScheduled = Boolean(body.whatsapp_retry_scheduled);
       setMessage(sent
@@ -347,15 +351,7 @@ export default function EnrolmentsPage() {
       ) : null}
 
       <section className="db-card db-card-yellow" style={{ display: "grid", gap: 16 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "start", gap: 12, width: "100%" }}>
           <div>
             <h2 style={{ margin: 0 }}>New Enquiry</h2>
             <p className="db-helper" style={{ marginBottom: 0 }}>The form uses the single Registration Fee already set in School Fee Setup. No second fee is created here.</p>
@@ -370,15 +366,15 @@ export default function EnrolmentsPage() {
             Create at least one active enrolment form in <Link href={`/school-setup${schoolQuery}`}>School Setup</Link> before starting an enquiry.
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
-            <label style={{ display: "grid", gap: 7 }}><strong>Parent or guardian name</strong><input className="db-input" value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Parent or guardian name" /></label>
-            <label style={{ display: "grid", gap: 7 }}><strong>Parent mobile number</strong><input className="db-input" inputMode="tel" autoComplete="tel" value={parentPhone} onChange={(event) => setParentPhone(event.target.value)} placeholder="10 digits, e.g. 082 000 0000" /><small className="db-helper">Use the parent&apos;s 10-digit South African WhatsApp number.</small></label>
-            <label style={{ display: "grid", gap: 7 }}><strong>Academic year</strong><select className="db-input" value={enquiryYear} onChange={(event) => setEnquiryYear(Number(event.target.value))}><option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option><option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option></select></label>
-            <div className="db-soft-card" style={{ padding: 12 }}><strong>Universal enrolment form</strong><br /><small className="db-helper">DailyBloom uses your School Setup configuration for every new application.</small></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))", gap: 12, alignItems: "end" }}>
+            <label style={{ display: "grid", gap: 5 }}><strong>Learner first name</strong><input className="db-input" value={learnerFirstName} onChange={(event) => setLearnerFirstName(event.target.value)} placeholder="First name" /></label>
+            <label style={{ display: "grid", gap: 5 }}><strong>Learner surname</strong><input className="db-input" value={learnerSurname} onChange={(event) => setLearnerSurname(event.target.value)} placeholder="Surname" /></label>
+            <label style={{ display: "grid", gap: 5 }}><strong>Parent or guardian</strong><input className="db-input" value={parentName} onChange={(event) => setParentName(event.target.value)} placeholder="Full name" /></label>
+            <label style={{ display: "grid", gap: 5 }}><strong>WhatsApp number</strong><input className="db-input" inputMode="tel" autoComplete="tel" value={parentPhone} onChange={(event) => setParentPhone(event.target.value)} placeholder="082 000 0000" /></label>
+            <label style={{ display: "grid", gap: 5 }}><strong>Academic year</strong><select className="db-input" value={enquiryYear} onChange={(event) => setEnquiryYear(Number(event.target.value))}><option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option><option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option></select></label>
           </div>
         )}
-        {forms.length > 0 ? <div><button className="db-button-primary" type="button" disabled={creating} onClick={() => void createEnquiry()}>{creating ? "Creating..." : "Create Registration Fee Request"}</button></div> : null}
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-secondary" type="button" onClick={() => setManualSource("printed_blank_form")}>Print Blank Enrolment Form</button><button className="db-button-secondary" type="button" onClick={() => setManualSource("paper_manual_capture")}>Start Digital Enrolment</button></div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>{forms.length > 0 ? <button className="db-button-primary" type="button" disabled={creating} onClick={() => void createEnquiry()}>{creating ? "Creating..." : "Create Registration Fee Request"}</button> : null}<button className="db-button-secondary" type="button" onClick={() => setManualSource("printed_blank_form")}>Print Blank Enrolment Form</button><button className="db-button-secondary" type="button" onClick={() => setManualSource("paper_manual_capture")}>Start Digital Enrolment</button></div>
         {manualSource ? <div className="db-soft-card" style={{ padding: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Academic year</span><select className="db-input" value={manualYear} onChange={(event) => setManualYear(Number(event.target.value))}><option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option><option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option></select></label><button className="db-button-primary" type="button" disabled={startingManual} onClick={() => void startManualApplication(true)}>{startingManual ? "Creating..." : manualSource === "printed_blank_form" ? "Create and open printable form" : "Start capture"}</button><button className="db-button-secondary" type="button" onClick={() => setManualSource(null)}>Cancel</button></div> : null}
         </> : null}
       </section>

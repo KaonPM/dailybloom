@@ -33,6 +33,7 @@ function getTextList(value: unknown): string[] {
 type FormInfo = {
   reference: string;
   parent_name: string;
+  initial_values?: Record<string, string>;
   status: string;
   school_name: string;
   school_logo_url?: string | null;
@@ -171,7 +172,7 @@ export default function SecureEnrolmentFormPage() {
         throw new Error(body.error || "This enrolment link is not available.");
       }
       setInfo(body as FormInfo);
-      setFields((current) => ({ ...current, guardian_name: body.parent_name || "" }));
+      setFields((current) => ({ ...current, ...(body.initial_values || {}), guardian_name: body.initial_values?.guardian_name || body.parent_name || "" }));
     } catch (loadError) {
       setError(
         loadError instanceof Error

@@ -27,7 +27,7 @@ async function findEnquiry(token: string) {
   if (!token || token.length < 30) return null;
   const { data } = await supabaseAdmin
     .from("school_enrolment_enquiries")
-    .select("id, school_id, enquiry_reference, parent_name, status, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name, logo_url, primary_color, contact_number, emis_number)")
+    .select("id, school_id, enquiry_reference, parent_name, parent_phone, submitted_data, status, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name, logo_url, primary_color, contact_number, emis_number)")
     .eq("form_token_hash", hashEnrolmentSecret(token))
     .maybeSingle();
   if (!data || !data.form_token_expires_at || new Date(data.form_token_expires_at).getTime() < Date.now()) return null;
@@ -40,7 +40,7 @@ async function findStaffCaptureEnquiry(request: Request, enquiryId: string, scho
   if (!authorization.ok) return { enquiry: null, response: authorization.response };
   const { data, error } = await supabaseAdmin
     .from("school_enrolment_enquiries")
-    .select("id, school_id, enquiry_reference, parent_name, status, enrolment_source, paper_received_at, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name, logo_url, primary_color, contact_number, emis_number)")
+    .select("id, school_id, enquiry_reference, parent_name, parent_phone, submitted_data, status, enrolment_source, paper_received_at, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name, logo_url, primary_color, contact_number, emis_number)")
     .eq("id", enquiryId)
     .eq("school_id", schoolId)
     .maybeSingle();
@@ -165,9 +165,19 @@ export async function GET(request: Request) {
   ]);
   const presentedTerms = termsWithConfiguredFees(terms as EnrolmentTerm[] | null, fees);
   const signup = signupRows?.[0];
+  const initialValues = enquiry.submitted_data && typeof enquiry.submitted_data === "object" && !Array.isArray(enquiry.submitted_data)
+    ? enquiry.submitted_data as Record<string, unknown>
+    : {};
   return NextResponse.json({
     reference: enquiry.enquiry_reference,
     parent_name: enquiry.parent_name,
+    initial_values: {
+      learner_first_name: text(initialValues.learner_first_name, 120),
+      learner_surname: text(initialValues.learner_surname, 120),
+      guardian_name: text(initialValues.guardian_name, 180) || enquiry.parent_name,
+      guardian_phone: text(initialValues.guardian_phone, 40) || text(enquiry.parent_phone, 40),
+      parent_portal_phone: text(initialValues.parent_portal_phone, 40) || text(enquiry.parent_phone, 40),
+    },
     status: enquiry.status,
     school_name: school?.school_name || "School",
     school_logo_url: school?.logo_url || null,

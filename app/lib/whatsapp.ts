@@ -89,7 +89,11 @@ function enrolmentTemplateEnvironmentNames(kind: EnrolmentWhatsAppKind) {
 export function getEnrolmentWhatsAppTemplateDetails(kind: EnrolmentWhatsAppKind): EnrolmentWhatsAppTemplateDetails {
   const names = enrolmentTemplateEnvironmentNames(kind);
   return {
-    templateName: enrolmentTemplateEnvironment(names.preferred, names.legacy),
+    templateName: kind === "registration"
+      ? "dailybloom_enrolment_registration"
+      : kind === "form"
+        ? "dailybloom_enrolment_form"
+        : enrolmentTemplateEnvironment(names.preferred, names.legacy),
     templateVersion: process.env[`${names.metadataPrefix}_VERSION`]?.trim() || "1",
     category: names.category,
     approvedAt: process.env[`${names.metadataPrefix}_APPROVED_AT`]?.trim() || null,
@@ -262,9 +266,13 @@ export async function sendEnrolmentWhatsApp(input: {
     templateName,
     phone: input.phone,
     headerParameters: usesSchoolHeader ? [input.bodyParameters[1] || ""] : undefined,
-    bodyParameters: usesSchoolHeader
-      ? [input.bodyParameters[1] || "", input.bodyParameters[0] || "", input.bodyParameters[2] || "", input.bodyParameters[3] || "", input.bodyParameters[4] || ""]
-      : input.bodyParameters,
+    bodyParameters: input.kind === "form"
+      // Meta Utility template body: school, parent, reference, full secure link, expiry.
+      ? [input.bodyParameters[1] || "", input.bodyParameters[0] || "", input.bodyParameters[2] || "", input.bodyParameters[3] || "", input.bodyParameters[4] || "24 hours"]
+      : input.kind === "registration"
+        // Meta Utility template body: parent, school, fee, payment reference, banking details.
+        ? [input.bodyParameters[0] || "", input.bodyParameters[1] || "", input.bodyParameters[2] || "", input.bodyParameters[3] || "", input.bodyParameters[4] || ""]
+        : input.bodyParameters,
     // Meta dynamic URL buttons append this value to the fixed URL configured in the template.
     buttonUrl: input.kind === "form" && input.bodyParameters[3]
       ? formUrlToken(input.bodyParameters[3])

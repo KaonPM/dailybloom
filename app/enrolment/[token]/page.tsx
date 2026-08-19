@@ -108,12 +108,6 @@ export default function SecureEnrolmentFormPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [needsAccessCode, setNeedsAccessCode] = useState(false);
-  const [accessCode, setAccessCode] = useState("");
-  const [codeRequested, setCodeRequested] = useState(false);
-  const [accessLoading, setAccessLoading] = useState(false);
-  const [accessError, setAccessError] = useState("");
-  const [accessMessage, setAccessMessage] = useState("");
 
   const loadForm = useCallback(async () => {
     if (isPreview) {
@@ -159,7 +153,6 @@ export default function SecureEnrolmentFormPage() {
         enrolment_configuration: previewConfiguration,
       });
       setFields((current) => ({ ...current, guardian_name: "Preview Parent" }));
-      setNeedsAccessCode(false);
       setLoading(false);
       return;
     }
@@ -174,14 +167,9 @@ export default function SecureEnrolmentFormPage() {
         cache: "no-store",
       });
       const body = await response.json().catch(() => ({}));
-      if (response.status === 401 && body.requires_access_code) {
-        setNeedsAccessCode(true);
-        return;
-      }
       if (!response.ok) {
         throw new Error(body.error || "This enrolment link is not available.");
       }
-      setNeedsAccessCode(false);
       setInfo(body as FormInfo);
       setFields((current) => ({ ...current, guardian_name: body.parent_name || "" }));
     } catch (loadError) {
@@ -198,62 +186,6 @@ export default function SecureEnrolmentFormPage() {
   useEffect(() => {
     void loadForm();
   }, [loadForm]);
-
-  async function requestAccessCode() {
-    setAccessLoading(true);
-    setAccessError("");
-    setAccessMessage("");
-    try {
-      const response = await fetch("/api/enrolment-form/access/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(body.error || "We could not send a verification code right now.");
-      }
-      setCodeRequested(true);
-      setAccessMessage(
-        "A verification code has been sent to the WhatsApp number shared with the school. It expires in 10 minutes.",
-      );
-    } catch (requestError) {
-      setAccessError(
-        requestError instanceof Error
-          ? requestError.message
-          : "We could not send a verification code right now.",
-      );
-    } finally {
-      setAccessLoading(false);
-    }
-  }
-
-  async function verifyAccessCode() {
-    setAccessLoading(true);
-    setAccessError("");
-    try {
-      const response = await fetch("/api/enrolment-form/access/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, code: accessCode }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(body.error || "The verification code could not be confirmed.");
-      }
-      setAccessCode("");
-      setAccessMessage("");
-      await loadForm();
-    } catch (verifyError) {
-      setAccessError(
-        verifyError instanceof Error
-          ? verifyError.message
-          : "The verification code could not be confirmed.",
-      );
-    } finally {
-      setAccessLoading(false);
-    }
-  }
 
   async function submit() {
     setSubmitting(true);
@@ -345,7 +277,7 @@ export default function SecureEnrolmentFormPage() {
           {info?.reference ? ` · Reference ${info.reference}` : ""}
         </p>
         <div className="db-helper" style={{ display: "grid", gap: 2 }}><p style={{ margin: 0 }}><strong>Registration / EMIS / NPO number:</strong> {info?.school_registration_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Registered address:</strong> {info?.school_physical_address || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Contact number:</strong> {info?.school_contact_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Email:</strong> {info?.school_email_address || "Not provided by the school"}</p></div>
-        <div className="db-soft-card" style={{ padding: 10, borderLeft: `4px solid ${info?.school_primary_color || "#5ab8de"}` }}><strong>{isStaffCapture ? "Capture returned paper form" : "Digital school enrolment form"}</strong><span className="db-helper" style={{ display: "block", marginTop: 3 }}>{isStaffCapture ? "Enter the paper form exactly as supplied. It will remain attached to the existing enrolment reference." : "Please complete the school’s form sections below. Your school details and enrolment reference are already included."}</span></div>
+        <div className="db-soft-card" style={{ padding: 10, borderLeft: `4px solid ${info?.school_primary_color || "#5ab8de"}` }}><strong>{isStaffCapture ? "Capture returned paper form" : "Private digital school enrolment form"}</strong><span className="db-helper" style={{ display: "block", marginTop: 3 }}>{isStaffCapture ? "Enter the paper form exactly as supplied. It will remain attached to the existing enrolment reference." : "This private link is tied to one learner and expires after 24 hours. Please do not forward or share it. Your school details and enrolment reference are already included."}</span></div>
       </section>
 
       {isPreview ? (
@@ -373,44 +305,7 @@ export default function SecureEnrolmentFormPage() {
         </section>
       ) : null}
 
-      {needsAccessCode && !success ? (
-        <section className="db-card" style={{ display: "grid", gap: 16, maxWidth: 640 }}>
-          <div>
-            <h2 style={{ margin: 0 }}>Verify your mobile number</h2>
-            <p className="db-helper" style={{ marginBottom: 0 }}>
-              This private form link is valid for 24 hours. Request a WhatsApp code to the number shared with the school before opening the form.
-            </p>
-          </div>
-          {accessError ? <p role="alert" style={{ color: "#a33d45", margin: 0 }}>{accessError}</p> : null}
-          {accessMessage ? <p role="status" style={{ color: "#2f7c4d", margin: 0 }}>{accessMessage}</p> : null}
-          {codeRequested ? (
-            <label style={{ display: "grid", gap: 7 }}>
-              <strong>WhatsApp verification code</strong>
-              <input
-                className="db-input"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={accessCode}
-                onChange={(event) => setAccessCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="6-digit code"
-              />
-            </label>
-          ) : null}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-            <button className="db-button-primary" type="button" disabled={accessLoading} onClick={() => void requestAccessCode()}>
-              {accessLoading ? "Sending..." : codeRequested ? "Resend code" : "Send WhatsApp code"}
-            </button>
-            {codeRequested ? (
-              <button className="db-button-secondary" type="button" disabled={accessLoading || accessCode.length !== 6} onClick={() => void verifyAccessCode()}>
-                {accessLoading ? "Verifying..." : "Open secure form"}
-              </button>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
-
-      {info && !needsAccessCode && !error && !success ? (
+      {info && !error && !success ? (
         <section className="db-card db-enrolment-form" style={{ display: "grid", gap: 16 }}>
           <div>
             <h2 style={{ margin: 0 }}>Learner and parent details</h2>

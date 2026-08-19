@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  accessCookieName,
   hashEnrolmentSecret,
-  hasMatchingSecret,
-  readRequestCookie,
 } from "@/app/lib/enrolment-form-security";
 import { toSouthAfricanSmsNumber } from "@/app/lib/sms-portal";
 import { PERMISSIONS } from "@/app/lib/permissions";
@@ -51,39 +48,6 @@ async function findStaffCaptureEnquiry(request: Request, enquiryId: string, scho
     return { enquiry: null, response: NextResponse.json({ error: error?.message || "This returned paper form is not available for capture." }, { status: 404 }) };
   }
   return { enquiry: data, authorization, response: null };
-}
-
-function hasFormAccess(
-  request: Request,
-  token: string,
-  enquiry: {
-    form_access_session_hash?: string | null;
-    form_access_session_expires_at?: string | null;
-  },
-) {
-  if (
-    !enquiry.form_access_session_hash ||
-    !enquiry.form_access_session_expires_at ||
-    new Date(enquiry.form_access_session_expires_at).getTime() < Date.now()
-  ) {
-    return false;
-  }
-
-  return hasMatchingSecret(
-    readRequestCookie(request, accessCookieName(token)),
-    enquiry.form_access_session_hash,
-  );
-}
-
-function accessCodeRequiredResponse() {
-  return NextResponse.json(
-    {
-      requires_access_code: true,
-      error:
-        "Request and enter the WhatsApp verification code to open this secure enrolment form.",
-    },
-    { status: 401 },
-  );
 }
 
 function savedCustomAnswers(value: unknown, fields: unknown) {
@@ -154,11 +118,8 @@ export async function GET(request: Request) {
   const staffResult = staffCaptureId ? await findStaffCaptureEnquiry(request, staffCaptureId, staffSchoolId) : null;
   if (staffResult?.response) return staffResult.response;
   const enquiry = staffResult?.enquiry || await findEnquiry(token);
-  if (!enquiry || (!staffCaptureId && !["form_issued", "submitted"].includes(String(enquiry.status)))) {
-    return NextResponse.json({ error: "This enrolment link is invalid or has expired." }, { status: 404 });
-  }
-  if (!staffCaptureId && !hasFormAccess(request, token, enquiry)) {
-    return accessCodeRequiredResponse();
+  if (!enquiry || (!staffCaptureId && enquiry.status !== "form_issued")) {
+    return NextResponse.json({ error: "This enrolment link is no longer valid. Please contact the preschool for a new secure link." }, { status: 404 });
   }
   const school = one(enquiry.schools as { school_name?: string; logo_url?: string; primary_color?: string; contact_number?: string; emis_number?: string } | { school_name?: string; logo_url?: string; primary_color?: string; contact_number?: string; emis_number?: string }[] | null);
   const form = one(enquiry.school_enrolment_forms as Record<string, unknown> | Record<string, unknown>[] | null);
@@ -210,9 +171,6 @@ export async function POST(request: Request) {
   const enquiry = staffResult?.enquiry || await findEnquiry(token);
   if (!enquiry || (!staffCaptureId && enquiry.status !== "form_issued")) {
     return NextResponse.json({ error: "This enrolment link is invalid, expired or already submitted." }, { status: 400 });
-  }
-  if (!staffCaptureId && !hasFormAccess(request, token, enquiry)) {
-    return accessCodeRequiredResponse();
   }
   if (body.action === "create_document_upload") {
     const size = Number(body.file_size || 0);
@@ -359,6 +317,8 @@ export async function POST(request: Request) {
       form_access_session_expires_at: null,
       form_access_otp_hash: null,
       form_access_otp_expires_at: null,
+      form_token_hash: null,
+      form_token_expires_at: null,
     })
     .eq("id", enquiry.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

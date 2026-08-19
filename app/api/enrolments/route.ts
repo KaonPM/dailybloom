@@ -97,7 +97,7 @@ export async function POST(request: Request) {
   const body = await request.json();
   const schoolId = Number(body.school_id);
   const action = text(body.action, 60);
-  const requestedPermission = ["review", "delete_withdrawn"].includes(action) ? PERMISSIONS.SCHOOL_MANAGE : PERMISSIONS.LEARNERS_MANAGE;
+  const requestedPermission = ["review", "reopen_form", "delete_withdrawn"].includes(action) ? PERMISSIONS.SCHOOL_MANAGE : PERMISSIONS.LEARNERS_MANAGE;
   const authorization = await requireStaffPermission(request, requestedPermission, schoolId);
   if (!authorization.ok) return authorization.response;
 
@@ -236,12 +236,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   }
 
-  if (action === "issue_form") {
+  if (action === "issue_form" || action === "reopen_form") {
     if (!["verified", "waived"].includes(String(enquiry.registration_payment_status))) {
       return NextResponse.json({ error: "Confirm the Registration Fee payment before issuing the form." }, { status: 400 });
     }
-    if (!["payment_pending", "form_issued"].includes(String(enquiry.status))) {
-      return NextResponse.json({ error: "This enrolment form has already been submitted or reviewed." }, { status: 400 });
+    const reopening = action === "reopen_form";
+    if ((!reopening && !["payment_pending", "form_issued"].includes(String(enquiry.status))) || (reopening && enquiry.status !== "submitted")) {
+      return NextResponse.json({ error: reopening ? "Only a submitted application can be reopened for parent editing." : "This enrolment form has already been submitted or reviewed." }, { status: 400 });
     }
     const token = randomBytes(32).toString("base64url");
     const expiry = new Date(Date.now() + FORM_LINK_LIFETIME_MS).toISOString();
@@ -263,7 +264,7 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const formUrl = `${new URL(request.url).origin}/enrolment/${token}`;
     const school = Array.isArray(enquiry.schools) ? enquiry.schools[0] : enquiry.schools;
-    const message = `Hello ${enquiry.parent_name}, your secure enrolment form for ${enquiry.enquiry_reference} is ready. Use this link within 24 hours: ${formUrl}. A verification code will be sent by WhatsApp when you open it.`;
+    const message = `Hello ${enquiry.parent_name}, your private enrolment form for ${school?.school_name || "your school"} is ready. Reference: ${enquiry.enquiry_reference}. Complete it here: ${formUrl}. This link expires in 24 hours, is tied to one learner, and must not be forwarded or shared.`;
     const delivery = await sendEnrolmentWhatsAppMessage({
       enquiryId,
       schoolId,
@@ -271,7 +272,7 @@ export async function POST(request: Request) {
       kind: "form",
       bodyParameters: [enquiry.parent_name, school?.school_name || "your school", enquiry.enquiry_reference, formUrl, "24 hours"],
     });
-    await writeSecurityAudit(authorization.staff, "enrolment.form_issued", { school_id: schoolId, enquiry_id: enquiryId, whatsapp_sent: delivery.sent });
+    await writeSecurityAudit(authorization.staff, reopening ? "enrolment.form_reopened" : "enrolment.form_issued", { school_id: schoolId, enquiry_id: enquiryId, previous_token_revoked: true, expires_at: expiry, whatsapp_sent: delivery.sent });
     return NextResponse.json({ form_url: formUrl, whatsapp_message: message, whatsapp_sent: delivery.sent, whatsapp_retry_scheduled: delivery.retryScheduled, whatsapp_error: delivery.error || null, expires_at: expiry });
   }
 

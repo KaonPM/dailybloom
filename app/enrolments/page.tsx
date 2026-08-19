@@ -219,7 +219,7 @@ export default function EnrolmentsPage() {
     }
   }
 
-  async function runAction(enquiry: Enquiry, action: "verify_registration_payment" | "issue_form" | "review" | "mark_paper_received" | "assign_waiting_classroom" | "withdraw" | "delete_withdrawn", extras: Record<string, string> = {}) {
+  async function runAction(enquiry: Enquiry, action: "verify_registration_payment" | "issue_form" | "reopen_form" | "review" | "mark_paper_received" | "assign_waiting_classroom" | "withdraw" | "delete_withdrawn", extras: Record<string, string> = {}) {
     if (!schoolId) return;
     setWorkingId(enquiry.id);
     setError("");
@@ -232,7 +232,7 @@ export default function EnrolmentsPage() {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "The enrolment action could not be completed.");
-      if (action === "issue_form") {
+      if (action === "issue_form" || action === "reopen_form") {
         const sent = Boolean(body.whatsapp_sent);
         const retryScheduled = Boolean(body.whatsapp_retry_scheduled);
         setShare({
@@ -246,7 +246,7 @@ export default function EnrolmentsPage() {
               : `WhatsApp was not sent: ${body.whatsapp_error || "delivery could not be confirmed."}`,
         });
         setMessage(sent
-          ? `Secure form issued for ${enquiry.enquiry_reference}. It expires ${formatDate(body.expires_at)}.`
+          ? `${action === "reopen_form" ? "Application reopened and a new secure link issued" : "Secure form issued"} for ${enquiry.enquiry_reference}. It expires ${formatDate(body.expires_at)}.`
           : retryScheduled
             ? `Secure form issued for ${enquiry.enquiry_reference}. DailyBloom will retry the WhatsApp delivery automatically.`
             : `Secure form issued for ${enquiry.enquiry_reference}, but WhatsApp could not be sent.`);
@@ -456,7 +456,7 @@ export default function EnrolmentsPage() {
                 ) : null}
 
                 {enquiry.status === "payment_pending" && ["verified", "waived"].includes(enquiry.registration_payment_status) ? <button className="db-button-primary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "issue_form")}>{isWorking ? "Preparing..." : "Issue Secure Form"}</button> : null}
-                {enquiry.status === "form_issued" ? <button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "issue_form")}>{isWorking ? "Preparing..." : "Resend Secure Form"}</button> : null}
+                {enquiry.status === "form_issued" ? <button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => { if (window.confirm(`Generate a new secure link for ${enquiry.enquiry_reference}? The previous link will stop working.`)) void runAction(enquiry, "issue_form"); }}>{isWorking ? "Preparing..." : "Regenerate & Resend Secure Link"}</button> : null}
 
                 {enquiry.status === "submitted" ? (
                   decliningId === enquiry.id ? (
@@ -464,7 +464,7 @@ export default function EnrolmentsPage() {
                       <label style={{ display: "grid", gap: 7 }}><strong>Reason for declining</strong><textarea className="db-input" rows={3} value={declineReason} onChange={(event) => setDeclineReason(event.target.value)} placeholder="Explain the next step for the parent" /></label>
                       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "review", { decision: "declined", decline_reason: declineReason })}>{isWorking ? "Saving..." : "Confirm Decline"}</button><button className="db-button-secondary" type="button" onClick={() => { setDecliningId(null); setDeclineReason(""); }}>Cancel</button></div>
                     </div>
-                  ) : <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "review", { decision: "approved" })}>{isWorking ? "Saving..." : "Approve Enrolment"}</button><button className="db-button-secondary" type="button" onClick={() => setDecliningId(enquiry.id)}>Decline with Reason</button></div>
+                  ) : <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "review", { decision: "approved" })}>{isWorking ? "Saving..." : "Approve Enrolment"}</button><button className="db-button-secondary" type="button" onClick={() => setDecliningId(enquiry.id)}>Decline with Reason</button><button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => { if (window.confirm(`Reopen ${enquiry.enquiry_reference} for parent editing? The previous link will remain closed and a new 24-hour link will be issued.`)) void runAction(enquiry, "reopen_form"); }}>Reopen &amp; Issue New Link</button></div>
                 ) : null}
 
                 {enquiry.status === "approved" ? <div className="db-helper">Approved. The learner profile is linked to this reference and appears in the academic-year waiting list above{enquiry.placement?.classroom_id ? ", with its future classroom planned" : " until a classroom is selected"}.</div> : null}

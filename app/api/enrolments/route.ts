@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { FORM_LINK_LIFETIME_MS, hashEnrolmentSecret } from "@/app/lib/enrolment-form-security";
 import { PERMISSIONS } from "@/app/lib/permissions";
@@ -50,17 +50,18 @@ export async function GET(request: Request) {
   const authorization = await requireStaffPermission(request, PERMISSIONS.LEARNERS_MANAGE, schoolId);
   if (!authorization.ok) return authorization.response;
 
-  const [{ data: enquiries, error: enquiryError }, { data: forms, error: formError }, { data: school, error: schoolError }] = await Promise.all([
+  const [{ data: enquiries, error: enquiryError }, { data: forms, error: formError }, { data: school, error: schoolError }, { data: classrooms, error: classroomError }] = await Promise.all([
     supabaseAdmin
       .from("school_enrolment_enquiries")
-      .select("id, school_id, form_id, enquiry_reference, parent_name, parent_phone, registration_fee_amount, registration_payment_status, registration_payment_reference, registration_payment_verified_at, status, enrolment_source, academic_year, printed_at, paper_received_at, submitted_data, submitted_at, reviewed_at, decline_reason, created_at, school_enrolment_forms(form_name, form_type)")
+      .select("id, school_id, form_id, learner_id, enquiry_reference, parent_name, parent_phone, registration_fee_amount, registration_payment_status, registration_payment_reference, registration_payment_verified_at, status, enrolment_source, academic_year, printed_at, paper_received_at, submitted_data, submitted_at, reviewed_at, decline_reason, created_at, school_enrolment_forms(form_name, form_type)")
       .eq("school_id", schoolId)
       .order("created_at", { ascending: false })
       .limit(100),
     supabaseAdmin.from("school_enrolment_forms").select("id, form_name, form_type, is_active").eq("school_id", schoolId).eq("form_type", "general").eq("is_active", true).order("form_type"),
     supabaseAdmin.from("schools").select("school_name").eq("id", schoolId).maybeSingle(),
+    supabaseAdmin.from("classrooms").select("id, classroom_name").eq("school_id", schoolId).order("classroom_name"),
   ]);
-  const error = enquiryError || formError || schoolError;
+  const error = enquiryError || formError || schoolError || classroomError;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const enquiryIds = (enquiries || []).map((enquiry) => enquiry.id).filter(Boolean);
@@ -78,11 +79,18 @@ export async function GET(request: Request) {
     enquiryDeliveries.push(delivery);
     deliveriesByEnquiry.set(delivery.enquiry_id, enquiryDeliveries);
   }
+  const learnerIds = (enquiries || []).map((enquiry) => enquiry.learner_id).filter(Boolean);
+  const { data: placements, error: placementError } = learnerIds.length
+    ? await supabaseAdmin.from("learner_placements").select("learner_id, academic_year, classroom_id, placement_status, classrooms(classroom_name)").eq("school_id", schoolId).in("learner_id", learnerIds)
+    : { data: [], error: null };
+  if (placementError) return NextResponse.json({ error: placementError.message }, { status: 500 });
+  const placementByLearner = new Map((placements || []).map((placement) => [`${placement.learner_id}:${placement.academic_year}`, placement]));
   const enrichedEnquiries = (enquiries || []).map((enquiry) => ({
     ...enquiry,
     deliveries: deliveriesByEnquiry.get(enquiry.id) || [],
+    placement: enquiry.learner_id ? placementByLearner.get(`${enquiry.learner_id}:${enquiry.academic_year}`) || null : null,
   }));
-  return NextResponse.json({ enquiries: enrichedEnquiries, forms: forms || [], school_name: school?.school_name || "Your school" });
+  return NextResponse.json({ enquiries: enrichedEnquiries, forms: forms || [], classrooms: classrooms || [], school_name: school?.school_name || "Your school" });
 }
 
 export async function POST(request: Request) {
@@ -180,6 +188,7 @@ export async function POST(request: Request) {
       school_id: schoolId, form_id: form.id, enquiry_reference: reference, parent_name: "Paper enrolment", parent_phone: "Pending", academic_year: academicYear, enrolment_source: source,
       registration_fee_type_id: fee?.id || null, registration_fee_amount: Number(fee?.amount || 0), created_by: authorization.staff.userId,
       ...(source === "printed_blank_form" ? { printed_at: now, printed_by: authorization.staff.userId } : {}),
+      ...(source === "paper_manual_capture" ? { paper_received_at: now, paper_captured_by: authorization.staff.userId } : {}),
     }).select("id, enquiry_reference, academic_year, enrolment_source").single();
     if (error || !enquiry) return NextResponse.json({ error: error?.message || "Could not start the manual enrolment." }, { status: 500 });
     await writeSecurityAudit(authorization.staff, source === "printed_blank_form" ? "enrolment.blank_form_printed" : "enrolment.manual_capture_started", { school_id: schoolId, enquiry_id: enquiry.id, reference, academic_year: academicYear });
@@ -203,7 +212,7 @@ export async function POST(request: Request) {
   if (!enquiryId) return NextResponse.json({ error: "Choose an enrolment enquiry." }, { status: 400 });
   const { data: enquiry, error: enquiryError } = await supabaseAdmin
     .from("school_enrolment_enquiries")
-    .select("id, parent_name, parent_phone, enquiry_reference, registration_payment_status, status, school_enrolment_forms(form_name), schools(school_name)")
+    .select("id, parent_name, parent_phone, enquiry_reference, registration_fee_amount, registration_payment_status, registration_payment_reference, registration_payment_verified_at, status, academic_year, learner_id, submitted_data, school_enrolment_forms(form_name), schools(school_name)")
     .eq("id", enquiryId)
     .eq("school_id", schoolId)
     .maybeSingle();
@@ -272,15 +281,87 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Approve the enrolment or add a reason for declining it." }, { status: 400 });
     }
     if (enquiry.status !== "submitted") return NextResponse.json({ error: "Only submitted enrolment forms can be reviewed." }, { status: 400 });
+    if (decision === "approved" && !["verified", "waived"].includes(String(enquiry.registration_payment_status))) {
+      return NextResponse.json({ error: "Confirm the Registration Fee reference before approving this enrolment." }, { status: 400 });
+    }
+    let learnerId = enquiry.learner_id ? String(enquiry.learner_id) : "";
+    if (decision === "approved" && !learnerId) {
+      const submitted = enquiry.submitted_data && typeof enquiry.submitted_data === "object" && !Array.isArray(enquiry.submitted_data)
+        ? enquiry.submitted_data as Record<string, unknown>
+        : {};
+      const medical = submitted.medical && typeof submitted.medical === "object" && !Array.isArray(submitted.medical) ? submitted.medical as Record<string, unknown> : {};
+      const firstName = text(submitted.learner_first_name, 120);
+      const surname = text(submitted.learner_surname, 120);
+      const guardianName = text(submitted.guardian_name, 180);
+      const parentPhone = text(submitted.parent_portal_phone || submitted.guardian_phone, 40);
+      if (!firstName || !surname || !text(submitted.date_of_birth, 10) || !guardianName || !parentPhone) {
+        return NextResponse.json({ error: "The captured form is missing required learner or guardian information." }, { status: 400 });
+      }
+      learnerId = randomUUID();
+      const { error: learnerError } = await supabaseAdmin.from("learners").insert({
+        id: learnerId,
+        school_id: schoolId,
+        name: firstName,
+        legal_name: `${firstName} ${surname}`.trim(),
+        class: "Waiting list",
+        classroom_id: null,
+        date_of_birth: text(submitted.date_of_birth, 10),
+        gender: text(submitted.gender, 40) || null,
+        birth_certificate_number: text(submitted.learner_id_or_birth_certificate, 120) || null,
+        guardian_name: guardianName,
+        guardian_relationship: text(submitted.guardian_relationship, 80) || null,
+        guardian_id_number: text(submitted.guardian_id_or_passport, 120) || null,
+        parent_phone: parentPhone,
+        parent_email: text(submitted.guardian_email, 180) || null,
+        home_address: text(submitted.home_address, 1000) || null,
+        has_medical_aid: Boolean(text(medical.medical_aid_name, 180) || text(medical.medical_aid_number, 120)),
+        medical_aid_name: text(medical.medical_aid_name, 180) || null,
+        medical_aid_number: text(medical.medical_aid_number, 120) || null,
+        medical_aid_main_member: text(medical.medical_aid_main_member, 180) || null,
+        family_doctor_name: text(medical.preferred_doctor_name, 180) || null,
+        family_doctor_phone: text(medical.preferred_doctor_phone, 40) || null,
+        allergies: text(medical.allergies, 2000) || null,
+        medical_conditions: text(medical.conditions, 2000) || null,
+        medical_instructions: [text(medical.immunisation_status, 80) && `Immunisation: ${text(medical.immunisation_status, 80)}`, text(medical.immunisation_notes, 1000)].filter(Boolean).join("\n") || null,
+        registration_fee_amount: Number(enquiry.registration_fee_amount || 0),
+        registration_fee_paid_at: enquiry.registration_payment_status === "verified" ? new Date(enquiry.registration_payment_verified_at || Date.now()).toISOString().slice(0, 10) : null,
+        registration_fee_reference: text(enquiry.registration_payment_reference, 180) || null,
+      });
+      if (learnerError) return NextResponse.json({ error: learnerError.message }, { status: learnerError.code === "23505" ? 409 : 500 });
+      const { error: placementError } = await supabaseAdmin.from("learner_placements").insert({ learner_id: learnerId, school_id: schoolId, academic_year: Number(enquiry.academic_year), classroom_id: null, placement_status: "pending" });
+      if (placementError) {
+        await supabaseAdmin.from("learners").delete().eq("id", learnerId).eq("school_id", schoolId);
+        return NextResponse.json({ error: placementError.message }, { status: 500 });
+      }
+    }
     const { error } = await supabaseAdmin.from("school_enrolment_enquiries").update({
       status: decision,
+      learner_id: decision === "approved" ? learnerId : enquiry.learner_id,
       decline_reason: decision === "declined" ? text(body.decline_reason, 1000) : null,
       reviewed_by: authorization.staff.userId,
       reviewed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq("id", enquiryId).eq("school_id", schoolId);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      if (decision === "approved" && !enquiry.learner_id && learnerId) await supabaseAdmin.from("learners").delete().eq("id", learnerId).eq("school_id", schoolId);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     await writeSecurityAudit(authorization.staff, `enrolment.${decision}`, { school_id: schoolId, enquiry_id: enquiryId });
+    return NextResponse.json({ success: true, learner_id: decision === "approved" ? learnerId : null });
+  }
+
+  if (action === "assign_waiting_classroom") {
+    if (enquiry.status !== "approved" || !enquiry.learner_id) return NextResponse.json({ error: "Only an approved waiting-list learner can be placed." }, { status: 400 });
+    const classroomId = Number(body.classroom_id);
+    const { data: classroom, error: classroomError } = await supabaseAdmin.from("classrooms").select("id, classroom_name").eq("id", classroomId).eq("school_id", schoolId).maybeSingle();
+    if (classroomError || !classroom) return NextResponse.json({ error: "Choose a classroom from this school." }, { status: 400 });
+    const { error: placementError } = await supabaseAdmin.from("learner_placements").update({ classroom_id: classroom.id, placement_status: Number(enquiry.academic_year) > new Date().getFullYear() ? "future" : "current", updated_at: new Date().toISOString() }).eq("learner_id", enquiry.learner_id).eq("school_id", schoolId).eq("academic_year", enquiry.academic_year);
+    if (placementError) return NextResponse.json({ error: placementError.message }, { status: 500 });
+    if (Number(enquiry.academic_year) <= new Date().getFullYear()) {
+      const { error: learnerError } = await supabaseAdmin.from("learners").update({ classroom_id: classroom.id, class: classroom.classroom_name }).eq("id", enquiry.learner_id).eq("school_id", schoolId);
+      if (learnerError) return NextResponse.json({ error: learnerError.message }, { status: 500 });
+    }
+    await writeSecurityAudit(authorization.staff, "enrolment.waiting_list_placed", { school_id: schoolId, enquiry_id: enquiry.id, learner_id: enquiry.learner_id, academic_year: enquiry.academic_year, classroom_id: classroom.id });
     return NextResponse.json({ success: true });
   }
 

@@ -133,8 +133,6 @@ export default function LearnersPage() {
   const [monthlyFeeTypeId, setMonthlyFeeTypeId] = useState("");
   const [registrationFeeAmount, setRegistrationFeeAmount] = useState("");
   const [registrationFeePaid, setRegistrationFeePaid] = useState(false);
-  const [registrationPaymentMethod, setRegistrationPaymentMethod] =
-    useState("Cash");
   const [registrationReference, setRegistrationReference] = useState("");
   const [schoolFeeTypes, setSchoolFeeTypes] = useState<SchoolFeeType[]>([]);
   const [selectedOtherFeeIds, setSelectedOtherFeeIds] = useState<number[]>([]);
@@ -142,6 +140,8 @@ export default function LearnersPage() {
   const [schoolMonthlyFee, setSchoolMonthlyFee] = useState("");
 
   const [manualClassroomId, setManualClassroomId] = useState("");
+  const [addToWaitingList, setAddToWaitingList] = useState(false);
+  const [waitingAcademicYear, setWaitingAcademicYear] = useState(new Date().getFullYear() + 1);
   const [suggestedAgeGroup, setSuggestedAgeGroup] = useState("");
 
   const [selectedLearner, setSelectedLearner] = useState<LearnerRow | null>(
@@ -467,10 +467,11 @@ export default function LearnersPage() {
     setMonthlyFeeTypeId(defaultMonthly ? String(defaultMonthly.id) : "");
     setRegistrationFeeAmount(schoolRegistrationFee);
     setRegistrationFeePaid(false);
-    setRegistrationPaymentMethod("Cash");
     setRegistrationReference("");
     setSelectedOtherFeeIds([]);
     setManualClassroomId("");
+    setAddToWaitingList(false);
+    setWaitingAcademicYear(new Date().getFullYear() + 1);
     setSuggestedAgeGroup("");
     setSelectedLearner(null);
   }
@@ -600,9 +601,6 @@ export default function LearnersPage() {
         : String(learner.registration_fee_amount)
     );
     setRegistrationFeePaid(Boolean(learner.registration_fee_paid_at));
-    setRegistrationPaymentMethod(
-      learner.registration_fee_payment_method || "Cash"
-    );
     setRegistrationReference(learner.registration_fee_reference || "");
     setManualClassroomId(
       learner.classroom_id ? String(learner.classroom_id) : ""
@@ -747,12 +745,12 @@ export default function LearnersPage() {
     const learnerAge = calculateAge(dateOfBirth);
     const ageGroup = determineAgeGroup(learnerAge);
 
-    const classroomMatch =
+    const classroomMatch = addToWaitingList ? null :
       classrooms.find((classroom) => String(classroom.id) === manualClassroomId) ||
       classrooms.find((classroom) => classroom.age_groups?.includes(ageGroup)) ||
       null;
 
-    if (!classroomMatch) {
+    if (!addToWaitingList && !classroomMatch) {
       alert(
         manualClassroomId
           ? "Selected classroom could not be found. Please choose another classroom."
@@ -765,8 +763,8 @@ export default function LearnersPage() {
     const learnerPayload = {
       name: name.trim(),
       legal_name: legalName.trim(),
-      class: classroomMatch.classroom_name || "Unassigned",
-      classroom_id: classroomMatch.id,
+      class: addToWaitingList ? "Waiting list" : classroomMatch?.classroom_name || "Unassigned",
+      classroom_id: addToWaitingList ? null : classroomMatch?.id || null,
       date_of_birth: dateOfBirth,
       birth_certificate_number: birthCertificateNumber.trim() || null,
       sa_id_number: saIdNumber.trim() || null,
@@ -806,7 +804,7 @@ export default function LearnersPage() {
           new Date().toISOString().slice(0, 10)
         : null,
       registration_fee_payment_method: registrationFeePaid
-        ? registrationPaymentMethod
+        ? "Reference confirmed"
         : null,
       registration_fee_reference:
         registrationFeePaid && registrationReference.trim()
@@ -849,6 +847,20 @@ export default function LearnersPage() {
         return;
       }
       savedLearnerId = String(result.data.id);
+    }
+
+    if (!selectedLearner && addToWaitingList) {
+      const placementResponse = await authenticatedFetch("/api/learners/placement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ school_id: schoolId, learner_id: savedLearnerId, academic_year: waitingAcademicYear }),
+      });
+      const placementResult = await placementResponse.json().catch(() => ({}));
+      if (!placementResponse.ok) {
+        alert(`Learner saved, but the waiting-list placement could not be created: ${placementResult.error || "Unknown error"}`);
+        setSaving(false);
+        return;
+      }
     }
 
     const feeResponse = await authenticatedFetch("/api/school-fees/catalog", {
@@ -938,8 +950,12 @@ export default function LearnersPage() {
                 type="button"
                 className="db-button-primary"
                 onClick={() => {
-                  resetForm();
-                  setShowForm((prev) => !prev);
+                  if (showForm) {
+                    resetForm();
+                    setShowForm(false);
+                    return;
+                  }
+                  router.push(`/enrolments${schoolId ? `?school=${schoolId}&action=add` : "?action=add"}`);
                 }}
               >
                 {showForm ? "Close" : "+ Add Learner"}
@@ -1260,9 +1276,25 @@ export default function LearnersPage() {
             </div>
           </details>
 
-          <h4 style={subSectionTitle}>Classroom Assignment</h4>
+          <h4 style={subSectionTitle}>Placement</h4>
 
           <div style={grid2}>
+            {!selectedLearner ? <div>
+              <p style={labelText}>Placement option</p>
+              <select className="db-input" value={addToWaitingList ? "waiting" : "classroom"} onChange={(event) => setAddToWaitingList(event.target.value === "waiting")}>
+                <option value="classroom">Assign a classroom</option>
+                <option value="waiting">Add to academic-year waiting list</option>
+              </select>
+            </div> : null}
+            {addToWaitingList ? <div>
+              <p style={labelText}>Academic year</p>
+              <select className="db-input" value={waitingAcademicYear} onChange={(event) => setWaitingAcademicYear(Number(event.target.value))}>
+                <option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option>
+                <option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option>
+              </select>
+              <p style={helperText}>The learner is created now without a classroom and can be allocated later from Enrolments.</p>
+            </div> : null}
+            {!addToWaitingList ? (
             <div>
               <p style={labelText}>Classroom</p>
               <select
@@ -1281,6 +1313,7 @@ export default function LearnersPage() {
                 ))}
               </select>
             </div>
+            ) : null}
           </div>
 
           <h4 style={subSectionTitle}>Learner Fees</h4>
@@ -1397,32 +1430,15 @@ export default function LearnersPage() {
           {registrationFeePaid ? (
             <div style={grid2}>
               <div>
-                <p style={labelText}>Registration Payment Method</p>
-                <select
-                  className="db-input"
-                  value={registrationPaymentMethod}
-                  onChange={(e) =>
-                    setRegistrationPaymentMethod(e.target.value)
-                  }
-                  disabled={registrationAlreadyRecorded}
-                >
-                  <option value="Cash">Cash</option>
-                  <option value="EFT">EFT</option>
-                  <option value="Bank Deposit">Bank Deposit</option>
-                  <option value="Card">Card</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <p style={labelText}>Payment Reference (optional)</p>
+                <p style={labelText}>Reference Used</p>
                 <input
                   className="db-input"
-                  placeholder="Receipt or transaction reference"
+                  placeholder="Reference used for the Registration Fee"
                   value={registrationReference}
                   onChange={(e) => setRegistrationReference(e.target.value)}
                   disabled={registrationAlreadyRecorded}
                 />
+                <p style={helperText}>Tick the payment above and confirm only the reference used.</p>
               </div>
             </div>
           ) : null}
@@ -1439,7 +1455,9 @@ export default function LearnersPage() {
               marginTop: 10,
             }}
           >
-            {suggestedAgeGroup
+            {addToWaitingList
+              ? `Waiting list selected for ${waitingAcademicYear}. No classroom will be assigned yet.`
+              : suggestedAgeGroup
               ? `Suggested age group: ${suggestedAgeGroup}. ${
                   selectedClassroom?.classroom_name
                     ? `Assigned classroom: ${selectedClassroom.classroom_name}.`

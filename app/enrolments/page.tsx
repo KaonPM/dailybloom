@@ -34,6 +34,7 @@ type EnrolmentDelivery = {
 
 type Enquiry = {
   id: string;
+  learner_id?: string | null;
   enquiry_reference: string;
   parent_name: string;
   parent_phone: string;
@@ -53,7 +54,10 @@ type Enquiry = {
   created_at: string;
   school_enrolment_forms: RelatedForm;
   deliveries?: EnrolmentDelivery[];
+  placement?: { academic_year: number; classroom_id: number | null; placement_status: "pending" | "future" | "current" | "completed"; classrooms?: { classroom_name?: string | null } | { classroom_name?: string | null }[] | null } | null;
 };
+
+type Classroom = { id: number; classroom_name: string };
 
 type ShareDetails = {
   title: string;
@@ -109,6 +113,7 @@ export default function EnrolmentsPage() {
   const [schoolName, setSchoolName] = useState("Your school");
   const [forms, setForms] = useState<Form[]>([]);
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -125,9 +130,10 @@ export default function EnrolmentsPage() {
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [share, setShare] = useState<ShareDetails | null>(null);
-  const [manualSource, setManualSource] = useState<"paper_manual_capture" | "printed_blank_form" | null>(null);
+  const [manualSource, setManualSource] = useState<"paper_manual_capture" | "printed_blank_form" | null>(() => searchParams.get("action") === "add" ? "paper_manual_capture" : null);
   const [manualYear, setManualYear] = useState(new Date().getFullYear());
   const [startingManual, setStartingManual] = useState(false);
+  const [waitingClassrooms, setWaitingClassrooms] = useState<Record<string, string>>({});
 
   const schoolQuery = useMemo(() => {
     const school = searchParams.get("school");
@@ -156,6 +162,7 @@ export default function EnrolmentsPage() {
       const loadedForms = (body.forms || []) as Form[];
       setForms(loadedForms);
       setEnquiries((body.enquiries || []) as Enquiry[]);
+      setClassrooms((body.classrooms || []) as Classroom[]);
       setSchoolName(body.school_name || "Your school");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Enrolments could not be loaded.");
@@ -212,7 +219,7 @@ export default function EnrolmentsPage() {
     }
   }
 
-  async function runAction(enquiry: Enquiry, action: "verify_registration_payment" | "issue_form" | "review" | "mark_paper_received" | "withdraw" | "delete_withdrawn", extras: Record<string, string> = {}) {
+  async function runAction(enquiry: Enquiry, action: "verify_registration_payment" | "issue_form" | "review" | "mark_paper_received" | "assign_waiting_classroom" | "withdraw" | "delete_withdrawn", extras: Record<string, string> = {}) {
     if (!schoolId) return;
     setWorkingId(enquiry.id);
     setError("");
@@ -244,9 +251,11 @@ export default function EnrolmentsPage() {
             ? `Secure form issued for ${enquiry.enquiry_reference}. DailyBloom will retry the WhatsApp delivery automatically.`
             : `Secure form issued for ${enquiry.enquiry_reference}, but WhatsApp could not be sent.`);
       } else if (action === "review") {
-        setMessage(extras.decision === "approved" ? "Enrolment approved. It is ready for learner capture and class allocation." : "Enrolment declined and the reason was recorded.");
+        setMessage(extras.decision === "approved" ? "Enrolment approved. The learner profile was created and added to the academic-year waiting list." : "Enrolment declined and the reason was recorded.");
       } else if (action === "mark_paper_received") {
         setMessage(`Paper form received for ${enquiry.enquiry_reference}. You can now capture it into DailyBloom.`);
+      } else if (action === "assign_waiting_classroom") {
+        setMessage(`${enquiry.enquiry_reference} has been allocated to the selected classroom for ${enquiry.academic_year}.`);
       } else if (action === "withdraw") {
         setMessage(`Enrolment ${enquiry.enquiry_reference} was withdrawn.`);
       } else if (action === "delete_withdrawn") {
@@ -285,17 +294,14 @@ export default function EnrolmentsPage() {
         router.push(`/enrolments/print/${encodeURIComponent(body.enquiry.id)}${schoolQuery}`);
         return;
       }
-      setManualSource(null); await loadPage();
+      router.push(`/enrolment/staff?staff_capture_id=${encodeURIComponent(body.enquiry.id)}&school_id=${schoolId}`);
+      return;
     } catch (startError) { setError(startError instanceof Error ? startError.message : "Could not start the enrolment."); } finally { setStartingManual(false); }
   }
 
   const filteredEnquiries = enquiries.filter((enquiry) => `${enquiry.enquiry_reference} ${enquiry.parent_name} ${enquiry.parent_phone}`.toLowerCase().includes(pipelineSearch.trim().toLowerCase()));
   const pipelinePageCount = Math.max(1, Math.ceil(filteredEnquiries.length / 20));
   const displayedEnquiries = filteredEnquiries.slice(pipelinePage * 20, pipelinePage * 20 + 20);
-  const manualEnrolmentHref = schoolQuery
-    ? `/children${schoolQuery}&action=add`
-    : "/children?action=add";
-
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <section className="db-page-header db-card-blue">
@@ -338,9 +344,9 @@ export default function EnrolmentsPage() {
             <h2 style={{ margin: 0 }}>New Enquiry</h2>
             <p className="db-helper" style={{ marginBottom: 0 }}>The form uses the single Registration Fee already set in School Fee Setup. No second fee is created here.</p>
           </div>
-          <Link className="db-button-secondary" href={manualEnrolmentHref}>
+          <button className="db-button-secondary" type="button" onClick={() => setManualSource("paper_manual_capture")}>
             + Add Learner Manually
-          </Link>
+          </button>
           <button className="db-collapse-action db-section-toggle" style={{ width: 96 }} type="button" onClick={() => setNewEnquiryOpen((current) => !current)} aria-expanded={newEnquiryOpen}>
             {newEnquiryOpen ? "Close" : "Open"}
           </button>
@@ -362,6 +368,26 @@ export default function EnrolmentsPage() {
         {manualSource ? <div className="db-soft-card" style={{ padding: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Academic year</span><select className="db-input" value={manualYear} onChange={(event) => setManualYear(Number(event.target.value))}><option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option><option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option></select></label><button className="db-button-primary" type="button" disabled={startingManual} onClick={() => void startManualApplication()}>{startingManual ? "Creating..." : manualSource === "printed_blank_form" ? "Create and open printable form" : "Start capture"}</button><button className="db-button-secondary" type="button" onClick={() => setManualSource(null)}>Cancel</button></div> : null}
         </> : null}
       </section>
+
+      {enquiries.some((enquiry) => enquiry.status === "approved" && enquiry.learner_id) ? (
+        <section className="db-card db-card-green" style={{ display: "grid", gap: 14 }}>
+          <div>
+            <h2 style={{ margin: 0 }}>Approved Enrolments &amp; Waiting List</h2>
+            <p className="db-helper" style={{ marginBottom: 0 }}>Approved learners remain listed by academic year until a classroom is ready. Future-year allocation does not move a learner into the current year&apos;s class.</p>
+          </div>
+          <div style={{ display: "grid", gap: 10 }}>
+            {enquiries.filter((enquiry) => enquiry.status === "approved" && enquiry.learner_id).map((enquiry) => {
+              const placementClassroom = first(enquiry.placement?.classrooms);
+              const waiting = !enquiry.placement?.classroom_id;
+              return <div className="db-soft-card" key={`waiting-${enquiry.id}`} style={{ padding: 12, display: "grid", gridTemplateColumns: "minmax(150px, 1.2fr) minmax(130px, .8fr) minmax(180px, 1.5fr)", gap: 12, alignItems: "center" }}>
+                <div><strong>{enquiry.enquiry_reference}</strong><small className="db-helper" style={{ display: "block" }}>{enquiry.parent_name}</small></div>
+                <div><strong>{enquiry.academic_year}</strong><small className="db-helper" style={{ display: "block" }}>{waiting ? "Waiting for classroom" : placementClassroom?.classroom_name || "Classroom planned"}</small></div>
+                {waiting ? <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><select className="db-input" aria-label={`Classroom for ${enquiry.enquiry_reference}`} value={waitingClassrooms[enquiry.id] || ""} onChange={(event) => setWaitingClassrooms((current) => ({ ...current, [enquiry.id]: event.target.value }))}><option value="">Select classroom when ready</option>{classrooms.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.classroom_name}</option>)}</select><button className="db-button-primary" type="button" disabled={!waitingClassrooms[enquiry.id] || workingId === enquiry.id} onClick={() => void runAction(enquiry, "assign_waiting_classroom", { classroom_id: waitingClassrooms[enquiry.id] })}>{workingId === enquiry.id ? "Saving..." : "Allocate"}</button></div> : <span className="db-status-pill">Classroom allocated</span>}
+              </div>;
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <section className="db-card db-card-lavender enrolment-pipeline-card" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", justifyContent: "stretch", gap: 14 }}>
         <div className="enrolment-pipeline-header" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
@@ -422,7 +448,7 @@ export default function EnrolmentsPage() {
                 {enquiry.status === "payment_pending" && enquiry.registration_payment_status === "pending" ? (
                   paymentFor === enquiry.id ? (
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
-                      <label style={{ display: "grid", gap: 7, flex: "1 1 260px" }}><strong>Proof or payment reference</strong><input className="db-input" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} placeholder="Reference from proof of payment" /></label>
+                      <label style={{ display: "grid", gap: 7, flex: "1 1 260px" }}><strong>Reference used</strong><input className="db-input" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} placeholder={enquiry.enquiry_reference} /><small className="db-helper">Confirm the reference used for this Registration Fee payment.</small></label>
                       <button className="db-button-primary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "verify_registration_payment", { payment_reference: paymentReference })}>{isWorking ? "Saving..." : "Confirm Payment"}</button>
                       <button className="db-button-secondary" type="button" onClick={() => { setPaymentFor(null); setPaymentReference(""); }}>Cancel</button>
                     </div>
@@ -441,10 +467,10 @@ export default function EnrolmentsPage() {
                   ) : <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "review", { decision: "approved" })}>{isWorking ? "Saving..." : "Approve Enrolment"}</button><button className="db-button-secondary" type="button" onClick={() => setDecliningId(enquiry.id)}>Decline with Reason</button></div>
                 ) : null}
 
-                {enquiry.status === "approved" ? <div className="db-helper">Approved. Capture the learner in the existing learner flow, then allocate the class. This keeps learner billing and duplicate protection in their current safe workflow. <Link href={manualEnrolmentHref}>Open Add Learner</Link></div> : null}
+                {enquiry.status === "approved" ? <div className="db-helper">Approved. The learner profile is linked to this reference and appears in the academic-year waiting list above{enquiry.placement?.classroom_id ? ", with its future classroom planned" : " until a classroom is selected"}.</div> : null}
                 {enquiry.enrolment_source === "printed_blank_form" ? <Link className="db-button-secondary" href={`/enrolments/print/${enquiry.id}${schoolQuery}`}>Print / Reprint Blank Form</Link> : null}
                 {["printed_blank_form", "paper_manual_capture"].includes(enquiry.enrolment_source || "") && !enquiry.paper_received_at ? <button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "mark_paper_received")}>Mark Paper Form Received</button> : null}
-                {enquiry.paper_received_at ? <div className="db-helper">Paper received {formatDate(enquiry.paper_received_at)}. Capture the returned form before approval.</div> : null}
+                {enquiry.paper_received_at && enquiry.status !== "submitted" ? <div className="db-helper" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}><span>Paper received {formatDate(enquiry.paper_received_at)}. Capture it against this existing reference before approval.</span><Link className="db-button-primary" href={`/enrolment/staff?staff_capture_id=${encodeURIComponent(enquiry.id)}&school_id=${schoolId}`}>Capture Returned Form</Link></div> : null}
                 {enquiry.status === "declined" && enquiry.decline_reason ? <div className="db-helper"><strong>Decline reason:</strong> {enquiry.decline_reason}</div> : null}
                 {!['approved', 'withdrawn'].includes(enquiry.status) ? <button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => { const reason = window.prompt("Reason for withdrawing this enrolment reference"); if (reason?.trim()) void runAction(enquiry, "withdraw", { withdraw_reason: reason.trim() }); }}>Withdraw enrolment</button> : null}
                 {enquiry.status === "withdrawn" ? <><div className="db-helper"><strong>Withdrawn:</strong> {enquiry.decline_reason || "No reason recorded."}</div><button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => { if (window.confirm(`Permanently delete withdrawn enrolment ${enquiry.enquiry_reference}? This cannot be undone and its reference will not be reused.`)) void runAction(enquiry, "delete_withdrawn"); }}>{isWorking ? "Deleting..." : "Delete withdrawn enrolment"}</button></> : null}

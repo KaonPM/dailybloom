@@ -6,6 +6,8 @@ import {
   readRequestCookie,
 } from "@/app/lib/enrolment-form-security";
 import { toSouthAfricanSmsNumber } from "@/app/lib/sms-portal";
+import { PERMISSIONS } from "@/app/lib/permissions";
+import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
 const ALLOWED_DOCUMENT_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
@@ -33,6 +35,22 @@ async function findEnquiry(token: string) {
     .maybeSingle();
   if (!data || !data.form_token_expires_at || new Date(data.form_token_expires_at).getTime() < Date.now()) return null;
   return data;
+}
+
+async function findStaffCaptureEnquiry(request: Request, enquiryId: string, schoolId: number) {
+  if (!enquiryId || !Number.isInteger(schoolId) || schoolId <= 0) return { enquiry: null, response: NextResponse.json({ error: "Choose a valid paper enrolment." }, { status: 400 }) };
+  const authorization = await requireStaffPermission(request, PERMISSIONS.LEARNERS_MANAGE, schoolId);
+  if (!authorization.ok) return { enquiry: null, response: authorization.response };
+  const { data, error } = await supabaseAdmin
+    .from("school_enrolment_enquiries")
+    .select("id, school_id, enquiry_reference, parent_name, status, enrolment_source, paper_received_at, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name, logo_url, primary_color, contact_number, emis_number)")
+    .eq("id", enquiryId)
+    .eq("school_id", schoolId)
+    .maybeSingle();
+  if (error || !data || !["printed_blank_form", "paper_manual_capture"].includes(String(data.enrolment_source)) || !data.paper_received_at || !["payment_pending", "form_issued"].includes(String(data.status))) {
+    return { enquiry: null, response: NextResponse.json({ error: error?.message || "This returned paper form is not available for capture." }, { status: 404 }) };
+  }
+  return { enquiry: data, authorization, response: null };
 }
 
 function hasFormAccess(
@@ -129,12 +147,17 @@ function termsWithConfiguredFees(terms: EnrolmentTerm[] | null, fees: EnrolmentF
 }
 
 export async function GET(request: Request) {
-  const token = new URL(request.url).searchParams.get("token") || "";
-  const enquiry = await findEnquiry(token);
-  if (!enquiry || !["form_issued", "submitted"].includes(String(enquiry.status))) {
+  const params = new URL(request.url).searchParams;
+  const token = params.get("token") || "";
+  const staffCaptureId = params.get("staff_capture_id") || "";
+  const staffSchoolId = Number(params.get("school_id"));
+  const staffResult = staffCaptureId ? await findStaffCaptureEnquiry(request, staffCaptureId, staffSchoolId) : null;
+  if (staffResult?.response) return staffResult.response;
+  const enquiry = staffResult?.enquiry || await findEnquiry(token);
+  if (!enquiry || (!staffCaptureId && !["form_issued", "submitted"].includes(String(enquiry.status)))) {
     return NextResponse.json({ error: "This enrolment link is invalid or has expired." }, { status: 404 });
   }
-  if (!hasFormAccess(request, token, enquiry)) {
+  if (!staffCaptureId && !hasFormAccess(request, token, enquiry)) {
     return accessCodeRequiredResponse();
   }
   const school = one(enquiry.schools as { school_name?: string; logo_url?: string; primary_color?: string; contact_number?: string; emis_number?: string } | { school_name?: string; logo_url?: string; primary_color?: string; contact_number?: string; emis_number?: string }[] | null);
@@ -145,7 +168,7 @@ export async function GET(request: Request) {
     .eq("school_id", enquiry.school_id)
     .maybeSingle();
   if (configurationError) return NextResponse.json({ error: configurationError.message }, { status: 500 });
-  if (configuration?.is_open === false) return NextResponse.json({ error: "Enrolments are not open at the moment. Please contact the school." }, { status: 403 });
+  if (!staffCaptureId && configuration?.is_open === false) return NextResponse.json({ error: "Enrolments are not open at the moment. Please contact the school." }, { status: 403 });
   const [{ data: documents }, { data: requirements }, { data: consents }, { data: terms }, { data: fees }, { data: settings }, { data: registration }, { data: signupRows }] = await Promise.all([
     supabaseAdmin.from("school_enrolment_document_requirements").select("title, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_requirement_templates").select("template_key, available_from_months, available_to_months, category, item_name, quantity, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("template_key").order("display_order"),
@@ -173,17 +196,22 @@ export async function GET(request: Request) {
     enrolment_configuration: configuration ? { ...configuration, additional_declaration: configuration.additional_declaration || DEFAULT_PARENT_DECLARATION } : { additional_declaration: DEFAULT_PARENT_DECLARATION },
     document_requirements: documents || [], requirement_templates: requirements || [], consents: consents || [], terms: presentedTerms,
     fees: fees || [], banking_details: settings || null,
+    staff_capture: Boolean(staffCaptureId),
   });
 }
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const token = text(body.token, 200);
-  const enquiry = await findEnquiry(token);
-  if (!enquiry || enquiry.status !== "form_issued") {
+  const staffCaptureId = text(body.staff_capture_id, 80);
+  const staffSchoolId = Number(body.school_id);
+  const staffResult = staffCaptureId ? await findStaffCaptureEnquiry(request, staffCaptureId, staffSchoolId) : null;
+  if (staffResult?.response) return staffResult.response;
+  const enquiry = staffResult?.enquiry || await findEnquiry(token);
+  if (!enquiry || (!staffCaptureId && enquiry.status !== "form_issued")) {
     return NextResponse.json({ error: "This enrolment link is invalid, expired or already submitted." }, { status: 400 });
   }
-  if (!hasFormAccess(request, token, enquiry)) {
+  if (!staffCaptureId && !hasFormAccess(request, token, enquiry)) {
     return accessCodeRequiredResponse();
   }
   if (body.action === "create_document_upload") {
@@ -217,7 +245,7 @@ export async function POST(request: Request) {
     supabaseAdmin.from("school_fee_types").select("fee_code, fee_name, fee_category, amount").eq("school_id", enquiry.school_id).eq("is_active", true),
   ]);
   const presentedTerms = termsWithConfiguredFees(terms as EnrolmentTerm[] | null, fees);
-  if (configuration?.is_open === false) return NextResponse.json({ error: "Enrolments are currently closed by the school." }, { status: 403 });
+  if (!staffCaptureId && configuration?.is_open === false) return NextResponse.json({ error: "Enrolments are currently closed by the school." }, { status: 403 });
   const consentResponses = body.consent_responses && typeof body.consent_responses === "object" && !Array.isArray(body.consent_responses) ? body.consent_responses as Record<string, unknown> : {};
   const missingConsent = (consents || []).find((consent) => consent.is_required && consentResponses[String(consent.id)] !== true);
   if (missingConsent) return NextResponse.json({ error: `Please accept “${missingConsent.title}” before submitting.` }, { status: 400 });
@@ -334,5 +362,8 @@ export async function POST(request: Request) {
     })
     .eq("id", enquiry.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (staffCaptureId && staffResult && "authorization" in staffResult && staffResult.authorization) {
+    await writeSecurityAudit(staffResult.authorization.staff, "enrolment.paper_form_captured", { school_id: enquiry.school_id, enquiry_id: enquiry.id, reference: enquiry.enquiry_reference });
+  }
   return NextResponse.json({ success: true });
 }

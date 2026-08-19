@@ -137,7 +137,7 @@ export default function Sidebar() {
 
   const quickActionsNav = useMemo<NavItem[]>(
     () => [
-      { label: "Add Learner", href: "/children", match: ["/children"], permission: PERMISSIONS.LEARNERS_MANAGE },
+      { label: "Add Learner", href: "/enrolments?action=add", match: ["/enrolments"], permission: PERMISSIONS.LEARNERS_MANAGE },
       { label: "Add Practitioner", href: "/teachers", match: ["/teachers"], permission: PERMISSIONS.STAFF_MANAGE },
       { label: "Add Event", href: "/events", match: ["/events"], permission: PERMISSIONS.EVENTS_MANAGE },
       {

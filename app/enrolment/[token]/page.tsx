@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 
 type PublicForm = {
   form_name?: string;
@@ -48,6 +49,7 @@ type FormInfo = {
   fees?: Array<{ fee_code?: string | null; fee_name?: string | null; fee_category?: string | null; amount?: number | string | null }>;
   banking_details?: { bank_account_name?: string | null; bank_name?: string | null; bank_account_number?: string | null; bank_branch_code?: string | null; bank_account_type?: string | null } | null;
   enrolment_configuration?: { additional_declaration?: string | null; second_guardian_mode?: "hidden" | "optional" | "required"; emergency_contact_mode?: "hidden" | "optional" | "required"; previous_school_enabled?: boolean } | null;
+  staff_capture?: boolean;
 };
 
 const emptyFields = {
@@ -89,6 +91,9 @@ export default function SecureEnrolmentFormPage() {
   const searchParams = useSearchParams();
   const token = typeof params.token === "string" ? params.token : "";
   const isPreview = token === "preview";
+  const staffCaptureId = searchParams.get("staff_capture_id") || "";
+  const staffSchoolId = searchParams.get("school_id") || "";
+  const isStaffCapture = Boolean(staffCaptureId && staffSchoolId);
   const [info, setInfo] = useState<FormInfo | null>(null);
   const [fields, setFields] = useState(emptyFields);
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
@@ -162,7 +167,10 @@ export default function SecureEnrolmentFormPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`/api/enrolment-form?token=${encodeURIComponent(token)}`, {
+      const endpoint = isStaffCapture
+        ? `/api/enrolment-form?staff_capture_id=${encodeURIComponent(staffCaptureId)}&school_id=${encodeURIComponent(staffSchoolId)}`
+        : `/api/enrolment-form?token=${encodeURIComponent(token)}`;
+      const response = await (isStaffCapture ? authenticatedFetch : fetch)(endpoint, {
         cache: "no-store",
       });
       const body = await response.json().catch(() => ({}));
@@ -185,7 +193,7 @@ export default function SecureEnrolmentFormPage() {
     } finally {
       setLoading(false);
     }
-  }, [isPreview, searchParams, token]);
+  }, [isPreview, isStaffCapture, searchParams, staffCaptureId, staffSchoolId, token]);
 
   useEffect(() => {
     void loadForm();
@@ -251,18 +259,18 @@ export default function SecureEnrolmentFormPage() {
     setSubmitting(true);
     setError("");
     try {
-      const response = await fetch("/api/enrolment-form", {
+      const response = await (isStaffCapture ? authenticatedFetch : fetch)("/api/enrolment-form", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, ...fields, custom_answers: customAnswers, uploaded_documents: documentUploads, consent_responses: consentResponses, terms_accepted: termsAccepted, declaration_name: declarationName, declaration_relationship: declarationRelationship }),
+        body: JSON.stringify({ token, staff_capture_id: staffCaptureId || undefined, school_id: staffSchoolId ? Number(staffSchoolId) : undefined, ...fields, custom_answers: customAnswers, uploaded_documents: documentUploads, consent_responses: consentResponses, terms_accepted: termsAccepted, declaration_name: declarationName, declaration_relationship: declarationRelationship }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(body.error || "Your enrolment form could not be submitted.");
       }
-      setSuccess(
-        "Thank you. Your form has been submitted securely. The school will review it and contact you about the next step.",
-      );
+      setSuccess(isStaffCapture
+        ? "The returned paper form has been captured against this enrolment reference and is ready for review."
+        : "Thank you. Your form has been submitted securely. The school will review it and contact you about the next step.");
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -301,7 +309,7 @@ export default function SecureEnrolmentFormPage() {
     setUploadingDocument(documentName);
     setError("");
     try {
-      const response = await fetch("/api/enrolment-form", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, action: "create_document_upload", file_name: file.name, file_size: file.size, content_type: file.type }) });
+      const response = await (isStaffCapture ? authenticatedFetch : fetch)("/api/enrolment-form", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, staff_capture_id: staffCaptureId || undefined, school_id: staffSchoolId ? Number(staffSchoolId) : undefined, action: "create_document_upload", file_name: file.name, file_size: file.size, content_type: file.type }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "Could not prepare the document upload.");
       const uploadResponse = await fetch(body.signed_url, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
@@ -327,7 +335,7 @@ export default function SecureEnrolmentFormPage() {
   return (
     <main className="db-public-page db-enrolment-page">
       <section className="db-card db-card-blue" style={{ display: "grid", gap: 12 }}>
-        <div className="db-eyebrow">DAILYBLOOM · SECURE ENROLMENT</div>
+        <div className="db-eyebrow">DAILYBLOOM · {isStaffCapture ? "STAFF PAPER CAPTURE" : "SECURE ENROLMENT"}</div>
         {info?.school_logo_url ? <img src={info.school_logo_url} alt={`${info.school_name} logo`} style={{ width: 76, height: 76, borderRadius: 14, objectFit: "contain" }} /> : null}
         <h1 className="db-page-title" style={{ margin: 0 }}>
           {info?.school_name || "Secure Enrolment"}
@@ -337,7 +345,7 @@ export default function SecureEnrolmentFormPage() {
           {info?.reference ? ` · Reference ${info.reference}` : ""}
         </p>
         <div className="db-helper" style={{ display: "grid", gap: 2 }}><p style={{ margin: 0 }}><strong>Registration / EMIS / NPO number:</strong> {info?.school_registration_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Registered address:</strong> {info?.school_physical_address || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Contact number:</strong> {info?.school_contact_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Email:</strong> {info?.school_email_address || "Not provided by the school"}</p></div>
-        <div className="db-soft-card" style={{ padding: 10, borderLeft: `4px solid ${info?.school_primary_color || "#5ab8de"}` }}><strong>Digital school enrolment form</strong><span className="db-helper" style={{ display: "block", marginTop: 3 }}>Please complete the school’s form sections below. Your school details and enrolment reference are already included.</span></div>
+        <div className="db-soft-card" style={{ padding: 10, borderLeft: `4px solid ${info?.school_primary_color || "#5ab8de"}` }}><strong>{isStaffCapture ? "Capture returned paper form" : "Digital school enrolment form"}</strong><span className="db-helper" style={{ display: "block", marginTop: 3 }}>{isStaffCapture ? "Enter the paper form exactly as supplied. It will remain attached to the existing enrolment reference." : "Please complete the school’s form sections below. Your school details and enrolment reference are already included."}</span></div>
       </section>
 
       {isPreview ? (
@@ -361,6 +369,7 @@ export default function SecureEnrolmentFormPage() {
         <section className="db-card db-card-green" role="status">
           <h2 style={{ marginTop: 0 }}>Form submitted</h2>
           <p style={{ marginBottom: 0 }}>{success}</p>
+          {isStaffCapture ? <p style={{ marginBottom: 0 }}><a className="db-button-secondary" href={`/enrolments?school=${encodeURIComponent(staffSchoolId)}`}>Back to Enrolments</a></p> : null}
         </section>
       ) : null}
 
@@ -405,9 +414,7 @@ export default function SecureEnrolmentFormPage() {
         <section className="db-card db-enrolment-form" style={{ display: "grid", gap: 16 }}>
           <div>
             <h2 style={{ margin: 0 }}>Learner and parent details</h2>
-            <p className="db-helper" style={{ marginBottom: 0 }}>
-              Please complete the information carefully. Your details are shared only with the school for this enrolment enquiry.
-            </p>
+            <p className="db-helper" style={{ marginBottom: 0 }}>{isStaffCapture ? "Capture the returned form carefully. The sections match the parent digital enrolment form." : "Please complete the information carefully. Your details are shared only with the school for this enrolment enquiry."}</p>
           </div>
           {info.form?.instructions ? (
             <div className="db-soft-card" style={{ padding: 14 }}>
@@ -478,7 +485,7 @@ export default function SecureEnrolmentFormPage() {
               <div className="db-soft-card" style={{ padding: 12 }}><strong>Ready to submit</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>Check that the information and requested documents are complete before submitting.</p></div>
             </div> : null}
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><button className="db-button-secondary" type="button" disabled={step === 1} onClick={() => setStep((current) => Math.max(1, current - 1))}>Back</button>{step < 4 ? <button className="db-button-primary" type="button" onClick={() => setStep((current) => Math.min(4, current + 1))}>Continue</button> : <button className="db-button-primary" type="button" disabled={submitting || isPreview} onClick={() => void submit()}>{isPreview ? "Preview only" : submitting ? "Submitting..." : "Submit Enrolment Form"}</button>}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><button className="db-button-secondary" type="button" disabled={step === 1} onClick={() => setStep((current) => Math.max(1, current - 1))}>Back</button>{step < 4 ? <button className="db-button-primary" type="button" onClick={() => setStep((current) => Math.min(4, current + 1))}>Continue</button> : <button className="db-button-primary" type="button" disabled={submitting || isPreview} onClick={() => void submit()}>{isPreview ? "Preview only" : submitting ? "Submitting..." : isStaffCapture ? "Save Captured Form" : "Submit Enrolment Form"}</button>}</div>
         </section>
       ) : null}
     </main>

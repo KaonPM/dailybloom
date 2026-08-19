@@ -213,6 +213,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   }
 
+  if (action === "capture_by_reference") {
+    const reference = text(body.enquiry_reference, 80).toUpperCase();
+    if (!reference) return NextResponse.json({ error: "Enter the enrolment reference printed on the form." }, { status: 400 });
+    const { data: existing, error: lookupError } = await supabaseAdmin
+      .from("school_enrolment_enquiries")
+      .select("id, status, enrolment_source, paper_received_at")
+      .eq("school_id", schoolId)
+      .ilike("enquiry_reference", reference)
+      .maybeSingle();
+    if (lookupError || !existing) return NextResponse.json({ error: "No enrolment form with that reference was found for this school." }, { status: 404 });
+    if (!['printed_blank_form', 'paper_manual_capture'].includes(String(existing.enrolment_source))) {
+      return NextResponse.json({ error: "This reference belongs to a digital parent application. Open it from the Enrolment Pipeline instead." }, { status: 400 });
+    }
+    if (!["payment_pending", "form_issued"].includes(String(existing.status))) {
+      return NextResponse.json({ error: "This enrolment form has already been submitted, reviewed or closed." }, { status: 400 });
+    }
+    if (!existing.paper_received_at) {
+      const { error: updateError } = await supabaseAdmin.from("school_enrolment_enquiries").update({
+        paper_received_at: new Date().toISOString(),
+        paper_captured_by: authorization.staff.userId,
+        updated_at: new Date().toISOString(),
+      }).eq("id", existing.id).eq("school_id", schoolId);
+      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+      await writeSecurityAudit(authorization.staff, "enrolment.paper_received", { school_id: schoolId, enquiry_id: existing.id, located_by_reference: true });
+    }
+    return NextResponse.json({ enquiry_id: existing.id });
+  }
+
   const enquiryId = text(body.enquiry_id, 80);
   if (!enquiryId) return NextResponse.json({ error: "Choose an enrolment enquiry." }, { status: 400 });
   const { data: enquiry, error: enquiryError } = await supabaseAdmin

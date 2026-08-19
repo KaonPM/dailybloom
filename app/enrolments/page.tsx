@@ -383,8 +383,8 @@ export default function EnrolmentsPage() {
       {enquiries.some((enquiry) => enquiry.status === "approved" && enquiry.learner_id) ? (
         <section className="db-card db-card-green" style={{ display: "grid", gap: 14 }}>
           <div>
-            <h2 style={{ margin: 0 }}>Approved Enrolments &amp; Waiting List</h2>
-            <p className="db-helper" style={{ marginBottom: 0 }}>Approved learners remain listed by academic year until a classroom is ready. Future-year allocation does not move a learner into the current year&apos;s class.</p>
+            <h2 style={{ margin: 0 }}>Approved Learners &amp; Classroom Allocation</h2>
+            <p className="db-helper" style={{ marginBottom: 0 }}>Approved learners remain here by academic year until you allocate their classroom. Future-year allocation does not move a learner into the current year&apos;s class.</p>
           </div>
           <div style={{ display: "grid", gap: 10 }}>
             {enquiries.filter((enquiry) => enquiry.status === "approved" && enquiry.learner_id).map((enquiry) => {

@@ -267,7 +267,7 @@ export default function SecureEnrolmentFormPage() {
   return (
     <main className="db-public-page db-enrolment-page">
       <section className="db-card db-card-blue" style={{ display: "grid", gap: 12 }}>
-        <div className="db-eyebrow">DAILYBLOOM · {isStaffCapture ? "STAFF PAPER CAPTURE" : "SECURE ENROLMENT"}</div>
+        <div className="db-eyebrow">DAILYBLOOM · {isStaffCapture ? "STAFF DIGITAL CAPTURE" : "SECURE ENROLMENT"}</div>
         {info?.school_logo_url ? <img src={info.school_logo_url} alt={`${info.school_name} logo`} style={{ width: 76, height: 76, borderRadius: 14, objectFit: "contain" }} /> : null}
         <h1 className="db-page-title" style={{ margin: 0 }}>
           {info?.school_name || "Secure Enrolment"}
@@ -277,7 +277,7 @@ export default function SecureEnrolmentFormPage() {
           {info?.reference ? ` · Reference ${info.reference}` : ""}
         </p>
         <div className="db-helper" style={{ display: "grid", gap: 2 }}><p style={{ margin: 0 }}><strong>Registration / EMIS / NPO number:</strong> {info?.school_registration_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Registered address:</strong> {info?.school_physical_address || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Contact number:</strong> {info?.school_contact_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Email:</strong> {info?.school_email_address || "Not provided by the school"}</p></div>
-        <div className="db-soft-card" style={{ padding: 10, borderLeft: `4px solid ${info?.school_primary_color || "#5ab8de"}` }}><strong>{isStaffCapture ? "Capture returned paper form" : "Private digital school enrolment form"}</strong><span className="db-helper" style={{ display: "block", marginTop: 3 }}>{isStaffCapture ? "Enter the paper form exactly as supplied. It will remain attached to the existing enrolment reference." : "This private link is tied to one learner and expires after 24 hours. Please do not forward or share it. Your school details and enrolment reference are already included."}</span></div>
+        <div className="db-soft-card" style={{ padding: 10, borderLeft: `4px solid ${info?.school_primary_color || "#5ab8de"}` }}><strong>{isStaffCapture ? "Capture learner enrolment" : "Private digital school enrolment form"}</strong><span className="db-helper" style={{ display: "block", marginTop: 3 }}>{isStaffCapture ? "Complete the universal enrolment form below. The learner information remains attached to this enrolment reference." : "This private link is tied to one learner and expires after 24 hours. Please do not forward or share it. Your school details and enrolment reference are already included."}</span></div>
       </section>
 
       {isPreview ? (

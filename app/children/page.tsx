@@ -151,6 +151,9 @@ export default function LearnersPage() {
     () => searchParams.get("action") === "add"
   );
   const [learnersListOpen, setLearnersListOpen] = useState(true);
+  const [referenceCaptureOpen, setReferenceCaptureOpen] = useState(false);
+  const [captureReference, setCaptureReference] = useState("");
+  const [findingReference, setFindingReference] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -266,6 +269,25 @@ export default function LearnersPage() {
     }
 
     setLearners((data || []) as LearnerRow[]);
+  }
+
+  async function openReturnedFormByReference() {
+    if (!schoolId || !captureReference.trim()) return;
+    setFindingReference(true);
+    try {
+      const response = await authenticatedFetch("/api/enrolments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "capture_by_reference", school_id: schoolId, enquiry_reference: captureReference.trim() }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "The enrolment form could not be found.");
+      router.push(`/enrolment/staff?staff_capture_id=${encodeURIComponent(body.enquiry_id)}&school_id=${schoolId}`);
+    } catch (referenceError) {
+      alert(referenceError instanceof Error ? referenceError.message : "The enrolment form could not be found.");
+    } finally {
+      setFindingReference(false);
+    }
   }
 
   async function fetchSchoolFeeCatalog(
@@ -946,6 +968,9 @@ export default function LearnersPage() {
               <Link href={`/parent-access${schoolId ? `?school=${schoolId}` : ""}`} className="db-main-pill">
                 Parent Portal Access
               </Link>
+              <button type="button" className="db-button-secondary" onClick={() => setReferenceCaptureOpen((current) => !current)}>
+                Capture Form by Reference
+              </button>
               <button
                 type="button"
                 className="db-button-primary"
@@ -964,6 +989,17 @@ export default function LearnersPage() {
           ) : null}
         </div>
       </div>
+
+      {referenceCaptureOpen && canAddLearner ? (
+        <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18, display: "grid", gap: 12 }}>
+          <div><h3 style={{ ...sectionTitle, marginBottom: 4 }}>Capture a returned enrolment form</h3><p style={{ ...helperText, margin: 0 }}>Enter the reference printed on the form. DailyBloom will open the existing application and will not create a duplicate.</p></div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+            <label style={{ display: "grid", gap: 6, minWidth: 260, flex: "1 1 320px" }}><strong>Enrolment reference</strong><input className="db-input" value={captureReference} onChange={(event) => setCaptureReference(event.target.value.toUpperCase())} placeholder="e.g. LSPS-2027-0001" /></label>
+            <button className="db-button-primary" type="button" disabled={findingReference || !captureReference.trim()} onClick={() => void openReturnedFormByReference()}>{findingReference ? "Finding form..." : "Open enrolment form"}</button>
+            <button className="db-button-secondary" type="button" onClick={() => { setReferenceCaptureOpen(false); setCaptureReference(""); }}>Cancel</button>
+          </div>
+        </div>
+      ) : null}
 
       {showForm && canAddLearner ? (
         <div

@@ -746,10 +746,9 @@ export default function Sidebar() {
         },
         {
           key: "learners-parents",
-          label: "Learners & Parents",
+          label: "Admissions",
           color: "#60A5FA",
           items: itemsNamed(
-            "Learners",
             "Enrolments",
             "Re-enrolments",
             "Parent Consent"

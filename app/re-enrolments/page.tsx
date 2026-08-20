@@ -27,6 +27,7 @@ type Campaign = {
 
 type Reenrolment = {
   id: string;
+  learner_id: string;
   learner_name: string;
   classroom_name: string;
   reenrolment_reference: string;
@@ -41,11 +42,16 @@ type Reenrolment = {
   learner_details?: Record<string, string> | null;
   guardian_details?: Record<string, string> | null;
   medical_details?: Record<string, string> | null;
+  uploaded_documents?: Record<string, { name?: string; path?: string }>;
   acknowledged_document_ids?: string[];
   acknowledged_requirement_ids?: string[];
   renewal_snapshot?: {
+    learner_details?: Record<string, string | null>;
+    guardian_details?: Record<string, string | null>;
+    medical_details?: Record<string, string | null>;
+    existing_documents?: Array<{ id: string | number; name: string; file_name?: string | null; uploaded_at?: string | null }>;
     missing_documents?: Array<{ id: string; name: string }>;
-    learner_requirements?: Array<{ id: string; name: string; quantity?: number }>;
+    missing_requirements?: Array<{ id: string; name: string; quantity?: number }>;
   } | null;
   current_classroom_id?: number | null;
   next_classroom_id?: number | null;
@@ -60,7 +66,7 @@ type ReenrolmentData = {
   reenrolments: Reenrolment[];
   enrolment_forms: Array<{ id: string; form_name: string; form_type: string; instructions?: string | null }>;
   classrooms: Array<{ id: number; classroom_name: string }>;
-  approved_enrolments: Array<{id:string;learner_id:string;enquiry_reference:string;parent_name:string;academic_year:number;placement?:{classroom_id:number|null;classrooms?:{classroom_name?:string}|Array<{classroom_name?:string}>}|null}>;
+  approved_enrolments: Array<{id:string;learner_id:string;enquiry_reference:string;parent_name:string;academic_year:number;submitted_data?:Record<string,unknown>|null;learner?:{name?:string|null;legal_name?:string|null;guardian_name?:string|null;class?:string|null;classroom_id?:number|null}|null;placement?:{classroom_id:number|null;classrooms?:{classroom_name?:string}|Array<{classroom_name?:string}>}|null}>;
 };
 
 const money = (value: number | null | undefined) =>
@@ -98,6 +104,7 @@ export default function ReEnrolmentsPage() {
   const [declineReason, setDeclineReason] = useState("");
   const [reviewing, setReviewing] = useState(false);
   const [rollingOver, setRollingOver] = useState(false);
+  const [selectedApprovedId, setSelectedApprovedId] = useState<string | null>(null);
 
   const schoolQuery = useMemo(() => (isMaster && schoolId ? `?school=${schoolId}` : ""), [isMaster, schoolId]);
 
@@ -274,6 +281,7 @@ export default function ReEnrolmentsPage() {
   const submittedCount = reenrolments.filter((record) => record.status === "submitted").length;
   const approvedCount = reenrolments.filter((record) => record.status === "approved").length;
   const selectedForReview = reenrolments.find((record) => record.id === selectedForReviewId) || null;
+  const selectedApproved = data?.approved_enrolments?.find((record) => record.id === selectedApprovedId) || null;
   const rolloverAvailable = campaign ? Date.now() >= new Date(`${campaign.school_year}-01-01T00:00:00+02:00`).getTime() : false;
 
   return (
@@ -296,7 +304,7 @@ export default function ReEnrolmentsPage() {
       {message ? <div className="db-success-banner" role="status">{message}</div> : null}
       {loading ? <section className="db-card"><p className="db-helper">Loading re-enrolment information…</p></section> : null}
 
-      {!loading && data?.approved_enrolments?.some((item) => !item.placement?.classroom_id) ? (
+      {!loading && data && (data.approved_enrolments.some((item) => !item.placement?.classroom_id) || reenrolments.some((item) => item.status === "approved" && !item.next_classroom_id)) ? (
         <section
           id="awaiting-classroom-allocation"
           className="db-card db-card-green"
@@ -309,20 +317,29 @@ export default function ReEnrolmentsPage() {
               const selectionKey = `approved:${item.id}`;
               const selectedClassroom = allocationSelections[selectionKey] || "";
               return (
-                <div className="db-soft-card" key={item.id} style={{ padding: 14, display: "grid", gridTemplateColumns: "minmax(200px, 1fr) minmax(90px, .5fr) minmax(280px, 1.4fr)", gap: 12, alignItems: "center" }}>
-                  <div><strong>{item.enquiry_reference}</strong><small className="db-helper" style={{ display: "block" }}>{item.parent_name}</small></div>
-                  <span>{item.academic_year}</span>
-                  <div style={{ display: "flex", gap: 8 }}>
+                <div className="db-soft-card" key={item.id} style={{ padding: 14, display: "grid", gridTemplateColumns: "minmax(210px, 1.1fr) minmax(150px, .8fr) minmax(330px, 1.5fr)", gap: 12, alignItems: "center" }}>
+                  <div><strong>{item.learner?.name || item.learner?.legal_name || "Approved learner"}</strong><small className="db-helper" style={{ display: "block" }}>{item.parent_name || item.learner?.guardian_name || "Parent not recorded"}</small><small className="db-helper" style={{ display: "block" }}>{item.enquiry_reference} · {item.academic_year}</small></div>
+                  <div><small className="db-helper" style={{ display: "block" }}>Current classroom</small>{item.learner?.class || "Unassigned"}</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <select className="db-input" aria-label={`Classroom for ${item.enquiry_reference}`} value={selectedClassroom} onChange={(event) => setAllocationSelections((current) => ({ ...current, [selectionKey]: event.target.value }))}>
                       <option value="">Select classroom</option>
                       {data.classrooms.map((room) => <option key={room.id} value={room.id}>{room.classroom_name}</option>)}
                     </select>
                     <button className="db-button-primary" disabled={!selectedClassroom || reviewing} onClick={() => void allocateApprovedEnrolment(item.id)}>Allocate</button>
+                    <button className="db-button-secondary" type="button" onClick={() => setSelectedApprovedId(item.id)}>View form</button>
+                    <Link className="db-button-secondary" href={`/children/${item.learner_id}${schoolQuery}`}>View learner</Link>
+                    <Link className="db-button-secondary" href={isMaster && schoolId ? `/children?school=${schoolId}&edit=${item.learner_id}` : `/children?edit=${item.learner_id}`}>Edit learner</Link>
                   </div>
                 </div>
               );
             })}
+            {reenrolments.filter((item) => item.status === "approved" && !item.next_classroom_id).map((item) => {
+              const selectionKey = `reenrolment:${item.id}`;
+              const selectedClassroom = allocationSelections[selectionKey] || "";
+              return <div className="db-soft-card" key={item.id} style={{ padding: 14, display: "grid", gridTemplateColumns: "minmax(210px, 1.1fr) minmax(150px, .8fr) minmax(330px, 1.5fr)", gap: 12, alignItems: "center" }}><div><strong>{item.learner_name}</strong><small className="db-helper" style={{ display: "block" }}>{item.reenrolment_reference} · Re-enrolment</small></div><div><small className="db-helper" style={{ display: "block" }}>Current classroom</small>{item.classroom_name || "Unassigned"}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><select className="db-input" aria-label={`Next-year classroom for ${item.learner_name}`} value={selectedClassroom} onChange={(event) => setAllocationSelections((current) => ({ ...current, [selectionKey]: event.target.value }))}><option value="">Select next-year classroom</option>{data.classrooms.map((room) => <option key={room.id} value={room.id}>{room.classroom_name}</option>)}</select><button className="db-button-primary" disabled={!selectedClassroom || reviewing} onClick={() => void assignClassroom(item.id)}>Allocate</button><button className="db-button-secondary" type="button" onClick={() => { setSelectedForReviewId(item.id); setDeclineReason(""); }}>View form</button><Link className="db-button-secondary" href={`/children/${item.learner_id}${schoolQuery}`}>View learner</Link><Link className="db-button-secondary" href={isMaster && schoolId ? `/children?school=${schoolId}&edit=${item.learner_id}` : `/children?edit=${item.learner_id}`}>Edit learner</Link></div></div>;
+            })}
           </div>
+          {selectedApproved ? <div className="db-soft-card" style={{ padding: 16, marginTop: 14 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}><div><p className="db-eyebrow">Approved enrolment form</p><h3 style={{ margin: "4px 0" }}>{selectedApproved.learner?.name || selectedApproved.learner?.legal_name || selectedApproved.enquiry_reference}</h3><p className="db-helper" style={{ margin: 0 }}>{selectedApproved.enquiry_reference}</p></div><button className="db-button-secondary" type="button" onClick={() => setSelectedApprovedId(null)}>Close</button></div><SubmittedFormSummary data={selectedApproved.submitted_data} /></div> : null}
         </section>
       ) : null}
 
@@ -408,8 +425,8 @@ export default function ReEnrolmentsPage() {
                       <td style={{ padding: 12 }}>
                         {record.status === "submitted" ? (
                           <button className="db-button-secondary" type="button" onClick={() => { setSelectedForReviewId(record.id); setDeclineReason(""); }}>Review</button>
-                        ) : record.status === "declined" ? "Reason sent" : record.status === "approved" ? (
-                          record.next_classroom_id ? <span>Classroom planned</span> : <div style={{ display: "flex", gap: 8, minWidth: 330 }}><select className="db-input" aria-label={`Next-year classroom for ${record.learner_name}`} value={allocationSelections[`reenrolment:${record.id}`] || ""} onChange={(event) => setAllocationSelections((current) => ({ ...current, [`reenrolment:${record.id}`]: event.target.value }))}><option value="">Awaiting class allocation</option>{data.classrooms.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.classroom_name}</option>)}</select><button className="db-button-primary" type="button" disabled={reviewing || !allocationSelections[`reenrolment:${record.id}`]} onClick={() => void assignClassroom(record.id)}>Allocate</button></div>
+                        ) : record.status === "declined" ? "Returned to parent for updates" : record.status === "approved" ? (
+                          record.next_classroom_id ? <span>Classroom planned</span> : <span>Awaiting classroom allocation above</span>
                         ) : record.status === "school_leaver" ? "Expected school leaver" : record.status === "no_response" ? "Follow up required" : record.status === "awaiting_parent" ? <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="db-button-secondary" type="button" disabled={reviewing} onClick={()=>void updateReenrolmentStatus(record.id,"mark_no_response")}>Mark No Response</button><button className="db-button-secondary" type="button" disabled={reviewing} onClick={()=>{if(window.confirm(`Mark ${record.learner_name} as Grade R completed / expected school leaver?`))void updateReenrolmentStatus(record.id,"mark_school_leaver")}}>Grade R Completed</button></div> : "Parent response recorded"}
                       </td>
                     </tr>
@@ -438,9 +455,12 @@ export default function ReEnrolmentsPage() {
                     <strong>Parent notes</strong>
                     <p className="db-helper" style={{ margin: "6px 0 0" }}>{selectedForReview.parent_notes || "No additional notes."}</p>
                   </div>
-                  <div><strong>Missing documents acknowledged</strong><p className="db-helper" style={{ margin: "6px 0 0" }}>{selectedForReview.acknowledged_document_ids?.length || 0} of {selectedForReview.renewal_snapshot?.missing_documents?.length || 0}</p></div>
-                  <div><strong>Learner requirements acknowledged</strong><p className="db-helper" style={{ margin: "6px 0 0" }}>{selectedForReview.acknowledged_requirement_ids?.length || 0} of {selectedForReview.renewal_snapshot?.learner_requirements?.length || 0}</p></div>
+                  <div><strong>Replacement documents uploaded</strong><p className="db-helper" style={{ margin: "6px 0 0" }}>{Object.keys(selectedForReview.uploaded_documents || {}).length} of {selectedForReview.renewal_snapshot?.missing_documents?.length || 0}</p></div>
+                  <div><strong>Learner requirements acknowledged</strong><p className="db-helper" style={{ margin: "6px 0 0" }}>{selectedForReview.acknowledged_requirement_ids?.length || 0} of {selectedForReview.renewal_snapshot?.missing_requirements?.length || 0}</p></div>
                 </div>
+                <ComparisonGroup title="Learner changes" current={selectedForReview.renewal_snapshot?.learner_details} proposed={selectedForReview.learner_details} />
+                <ComparisonGroup title="Parent / guardian changes" current={selectedForReview.renewal_snapshot?.guardian_details} proposed={selectedForReview.guardian_details} />
+                <ComparisonGroup title="Medical changes" current={selectedForReview.renewal_snapshot?.medical_details} proposed={selectedForReview.medical_details} />
                 <div className="db-soft-card" style={{ padding: 14, marginTop: 16 }}>
                   <strong>Digital form details</strong>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 10 }}>
@@ -450,14 +470,7 @@ export default function ReEnrolmentsPage() {
                     <p className="db-helper" style={{ margin: 0 }}><strong>Allergies:</strong> {selectedForReview.medical_details?.allergies || "None recorded"}</p>
                   </div>
                 </div>
-                <label style={{ display: "block", marginTop: 16 }}>
-                  <span className="db-label">If declining, explain what the parent needs to correct</span>
-                  <textarea className="db-input" value={declineReason} onChange={(event) => setDeclineReason(event.target.value)} rows={3} placeholder="For example: Please upload the updated immunisation card before re-enrolment can be approved." />
-                </label>
-                <div className="db-page-actions" style={{ marginTop: 16 }}>
-                  <button className="db-button-primary" type="button" disabled={reviewing} onClick={() => void reviewReenrolment("approve_reenrolment")}>{reviewing ? "Saving…" : "Approve — Awaiting Class Allocation"}</button>
-                  <button className="db-button-secondary" type="button" disabled={reviewing || !declineReason.trim()} onClick={() => void reviewReenrolment("decline_reenrolment")}>Decline & Ask Parent to Update</button>
-                </div>
+                {selectedForReview.status === "submitted" ? <><label style={{ display: "block", marginTop: 16 }}><span className="db-label">If returning the form, explain what the parent needs to correct</span><textarea className="db-input" value={declineReason} onChange={(event) => setDeclineReason(event.target.value)} rows={3} placeholder="For example: Please upload the updated immunisation card before re-enrolment can be approved." /></label><div className="db-page-actions" style={{ marginTop: 16 }}><button className="db-button-primary" type="button" disabled={reviewing} onClick={() => void reviewReenrolment("approve_reenrolment")}>{reviewing ? "Saving…" : "Approve — Awaiting Class Allocation"}</button><button className="db-button-secondary" type="button" disabled={reviewing || !declineReason.trim()} onClick={() => void reviewReenrolment("decline_reenrolment")}>Return to Parent for Updates</button></div></> : <div className="db-success-banner" style={{ marginTop: 16 }}>This approved submission is locked as a historical snapshot. Edit the live learner profile separately if a later correction is required.</div>}
               </section>
             ) : null}
           </section>
@@ -465,4 +478,29 @@ export default function ReEnrolmentsPage() {
       ) : null}
     </main>
   );
+}
+
+function readableFieldName(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function displayValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "Not provided";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "object") return Array.isArray(value) ? value.map(displayValue).join(", ") : "Recorded in form";
+  return String(value);
+}
+
+function ComparisonGroup({ title, current, proposed }: { title: string; current?: Record<string, string | null> | null; proposed?: Record<string, string> | null }) {
+  const keys = [...new Set([...Object.keys(current || {}), ...Object.keys(proposed || {})])];
+  const changed = keys.filter((key) => displayValue(current?.[key]) !== displayValue(proposed?.[key]));
+  if (!keys.length) return null;
+  return <details className="db-soft-card" style={{ padding: 14, marginTop: 12 }} open={changed.length > 0}><summary><strong>{title}</strong> · {changed.length ? `${changed.length} change${changed.length === 1 ? "" : "s"}` : "No changes"}</summary><div style={{ display: "grid", gap: 8, marginTop: 12 }}>{keys.map((key) => { const isChanged = changed.includes(key); return <div key={key} style={{ display: "grid", gridTemplateColumns: "minmax(150px, .7fr) repeat(2, minmax(180px, 1fr))", gap: 10, padding: 8, borderRadius: 10, background: isChanged ? "#fff7df" : "transparent" }}><strong>{readableFieldName(key)}</strong><span><small className="db-helper" style={{ display: "block" }}>Current</small>{displayValue(current?.[key])}</span><span><small className="db-helper" style={{ display: "block" }}>Parent update</small>{displayValue(proposed?.[key])}</span></div>; })}</div></details>;
+}
+
+function SubmittedFormSummary({ data }: { data?: Record<string, unknown> | null }) {
+  if (!data) return <p className="db-helper">No submitted form snapshot is available.</p>;
+  const sections = Object.entries(data).filter(([key]) => !["uploaded_documents", "consent_responses", "terms"].includes(key));
+  const uploads = data.uploaded_documents && typeof data.uploaded_documents === "object" && !Array.isArray(data.uploaded_documents) ? data.uploaded_documents as Record<string, unknown> : {};
+  return <div style={{ display: "grid", gap: 12, marginTop: 14 }}>{sections.map(([key, value]) => <div key={key}><strong>{readableFieldName(key)}</strong>{value && typeof value === "object" && !Array.isArray(value) ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8, marginTop: 6 }}>{Object.entries(value as Record<string, unknown>).map(([childKey, childValue]) => <p className="db-helper" style={{ margin: 0 }} key={childKey}><strong>{readableFieldName(childKey)}:</strong> {displayValue(childValue)}</p>)}</div> : <p className="db-helper" style={{ margin: "4px 0 0" }}>{displayValue(value)}</p>}</div>)}{Object.keys(uploads).length ? <div><strong>Uploaded documents</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>{Object.keys(uploads).join(", ")}</p></div> : null}</div>;
 }

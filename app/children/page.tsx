@@ -94,6 +94,7 @@ export default function LearnersPage() {
 
   const activeFilter = searchParams.get("filter");
   const schoolParam = searchParams.get("school");
+  const editLearnerId = searchParams.get("edit");
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
@@ -159,10 +160,19 @@ export default function LearnersPage() {
   const [saving, setSaving] = useState(false);
   const [learnerSearch, setLearnerSearch] = useState("");
   const [learnerPage, setLearnerPage] = useState(1);
+  const [editLinkOpened, setEditLinkOpened] = useState(false);
 
   useEffect(() => {
     loadPage();
   }, []);
+
+  useEffect(() => {
+    if (!editLearnerId || editLinkOpened || loading || learners.length === 0) return;
+    const learner = learners.find((item) => item.id === editLearnerId);
+    if (!learner) return;
+    setEditLinkOpened(true);
+    void editLearner(learner);
+  }, [editLearnerId, editLinkOpened, learners, loading]);
 
   async function loadPage() {
     const { profile: currentProfile, error: profileError } =
@@ -256,7 +266,18 @@ export default function LearnersPage() {
         registration_fee_amount,
         registration_fee_paid_at,
         registration_fee_payment_method,
-        registration_fee_reference
+        registration_fee_reference,
+        has_medical_aid,
+        medical_aid_name,
+        medical_aid_number,
+        medical_aid_main_member,
+        medical_aid_phone,
+        family_doctor_name,
+        family_doctor_phone,
+        preferred_hospital,
+        allergies,
+        medical_conditions,
+        medical_instructions
       `
       )
       .eq("school_id", currentSchoolId)
@@ -643,7 +664,7 @@ export default function LearnersPage() {
     if (!schoolId) return;
 
     const confirmed = confirm(
-      `Remove ${learner.name} from the active learner list? Historical attendance, summaries and payments will remain available in reports.`
+      `Archive ${learner.name} from the active learner list? Historical attendance, forms, classroom history and payments will be kept.`
     );
 
     if (!confirmed) return;
@@ -670,7 +691,7 @@ export default function LearnersPage() {
       setShowForm(false);
     }
 
-    alert("Learner removed from active list. Historical records were kept.");
+    alert("Learner archived from the active list. Historical records were kept.");
   }
 
   async function addLearner() {
@@ -1570,7 +1591,7 @@ export default function LearnersPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                gridTemplateColumns: "1fr",
                 gap: 10,
               }}
             >
@@ -1589,22 +1610,22 @@ export default function LearnersPage() {
                       padding: 12,
                       textAlign: "left",
                       color: "#2D2A3E",
+                      display: "grid",
+                      gridTemplateColumns: "minmax(220px, 1.2fr) minmax(180px, 1fr) minmax(150px, .8fr) auto",
+                      gap: 12,
+                      alignItems: "center",
                     }}
                   >
-                  <strong style={{ display: "block", fontSize: 15 }}>
-                    {learner.name || "Unnamed learner"}
-                  </strong>
-
-                  <span style={smallText}>
-                    {learner.class || "Unassigned"}
-                  </span>
+                  <div><strong style={{ display: "block", fontSize: 15 }}>{learner.name || "Unnamed learner"}</strong><small style={smallText}>{learner.legal_name || "Legal name not added"}</small></div>
+                  <div><small style={smallText}>Parent / guardian</small><span style={{ display: "block" }}>{learner.guardian_name || "Not added"}</span></div>
+                  <div><small style={smallText}>Current classroom</small><span style={{ display: "block" }}>{learner.class || "Unassigned"}</span></div>
 
                   <div
                     style={{
                       display: "flex",
                       gap: 6,
                       flexWrap: "nowrap",
-                      marginTop: 10,
+                      marginTop: 0,
                       alignItems: "center",
                     }}
                   >
@@ -1634,14 +1655,14 @@ export default function LearnersPage() {
                           style={learnerActionButton}
                           onClick={() => deleteLearner(learner)}
                         >
-                          Delete
+                          Archive
                         </button>
                       </>
                     ) : null}
                   </div>
 
                   {active ? (
-                    <div style={{ marginTop: 10 }}>
+                    <div style={{ marginTop: 10, gridColumn: "1 / -1" }}>
                       <p style={smallText}>
                         Legal Name: {learner.legal_name || "Not added"}
                       </p>

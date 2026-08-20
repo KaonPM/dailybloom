@@ -394,7 +394,8 @@ export default function LearnerProfilePage() {
   const schoolParam = searchParams.get("school");
 
   const [learner, setLearner] = useState<LearnerRow | null>(null);
-  const [enrolmentHistory, setEnrolmentHistory] = useState<Array<{ id: string; enquiry_reference: string; academic_year: number; status: string; enrolment_source: string }>>([]);
+  const [enrolmentHistory, setEnrolmentHistory] = useState<Array<{ id: string; enquiry_reference: string; academic_year: number; status: string; enrolment_source: string; submitted_data?: Record<string, unknown> | null }>>([]);
+  const [placementHistory, setPlacementHistory] = useState<Array<{ id: string; academic_year: number; placement_status: string; classroom_id?: number | null; classrooms?: { classroom_name?: string | null } | Array<{ classroom_name?: string | null }> | null }>>([]);
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [requirementNote, setRequirementNote] = useState("");
   const [savingRequirementNote, setSavingRequirementNote] = useState(false);
@@ -464,7 +465,7 @@ export default function LearnerProfilePage() {
     setLearner(currentLearner);
     const historyResponse = await authenticatedFetch(`/api/learners/enrolment-history?school_id=${context.schoolId}&learner_id=${encodeURIComponent(currentLearner.id)}`);
     const historyBody = await historyResponse.json().catch(() => ({}));
-    if (historyResponse.ok) setEnrolmentHistory(historyBody.history || []);
+    if (historyResponse.ok) { setEnrolmentHistory(historyBody.history || []); setPlacementHistory(historyBody.placements || []); }
     setRequirementNote(currentLearner.notes || "");
 
     if (currentLearner.classroom_id) {
@@ -1252,7 +1253,8 @@ export default function LearnerProfilePage() {
             <Info label="Email" value={learner.parent_email} />
             <Info label="ID Number" value={learner.guardian_id_number} />
           </div>
-          <div style={{ marginTop: 18 }}><h3 style={sectionTitle}>Enrolment History</h3>{enrolmentHistory.length ? <div style={{ display: "grid", gap: 8 }}>{enrolmentHistory.map((record) => <div className="db-soft-card" key={record.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong>{record.academic_year} · {record.status.replace(/_/g, " ")}</strong><span className="db-helper">Ref: {record.enquiry_reference} · {record.enrolment_source.replace(/_/g, " ")}</span></div>)}</div> : <p className="db-helper">No enrolment history is linked to this learner yet.</p>}</div>
+          <div style={{ marginTop: 18 }}><h3 style={sectionTitle}>Enrolment History</h3>{enrolmentHistory.length ? <div style={{ display: "grid", gap: 8 }}>{enrolmentHistory.map((record) => <details className="db-soft-card" key={record.id} style={{ padding: 10 }}><summary style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", cursor: "pointer" }}><strong>{record.academic_year} · {record.status.replace(/_/g, " ")}</strong><span className="db-helper">Ref: {record.enquiry_reference} · {record.enrolment_source.replace(/_/g, " ")}</span></summary><LearnerFormSnapshot data={record.submitted_data} /></details>)}</div> : <p className="db-helper">No enrolment history is linked to this learner yet.</p>}</div>
+          <div style={{ marginTop: 18 }}><h3 style={sectionTitle}>Classroom Placement History</h3>{placementHistory.length ? <div style={{ display: "grid", gap: 8 }}>{placementHistory.map((placement) => { const classroom = Array.isArray(placement.classrooms) ? placement.classrooms[0] : placement.classrooms; return <div className="db-soft-card" key={placement.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong>{placement.academic_year} · {classroom?.classroom_name || "Awaiting classroom"}</strong><span className="db-helper">{placement.placement_status.replace(/_/g, " ")}</span></div>; })}</div> : <p className="db-helper">No classroom placement history is recorded yet.</p>}</div>
 
           <div className="db-soft-card" style={{ padding: 12, marginTop: 10 }}>
             <strong style={labelText}>Parent Portal Phone Number</strong>
@@ -2101,3 +2103,9 @@ const quantityInput = {
   minHeight: 34,
   margin: 0,
 };
+
+function LearnerFormSnapshot({ data }: { data?: Record<string, unknown> | null }) {
+  if (!data) return <p className="db-helper" style={{ marginBottom: 0 }}>The historical reference is retained, but no digital form snapshot is available.</p>;
+  const hiddenKeys = new Set(["uploaded_documents", "consent_responses", "terms"]);
+  return <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 8, marginTop: 12 }}>{Object.entries(data).filter(([key]) => !hiddenKeys.has(key)).map(([key, value]) => <div key={key}><strong style={{ fontSize: 13 }}>{key.replace(/_/g, " ")}</strong><p className="db-helper" style={{ margin: "3px 0 0" }}>{value && typeof value === "object" ? Object.entries(value as Record<string, unknown>).map(([childKey, childValue]) => `${childKey.replace(/_/g, " ")}: ${childValue ?? ""}`).join(" · ") : String(value ?? "Not provided")}</p></div>)}</div>;
+}

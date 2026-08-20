@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { PERMISSIONS } from "@/app/lib/permissions";
 import { isGradeRClassroom } from "@/app/lib/classroom-programme";
+import { learnerDocumentNamesMatch, STANDARD_LEARNER_DOCUMENTS } from "@/app/lib/learner-documents";
 import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
@@ -101,7 +102,7 @@ export async function GET(request: Request) {
     supabaseAdmin.from("school_reenrolment_campaigns").select("id, school_year, source_form_id, form_snapshot, registration_fee_type_id, registration_fee_amount, response_deadline, status, rollover_applied_at, created_at").eq("school_id", schoolId).order("school_year", { ascending: false }),
     supabaseAdmin.from("school_enrolment_forms").select("id, form_name, form_type, instructions").eq("school_id", schoolId).eq("form_type", "general").eq("is_active", true).order("form_name"),
     supabaseAdmin.from("classrooms").select("id, classroom_name").eq("school_id", schoolId).order("classroom_name"),
-    supabaseAdmin.from("school_enrolment_enquiries").select("id,learner_id,enquiry_reference,parent_name,academic_year").eq("school_id",schoolId).eq("status","approved").not("learner_id","is",null).order("academic_year").order("created_at"),
+    supabaseAdmin.from("school_enrolment_enquiries").select("id,learner_id,enquiry_reference,parent_name,academic_year,submitted_data").eq("school_id",schoolId).eq("status","approved").not("learner_id","is",null).order("academic_year").order("created_at"),
   ]);
   const failure = schoolResult.error || feeResult.error || campaignsResult.error || formsResult.error || classroomsResult.error || approvedEnrolmentsResult.error;
   if (failure) return NextResponse.json({ error: failure.message }, { status: 500 });
@@ -132,7 +133,7 @@ export async function GET(request: Request) {
       const learner = learnersById.get(String(record.learner_id));
       const classroom = Array.isArray(learner?.classrooms) ? learner.classrooms[0] : learner?.classrooms;
       const submittedData = record.submitted_data && typeof record.submitted_data === "object"
-        ? record.submitted_data as { parent_notes?: unknown; learner_details?: unknown; guardian_details?: unknown; medical_details?: unknown; acknowledged_document_ids?: unknown; acknowledged_requirement_ids?: unknown }
+        ? record.submitted_data as { parent_notes?: unknown; learner_details?: unknown; guardian_details?: unknown; medical_details?: unknown; uploaded_documents?: unknown; acknowledged_document_ids?: unknown; acknowledged_requirement_ids?: unknown }
         : {};
       const safeRecord = Object.fromEntries(
         Object.entries(record).filter(([key]) => key !== "submitted_data"),
@@ -145,17 +146,22 @@ export async function GET(request: Request) {
         learner_details: submittedData.learner_details || null,
         guardian_details: submittedData.guardian_details || null,
         medical_details: submittedData.medical_details || null,
+        uploaded_documents: submittedData.uploaded_documents || {},
         acknowledged_document_ids: Array.isArray(submittedData.acknowledged_document_ids) ? submittedData.acknowledged_document_ids : [],
         acknowledged_requirement_ids: Array.isArray(submittedData.acknowledged_requirement_ids) ? submittedData.acknowledged_requirement_ids : [],
       };
     });
   }
 
-  const approvedRows=rows<{id:string;learner_id:string;enquiry_reference:string;parent_name:string;academic_year:number}>(approvedEnrolmentsResult.data);
+  const approvedRows=rows<{id:string;learner_id:string;enquiry_reference:string;parent_name:string;academic_year:number;submitted_data:unknown}>(approvedEnrolmentsResult.data);
   const approvedLearnerIds=approvedRows.map((row)=>row.learner_id);
-  const placementsResult=approvedLearnerIds.length?await supabaseAdmin.from("learner_placements").select("learner_id,academic_year,classroom_id,classrooms(classroom_name)").eq("school_id",schoolId).in("learner_id",approvedLearnerIds):{data:[],error:null};
-  if(placementsResult.error)return NextResponse.json({error:placementsResult.error.message},{status:500});
+  const [placementsResult,approvedLearnersResult]=await Promise.all([
+    approvedLearnerIds.length?supabaseAdmin.from("learner_placements").select("learner_id,academic_year,classroom_id,classrooms(classroom_name)").eq("school_id",schoolId).in("learner_id",approvedLearnerIds):Promise.resolve({data:[],error:null}),
+    approvedLearnerIds.length?supabaseAdmin.from("learners").select("id,name,legal_name,guardian_name,class,classroom_id").eq("school_id",schoolId).in("id",approvedLearnerIds):Promise.resolve({data:[],error:null}),
+  ]);
+  if(placementsResult.error||approvedLearnersResult.error)return NextResponse.json({error:placementsResult.error?.message||approvedLearnersResult.error?.message},{status:500});
   const placements=new Map(rows<{learner_id:string;academic_year:number;classroom_id:number|null;classrooms:unknown}>(placementsResult.data).map((row)=>[`${row.learner_id}:${row.academic_year}`,row]));
+  const approvedLearners=new Map(rows<{id:string;name:string|null;legal_name:string|null;guardian_name:string|null;class:string|null;classroom_id:number|null}>(approvedLearnersResult.data).map((row)=>[row.id,row]));
   return NextResponse.json({
     school: schoolResult.data,
     registration_fee: feeResult.data,
@@ -164,7 +170,7 @@ export async function GET(request: Request) {
     enrolment_forms: rows(formsResult.data),
     classrooms: rows(classroomsResult.data),
     reenrolments,
-    approved_enrolments: approvedRows.map((row)=>({...row,placement:placements.get(`${row.learner_id}:${row.academic_year}`)||null})),
+    approved_enrolments: approvedRows.map((row)=>({...row,learner:approvedLearners.get(row.learner_id)||null,placement:placements.get(`${row.learner_id}:${row.academic_year}`)||null})),
   });
 }
 
@@ -218,20 +224,24 @@ export async function POST(request: Request) {
       const campaignUpdate = await supabaseAdmin.from("school_reenrolment_campaigns").update({ form_snapshot: formSnapshot }).eq("id", campaignId);
       if (campaignUpdate.error) return NextResponse.json({ error: campaignUpdate.error.message }, { status: 500 });
 
-      const [generatedResult, learnersResult, documentsResult, requirementsResult, checklistResult] = await Promise.all([
+      const [generatedResult, learnersResult, documentsResult, configuredDocumentsResult, requirementsResult, checklistResult] = await Promise.all([
         supabaseAdmin.from("learner_reenrolments").select("id, learner_id").eq("campaign_id", campaignId),
-        supabaseAdmin.from("learners").select("id, name, legal_name, date_of_birth, gender, birth_certificate_number, sa_id_number, passport_number, guardian_name, guardian_relationship, guardian_id_number, parent_phone, parent_email, home_address, allergies, medical_conditions, medical_instructions, classroom_id, classrooms:classroom_id(classroom_name)").eq("school_id", schoolId),
-        supabaseAdmin.from("learner_documents").select("id, learner_id, document_type").eq("school_id", schoolId),
+        supabaseAdmin.from("learners").select("id, name, legal_name, date_of_birth, gender, birth_certificate_number, sa_id_number, passport_number, guardian_name, guardian_relationship, guardian_id_number, parent_phone, parent_email, home_address, allergies, medical_conditions, medical_instructions, has_medical_aid, medical_aid_name, medical_aid_number, medical_aid_main_member, family_doctor_name, family_doctor_phone, classroom_id, classrooms:classroom_id(classroom_name)").eq("school_id", schoolId),
+        supabaseAdmin.from("learner_documents").select("id, learner_id, document_type, file_name, uploaded_at").eq("school_id", schoolId),
+        supabaseAdmin.from("school_enrolment_document_requirements").select("id, title, instructions, is_required").eq("school_id", schoolId).eq("is_active", true).order("display_order"),
         supabaseAdmin.from("classroom_requirement_items").select("id, classroom_id, item_name, quantity, category").eq("school_id", schoolId).eq("is_active", true),
         supabaseAdmin.from("learner_stationery_checklist").select("learner_id, stationery_item_id, received, received_quantity, required_quantity").eq("school_id", schoolId),
       ]);
-      const snapshotFailure = generatedResult.error || learnersResult.error || documentsResult.error || requirementsResult.error || checklistResult.error;
+      const snapshotFailure = generatedResult.error || learnersResult.error || documentsResult.error || configuredDocumentsResult.error || requirementsResult.error || checklistResult.error;
       if (snapshotFailure) return NextResponse.json({ error: snapshotFailure.message }, { status: 500 });
       const learners = new Map(rows<Record<string, unknown>>(learnersResult.data).map((learner) => [String(learner.id), learner]));
       const documents = rows<Record<string, unknown>>(documentsResult.data);
       const requirements = rows<Record<string, unknown>>(requirementsResult.data);
       const checklist = rows<Record<string, unknown>>(checklistResult.data);
-      const requiredDocuments = ["Birth Certificate", "Immunisation / Clinic Card", "Parent/Guardian ID", "Signed Parent/Guardian Enrolment Contract"];
+      const configuredDocuments = rows<Record<string, unknown>>(configuredDocumentsResult.data);
+      const requiredDocuments = configuredDocuments.some((item) => item.is_required === true)
+        ? configuredDocuments.filter((item) => item.is_required === true)
+        : STANDARD_LEARNER_DOCUMENTS.map((item, index) => ({ id: `standard-${index + 1}`, title: item.name, instructions: null, is_required: true }));
       let eligibleLearnerCount = 0;
       for (const generated of rows<{ id: string; learner_id: string }>(generatedResult.data)) {
         const learner = learners.get(String(generated.learner_id));
@@ -242,8 +252,8 @@ export async function POST(request: Request) {
           continue;
         }
         eligibleLearnerCount += 1;
-        const uploaded = new Set(documents.filter((doc) => String(doc.learner_id) === String(generated.learner_id)).map((doc) => String(doc.document_type)));
-        const missingDocuments = requiredDocuments.filter((name) => !uploaded.has(name)).map((name) => ({ id: name, name }));
+        const learnerDocuments = documents.filter((doc) => String(doc.learner_id) === String(generated.learner_id));
+        const missingDocuments = requiredDocuments.filter((item) => !learnerDocuments.some((document) => learnerDocumentNamesMatch(String(document.document_type), String(item.title)))).map((item) => ({ id: String(item.id), name: String(item.title), instructions: item.instructions || null }));
         const classRequirements = requirements.filter((item) => Number(item.classroom_id) === Number(learner.classroom_id));
         const learnerChecklist = checklist.filter((item) => String(item.learner_id) === String(generated.learner_id));
         const missingRequirements = classRequirements.filter((item) => {
@@ -253,7 +263,9 @@ export async function POST(request: Request) {
         const renewalSnapshot = {
           learner_details: { name: learner.name, legal_name: learner.legal_name, date_of_birth: learner.date_of_birth, gender: learner.gender, birth_certificate_number: learner.birth_certificate_number, sa_id_number: learner.sa_id_number, passport_number: learner.passport_number, home_address: learner.home_address },
           guardian_details: { guardian_name: learner.guardian_name, guardian_relationship: learner.guardian_relationship, guardian_id_number: learner.guardian_id_number, parent_phone: learner.parent_phone, parent_email: learner.parent_email, parent_portal_phone: learner.parent_phone },
-          medical_details: { allergies: learner.allergies, medical_conditions: learner.medical_conditions, medical_instructions: learner.medical_instructions },
+          medical_details: { allergies: learner.allergies, medical_conditions: learner.medical_conditions, medical_instructions: learner.medical_instructions, medical_aid_name: learner.medical_aid_name, medical_aid_number: learner.medical_aid_number, medical_aid_main_member: learner.medical_aid_main_member, preferred_doctor_name: learner.family_doctor_name, preferred_doctor_phone: learner.family_doctor_phone },
+          existing_documents: learnerDocuments.map((item) => ({ id: item.id, name: item.document_type, file_name: item.file_name, uploaded_at: item.uploaded_at })),
+          required_documents: requiredDocuments.map((item) => ({ id: String(item.id), name: String(item.title), instructions: item.instructions || null })),
           missing_documents: missingDocuments,
           missing_requirements: missingRequirements,
           captured_at: new Date().toISOString(),
@@ -335,7 +347,7 @@ export async function POST(request: Request) {
 
     const recordResult = await supabaseAdmin
       .from("learner_reenrolments")
-      .select("id, learner_id, status, parent_portal_phone, registration_fee_amount, submitted_data")
+      .select("id, campaign_id, learner_id, status, parent_portal_phone, registration_fee_amount, submitted_data, renewal_snapshot")
       .eq("id", reenrolmentId)
       .eq("school_id", schoolId)
       .maybeSingle();
@@ -368,6 +380,7 @@ export async function POST(request: Request) {
       const learnerDetails = asObject(submitted.learner_details);
       const guardianDetails = asObject(submitted.guardian_details);
       const medicalDetails = asObject(submitted.medical_details);
+      const submittedDocuments = asObject(submitted.uploaded_documents);
       if (Object.keys(learnerDetails).length || Object.keys(guardianDetails).length || Object.keys(medicalDetails).length) {
         const learnerUpdate = await supabaseAdmin.from("learners").update({
           name: asText(learnerDetails.name, 120),
@@ -384,10 +397,58 @@ export async function POST(request: Request) {
           parent_email: asText(guardianDetails.parent_email, 180) || null,
           allergies: asText(medicalDetails.allergies, 500) || null,
           medical_conditions: asText(medicalDetails.medical_conditions, 500) || null,
-          medical_instructions: asText(medicalDetails.medical_instructions, 1000) || null,
+          medical_instructions: [
+            asText(medicalDetails.medical_instructions, 1000),
+            asText(medicalDetails.immunisation_status, 80) && `Immunisation: ${asText(medicalDetails.immunisation_status, 80)}`,
+            asText(medicalDetails.immunisation_notes, 1000),
+          ].filter(Boolean).join("\n") || null,
+          has_medical_aid: Boolean(asText(medicalDetails.medical_aid_name, 180) || asText(medicalDetails.medical_aid_number, 120)),
+          medical_aid_name: asText(medicalDetails.medical_aid_name, 180) || null,
+          medical_aid_number: asText(medicalDetails.medical_aid_number, 120) || null,
+          medical_aid_main_member: asText(medicalDetails.medical_aid_main_member, 180) || null,
+          family_doctor_name: asText(medicalDetails.preferred_doctor_name, 180) || null,
+          family_doctor_phone: asText(medicalDetails.preferred_doctor_phone, 40) || null,
         }).eq("id", recordResult.data.learner_id).eq("school_id", schoolId);
         if (learnerUpdate.error) return NextResponse.json({ error: learnerUpdate.error.message }, { status: 500 });
       }
+
+      const existingDocumentsResult = await supabaseAdmin.from("learner_documents").select("id, document_type, file_path").eq("school_id", schoolId).eq("learner_id", recordResult.data.learner_id);
+      if (existingDocumentsResult.error) return NextResponse.json({ error: existingDocumentsResult.error.message }, { status: 500 });
+      for (const [documentType, rawUpload] of Object.entries(submittedDocuments)) {
+        const upload = asObject(rawUpload);
+        const path = asText(upload.path, 700);
+        if (!path.startsWith(`${schoolId}/reenrolment-submissions/${reenrolmentId}/`) || path.includes("..")) continue;
+        const existing = rows<{ id: number; document_type: string; file_path: string | null }>(existingDocumentsResult.data).find((item) => learnerDocumentNamesMatch(item.document_type, documentType));
+        const values = {
+          school_id: schoolId,
+          learner_id: recordResult.data.learner_id,
+          document_type: documentType,
+          document_name: documentType,
+          file_name: asText(upload.name, 180) || documentType,
+          file_path: path,
+          file_url: null,
+          uploaded_at: reviewedAt,
+          updated_at: reviewedAt,
+          uploaded_by: access.staff.userId,
+          uploaded_by_name: access.staff.profile.full_name || access.staff.profile.email,
+        };
+        const documentResult = existing
+          ? await supabaseAdmin.from("learner_documents").update(values).eq("id", existing.id).eq("school_id", schoolId)
+          : await supabaseAdmin.from("learner_documents").insert(values);
+        if (documentResult.error) return NextResponse.json({ error: documentResult.error.message }, { status: 500 });
+      }
+
+      const campaignResult = await supabaseAdmin.from("school_reenrolment_campaigns").select("school_year").eq("id", recordResult.data.campaign_id).eq("school_id", schoolId).maybeSingle();
+      if (campaignResult.error || !campaignResult.data) return NextResponse.json({ error: campaignResult.error?.message || "The re-enrolment campaign could not be found." }, { status: 500 });
+      const placementResult = await supabaseAdmin.from("learner_placements").upsert({
+        learner_id: recordResult.data.learner_id,
+        school_id: schoolId,
+        academic_year: Number(campaignResult.data.school_year),
+        classroom_id: null,
+        placement_status: "pending",
+        updated_at: reviewedAt,
+      }, { onConflict: "learner_id,academic_year" });
+      if (placementResult.error) return NextResponse.json({ error: placementResult.error.message }, { status: 500 });
 
       const updateResult = await supabaseAdmin
         .from("learner_reenrolments")
@@ -426,6 +487,12 @@ export async function POST(request: Request) {
     const updateResult = await supabaseAdmin.from("learner_reenrolments").update({ next_classroom_id: nextClassroomId, updated_at: updatedAt }).eq("id", reenrolmentId).eq("school_id", schoolId).eq("status", "approved").is("classroom_applied_at", null).select("id").maybeSingle();
     if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 });
     if (!updateResult.data) return NextResponse.json({ error: "Only an approved learner awaiting rollover can be allocated." }, { status: 409 });
+    const placementSource = await supabaseAdmin.from("learner_reenrolments").select("learner_id, school_reenrolment_campaigns:campaign_id(school_year)").eq("id", reenrolmentId).eq("school_id", schoolId).maybeSingle();
+    if (placementSource.error || !placementSource.data) return NextResponse.json({ error: placementSource.error?.message || "The learner placement could not be found." }, { status: 500 });
+    const relatedCampaign = Array.isArray(placementSource.data.school_reenrolment_campaigns) ? placementSource.data.school_reenrolment_campaigns[0] : placementSource.data.school_reenrolment_campaigns;
+    const placementYear = Number((relatedCampaign as { school_year?: unknown } | null)?.school_year);
+    const placementUpdate = await supabaseAdmin.from("learner_placements").upsert({ learner_id: placementSource.data.learner_id, school_id: schoolId, academic_year: placementYear, classroom_id: nextClassroomId, placement_status: "future", updated_at: updatedAt }, { onConflict: "learner_id,academic_year" });
+    if (placementUpdate.error) return NextResponse.json({ error: placementUpdate.error.message }, { status: 500 });
     await writeSecurityAudit(access.staff, "reenrolment_classroom_assigned", { reenrolment_id: reenrolmentId, next_classroom_id: nextClassroomId });
     return NextResponse.json({ success: true, message: "Next-year classroom allocated. The learner remains in the current classroom until rollover." });
   }

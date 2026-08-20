@@ -7,6 +7,10 @@ import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
+const DOCUMENT_BUCKET = "school-enrolment-forms";
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+const ALLOWED_DOCUMENT_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+
 function rows<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : [];
 }
@@ -35,6 +39,22 @@ function snapshotItems(value: unknown) {
   return Array.isArray(value)
     ? value.map((item) => asObject(item)).filter((item) => asText(item.id, 160))
     : [];
+}
+
+function safeFileName(value: unknown) {
+  return asText(value, 180).replace(/[^a-zA-Z0-9._-]/g, "-") || "document";
+}
+
+function uploadedDocuments(value: unknown, schoolId: number, reenrolmentId: string) {
+  const uploads = asObject(value);
+  const safeUploads: Record<string, { name: string; path: string }> = {};
+  for (const [documentName, rawUpload] of Object.entries(uploads)) {
+    const upload = asObject(rawUpload);
+    const path = asText(upload.path, 700);
+    if (!path.startsWith(`${schoolId}/reenrolment-submissions/${reenrolmentId}/`) || path.includes("..")) continue;
+    safeUploads[asText(documentName, 180)] = { name: asText(upload.name, 180) || documentName, path };
+  }
+  return safeUploads;
 }
 
 export async function GET() {
@@ -80,11 +100,12 @@ export async function POST(request: Request) {
 
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
-  if (body.action !== "submit" && body.action !== "not_returning") return NextResponse.json({ error: "Unsupported re-enrolment action." }, { status: 400 });
+  const action = asText(body.action, 40);
+  if (!["submit", "save_draft", "not_returning", "create_document_upload"].includes(action)) return NextResponse.json({ error: "Unsupported re-enrolment action." }, { status: 400 });
 
   const reenrolmentId = asText(body.reenrolment_id, 64);
   if (!reenrolmentId) return NextResponse.json({ error: "A re-enrolment record is required." }, { status: 400 });
-  if (body.action === "submit" && body.confirm_return !== true) return NextResponse.json({ error: "Confirm that the learner will return before submitting." }, { status: 400 });
+  if (action === "submit" && body.confirm_return !== true) return NextResponse.json({ error: "Confirm that the learner will return before submitting." }, { status: 400 });
 
   const recordResult = await supabaseAdmin.from("learner_reenrolments").select("id, campaign_id, school_id, learner_id, status, submitted_data, renewal_snapshot").eq("id", reenrolmentId).maybeSingle();
   if (recordResult.error) return NextResponse.json({ error: recordResult.error.message }, { status: 500 });
@@ -99,7 +120,19 @@ export async function POST(request: Request) {
   if (campaignResult.error) return NextResponse.json({ error: campaignResult.error.message }, { status: 500 });
   if (!campaignResult.data || campaignResult.data.status !== "open") return NextResponse.json({ error: "This re-enrolment campaign is closed." }, { status: 400 });
 
-  if (body.action === "not_returning") {
+  if (action === "create_document_upload") {
+    const fileSize = Number(body.file_size || 0);
+    const contentType = asText(body.content_type, 100).toLowerCase();
+    if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > MAX_DOCUMENT_BYTES || !ALLOWED_DOCUMENT_TYPES.has(contentType)) {
+      return NextResponse.json({ error: "Use a PDF, JPG, PNG or WEBP document no larger than 10 MB." }, { status: 400 });
+    }
+    const path = `${recordResult.data.school_id}/reenrolment-submissions/${reenrolmentId}/${Date.now()}-${safeFileName(body.file_name)}`;
+    const uploadResult = await supabaseAdmin.storage.from(DOCUMENT_BUCKET).createSignedUploadUrl(path);
+    if (uploadResult.error || !uploadResult.data) return NextResponse.json({ error: uploadResult.error?.message || "Could not prepare the document upload." }, { status: 500 });
+    return NextResponse.json({ path, signed_url: uploadResult.data.signedUrl, token: uploadResult.data.token });
+  }
+
+  if (action === "not_returning") {
     const updatedAt = new Date().toISOString();
     const updateResult = await supabaseAdmin.from("learner_reenrolments").update({ status: "not_returning", submitted_data: { ...asObject(recordResult.data.submitted_data), parent_notes: asText(body.parent_notes), parent_confirmed_not_returning_at: updatedAt }, updated_at: updatedAt }).eq("id", reenrolmentId).in("status", ["awaiting_parent", "declined", "no_response"]);
     if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 });
@@ -114,12 +147,16 @@ export async function POST(request: Request) {
   const snapshot = asObject(recordResult.data.renewal_snapshot);
   const missingDocuments = snapshotItems(snapshot.missing_documents);
   const missingRequirements = snapshotItems(snapshot.missing_requirements);
+  const uploads = uploadedDocuments(body.uploaded_documents, Number(recordResult.data.school_id), reenrolmentId);
   const acknowledgedDocumentIds = asIdList(body.acknowledged_document_ids);
   const acknowledgedRequirementIds = asIdList(body.acknowledged_requirement_ids);
-  const unacknowledgedDocuments = missingDocuments.filter((item) => !acknowledgedDocumentIds.includes(asText(item.id, 160)));
   const unacknowledgedRequirements = missingRequirements.filter((item) => !acknowledgedRequirementIds.includes(asText(item.id, 160)));
-  if (unacknowledgedDocuments.length || unacknowledgedRequirements.length) {
-    return NextResponse.json({ error: "Tick every outstanding document and learner requirement to confirm that you have seen what is still needed." }, { status: 400 });
+  const missingUploads = missingDocuments.filter((item) => !uploads[asText(item.name, 180)]);
+  if (action === "submit" && missingUploads.length) {
+    return NextResponse.json({ error: `Upload ${missingUploads.map((item) => asText(item.name, 180)).join(", ")} before submitting.` }, { status: 400 });
+  }
+  if (action === "submit" && unacknowledgedRequirements.length) {
+    return NextResponse.json({ error: "Tick every outstanding learner requirement to confirm that you have seen what is still needed." }, { status: 400 });
   }
 
   const learnerInput = asObject(body.learner_details);
@@ -146,31 +183,41 @@ export async function POST(request: Request) {
     allergies: asText(medicalInput.allergies, 800),
     medical_conditions: asText(medicalInput.medical_conditions, 800),
     medical_instructions: asText(medicalInput.medical_instructions, 1200),
+    medical_aid_name: asText(medicalInput.medical_aid_name, 180),
+    medical_aid_number: asText(medicalInput.medical_aid_number, 120),
+    medical_aid_main_member: asText(medicalInput.medical_aid_main_member, 180),
+    preferred_doctor_name: asText(medicalInput.preferred_doctor_name, 180),
+    preferred_doctor_phone: asText(medicalInput.preferred_doctor_phone, 40),
+    immunisation_status: asText(medicalInput.immunisation_status, 40),
+    immunisation_notes: asText(medicalInput.immunisation_notes, 1000),
   };
-  if (!learnerDetails.name || !learnerDetails.legal_name || !learnerDetails.date_of_birth || !guardianDetails.guardian_name) {
+  if (action === "submit" && (!learnerDetails.name || !learnerDetails.legal_name || !learnerDetails.date_of_birth || !guardianDetails.guardian_name)) {
     return NextResponse.json({ error: "Complete the learner name, legal name, date of birth and parent or guardian name." }, { status: 400 });
   }
 
   const submittedAt = new Date().toISOString();
   const submittedData = recordResult.data.submitted_data && typeof recordResult.data.submitted_data === "object" ? recordResult.data.submitted_data : {};
-  const updateResult = await supabaseAdmin.from("learner_reenrolments").update({
+  const updateValues: Record<string, unknown> = {
     parent_portal_phone: parentPortalPhone,
-    parent_portal_phone_confirmed_at: submittedAt,
-    status: "submitted",
+    status: action === "submit" ? "submitted" : recordResult.data.status,
     submitted_data: {
       ...submittedData,
       learner_details: learnerDetails,
       guardian_details: guardianDetails,
       medical_details: medicalDetails,
+      uploaded_documents: uploads,
       acknowledged_document_ids: acknowledgedDocumentIds,
       acknowledged_requirement_ids: acknowledgedRequirementIds,
       parent_portal_phone: parentPortalPhone,
       parent_notes: asText(body.parent_notes),
-      parent_confirmed_at: submittedAt,
+      parent_confirmed_at: action === "submit" ? submittedAt : null,
+      draft_saved_at: submittedAt,
     },
     updated_at: submittedAt,
-  }).eq("id", reenrolmentId).in("status", ["awaiting_parent", "declined", "no_response"]);
+  };
+  if (action === "submit") updateValues.parent_portal_phone_confirmed_at = submittedAt;
+  const updateResult = await supabaseAdmin.from("learner_reenrolments").update(updateValues).eq("id", reenrolmentId).in("status", ["awaiting_parent", "declined", "no_response"]);
   if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, saved_at: submittedAt, submitted: action === "submit" });
 }

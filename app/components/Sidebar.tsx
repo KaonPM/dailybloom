@@ -218,6 +218,12 @@ export default function Sidebar() {
       { label: "Learners", href: "/children", match: ["/children"], permission: PERMISSIONS.LEARNERS_MANAGE },
       { label: "Enrolments", href: "/enrolments", match: ["/enrolments"], permission: PERMISSIONS.LEARNERS_MANAGE },
       { label: "Re-enrolments", href: "/re-enrolments", match: ["/re-enrolments"], permission: PERMISSIONS.SCHOOL_MANAGE },
+      {
+        label: "Awaiting Classroom Allocation",
+        href: "/re-enrolments#awaiting-classroom-allocation",
+        match: [],
+        permission: PERMISSIONS.SCHOOL_MANAGE,
+      },
       { label: "Meetings, Minutes & Surveys", href: "/school-administration", match: ["/school-administration"], permission: PERMISSIONS.SCHOOL_MANAGE },
       { label: "Classrooms", href: "/classrooms", match: ["/classrooms"], permission: PERMISSIONS.CLASSROOM_ASSIGN },
       {
@@ -753,6 +759,7 @@ export default function Sidebar() {
           items: itemsNamed(
             "Enrolments",
             "Re-enrolments",
+            "Awaiting Classroom Allocation",
             "Parent Consent"
           ),
         },
@@ -780,7 +787,13 @@ export default function Sidebar() {
             ...(canViewTeachers
               ? [{ label: "Practitioners", href: "/teachers", match: ["/teachers"] }]
               : []),
-            ...itemsNamed("Learner Requirements Tracking", "School Setup", "School Printable Documents", "Trust & Security"),
+            ...itemsNamed(
+              "Meetings, Minutes & Surveys",
+              "Learner Requirements Tracking",
+              "School Setup",
+              "School Printable Documents",
+              "Trust & Security"
+            ),
             ...(canViewDbe ? dbeNav : []),
           ],
         },

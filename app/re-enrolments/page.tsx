@@ -297,7 +297,11 @@ export default function ReEnrolmentsPage() {
       {loading ? <section className="db-card"><p className="db-helper">Loading re-enrolment information…</p></section> : null}
 
       {!loading && data?.approved_enrolments?.some((item) => !item.placement?.classroom_id) ? (
-        <section className="db-card db-card-green" style={{ padding: 24 }}>
+        <section
+          id="awaiting-classroom-allocation"
+          className="db-card db-card-green"
+          style={{ padding: 24, scrollMarginTop: 24 }}
+        >
           <h2>Approved Enrolments — Awaiting Classroom Allocation</h2>
           <p className="db-helper">Approved learners remain available in Parent Portal while next-year classrooms are being prepared.</p>
           <div style={{ display: "grid", gap: 10 }}>

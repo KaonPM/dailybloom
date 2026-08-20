@@ -54,6 +54,7 @@ const supportStatuses = [
 
 const dayTypes = [
   { value: "teaching_day", label: "Teaching Day" },
+  { value: "non_teaching_day", label: "Non-teaching Day" },
   { value: "public_holiday", label: "Public Holiday" },
   { value: "school_closed", label: "School Closed" },
 ];
@@ -994,7 +995,7 @@ export default function ClassroomActivitiesPage() {
     });
 
     if (rowsToSave.length === 0) {
-      alert("Please select at least one activity or mark a day as a public holiday or school closed.");
+      alert("Please select at least one activity or mark the day as non-teaching, a public holiday, or school closed.");
       return;
     }
 
@@ -2104,6 +2105,7 @@ function isTeachingDay(value?: string | null) {
 }
 
 function dayTypeLabel(value?: string | null) {
+  if (value === "non_teaching_day") return "Non-teaching Day";
   if (value === "public_holiday") return "Public Holiday";
   if (value === "school_closed") return "School Closed";
   return "Teaching Day";

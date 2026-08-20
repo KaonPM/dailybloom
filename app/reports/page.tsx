@@ -238,6 +238,7 @@ export default function ReportsPage() {
   }
 
   function dayTypeLabel(value?: string | null) {
+  if (value === "non_teaching_day") return "Non-teaching Day";
   if (value === "public_holiday") return "Public Holiday";
   if (value === "school_closed") return "School Closed";
   return "Teaching Day";

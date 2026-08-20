@@ -35,6 +35,15 @@ type SchoolItem = {
   school_name?: string | null;
 };
 
+type StatementDelivery = {
+  id: string;
+  status?: string | null;
+  sent_at?: string | null;
+  created_at?: string | null;
+  error_message?: string | null;
+  recipient_phone?: string | null;
+};
+
 const paymentMethods = ["Cash", "EFT", "Debit Order", "Bank Deposit", "Other"];
 
 export default function PaymentsPage() {
@@ -75,6 +84,11 @@ export default function PaymentsPage() {
   const [showUnpaidLearners, setShowUnpaidLearners] = useState(false);
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
   const [statementLearnerId, setStatementLearnerId] = useState("");
+  const [statementDelivery, setStatementDelivery] = useState<StatementDelivery | null>(null);
+  const [statementDeliveryLoading, setStatementDeliveryLoading] = useState(false);
+  const [statementSending, setStatementSending] = useState(false);
+  const [statementMessage, setStatementMessage] = useState("");
+  const [statementMessageType, setStatementMessageType] = useState<"success" | "error" | "">("");
 
   const [highlightRecordForm, setHighlightRecordForm] = useState(false);
   const [lastSavedSuccess, setLastSavedSuccess] = useState(false);
@@ -99,6 +113,16 @@ export default function PaymentsPage() {
   useEffect(() => {
     setPaymentHistoryPage(1);
   }, [historyFromDate, historyToDate]);
+
+  useEffect(() => {
+    setStatementMessage("");
+    setStatementMessageType("");
+    if (!schoolId || !statementLearnerId) {
+      setStatementDelivery(null);
+      return;
+    }
+    void fetchStatementDelivery(schoolId, statementLearnerId);
+  }, [schoolId, statementLearnerId]);
 
   useEffect(() => {
     if (action === "record") {
@@ -199,6 +223,61 @@ export default function PaymentsPage() {
 
     setLearners((data || []) as LearnerItem[]);
   }
+
+  async function fetchStatementDelivery(currentSchoolId: number, learnerId: string) {
+    setStatementDeliveryLoading(true);
+    try {
+      const params = new URLSearchParams({
+        school_id: String(currentSchoolId),
+        learner_id: learnerId,
+        communication_type: "fee_statement",
+        page: "1",
+        page_size: "1",
+      });
+      const response = await authenticatedFetch(`/api/communications/notification-centre?${params}`);
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Statement delivery history could not be loaded.");
+      setStatementDelivery((body.notifications?.[0] || null) as StatementDelivery | null);
+    } catch (error) {
+      setStatementDelivery(null);
+      setStatementMessage(error instanceof Error ? error.message : "Statement delivery history could not be loaded.");
+      setStatementMessageType("error");
+    } finally {
+      setStatementDeliveryLoading(false);
+    }
+  }
+
+  async function sendStatementNotification() {
+    if (!schoolId || !statementLearnerId) return;
+    setStatementSending(true);
+    setStatementMessage("");
+    setStatementMessageType("");
+    try {
+      const response = await authenticatedFetch("/api/notifications/parent-push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "fee_statement",
+          school_id: schoolId,
+          learner_id: statementLearnerId,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "The fee statement notification could not be sent.");
+      setStatementMessage(body.skipped
+        ? "The statement is available in the Parent Portal, but push delivery was skipped because the parent has no active notification subscription."
+        : "Fee statement notification sent to the parent.");
+      setStatementMessageType("success");
+      await fetchStatementDelivery(schoolId, statementLearnerId);
+    } catch (error) {
+      setStatementMessage(error instanceof Error ? error.message : "The fee statement notification could not be sent.");
+      setStatementMessageType("error");
+    } finally {
+      setStatementSending(false);
+    }
+  }
+
+  const selectedStatementLearner = learners.find((learner) => learner.id === statementLearnerId) || null;
 
   function handleLearnerSelection(value: string) {
     setLearnerName(value);
@@ -464,6 +543,68 @@ export default function PaymentsPage() {
               onClick={() => setShowRecordForm((prev) => !prev)}
             >
               {showRecordForm ? "Close" : "Record Payment"}
+            </button>
+          </div>
+        </div>
+
+        <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
+          <div style={sectionHeader}>
+            <div>
+              <h3 style={sectionTitle}>Learner Fee Statements</h3>
+              <p style={smallText}>View the parent&apos;s current statement, confirm its latest delivery status, or resend the Parent Portal notification.</p>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 14, marginTop: 12 }}>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={labelText}>Learner</span>
+              <select
+                className="db-input"
+                value={statementLearnerId}
+                onChange={(event) => setStatementLearnerId(event.target.value)}
+              >
+                <option value="">Select learner</option>
+                {learners.map((learner) => (
+                  <option key={learner.id} value={learner.id}>{learner.name || "Unnamed learner"}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className="db-soft-card" style={{ padding: 14, boxShadow: "none" }}>
+              {!selectedStatementLearner ? <p style={smallText}>Select a learner to see the statement delivery history.</p> : statementDeliveryLoading ? <p style={smallText}>Loading delivery history...</p> : statementDelivery ? (
+                <>
+                  <strong>{statementDeliveryStatusLabel(statementDelivery.status)}</strong>
+                  <p style={smallText}>Last attempt: {formatStatementDeliveryDate(statementDelivery.sent_at || statementDelivery.created_at)}</p>
+                  <p style={smallText}>Parent contact: {statementDelivery.recipient_phone || selectedStatementLearner.parent_phone || "Not added"}</p>
+                  {statementDelivery.error_message ? <p style={{ ...smallText, color: "#a33a3a" }}>{statementDelivery.error_message}</p> : null}
+                </>
+              ) : (
+                <>
+                  <strong>Not sent yet</strong>
+                  <p style={smallText}>The statement is available in the Parent Portal, but no statement notification has been recorded.</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {statementMessage ? <div className={statementMessageType === "error" ? "db-error-banner" : "db-success-banner"} role={statementMessageType === "error" ? "alert" : "status"} style={{ marginTop: 12 }}>{statementMessage}</div> : null}
+
+          <div className="db-page-actions" style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              className="db-button-secondary"
+              disabled={!statementLearnerId || !schoolId}
+              onClick={() => router.push(`/payments/statement?school=${schoolId}&learner=${encodeURIComponent(statementLearnerId)}`)}
+            >
+              View Statement
+            </button>
+            <button
+              type="button"
+              className="db-button-primary"
+              disabled={!statementLearnerId || !schoolId || statementSending}
+              onClick={() => void sendStatementNotification()}
+            >
+              {statementSending ? "Sending..." : statementDelivery ? "Resend Statement" : "Send Statement"}
             </button>
           </div>
         </div>
@@ -750,56 +891,6 @@ export default function PaymentsPage() {
 
           {showPaymentHistory ? (
             <div style={{ marginTop: 14 }}>
-              <div
-                className="db-card"
-                style={{ padding: 14, marginBottom: 14, background: "#FFFDFB" }}
-              >
-                <h4 style={{ ...sectionTitle, fontSize: 16 }}>
-                  Learner Fee Statement
-                </h4>
-                <p style={smallText}>
-                  Choose a learner to view or print the same continuous statement
-                  available in the parent portal.
-                </p>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
-                    alignItems: "end",
-                    marginTop: 10,
-                  }}
-                >
-                  <label style={{ display: "grid", gap: 6, flex: "1 1 260px" }}>
-                    <span style={labelText}>Learner</span>
-                    <select
-                      className="db-input"
-                      value={statementLearnerId}
-                      onChange={(event) => setStatementLearnerId(event.target.value)}
-                    >
-                      <option value="">Select learner</option>
-                      {learners.map((learner) => (
-                        <option key={learner.id} value={learner.id}>
-                          {learner.name || "Unnamed learner"}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    className="db-button-primary"
-                    disabled={!statementLearnerId || !schoolId}
-                    onClick={() =>
-                      router.push(
-                        `/payments/statement?school=${schoolId}&learner=${encodeURIComponent(statementLearnerId)}`
-                      )
-                    }
-                  >
-                    View Statement
-                  </button>
-                </div>
-              </div>
-
               <div style={formGrid}>
                 <div>
                   <p style={labelText}>From</p>
@@ -900,6 +991,29 @@ export default function PaymentsPage() {
       </div>
     </SubscriptionGuard>
   );
+}
+
+function statementDeliveryStatusLabel(status?: string | null) {
+  if (status === "read") return "Statement notification read";
+  if (status === "delivered") return "Statement notification delivered";
+  if (status === "sent") return "Statement notification sent";
+  if (status === "skipped") return "Push notification not sent";
+  if (status === "failed") return "Statement notification failed";
+  if (status === "queued" || status === "sending" || status === "retry_scheduled") return "Statement notification pending";
+  return "Statement delivery recorded";
+}
+
+function formatStatementDeliveryDate(value?: string | null) {
+  if (!value) return "Not available";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString("en-ZA", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function InsightCard({

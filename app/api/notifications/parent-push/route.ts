@@ -4,7 +4,7 @@ import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-aut
 import { PERMISSIONS } from "@/app/lib/permissions";
 import { recordCommunicationNotification } from "@/app/lib/communication-notification-centre";
 
-type ParentPushType = "daily_summary" | "broadcast" | "incident_report" | "parent_permission";
+type ParentPushType = "daily_summary" | "broadcast" | "incident_report" | "parent_permission" | "fee_statement";
 
 function uniqueValues(values: Array<string | null | undefined>) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL || "https://www.dailybloom.co.za";
 
-    if (!schoolId || !["daily_summary", "broadcast", "incident_report", "parent_permission"].includes(type)) {
+    if (!schoolId || !["daily_summary", "broadcast", "incident_report", "parent_permission", "fee_statement"].includes(type)) {
       return NextResponse.json(
         { error: "Missing or unsupported parent notification type." },
         { status: 400 }
@@ -142,6 +142,32 @@ export async function POST(request: Request) {
       url = `${siteUrl}/parent/permissions`;
     }
 
+    let learnerId: string | null = null;
+    let recipientName: string | null = null;
+    if (type === "fee_statement") {
+      learnerId = String(body.learner_id || "").trim();
+      if (!learnerId) {
+        return NextResponse.json({ error: "A learner is required before sending a fee statement." }, { status: 400 });
+      }
+
+      const { data: learner, error: learnerError } = await supabaseAdmin
+        .from("learners")
+        .select("id, name, legal_name, parent_phone")
+        .eq("id", learnerId)
+        .eq("school_id", schoolId)
+        .maybeSingle();
+      if (learnerError) throw learnerError;
+      if (!learner) {
+        return NextResponse.json({ error: "Learner not found for this school." }, { status: 404 });
+      }
+
+      recipientName = String(learner.legal_name || learner.name || "Learner");
+      externalIds = uniqueValues([learner.parent_phone]).filter((phone) => allowedParentPhones.includes(phone));
+      title = `${schoolName} fee statement`;
+      message = `${recipientName}'s latest fee statement is available in the Parent Portal.`;
+      url = `${siteUrl}/parent/fees/invoice?school=${schoolId}&learner=${encodeURIComponent(learnerId)}`;
+    }
+
     const result = await sendOneSignalPush({
       externalIds,
       title,
@@ -155,6 +181,8 @@ export async function POST(request: Request) {
       sourceType: "parent_push",
       sourceId: String(body.source_id || crypto.randomUUID()),
       status: result.skipped ? "skipped" : "sent",
+      learnerId,
+      recipientName,
       recipientPhone: externalIds.length === 1 ? externalIds[0] : null,
       recipientCount: externalIds.length,
       subject: title,

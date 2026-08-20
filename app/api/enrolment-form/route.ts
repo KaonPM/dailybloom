@@ -23,6 +23,135 @@ function one<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] || null : value || null;
 }
 
+function record(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+const DRAFT_TEXT_FIELDS = {
+  learner_first_name: 120,
+  learner_surname: 120,
+  date_of_birth: 30,
+  gender: 40,
+  learner_id_or_birth_certificate: 120,
+  guardian_name: 180,
+  guardian_relationship: 80,
+  guardian_id_or_passport: 120,
+  guardian_phone: 40,
+  guardian_daytime_phone: 40,
+  parent_portal_phone: 40,
+  guardian_email: 180,
+  guardian_employer: 180,
+  guardian_occupation: 120,
+  guardian_work_phone: 40,
+  second_guardian_name: 180,
+  second_guardian_id_or_passport: 120,
+  second_guardian_phone: 40,
+  emergency_contact_name: 180,
+  emergency_contact_phone: 40,
+  previous_school: 180,
+  home_address: 1000,
+  allergies: 2000,
+  medical_conditions: 2000,
+  medical_aid_name: 180,
+  medical_aid_number: 120,
+  medical_aid_main_member: 180,
+  preferred_doctor_name: 180,
+  preferred_doctor_phone: 40,
+  immunisation_status: 40,
+  immunisation_notes: 1000,
+} as const;
+
+function draftTextValues(value: unknown) {
+  const source = record(value);
+  const employment = record(source.guardian_employment);
+  const secondGuardian = record(source.second_guardian);
+  const emergencyContact = record(source.emergency_contact);
+  const medical = record(source.medical);
+  const result: Record<string, string> = {};
+  for (const [key, max] of Object.entries(DRAFT_TEXT_FIELDS)) {
+    let fieldValue = source[key];
+    if (key === "guardian_employer") fieldValue ||= employment.employer;
+    if (key === "guardian_occupation") fieldValue ||= employment.occupation;
+    if (key === "guardian_work_phone") fieldValue ||= employment.work_phone;
+    if (key === "second_guardian_name") fieldValue ||= secondGuardian.name;
+    if (key === "second_guardian_id_or_passport") fieldValue ||= secondGuardian.id_or_passport;
+    if (key === "second_guardian_phone") fieldValue ||= secondGuardian.phone;
+    if (key === "emergency_contact_name") fieldValue ||= emergencyContact.name;
+    if (key === "emergency_contact_phone") fieldValue ||= emergencyContact.phone;
+    if (key === "allergies") fieldValue ||= medical.allergies;
+    if (key === "medical_conditions") fieldValue ||= medical.conditions;
+    if (key === "medical_aid_name") fieldValue ||= medical.medical_aid_name;
+    if (key === "medical_aid_number") fieldValue ||= medical.medical_aid_number;
+    if (key === "medical_aid_main_member") fieldValue ||= medical.medical_aid_main_member;
+    if (key === "preferred_doctor_name") fieldValue ||= medical.preferred_doctor_name;
+    if (key === "preferred_doctor_phone") fieldValue ||= medical.preferred_doctor_phone;
+    if (key === "immunisation_status") fieldValue ||= medical.immunisation_status;
+    if (key === "immunisation_notes") fieldValue ||= medical.immunisation_notes;
+    result[key] = text(fieldValue, max);
+  }
+  return result;
+}
+
+function draftStringMap(value: unknown) {
+  const result: Record<string, string> = {};
+  for (const [rawKey, rawValue] of Object.entries(record(value)).slice(0, 24)) {
+    const key = text(rawKey, 80);
+    const answer = text(rawValue, 2000);
+    if (key && answer) result[key] = answer;
+  }
+  return result;
+}
+
+function draftBooleanMap(value: unknown) {
+  const result: Record<string, boolean> = {};
+  for (const [rawKey, rawValue] of Object.entries(record(value)).slice(0, 40)) {
+    const key = text(rawKey, 80);
+    if (key && typeof rawValue === "boolean") result[key] = rawValue;
+  }
+  return result;
+}
+
+function restoredConsentResponses(value: unknown) {
+  if (!Array.isArray(value)) return draftBooleanMap(value);
+  const result: Record<string, boolean> = {};
+  for (const item of value.slice(0, 40)) {
+    const consent = record(item);
+    const id = text(consent.id, 80);
+    if (id) result[id] = consent.accepted === true;
+  }
+  return result;
+}
+
+function safeDraftDocuments(value: unknown, enquiry: { school_id: number; id: string }) {
+  const result: Record<string, { name: string; path: string }> = {};
+  const prefix = `${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`;
+  for (const [rawTitle, rawUpload] of Object.entries(record(value)).slice(0, 20)) {
+    const title = text(rawTitle, 180);
+    const upload = record(rawUpload);
+    const path = text(upload.path, 500);
+    if (title && path.startsWith(prefix)) {
+      result[title] = { name: text(upload.name, 180) || title, path };
+    }
+  }
+  return result;
+}
+
+function buildDraftData(body: Record<string, unknown>, enquiry: { school_id: number; id: string }, savedAt: string) {
+  const declaration = record(body.declaration);
+  return {
+    ...draftTextValues(body),
+    custom_answers: draftStringMap(body.custom_answers),
+    consent_responses: draftBooleanMap(body.consent_responses),
+    terms_accepted: body.terms_accepted === true,
+    declaration_name: text(body.declaration_name || declaration.name, 180),
+    declaration_relationship: text(body.declaration_relationship || declaration.relationship, 80),
+    uploaded_documents: safeDraftDocuments(body.uploaded_documents, enquiry),
+    _draft_saved_at: savedAt,
+  };
+}
+
 async function findEnquiry(token: string) {
   if (!token || token.length < 30) return null;
   const { data } = await supabaseAdmin
@@ -168,16 +297,23 @@ export async function GET(request: Request) {
   const initialValues = enquiry.submitted_data && typeof enquiry.submitted_data === "object" && !Array.isArray(enquiry.submitted_data)
     ? enquiry.submitted_data as Record<string, unknown>
     : {};
+  const declaration = record(initialValues.declaration);
   return NextResponse.json({
     reference: enquiry.enquiry_reference,
     parent_name: enquiry.parent_name,
     initial_values: {
-      learner_first_name: text(initialValues.learner_first_name, 120),
-      learner_surname: text(initialValues.learner_surname, 120),
+      ...draftTextValues(initialValues),
       guardian_name: text(initialValues.guardian_name, 180) || enquiry.parent_name,
       guardian_phone: text(initialValues.guardian_phone, 40) || text(enquiry.parent_phone, 40),
       parent_portal_phone: text(initialValues.parent_portal_phone, 40) || text(enquiry.parent_phone, 40),
     },
+    initial_custom_answers: draftStringMap(initialValues.custom_answers),
+    initial_consent_responses: restoredConsentResponses(initialValues.consent_responses),
+    initial_terms_accepted: initialValues.terms_accepted === true,
+    initial_declaration_name: text(initialValues.declaration_name || declaration.name, 180),
+    initial_declaration_relationship: text(initialValues.declaration_relationship || declaration.relationship, 80),
+    initial_uploaded_documents: safeDraftDocuments(initialValues.uploaded_documents, enquiry),
+    draft_saved_at: text(initialValues._draft_saved_at, 50) || null,
     status: enquiry.status,
     school_name: school?.school_name || "School",
     school_logo_url: school?.logo_url || null,
@@ -216,6 +352,21 @@ export async function POST(request: Request) {
     if (error || !data) return NextResponse.json({ error: error?.message || "Could not prepare the document upload." }, { status: 500 });
     return NextResponse.json({ path, signed_url: data.signedUrl, token: data.token });
   }
+  const draftSavedAt = new Date().toISOString();
+  const draftData = buildDraftData(body, enquiry, draftSavedAt);
+  const { error: draftError } = await supabaseAdmin
+    .from("school_enrolment_enquiries")
+    .update({ submitted_data: draftData, updated_at: draftSavedAt })
+    .eq("id", enquiry.id)
+    .eq("school_id", enquiry.school_id);
+  if (draftError) return NextResponse.json({ error: draftError.message }, { status: 500 });
+  if (body.action === "save_draft") {
+    return NextResponse.json({ success: true, saved_at: draftSavedAt });
+  }
+  const draftValidationError = (message: string, status = 400) => NextResponse.json(
+    { error: message, draft_saved: true, saved_at: draftSavedAt },
+    { status },
+  );
   const learnerFirstName = text(body.learner_first_name, 120);
   const learnerSurname = text(body.learner_surname, 120);
   const dateOfBirth = text(body.date_of_birth, 30);
@@ -224,7 +375,7 @@ export async function POST(request: Request) {
   const guardianPhone = text(body.guardian_phone, 40);
   const parentPortalPhone = toSouthAfricanSmsNumber(text(body.parent_portal_phone, 40));
   if (!learnerFirstName || !learnerSurname || !dateOfBirth || !guardianName || !guardianIdOrPassport || !guardianPhone || !parentPortalPhone) {
-    return NextResponse.json({ error: "Complete the learner, responsible guardian ID or passport, guardian contact and Parent Portal mobile number before submitting." }, { status: 400 });
+    return draftValidationError("Complete the learner, responsible guardian ID or passport, guardian contact and Parent Portal mobile number before submitting.");
   }
   const form = one(enquiry.school_enrolment_forms as Record<string, unknown> | Record<string, unknown>[] | null);
   const [{ data: configuration }, { data: configuredDocuments }, { data: requirements }, { data: consents }, { data: terms }, { data: fees }] = await Promise.all([
@@ -236,27 +387,27 @@ export async function POST(request: Request) {
     supabaseAdmin.from("school_fee_types").select("fee_code, fee_name, fee_category, amount").eq("school_id", enquiry.school_id).eq("is_active", true),
   ]);
   const presentedTerms = termsWithConfiguredFees(terms as EnrolmentTerm[] | null, fees);
-  if (!staffCaptureId && configuration?.is_open === false) return NextResponse.json({ error: "Enrolments are currently closed by the school." }, { status: 403 });
+  if (!staffCaptureId && configuration?.is_open === false) return draftValidationError("Enrolments are currently closed by the school.", 403);
   const consentResponses = body.consent_responses && typeof body.consent_responses === "object" && !Array.isArray(body.consent_responses) ? body.consent_responses as Record<string, unknown> : {};
   const missingConsent = (consents || []).find((consent) => consent.is_required && consentResponses[String(consent.id)] !== true);
-  if (missingConsent) return NextResponse.json({ error: `Please accept “${missingConsent.title}” before submitting.` }, { status: 400 });
-  if (presentedTerms.length && body.terms_accepted !== true) return NextResponse.json({ error: "Accept the school terms and conditions before submitting." }, { status: 400 });
+  if (missingConsent) return draftValidationError(`Please accept “${missingConsent.title}” before submitting.`);
+  if (presentedTerms.length && body.terms_accepted !== true) return draftValidationError("Accept the school terms and conditions before submitting.");
   const declarationName = text(body.declaration_name, 180);
   const declarationRelationship = text(body.declaration_relationship, 80);
-  if (!declarationName || !declarationRelationship) return NextResponse.json({ error: "Complete the declaration name and relationship before submitting." }, { status: 400 });
+  if (!declarationName || !declarationRelationship) return draftValidationError("Complete the declaration name and relationship before submitting.");
   const secondGuardianName = text(body.second_guardian_name, 180);
   const secondGuardianIdOrPassport = text(body.second_guardian_id_or_passport, 120);
   const secondGuardianPhone = text(body.second_guardian_phone, 40);
   const emergencyContactName = text(body.emergency_contact_name, 180);
   const emergencyContactPhone = text(body.emergency_contact_phone, 40);
   if (configuration?.second_guardian_mode === "required" && (!secondGuardianName || !secondGuardianIdOrPassport || !secondGuardianPhone)) {
-    return NextResponse.json({ error: "Complete the required second parent or guardian details." }, { status: 400 });
+    return draftValidationError("Complete the required second parent or guardian details.");
   }
   if (configuration?.second_guardian_mode === "optional" && (secondGuardianName || secondGuardianIdOrPassport || secondGuardianPhone) && (!secondGuardianName || !secondGuardianIdOrPassport || !secondGuardianPhone)) {
-    return NextResponse.json({ error: "Complete the second parent or guardian name, ID or passport number and mobile number." }, { status: 400 });
+    return draftValidationError("Complete the second parent or guardian name, ID or passport number and mobile number.");
   }
   if (configuration?.emergency_contact_mode === "required" && (!emergencyContactName || !emergencyContactPhone)) {
-    return NextResponse.json({ error: "Complete the required emergency contact details." }, { status: 400 });
+    return draftValidationError("Complete the required emergency contact details.");
   }
   let customAnswers: Record<string, string>;
   try {
@@ -265,13 +416,13 @@ export async function POST(request: Request) {
       configuration?.custom_fields || form?.custom_fields,
     );
   } catch (validationError) {
-    return NextResponse.json({ error: validationError instanceof Error ? validationError.message : "Complete the required custom questions." }, { status: 400 });
+    return draftValidationError(validationError instanceof Error ? validationError.message : "Complete the required custom questions.");
   }
   let documents: Record<string, { name: string; path: string }>;
   try {
     documents = uploadedDocuments(body.uploaded_documents, configuredDocuments || form?.required_documents, enquiry);
   } catch (validationError) {
-    return NextResponse.json({ error: validationError instanceof Error ? validationError.message : "Upload the required documents before submitting." }, { status: 400 });
+    return draftValidationError(validationError instanceof Error ? validationError.message : "Upload the required documents before submitting.");
   }
   if (configuration?.second_guardian_mode === "required") {
     const documentName = "Second parent/guardian identification document";
@@ -279,7 +430,7 @@ export async function POST(request: Request) {
     const upload = uploads[documentName] && typeof uploads[documentName] === "object" ? uploads[documentName] as Record<string, unknown> : null;
     const path = text(upload?.path, 500);
     if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) {
-      return NextResponse.json({ error: `Upload “${documentName}” before submitting.` }, { status: 400 });
+      return draftValidationError(`Upload “${documentName}” before submitting.`);
     }
     documents[documentName] = { name: text(upload?.name, 180) || documentName, path };
   }
@@ -291,14 +442,14 @@ export async function POST(request: Request) {
     const uploads = body.uploaded_documents && typeof body.uploaded_documents === "object" && !Array.isArray(body.uploaded_documents) ? body.uploaded_documents as Record<string, unknown> : {};
     const upload = uploads[documentName] && typeof uploads[documentName] === "object" ? uploads[documentName] as Record<string, unknown> : null;
     const path = text(upload?.path, 500);
-    if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) return NextResponse.json({ error: `Upload “${documentName}” before submitting.` }, { status: 400 });
+    if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) return draftValidationError(`Upload “${documentName}” before submitting.`);
     documents[documentName] = { name: text(upload?.name, 180) || documentName, path };
   }
   if (!configuredHasResponsibleId) {
     const uploads = body.uploaded_documents && typeof body.uploaded_documents === "object" && !Array.isArray(body.uploaded_documents) ? body.uploaded_documents as Record<string, unknown> : {};
     const upload = uploads[responsibleDocumentName] && typeof uploads[responsibleDocumentName] === "object" ? uploads[responsibleDocumentName] as Record<string, unknown> : null;
     const path = text(upload?.path, 500);
-    if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) return NextResponse.json({ error: `Upload “${responsibleDocumentName}” before submitting.` }, { status: 400 });
+    if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) return draftValidationError(`Upload “${responsibleDocumentName}” before submitting.`);
     documents[responsibleDocumentName] = { name: text(upload?.name, 180) || responsibleDocumentName, path };
   }
   if (configuration?.second_guardian_mode !== "hidden" && (secondGuardianName || secondGuardianPhone)) {
@@ -307,7 +458,7 @@ export async function POST(request: Request) {
       const uploads = body.uploaded_documents && typeof body.uploaded_documents === "object" && !Array.isArray(body.uploaded_documents) ? body.uploaded_documents as Record<string, unknown> : {};
       const upload = uploads[documentName] && typeof uploads[documentName] === "object" ? uploads[documentName] as Record<string, unknown> : null;
       const path = text(upload?.path, 500);
-      if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) return NextResponse.json({ error: `Upload “${documentName}” before submitting.` }, { status: 400 });
+      if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) return draftValidationError(`Upload “${documentName}” before submitting.`);
       documents[documentName] = { name: text(upload?.name, 180) || documentName, path };
     }
   }

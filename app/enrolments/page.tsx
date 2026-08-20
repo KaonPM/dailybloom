@@ -265,7 +265,9 @@ export default function EnrolmentsPage() {
         setPaymentReference("");
         setPipelineSearch(enquiry.enquiry_reference);
         setPipelinePage(0);
-        setMessage(`Registration Fee payment confirmed for ${enquiry.enquiry_reference}. Select Issue Secure Form on the learner row below.`);
+        setMessage(enquiry.status === "submitted"
+          ? `Registration Fee payment confirmed for ${enquiry.enquiry_reference}. The submitted enrolment is ready for approval.`
+          : `Registration Fee payment confirmed for ${enquiry.enquiry_reference}. Select Issue Secure Form on the learner row below.`);
       }
       await loadPage();
     } catch (actionError) {
@@ -430,7 +432,7 @@ export default function EnrolmentsPage() {
                   </details>
                 ) : null}
 
-                {enquiry.status === "payment_pending" && enquiry.registration_payment_status === "pending" ? (
+                {["payment_pending", "submitted"].includes(enquiry.status) && enquiry.registration_payment_status === "pending" ? (
                   paymentFor === enquiry.id ? (
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
                       <label style={{ display: "grid", gap: 7, flex: "1 1 260px" }}><strong>Reference used</strong><input className="db-input" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} placeholder={enquiry.enquiry_reference} /><small className="db-helper">Confirm the reference used for this Registration Fee payment.</small></label>

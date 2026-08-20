@@ -30,10 +30,24 @@ function getTextList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).slice(0, 40) : [];
 }
 
+function stepForValidationError(message: string): number {
+  if (/upload|document|clinic card|immunisation record/i.test(message)) return 3;
+  if (/guardian|parent portal|emergency contact|mobile number|email address/i.test(message)) return 2;
+  if (/learner|date of birth|gender|birth certificate/i.test(message)) return 1;
+  return 4;
+}
+
 type FormInfo = {
   reference: string;
   parent_name: string;
   initial_values?: Record<string, string>;
+  initial_custom_answers?: Record<string, string>;
+  initial_consent_responses?: Record<string, boolean>;
+  initial_terms_accepted?: boolean;
+  initial_declaration_name?: string;
+  initial_declaration_relationship?: string;
+  initial_uploaded_documents?: Record<string, { name: string; path: string }>;
+  draft_saved_at?: string | null;
   status: string;
   school_name: string;
   school_logo_url?: string | null;
@@ -107,6 +121,10 @@ export default function SecureEnrolmentFormPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState("");
+  const [draftMessage, setDraftMessage] = useState("");
+  const [accessError, setAccessError] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -159,6 +177,7 @@ export default function SecureEnrolmentFormPage() {
     }
     if (!token) return;
     setLoading(true);
+    setAccessError("");
     setError("");
     try {
       const endpoint = isStaffCapture
@@ -172,9 +191,17 @@ export default function SecureEnrolmentFormPage() {
         throw new Error(body.error || "This enrolment link is not available.");
       }
       setInfo(body as FormInfo);
-      setFields((current) => ({ ...current, ...(body.initial_values || {}), guardian_name: body.initial_values?.guardian_name || body.parent_name || "" }));
+      setFields({ ...emptyFields, ...(body.initial_values || {}), guardian_name: body.initial_values?.guardian_name || body.parent_name || "" });
+      setCustomAnswers(body.initial_custom_answers || {});
+      setConsentResponses(body.initial_consent_responses || {});
+      setTermsAccepted(body.initial_terms_accepted === true);
+      setDeclarationName(body.initial_declaration_name || "");
+      setDeclarationRelationship(body.initial_declaration_relationship || "");
+      setDocumentUploads(body.initial_uploaded_documents || {});
+      setDraftSavedAt(body.draft_saved_at || "");
+      if (body.draft_saved_at) setDraftMessage("Your saved draft has been restored.");
     } catch (loadError) {
-      setError(
+      setAccessError(
         loadError instanceof Error
           ? loadError.message
           : "This enrolment link is not available.",
@@ -188,6 +215,62 @@ export default function SecureEnrolmentFormPage() {
     void loadForm();
   }, [loadForm]);
 
+  function formPayload(action?: "save_draft") {
+    return {
+      token,
+      staff_capture_id: staffCaptureId || undefined,
+      school_id: staffSchoolId ? Number(staffSchoolId) : undefined,
+      ...(action ? { action } : {}),
+      ...fields,
+      custom_answers: customAnswers,
+      uploaded_documents: documentUploads,
+      consent_responses: consentResponses,
+      terms_accepted: termsAccepted,
+      declaration_name: declarationName,
+      declaration_relationship: declarationRelationship,
+    };
+  }
+
+  async function saveDraft(showConfirmation = true) {
+    if (isPreview) return false;
+    setSavingDraft(true);
+    setError("");
+    if (showConfirmation) setDraftMessage("");
+    try {
+      const response = await (isStaffCapture ? authenticatedFetch : fetch)("/api/enrolment-form", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formPayload("save_draft")),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const responseError = body.error || "Your enrolment draft could not be saved.";
+        if (!isStaffCapture && [401, 403, 404].includes(response.status)) {
+          setAccessError(responseError);
+          return false;
+        }
+        throw new Error(responseError);
+      }
+      setDraftSavedAt(body.saved_at || new Date().toISOString());
+      if (showConfirmation) setDraftMessage("Draft saved. You can safely return to this form before the secure link expires.");
+      return true;
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Your enrolment draft could not be saved.");
+      return false;
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
+  async function continueToNextStep() {
+    if (isPreview) {
+      setStep((current) => Math.min(4, current + 1));
+      return;
+    }
+    const saved = await saveDraft(false);
+    if (saved) setStep((current) => Math.min(4, current + 1));
+  }
+
   async function submit() {
     setSubmitting(true);
     setError("");
@@ -195,11 +278,21 @@ export default function SecureEnrolmentFormPage() {
       const response = await (isStaffCapture ? authenticatedFetch : fetch)("/api/enrolment-form", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, staff_capture_id: staffCaptureId || undefined, school_id: staffSchoolId ? Number(staffSchoolId) : undefined, ...fields, custom_answers: customAnswers, uploaded_documents: documentUploads, consent_responses: consentResponses, terms_accepted: termsAccepted, declaration_name: declarationName, declaration_relationship: declarationRelationship }),
+        body: JSON.stringify(formPayload()),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(body.error || "Your enrolment form could not be submitted.");
+        const responseError = body.error || "Your enrolment form could not be submitted.";
+        if (!isStaffCapture && [401, 403, 404].includes(response.status) && body.draft_saved !== true) {
+          setAccessError(responseError);
+          return;
+        }
+        if (body.draft_saved === true) {
+          setDraftSavedAt(body.saved_at || new Date().toISOString());
+          setDraftMessage("Your entries were kept as a draft. Complete the requested information and submit again.");
+        }
+        setStep(stepForValidationError(responseError));
+        throw new Error(responseError);
       }
       setSuccess(isStaffCapture
         ? "The returned paper form has been captured against this enrolment reference and is ready for review."
@@ -244,7 +337,14 @@ export default function SecureEnrolmentFormPage() {
     try {
       const response = await (isStaffCapture ? authenticatedFetch : fetch)("/api/enrolment-form", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, staff_capture_id: staffCaptureId || undefined, school_id: staffSchoolId ? Number(staffSchoolId) : undefined, action: "create_document_upload", file_name: file.name, file_size: file.size, content_type: file.type }) });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || "Could not prepare the document upload.");
+      if (!response.ok) {
+        const responseError = body.error || "Could not prepare the document upload.";
+        if (!isStaffCapture && [401, 403, 404].includes(response.status)) {
+          setAccessError(responseError);
+          return;
+        }
+        throw new Error(responseError);
+      }
       const uploadResponse = await fetch(body.signed_url, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
       if (!uploadResponse.ok) throw new Error("The document could not be uploaded. Please try again.");
       setDocumentUploads((current) => ({ ...current, [documentName]: { name: file.name, path: body.path } }));
@@ -288,14 +388,21 @@ export default function SecureEnrolmentFormPage() {
         </section>
       ) : null}
 
-      {error ? (
+      {accessError ? (
         <section className="db-card db-card-yellow" role="alert" style={{ display: "grid", gap: 8 }}>
           <div className="db-eyebrow">SECURE ENROLMENT LINK</div>
           <h2 style={{ margin: 0 }}>We could not open this enrolment link</h2>
-          <p style={{ color: "#a33d45", margin: 0 }}>{error}</p>
+          <p style={{ color: "#a33d45", margin: 0 }}>{accessError}</p>
           <p className="db-helper" style={{ margin: 0 }}>
             For privacy, secure links expire after 24 hours and cannot be reused after a form is submitted. Please contact the school that sent the link to request a fresh link.
           </p>
+        </section>
+      ) : null}
+      {error && info && !accessError && !success ? (
+        <section className="db-card db-card-yellow" role="alert" style={{ display: "grid", gap: 6 }}>
+          <strong>Please complete the highlighted section</strong>
+          <p style={{ color: "#a33d45", margin: 0 }}>{error}</p>
+          <p className="db-helper" style={{ margin: 0 }}>Your other entries remain on this form and have been kept as a draft where possible.</p>
         </section>
       ) : null}
       {success ? (
@@ -306,7 +413,7 @@ export default function SecureEnrolmentFormPage() {
         </section>
       ) : null}
 
-      {info && !error && !success ? (
+      {info && !accessError && !success ? (
         <section className="db-card db-enrolment-form" style={{ display: "grid", gap: 16 }}>
           <div>
             <h2 style={{ margin: 0 }}>Learner and parent details</h2>
@@ -322,6 +429,7 @@ export default function SecureEnrolmentFormPage() {
           <div className="db-soft-card" style={{ padding: 12, display: "flex", gap: 8, flexWrap: "wrap" }} aria-label="Enrolment progress">
             {["Learner", "Parent", "Documents & list", "Review"].map((label, index) => <span key={label} style={{ fontWeight: step === index + 1 ? 700 : 500, color: step === index + 1 ? "#155e8a" : "#74708b" }}>Step {index + 1} of 4: {label}</span>)}
           </div>
+          {draftMessage || draftSavedAt ? <div className="db-success-banner" role="status"><strong>{draftMessage || "Draft saved."}</strong>{draftSavedAt ? <small style={{ display: "block", marginTop: 3 }}>Last saved {new Date(draftSavedAt).toLocaleString("en-ZA")}</small> : null}</div> : null}
           <div style={{ display: "grid", gap: 16 }}>
             {step === 1 ? <div>
               <h3 style={{ margin: "0 0 10px" }}>Learner</h3>
@@ -381,7 +489,13 @@ export default function SecureEnrolmentFormPage() {
               <div className="db-soft-card" style={{ padding: 12 }}><strong>Ready to submit</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>Check that the information and requested documents are complete before submitting.</p></div>
             </div> : null}
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><button className="db-button-secondary" type="button" disabled={step === 1} onClick={() => setStep((current) => Math.max(1, current - 1))}>Back</button>{step < 4 ? <button className="db-button-primary" type="button" onClick={() => setStep((current) => Math.min(4, current + 1))}>Continue</button> : <button className="db-button-primary" type="button" disabled={submitting || isPreview} onClick={() => void submit()}>{isPreview ? "Preview only" : submitting ? "Submitting..." : isStaffCapture ? "Save Captured Form" : "Submit Enrolment Form"}</button>}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button className="db-button-secondary" type="button" disabled={step === 1 || savingDraft || submitting} onClick={() => setStep((current) => Math.max(1, current - 1))}>Back</button>
+              {!isPreview ? <button className="db-button-secondary" type="button" disabled={savingDraft || submitting} onClick={() => void saveDraft()}>{savingDraft ? "Saving draft..." : "Save Draft"}</button> : null}
+            </div>
+            {step < 4 ? <button className="db-button-primary" type="button" disabled={savingDraft || submitting} onClick={() => void continueToNextStep()}>{isPreview ? "Continue" : savingDraft ? "Saving..." : "Save & Continue"}</button> : <button className="db-button-primary" type="button" disabled={submitting || savingDraft || isPreview} onClick={() => void submit()}>{isPreview ? "Preview only" : submitting ? "Submitting..." : isStaffCapture ? "Submit Captured Form" : "Submit Enrolment Form"}</button>}
+          </div>
         </section>
       ) : null}
     </main>

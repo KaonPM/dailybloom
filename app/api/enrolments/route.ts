@@ -11,6 +11,21 @@ function text(value: unknown, max = 300) {
   return String(value || "").trim().slice(0, max);
 }
 
+function publicAppOrigin(request: Request) {
+  const configured = text(process.env.NEXT_PUBLIC_APP_URL, 500).replace(/\/+$/, "");
+  if (configured) {
+    try {
+      return new URL(configured).origin;
+    } catch {
+      // Fall back to the request origin when the optional public URL is malformed.
+    }
+  }
+  const requestOrigin = new URL(request.url).origin;
+  return process.env.VERCEL_ENV === "production" && requestOrigin.endsWith(".vercel.app")
+    ? "https://dailybloom.co.za"
+    : requestOrigin;
+}
+
 function paymentMessage(input: { schoolName: string; parentName: string; reference: string; amount: number; bankAccountName: string; bankName: string; bankAccountNumber: string; bankBranchCode: string }) {
   const money = new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(Number(input.amount || 0));
   const bankLines = [
@@ -294,6 +309,14 @@ export async function POST(request: Request) {
     if ((!reopening && !["payment_pending", "form_issued"].includes(String(enquiry.status))) || (reopening && enquiry.status !== "submitted")) {
       return NextResponse.json({ error: reopening ? "Only a submitted application can be reopened for parent editing." : "This enrolment form has already been submitted or reviewed." }, { status: 400 });
     }
+    const issuedAt = new Date().toISOString();
+    await supabaseAdmin.from("enrolment_message_deliveries").update({
+      status: "failed",
+      next_retry_at: null,
+      retry_payload_encrypted: null,
+      failed_at: issuedAt,
+      last_error: "Superseded by a newly issued secure enrolment link.",
+    }).eq("enquiry_id", enquiryId).eq("message_kind", "form").eq("status", "retry_scheduled");
     const token = randomBytes(32).toString("base64url");
     const expiry = new Date(Date.now() + FORM_LINK_LIFETIME_MS).toISOString();
     const { error } = await supabaseAdmin.from("school_enrolment_enquiries").update({
@@ -309,10 +332,10 @@ export async function POST(request: Request) {
       form_access_session_hash: null,
       form_access_session_expires_at: null,
       status: "form_issued",
-      updated_at: new Date().toISOString(),
+      updated_at: issuedAt,
     }).eq("id", enquiryId).eq("school_id", schoolId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    const formUrl = `${new URL(request.url).origin}/enrolment/${token}`;
+    const formUrl = `${publicAppOrigin(request)}/enrolment/${token}`;
     const school = Array.isArray(enquiry.schools) ? enquiry.schools[0] : enquiry.schools;
     const message = `Hello ${enquiry.parent_name}, your private enrolment form for ${school?.school_name || "your school"} is ready. Reference: ${enquiry.enquiry_reference}. Complete it here: ${formUrl}. This link expires in 24 hours, is tied to one learner, and must not be forwarded or shared.`;
     const delivery = await sendEnrolmentWhatsAppMessage({

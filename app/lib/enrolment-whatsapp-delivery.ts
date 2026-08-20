@@ -1,6 +1,7 @@
 import "server-only";
 
 import { decryptEnrolmentDeliveryPayload, encryptEnrolmentDeliveryPayload } from "@/app/lib/enrolment-delivery-crypto";
+import { hashEnrolmentSecret } from "@/app/lib/enrolment-form-security";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 import { EnrolmentWhatsAppKind, getEnrolmentWhatsAppTemplateDetails, sendEnrolmentWhatsApp, WhatsAppSendError } from "@/app/lib/whatsapp";
 
@@ -64,6 +65,30 @@ async function addHistory(input: DeliveryInput, attemptCount: number) {
 function retryTiming(attemptCount: number) {
   const delay = RETRY_DELAYS_MS[attemptCount - 1];
   return delay ? new Date(Date.now() + delay).toISOString() : null;
+}
+
+function secureTokenFromUrl(value: string) {
+  try {
+    return new URL(value).pathname.split("/").filter(Boolean).pop() || "";
+  } catch {
+    return "";
+  }
+}
+
+async function isCurrentFormLink(enquiryId: string, formUrl: string) {
+  const token = secureTokenFromUrl(formUrl);
+  if (!token) return false;
+  const { data } = await supabaseAdmin.from("school_enrolment_enquiries")
+    .select("status, form_token_hash, form_token_expires_at")
+    .eq("id", enquiryId)
+    .maybeSingle();
+  return Boolean(
+    data
+      && data.status === "form_issued"
+      && data.form_token_hash === hashEnrolmentSecret(token)
+      && data.form_token_expires_at
+      && new Date(data.form_token_expires_at).getTime() > Date.now()
+  );
 }
 
 async function completeHistory(input: { id: string | null; enquiryId: string; kind: EnrolmentWhatsAppKind; status: string; error: string | null; providerMessageId?: string | null; sentAt?: string | null; retryPayload?: string | null; nextRetryAt?: string | null }) {
@@ -136,6 +161,11 @@ export async function processEnrolmentWhatsAppDeliveryRetries({ batchSize = 25 }
       : null;
     if (!payload || !["registration", "form"].includes(kind)) {
       await completeHistory({ id: entry.id, enquiryId: entry.enquiry_id, kind, status: "failed", error: "Retry data is unavailable. Please resend this message from the enrolment record.", retryPayload: null, nextRetryAt: null });
+      failed += 1;
+      continue;
+    }
+    if (kind === "form" && !(await isCurrentFormLink(entry.enquiry_id, payload.bodyParameters[3] || ""))) {
+      await completeHistory({ id: entry.id, enquiryId: entry.enquiry_id, kind, status: "failed", error: "This retry was cancelled because its secure link expired or was replaced.", retryPayload: null, nextRetryAt: null });
       failed += 1;
       continue;
     }

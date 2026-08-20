@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 type Child = { id: string; name: string };
@@ -56,27 +57,47 @@ export default function ParentSchoolAdministrationPage() {
     return <input className="db-input" name={question.id} required />;
   }
 
-  return <div style={{ display: "grid", gap: 18 }}>
-    <section className="db-page-header db-card-blue"><p className="db-eyebrow">Parent Portal</p><h1>School Administration</h1><p className="db-page-subtitle">Re-enrolment, meeting documents and school surveys.</p></section>
+  return <div className="parent-school-admin">
+    <section className="db-page-header db-card-blue parent-school-admin-header">
+      <p className="db-eyebrow">Parent Portal</p>
+      <h1>School Administration</h1>
+      <p className="db-page-subtitle">Everything requiring a parent response or acknowledgement, organised in one place.</p>
+      <nav className="parent-school-admin-shortcuts" aria-label="School administration sections">
+        <a href="#re-enrolment">Re-enrolment</a>
+        <a href="#meeting-documents">Meeting Agenda &amp; Minutes</a>
+        <a href="#surveys">Surveys</a>
+      </nav>
+    </section>
     {error ? <div className="db-error-banner" role="alert">{error}</div> : null}
     {message ? <div className="db-success-banner" role="status">{message}</div> : null}
 
-    <section className="db-card" style={{ padding: 22 }}><h2>Re-enrolment</h2><p className="db-helper">Review each learner&apos;s re-enrolment status, respond and follow classroom allocation.</p><a className="db-button-primary" href="/parent/re-enrolment">Open Re-enrolment</a></section>
+    <section className="db-card parent-school-admin-feature" id="re-enrolment">
+      <div className="parent-school-admin-feature-icon" aria-hidden>↻</div>
+      <div className="parent-school-admin-feature-copy">
+        <p className="db-eyebrow">Admissions</p>
+        <h2>Re-enrolment</h2>
+        <p className="db-helper">Review each learner&apos;s re-enrolment status, respond and follow classroom allocation.</p>
+      </div>
+      <Link className="db-button-primary parent-school-admin-action" href="/parent/re-enrolment">Open Re-enrolment</Link>
+    </section>
 
-    <section className="db-card" style={{ padding: 22 }}>
-      <h2>Meeting Agenda &amp; Minutes</h2>
-      <div style={{ display: "grid", gap: 12 }}>
+    <section className="db-card parent-school-admin-section" id="meeting-documents">
+      <div className="parent-school-admin-section-heading">
+        <div><p className="db-eyebrow">School meetings</p><h2>Meeting Agenda &amp; Minutes</h2></div>
+        <p className="db-helper">Download the agenda before a meeting, then read and acknowledge the published minutes.</p>
+      </div>
+      <div className="parent-school-admin-list">
         {data.meetings.length === 0 ? <p className="db-helper">No meeting documents have been published yet.</p> : null}
         {data.meetings.slice(0, meetingVisible).map((meeting) => {
           const learnerId = meeting.eligible_learner_ids?.[0];
           const acknowledged = meeting.school_meeting_acknowledgements?.some((item) => item.learner_id === learnerId);
-          return <article className="db-soft-card" style={{ padding: 16 }} key={meeting.id}>
-            <strong>{meeting.title}</strong><p className="db-helper">{new Date(meeting.meeting_date).toLocaleString("en-ZA")}</p>
-            <div className="db-page-actions">
+          return <article className="db-soft-card parent-school-admin-item" key={meeting.id}>
+            <div><strong>{meeting.title}</strong><p className="db-helper">{new Date(meeting.meeting_date).toLocaleString("en-ZA")}</p></div>
+            <div className="db-page-actions parent-school-admin-item-actions">
               {meeting.agenda_url ? <a className="db-button-secondary" href={meeting.agenda_url} target="_blank" rel="noreferrer">Download Agenda</a> : null}
               {meeting.minutes_url ? <a className="db-button-secondary" href={meeting.minutes_url} target="_blank" rel="noreferrer">Download Minutes</a> : null}
-              {meeting.minutes_published_at && !acknowledged && learnerId ? <button className="db-button-primary" onClick={() => void act({ action: "acknowledge_minutes", meeting_id: meeting.id, learner_id: learnerId })}>I confirm that I have received and read these meeting minutes.</button> : null}
-              {acknowledged ? <span className="db-success-banner">Minutes acknowledged</span> : null}
+              {meeting.minutes_published_at && !acknowledged && learnerId ? <button className="db-button-primary" type="button" onClick={() => void act({ action: "acknowledge_minutes", meeting_id: meeting.id, learner_id: learnerId })}>I confirm that I have received and read these meeting minutes.</button> : null}
+              {acknowledged ? <span className="parent-school-admin-status">✓ Minutes acknowledged</span> : null}
             </div>
           </article>;
         })}
@@ -84,16 +105,19 @@ export default function ParentSchoolAdministrationPage() {
       </div>
     </section>
 
-    <section className="db-card" style={{ padding: 22 }}>
-      <h2>Surveys &amp; Forms</h2>
-      <div style={{ display: "grid", gap: 12 }}>
+    <section className="db-card parent-school-admin-section" id="surveys">
+      <div className="parent-school-admin-section-heading">
+        <div><p className="db-eyebrow">Parent feedback</p><h2>Surveys</h2></div>
+        <p className="db-helper">Complete a DailyBloom survey or open a survey link shared by the school.</p>
+      </div>
+      <div className="parent-school-admin-list">
         {data.surveys.length === 0 ? <p className="db-helper">No surveys are currently available.</p> : null}
         {data.surveys.slice(0, surveyVisible).map((survey) => {
           const learnerId = survey.eligible_learner_ids?.[0];
           const completed = survey.school_survey_completions?.some((item) => item.learner_id === learnerId) || survey.school_survey_responses?.some((item) => item.learner_id === learnerId);
-          return <article className="db-soft-card" style={{ padding: 16 }} key={survey.id}>
-            <strong>{survey.title}</strong><p className="db-helper">{survey.description || "Please complete this school survey."}</p>
-            {completed ? <span className="db-success-banner">Completed</span> : survey.survey_type === "external" ? <div className="db-page-actions"><a className="db-button-primary" href={survey.external_url} target="_blank" rel="noreferrer">Open Survey</a>{learnerId ? <button className="db-button-secondary" onClick={() => void act({ action: "submit_survey", survey_id: survey.id, learner_id: learnerId })}>I Have Completed This Survey</button> : null}</div> : <form onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const answers = Object.fromEntries([...new Set(form.keys())].map((key) => { const values = form.getAll(key); return [key, values.length > 1 ? values : values[0]]; })); if (learnerId) void act({ action: "submit_survey", survey_id: survey.id, learner_id: learnerId, answers }); }}>{(survey.questions || []).map((question) => <label key={question.id} style={{ display: "block", margin: "12px 0" }}><span className="db-label">{question.label}</span>{answerField(question)}</label>)}<button className="db-button-primary">Submit Survey</button></form>}
+          return <article className="db-soft-card parent-school-admin-item parent-school-admin-survey" key={survey.id}>
+            <div><strong>{survey.title}</strong><p className="db-helper">{survey.description || "Please complete this school survey."}</p></div>
+            {completed ? <span className="parent-school-admin-status">✓ Completed</span> : survey.survey_type === "external" ? <div className="db-page-actions parent-school-admin-item-actions"><a className="db-button-primary" href={survey.external_url} target="_blank" rel="noreferrer">Open Survey</a>{learnerId ? <button className="db-button-secondary" type="button" onClick={() => void act({ action: "submit_survey", survey_id: survey.id, learner_id: learnerId })}>I Have Completed This Survey</button> : null}</div> : <form className="parent-school-admin-survey-form" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const answers = Object.fromEntries([...new Set(form.keys())].map((key) => { const values = form.getAll(key); return [key, values.length > 1 ? values : values[0]]; })); if (learnerId) void act({ action: "submit_survey", survey_id: survey.id, learner_id: learnerId, answers }); }}>{(survey.questions || []).map((question) => <label key={question.id}><span className="db-label">{question.label}</span>{answerField(question)}</label>)}<button className="db-button-primary" type="submit">Submit Survey</button></form>}
           </article>;
         })}
         {surveyVisible < data.surveys.length ? <button className="db-button-secondary" type="button" onClick={() => setSurveyVisible((count) => count + 10)}>Show next 10</button> : null}

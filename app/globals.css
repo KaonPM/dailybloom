@@ -1716,3 +1716,184 @@ line-height:1.45;
 .db-parent-access-dialog-actions {
   margin-top: 14px;
 }
+
+/* Parent Portal school administration */
+.parent-school-admin {
+  display: grid;
+  gap: 18px;
+}
+
+.parent-school-admin-header {
+  padding: 26px 28px;
+}
+
+.parent-school-admin-header h1,
+.parent-school-admin-header p {
+  max-width: 760px;
+}
+
+.parent-school-admin-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.parent-school-admin-shortcuts a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 14px;
+  color: #34304f;
+  font-size: 14px;
+  font-weight: 750;
+  text-decoration: none;
+  background: #fff;
+  border: 1px solid var(--db-border);
+  border-radius: 999px;
+}
+
+.parent-school-admin-shortcuts a:hover {
+  border-color: var(--db-blue);
+  background: #f3fbff;
+}
+
+.parent-school-admin-feature {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 24px;
+  scroll-margin-top: 96px;
+}
+
+.parent-school-admin-feature-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  color: #2d6380;
+  font-size: 26px;
+  font-weight: 800;
+  background: #e9f8ff;
+  border-radius: 15px;
+}
+
+.parent-school-admin-feature-copy h2,
+.parent-school-admin-section-heading h2 {
+  margin: 2px 0 6px;
+}
+
+.parent-school-admin-feature-copy p,
+.parent-school-admin-section-heading p,
+.parent-school-admin-item p {
+  margin-bottom: 0;
+}
+
+.parent-school-admin-action {
+  min-width: 176px;
+}
+
+.parent-school-admin-section {
+  padding: 22px 24px;
+  scroll-margin-top: 96px;
+}
+
+.parent-school-admin-section-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(260px, 1.1fr);
+  gap: 22px;
+  align-items: end;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--db-border);
+}
+
+.parent-school-admin-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.parent-school-admin-item {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 16px 18px;
+  box-shadow: none;
+}
+
+.parent-school-admin-item-actions {
+  justify-content: flex-end;
+  margin: 0;
+}
+
+.parent-school-admin-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 7px 12px;
+  color: #286443;
+  font-size: 13px;
+  font-weight: 800;
+  background: #eaf8ef;
+  border: 1px solid #bee5cc;
+  border-radius: 999px;
+}
+
+.parent-school-admin-survey {
+  align-items: start;
+}
+
+.parent-school-admin-survey-form {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--db-border);
+}
+
+.parent-school-admin-survey-form > .db-button-primary {
+  justify-self: start;
+}
+
+@media (max-width: 760px) {
+  .parent-school-admin-header {
+    padding: 20px !important;
+  }
+
+  .parent-school-admin-shortcuts {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .parent-school-admin-shortcuts a {
+    justify-content: center;
+  }
+
+  .parent-school-admin-feature,
+  .parent-school-admin-section-heading,
+  .parent-school-admin-item,
+  .parent-school-admin-survey-form {
+    grid-template-columns: 1fr;
+  }
+
+  .parent-school-admin-feature {
+    align-items: start;
+  }
+
+  .parent-school-admin-action {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .parent-school-admin-section-heading {
+    gap: 8px;
+    align-items: start;
+  }
+
+  .parent-school-admin-item-actions {
+    justify-content: flex-start;
+  }
+}

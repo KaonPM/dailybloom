@@ -5,8 +5,6 @@ import { useEffect, useState } from "react";
 import type { OneSignalClient } from "@/app/components/RegisterServiceWorker";
 
 const menuItems = [
-  { label: "School Administration", href: "/parent/school-administration" },
-  { label: "Re-enrolment", href: "/parent/re-enrolment" },
   { label: "🏠 Dashboard", href: "/parent/dashboard" },
   { label: "📅 Events", href: "/parent/dashboard#events" },
   { label: "💬 Messages", href: "/parent/messages" },
@@ -14,6 +12,7 @@ const menuItems = [
   { label: "🧾 Fee Statement", href: "/parent/fees" },
   { label: "⚠️ Incident Reports", href: "/parent/incidents" },
   { label: "✅ Parent Consent", href: "/parent/permissions" },
+  { label: "🏫 School Administration", href: "/parent/school-administration" },
 ];
 
 export default function ParentTopBar({

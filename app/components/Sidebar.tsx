@@ -218,6 +218,7 @@ export default function Sidebar() {
       { label: "Learners", href: "/children", match: ["/children"], permission: PERMISSIONS.LEARNERS_MANAGE },
       { label: "Enrolments", href: "/enrolments", match: ["/enrolments"], permission: PERMISSIONS.LEARNERS_MANAGE },
       { label: "Re-enrolments", href: "/re-enrolments", match: ["/re-enrolments"], permission: PERMISSIONS.SCHOOL_MANAGE },
+      { label: "Meetings, Minutes & Surveys", href: "/school-administration", match: ["/school-administration"], permission: PERMISSIONS.SCHOOL_MANAGE },
       { label: "Classrooms", href: "/classrooms", match: ["/classrooms"], permission: PERMISSIONS.CLASSROOM_ASSIGN },
       {
         label: "Learner Attendance",

@@ -1,0 +1,103 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+type Child = { id: string; name: string };
+type Meeting = { id: string; title: string; meeting_date: string; agenda_url?: string; minutes_url?: string; minutes_published_at?: string; eligible_learner_ids?: string[]; school_meeting_acknowledgements?: Array<{ learner_id: string; acknowledged_at: string }> };
+type Question = { id: string; label: string; type: "short_text" | "long_text" | "yes_no" | "rating" | "single_choice" | "checkbox"; options?: string[] };
+type Survey = { id: string; title: string; description?: string; survey_type: "dailybloom" | "external"; external_url?: string; questions?: Question[]; closes_at?: string; eligible_learner_ids?: string[]; school_survey_responses?: Array<{ learner_id: string; submitted_at: string }>; school_survey_completions?: Array<{ learner_id: string; completed_at: string }> };
+type ParentAdministrationData = { meetings: Meeting[]; surveys: Survey[]; children: Child[] };
+
+export default function ParentSchoolAdministrationPage() {
+  const [data, setData] = useState<ParentAdministrationData>({ meetings: [], surveys: [], children: [] });
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [meetingVisible, setMeetingVisible] = useState(10);
+  const [surveyVisible, setSurveyVisible] = useState(10);
+
+  const load = useCallback(async () => {
+    const response = await fetch("/api/parent-school-administration", { cache: "no-store" });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "School administration could not be loaded.");
+    setData(body as ParentAdministrationData);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    async function initialise() {
+      try {
+        const response = await fetch("/api/parent-school-administration", { cache: "no-store" });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || "School administration could not be loaded.");
+        if (active) setData(body as ParentAdministrationData);
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : "School administration could not be loaded.");
+      }
+    }
+    void initialise();
+    return () => { active = false; };
+  }, []);
+
+  async function act(payload: Record<string, unknown>) {
+    setError(""); setMessage("");
+    const response = await fetch("/api/parent-school-administration", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const body = await response.json();
+    if (!response.ok) { setError(body.error || "Your response could not be saved."); return; }
+    setMessage("Saved successfully.");
+    await load();
+  }
+
+  function answerField(question: Question) {
+    if (question.type === "long_text") return <textarea className="db-input" name={question.id} required rows={3} />;
+    if (question.type === "yes_no") return <select className="db-input" name={question.id} required><option value="">Select</option><option>Yes</option><option>No</option></select>;
+    if (question.type === "rating") return <select className="db-input" name={question.id} required><option value="">Select</option>{[1, 2, 3, 4, 5].map((number) => <option key={number}>{number}</option>)}</select>;
+    if (question.type === "single_choice") return <select className="db-input" name={question.id} required><option value="">Select</option>{(question.options || []).map((option) => <option key={option}>{option}</option>)}</select>;
+    if (question.type === "checkbox") return <div>{(question.options || []).map((option) => <label className="db-checkbox-row" key={option}><input type="checkbox" name={question.id} value={option} /><span>{option}</span></label>)}</div>;
+    return <input className="db-input" name={question.id} required />;
+  }
+
+  return <div style={{ display: "grid", gap: 18 }}>
+    <section className="db-page-header db-card-blue"><p className="db-eyebrow">Parent Portal</p><h1>School Administration</h1><p className="db-page-subtitle">Re-enrolment, meeting documents and school surveys.</p></section>
+    {error ? <div className="db-error-banner" role="alert">{error}</div> : null}
+    {message ? <div className="db-success-banner" role="status">{message}</div> : null}
+
+    <section className="db-card" style={{ padding: 22 }}><h2>Re-enrolment</h2><p className="db-helper">Review each learner&apos;s re-enrolment status, respond and follow classroom allocation.</p><a className="db-button-primary" href="/parent/re-enrolment">Open Re-enrolment</a></section>
+
+    <section className="db-card" style={{ padding: 22 }}>
+      <h2>Meeting Agenda &amp; Minutes</h2>
+      <div style={{ display: "grid", gap: 12 }}>
+        {data.meetings.length === 0 ? <p className="db-helper">No meeting documents have been published yet.</p> : null}
+        {data.meetings.slice(0, meetingVisible).map((meeting) => {
+          const learnerId = meeting.eligible_learner_ids?.[0];
+          const acknowledged = meeting.school_meeting_acknowledgements?.some((item) => item.learner_id === learnerId);
+          return <article className="db-soft-card" style={{ padding: 16 }} key={meeting.id}>
+            <strong>{meeting.title}</strong><p className="db-helper">{new Date(meeting.meeting_date).toLocaleString("en-ZA")}</p>
+            <div className="db-page-actions">
+              {meeting.agenda_url ? <a className="db-button-secondary" href={meeting.agenda_url} target="_blank" rel="noreferrer">Download Agenda</a> : null}
+              {meeting.minutes_url ? <a className="db-button-secondary" href={meeting.minutes_url} target="_blank" rel="noreferrer">Download Minutes</a> : null}
+              {meeting.minutes_published_at && !acknowledged && learnerId ? <button className="db-button-primary" onClick={() => void act({ action: "acknowledge_minutes", meeting_id: meeting.id, learner_id: learnerId })}>I confirm that I have received and read these meeting minutes.</button> : null}
+              {acknowledged ? <span className="db-success-banner">Minutes acknowledged</span> : null}
+            </div>
+          </article>;
+        })}
+        {meetingVisible < data.meetings.length ? <button className="db-button-secondary" type="button" onClick={() => setMeetingVisible((count) => count + 10)}>Show next 10</button> : null}
+      </div>
+    </section>
+
+    <section className="db-card" style={{ padding: 22 }}>
+      <h2>Surveys &amp; Forms</h2>
+      <div style={{ display: "grid", gap: 12 }}>
+        {data.surveys.length === 0 ? <p className="db-helper">No surveys are currently available.</p> : null}
+        {data.surveys.slice(0, surveyVisible).map((survey) => {
+          const learnerId = survey.eligible_learner_ids?.[0];
+          const completed = survey.school_survey_completions?.some((item) => item.learner_id === learnerId) || survey.school_survey_responses?.some((item) => item.learner_id === learnerId);
+          return <article className="db-soft-card" style={{ padding: 16 }} key={survey.id}>
+            <strong>{survey.title}</strong><p className="db-helper">{survey.description || "Please complete this school survey."}</p>
+            {completed ? <span className="db-success-banner">Completed</span> : survey.survey_type === "external" ? <div className="db-page-actions"><a className="db-button-primary" href={survey.external_url} target="_blank" rel="noreferrer">Open Survey</a>{learnerId ? <button className="db-button-secondary" onClick={() => void act({ action: "submit_survey", survey_id: survey.id, learner_id: learnerId })}>I Have Completed This Survey</button> : null}</div> : <form onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const answers = Object.fromEntries([...new Set(form.keys())].map((key) => { const values = form.getAll(key); return [key, values.length > 1 ? values : values[0]]; })); if (learnerId) void act({ action: "submit_survey", survey_id: survey.id, learner_id: learnerId, answers }); }}>{(survey.questions || []).map((question) => <label key={question.id} style={{ display: "block", margin: "12px 0" }}><span className="db-label">{question.label}</span>{answerField(question)}</label>)}<button className="db-button-primary">Submit Survey</button></form>}
+          </article>;
+        })}
+        {surveyVisible < data.surveys.length ? <button className="db-button-secondary" type="button" onClick={() => setSurveyVisible((count) => count + 10)}>Show next 10</button> : null}
+      </div>
+    </section>
+  </div>;
+}

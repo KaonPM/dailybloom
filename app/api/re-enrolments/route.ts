@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { PERMISSIONS } from "@/app/lib/permissions";
+import { isGradeRClassroom } from "@/app/lib/classroom-programme";
 import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
-type ReenrolmentAction = "create_campaign" | "send_notifications" | "approve_reenrolment" | "decline_reenrolment" | "apply_classroom_rollover";
+type ReenrolmentAction = "create_campaign" | "send_notifications" | "approve_reenrolment" | "decline_reenrolment" | "assign_classroom" | "mark_school_leaver" | "mark_no_response" | "apply_classroom_rollover";
 
 function asText(value: unknown, maxLength = 160) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
@@ -54,7 +55,16 @@ type LearnerLookup = {
 type LearnerParentPhone = {
   id: string;
   parent_phone: string | null;
+  classroom_id: number | null;
+  classrooms: { classroom_name?: string | null } | Array<{ classroom_name?: string | null }> | null;
 };
+
+function relatedClassroomName(value: unknown) {
+  const classroom = Array.isArray(value) ? value[0] : value;
+  return classroom && typeof classroom === "object" && "classroom_name" in classroom
+    ? String((classroom as { classroom_name?: unknown }).classroom_name || "")
+    : "";
+}
 
 async function sendParentPush(args: { externalIds: string[]; heading: string; message: string; url: string }) {
   const appId = process.env.ONESIGNAL_APP_ID || process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
@@ -85,14 +95,15 @@ export async function GET(request: Request) {
   const access = await requireStaffPermission(request, PERMISSIONS.SCHOOL_MANAGE, schoolId);
   if (!access.ok) return access.response;
 
-  const [schoolResult, feeResult, campaignsResult, formsResult, classroomsResult] = await Promise.all([
+  const [schoolResult, feeResult, campaignsResult, formsResult, classroomsResult, approvedEnrolmentsResult] = await Promise.all([
     supabaseAdmin.from("schools").select("id, school_name").eq("id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("school_id", schoolId).eq("fee_code", "registration").maybeSingle(),
     supabaseAdmin.from("school_reenrolment_campaigns").select("id, school_year, source_form_id, form_snapshot, registration_fee_type_id, registration_fee_amount, response_deadline, status, rollover_applied_at, created_at").eq("school_id", schoolId).order("school_year", { ascending: false }),
     supabaseAdmin.from("school_enrolment_forms").select("id, form_name, form_type, instructions").eq("school_id", schoolId).eq("form_type", "general").eq("is_active", true).order("form_name"),
     supabaseAdmin.from("classrooms").select("id, classroom_name").eq("school_id", schoolId).order("classroom_name"),
+    supabaseAdmin.from("school_enrolment_enquiries").select("id,learner_id,enquiry_reference,parent_name,academic_year").eq("school_id",schoolId).eq("status","approved").not("learner_id","is",null).order("academic_year").order("created_at"),
   ]);
-  const failure = schoolResult.error || feeResult.error || campaignsResult.error || formsResult.error || classroomsResult.error;
+  const failure = schoolResult.error || feeResult.error || campaignsResult.error || formsResult.error || classroomsResult.error || approvedEnrolmentsResult.error;
   if (failure) return NextResponse.json({ error: failure.message }, { status: 500 });
 
   const campaign = rows(campaignsResult.data).find((candidate) => candidate.status === "open") || null;
@@ -140,6 +151,11 @@ export async function GET(request: Request) {
     });
   }
 
+  const approvedRows=rows<{id:string;learner_id:string;enquiry_reference:string;parent_name:string;academic_year:number}>(approvedEnrolmentsResult.data);
+  const approvedLearnerIds=approvedRows.map((row)=>row.learner_id);
+  const placementsResult=approvedLearnerIds.length?await supabaseAdmin.from("learner_placements").select("learner_id,academic_year,classroom_id,classrooms(classroom_name)").eq("school_id",schoolId).in("learner_id",approvedLearnerIds):{data:[],error:null};
+  if(placementsResult.error)return NextResponse.json({error:placementsResult.error.message},{status:500});
+  const placements=new Map(rows<{learner_id:string;academic_year:number;classroom_id:number|null;classrooms:unknown}>(placementsResult.data).map((row)=>[`${row.learner_id}:${row.academic_year}`,row]));
   return NextResponse.json({
     school: schoolResult.data,
     registration_fee: feeResult.data,
@@ -148,6 +164,7 @@ export async function GET(request: Request) {
     enrolment_forms: rows(formsResult.data),
     classrooms: rows(classroomsResult.data),
     reenrolments,
+    approved_enrolments: approvedRows.map((row)=>({...row,placement:placements.get(`${row.learner_id}:${row.academic_year}`)||null})),
   });
 }
 
@@ -203,7 +220,7 @@ export async function POST(request: Request) {
 
       const [generatedResult, learnersResult, documentsResult, requirementsResult, checklistResult] = await Promise.all([
         supabaseAdmin.from("learner_reenrolments").select("id, learner_id").eq("campaign_id", campaignId),
-        supabaseAdmin.from("learners").select("id, name, legal_name, date_of_birth, gender, birth_certificate_number, sa_id_number, passport_number, guardian_name, guardian_relationship, guardian_id_number, parent_phone, parent_email, home_address, allergies, medical_conditions, medical_instructions, classroom_id").eq("school_id", schoolId),
+        supabaseAdmin.from("learners").select("id, name, legal_name, date_of_birth, gender, birth_certificate_number, sa_id_number, passport_number, guardian_name, guardian_relationship, guardian_id_number, parent_phone, parent_email, home_address, allergies, medical_conditions, medical_instructions, classroom_id, classrooms:classroom_id(classroom_name)").eq("school_id", schoolId),
         supabaseAdmin.from("learner_documents").select("id, learner_id, document_type").eq("school_id", schoolId),
         supabaseAdmin.from("classroom_requirement_items").select("id, classroom_id, item_name, quantity, category").eq("school_id", schoolId).eq("is_active", true),
         supabaseAdmin.from("learner_stationery_checklist").select("learner_id, stationery_item_id, received, received_quantity, required_quantity").eq("school_id", schoolId),
@@ -215,9 +232,16 @@ export async function POST(request: Request) {
       const requirements = rows<Record<string, unknown>>(requirementsResult.data);
       const checklist = rows<Record<string, unknown>>(checklistResult.data);
       const requiredDocuments = ["Birth Certificate", "Immunisation / Clinic Card", "Parent/Guardian ID", "Signed Parent/Guardian Enrolment Contract"];
+      let eligibleLearnerCount = 0;
       for (const generated of rows<{ id: string; learner_id: string }>(generatedResult.data)) {
         const learner = learners.get(String(generated.learner_id));
         if (!learner) continue;
+        if (isGradeRClassroom(relatedClassroomName(learner.classrooms))) {
+          const schoolLeaverUpdate = await supabaseAdmin.from("learner_reenrolments").update({ status: "school_leaver", current_classroom_id: learner.classroom_id || null, renewal_snapshot: { school_leaver_reason: "grade_r_completed", captured_at: new Date().toISOString() }, reviewed_by: access.staff.userId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", generated.id).eq("campaign_id", campaignId);
+          if (schoolLeaverUpdate.error) return NextResponse.json({ error: schoolLeaverUpdate.error.message }, { status: 500 });
+          continue;
+        }
+        eligibleLearnerCount += 1;
         const uploaded = new Set(documents.filter((doc) => String(doc.learner_id) === String(generated.learner_id)).map((doc) => String(doc.document_type)));
         const missingDocuments = requiredDocuments.filter((name) => !uploaded.has(name)).map((name) => ({ id: name, name }));
         const classRequirements = requirements.filter((item) => Number(item.classroom_id) === Number(learner.classroom_id));
@@ -237,6 +261,7 @@ export async function POST(request: Request) {
         const update = await supabaseAdmin.from("learner_reenrolments").update({ renewal_snapshot: renewalSnapshot, current_classroom_id: learner.classroom_id || null }).eq("id", generated.id);
         if (update.error) return NextResponse.json({ error: update.error.message }, { status: 500 });
       }
+      campaignResult.learner_count = eligibleLearnerCount;
     }
     await writeSecurityAudit(access.staff, "reenrolment_campaign_created", {
       school_year: schoolYear,
@@ -260,14 +285,20 @@ export async function POST(request: Request) {
     if (learnerIds.length) {
       const learnersResult = await supabaseAdmin
         .from("learners")
-        .select("id, parent_phone")
+        .select("id, parent_phone, classroom_id, classrooms:classroom_id(classroom_name)")
         .eq("school_id", schoolId)
         .in("id", learnerIds);
       if (learnersResult.error) return NextResponse.json({ error: learnersResult.error.message }, { status: 500 });
       learnerRows = rows<LearnerParentPhone>(learnersResult.data);
     }
+    const gradeRLearnerIds = new Set(learnerRows.filter((learner) => isGradeRClassroom(relatedClassroomName(learner.classrooms))).map((learner) => String(learner.id)));
+    const gradeRRecordIds = records.filter((record) => gradeRLearnerIds.has(String(record.learner_id))).map((record) => record.id);
+    if (gradeRRecordIds.length) {
+      const schoolLeaverUpdate = await supabaseAdmin.from("learner_reenrolments").update({ status: "school_leaver", reviewed_by: access.staff.userId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(), notification_error: null }).in("id", gradeRRecordIds).eq("campaign_id", campaignId);
+      if (schoolLeaverUpdate.error) return NextResponse.json({ error: schoolLeaverUpdate.error.message }, { status: 500 });
+    }
     const phoneByLearner = new Map(learnerRows.map((learner) => [String(learner.id), learner.parent_phone]));
-    const recordsWithPhones = records.filter((record) => Boolean(phoneByLearner.get(String(record.learner_id))));
+    const recordsWithPhones = records.filter((record) => !gradeRLearnerIds.has(String(record.learner_id)) && Boolean(phoneByLearner.get(String(record.learner_id))));
     const phones = recordsWithPhones.map((record) => String(phoneByLearner.get(String(record.learner_id))));
     const joinedSchool = Array.isArray(campaignResult.data.schools)
       ? campaignResult.data.schools[0]
@@ -285,9 +316,10 @@ export async function POST(request: Request) {
       await writeSecurityAudit(access.staff, "reenrolment_notifications_sent", {
         campaign_id: campaignId,
         recipients: phones.length,
+        grade_r_excluded: gradeRRecordIds.length,
         delivery: push.status,
       });
-      return NextResponse.json({ notified: phones.length, delivery: push.status });
+      return NextResponse.json({ notified: phones.length, grade_r_excluded: gradeRRecordIds.length, delivery: push.status });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not send notifications.";
       if (recordsWithPhones.length > 0) {
@@ -314,11 +346,6 @@ export async function POST(request: Request) {
 
     const reviewedAt = new Date().toISOString();
     if (action === "approve_reenrolment") {
-      const nextClassroomId = Number(body.next_classroom_id);
-      if (!Number.isInteger(nextClassroomId) || nextClassroomId <= 0) return NextResponse.json({ error: "Choose the learner's classroom for the new school year." }, { status: 400 });
-      const classroomResult = await supabaseAdmin.from("classrooms").select("id").eq("id", nextClassroomId).eq("school_id", schoolId).maybeSingle();
-      if (classroomResult.error) return NextResponse.json({ error: classroomResult.error.message }, { status: 500 });
-      if (!classroomResult.data) return NextResponse.json({ error: "The selected classroom does not belong to this school." }, { status: 400 });
       const learnerResult = await supabaseAdmin
         .from("learners")
         .select("id, parent_phone")
@@ -364,7 +391,7 @@ export async function POST(request: Request) {
 
       const updateResult = await supabaseAdmin
         .from("learner_reenrolments")
-        .update({ status: "approved", next_classroom_id: nextClassroomId, reviewed_by: access.staff.userId, reviewed_at: reviewedAt, decline_reason: null, updated_at: reviewedAt })
+        .update({ status: "approved", next_classroom_id: null, reviewed_by: access.staff.userId, reviewed_at: reviewedAt, decline_reason: null, updated_at: reviewedAt })
         .eq("id", reenrolmentId)
         .eq("status", "submitted");
       if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 });
@@ -373,7 +400,7 @@ export async function POST(request: Request) {
         learner_id: recordResult.data.learner_id,
         registration_fee_amount: recordResult.data.registration_fee_amount,
       });
-      return NextResponse.json({ success: true, message: "Re-enrolment details approved. The next-year classroom is planned; the learner stays in the current class until rollover." });
+      return NextResponse.json({ success: true, message: "Re-enrolment approved. The learner is now awaiting next-year classroom allocation." });
     }
 
     const declineReason = asText(body.decline_reason, 800);
@@ -386,6 +413,32 @@ export async function POST(request: Request) {
     if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 });
     await writeSecurityAudit(access.staff, "reenrolment_declined", { reenrolment_id: reenrolmentId, learner_id: recordResult.data.learner_id });
     return NextResponse.json({ success: true, message: "Re-enrolment declined with a reason for the parent." });
+  }
+
+  if (action === "assign_classroom") {
+    const reenrolmentId = asText(body.reenrolment_id, 64);
+    const nextClassroomId = Number(body.next_classroom_id);
+    if (!reenrolmentId || !Number.isInteger(nextClassroomId) || nextClassroomId <= 0) return NextResponse.json({ error: "Choose an approved learner and next-year classroom." }, { status: 400 });
+    const classroomResult = await supabaseAdmin.from("classrooms").select("id").eq("id", nextClassroomId).eq("school_id", schoolId).maybeSingle();
+    if (classroomResult.error) return NextResponse.json({ error: classroomResult.error.message }, { status: 500 });
+    if (!classroomResult.data) return NextResponse.json({ error: "The selected classroom does not belong to this school." }, { status: 400 });
+    const updatedAt = new Date().toISOString();
+    const updateResult = await supabaseAdmin.from("learner_reenrolments").update({ next_classroom_id: nextClassroomId, updated_at: updatedAt }).eq("id", reenrolmentId).eq("school_id", schoolId).eq("status", "approved").is("classroom_applied_at", null).select("id").maybeSingle();
+    if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 });
+    if (!updateResult.data) return NextResponse.json({ error: "Only an approved learner awaiting rollover can be allocated." }, { status: 409 });
+    await writeSecurityAudit(access.staff, "reenrolment_classroom_assigned", { reenrolment_id: reenrolmentId, next_classroom_id: nextClassroomId });
+    return NextResponse.json({ success: true, message: "Next-year classroom allocated. The learner remains in the current classroom until rollover." });
+  }
+
+  if (action === "mark_school_leaver" || action === "mark_no_response") {
+    const reenrolmentId = asText(body.reenrolment_id, 64);
+    const status = action === "mark_school_leaver" ? "school_leaver" : "no_response";
+    const allowedStatuses = action === "mark_no_response" ? ["awaiting_parent"] : ["awaiting_parent", "submitted"];
+    const updateResult = await supabaseAdmin.from("learner_reenrolments").update({ status, reviewed_by: access.staff.userId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", reenrolmentId).eq("school_id", schoolId).in("status", allowedStatuses).select("id").maybeSingle();
+    if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 });
+    if (!updateResult.data) return NextResponse.json({ error: "This re-enrolment status can no longer be changed using that action." }, { status: 409 });
+    await writeSecurityAudit(access.staff, `reenrolment_${status}`, { reenrolment_id: reenrolmentId });
+    return NextResponse.json({ success: true });
   }
 
   if (action === "apply_classroom_rollover") {

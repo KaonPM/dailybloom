@@ -27,7 +27,7 @@ type Reenrolment = {
   parent_portal_phone: string | null;
   registration_fee_amount: number;
   registration_payment_status: "not_required" | "pending" | "verified" | "waived";
-  status: "awaiting_parent" | "submitted" | "approved" | "declined";
+  status: "awaiting_parent" | "submitted" | "approved" | "declined" | "no_response" | "school_leaver" | "not_returning";
   submitted_data: SubmittedData | null;
   renewal_snapshot: RenewalSnapshot | null;
   form_snapshot: { form_name?: string; instructions?: string } | null;
@@ -63,7 +63,7 @@ const medicalFields = [
 const money = (value: number | null | undefined) =>
   new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(Number(value || 0));
 const readableStatus: Record<Reenrolment["status"], string> = {
-  awaiting_parent: "Action needed", submitted: "Submitted for review", approved: "Approved", declined: "School follow-up needed",
+  awaiting_parent: "Action needed", submitted: "Submitted for review", approved: "Approved — awaiting classroom allocation", declined: "School follow-up needed", no_response: "Response overdue", school_leaver: "Grade R completed / school leaver", not_returning: "Not returning",
 };
 const textMap = (value?: DetailMap | null) => Object.fromEntries(Object.entries(value || {}).map(([key, item]) => [key, String(item || "")]));
 
@@ -138,6 +138,13 @@ export default function ParentReenrolmentPage() {
     } catch (submitError) { setError(submitError instanceof Error ? submitError.message : "Your re-enrolment could not be submitted."); }
     finally { setSavingId(null); }
   }
+  async function markNotReturning(record: Reenrolment) {
+    const reason = window.prompt(`Optional note for the school about why ${record.learner_name} will not return:`) || "";
+    if (!window.confirm(`Confirm that ${record.learner_name} will not return for ${record.school_year}?`)) return;
+    setSavingId(record.id); setError("");
+    try { const response = await fetch("/api/parent-reenrolments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "not_returning", reenrolment_id: record.id, parent_notes: reason }) }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "The response could not be saved."); setMessage(`${record.learner_name} has been marked as not returning.`); await load(); }
+    catch (saveError) { setError(saveError instanceof Error ? saveError.message : "The response could not be saved."); } finally { setSavingId(null); }
+  }
 
   return <main style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 18px 44px", display: "grid", gap: 18 }}>
     <ParentPageActions />
@@ -153,7 +160,7 @@ export default function ParentReenrolmentPage() {
       const draft = drafts[record.id];
       if (!draft) return null;
       const snapshot = record.renewal_snapshot || {};
-      const canEdit = record.status === "awaiting_parent" || record.status === "declined";
+      const canEdit = record.status === "awaiting_parent" || record.status === "declined" || record.status === "no_response";
       return <section className="db-card" key={record.id} style={{ padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <div><h2 style={{ margin: 0 }}>{record.learner_name}</h2><p className="db-helper">{record.classroom_name} · {record.school_year} re-enrolment · {record.reenrolment_reference}</p></div>
@@ -165,6 +172,7 @@ export default function ParentReenrolmentPage() {
         </div>
         {record.form_snapshot?.form_name ? <div className="db-soft-card" style={{ padding: 16, marginBottom: 16 }}><strong>{record.form_snapshot.form_name}</strong>{record.form_snapshot.instructions ? <p className="db-helper" style={{ marginBottom: 0 }}>{record.form_snapshot.instructions}</p> : null}</div> : null}
         {record.status === "declined" ? <div className="db-error-banner"><strong>The school needs an update.</strong><br />{record.decline_reason || "Please review and submit again."}</div> : null}
+        {record.status === "approved" ? <div className="db-success-banner">Re-enrolment approved. The school will confirm the learner&apos;s next classroom when classroom planning is complete. Parent Portal access remains active.</div> : null}
         {canEdit ? <div style={{ display: "grid", gap: 16 }}>
           <details className="db-soft-card" style={{ padding: 16 }} open><summary><strong>Learner information</strong></summary><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 14 }}>{learnerFields.map(([key, label]) => <label key={key}><span className="db-label">{label}</span>{key === "home_address" ? <textarea className="db-input" rows={2} value={draft.learnerDetails[key] || ""} onChange={(event) => changeDetail(record.id, "learnerDetails", key, event.target.value)} /> : <input className="db-input" type={key === "date_of_birth" ? "date" : "text"} value={draft.learnerDetails[key] || ""} onChange={(event) => changeDetail(record.id, "learnerDetails", key, event.target.value)} />}</label>)}</div></details>
           <details className="db-soft-card" style={{ padding: 16 }} open><summary><strong>Parent / guardian information</strong></summary><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 14 }}>{guardianFields.map(([key, label]) => <label key={key}><span className="db-label">{label}</span><input className="db-input" type={key === "parent_email" ? "email" : "text"} value={draft.guardianDetails[key] || ""} onChange={(event) => changeDetail(record.id, "guardianDetails", key, event.target.value)} /></label>)}<label><span className="db-label">Parent Portal mobile number</span><input className="db-input" type="tel" value={draft.parentPortalPhone} onChange={(event) => setDrafts((current) => ({ ...current, [record.id]: { ...current[record.id], parentPortalPhone: event.target.value } }))} /><small className="db-helper">Choose one South African mobile number. The school approves the change.</small></label></div></details>
@@ -173,8 +181,8 @@ export default function ParentReenrolmentPage() {
           {(snapshot.missing_requirements || []).length > 0 ? <div className="db-soft-card" style={{ padding: 16 }}><h3 style={{ marginTop: 0 }}>Outstanding learner requirements</h3><p className="db-helper">Ticking confirms that you have seen what is still needed. The school records items when received.</p>{snapshot.missing_requirements?.map((item) => <label className="db-checkbox-row" key={item.id}><input type="checkbox" checked={draft.acknowledgedRequirementIds.includes(item.id)} onChange={(event) => toggleAcknowledgement(record.id, "acknowledgedRequirementIds", item.id, event.target.checked)} /><span>{item.name}{item.quantity ? ` · ${item.quantity} required` : ""}</span></label>)}</div> : null}
           <label><span className="db-label">Notes for the school <em>(optional)</em></span><textarea className="db-input" rows={3} maxLength={800} value={draft.parentNotes} onChange={(event) => setDrafts((current) => ({ ...current, [record.id]: { ...current[record.id], parentNotes: event.target.value } }))} /></label>
           <label className="db-checkbox-row"><input type="checkbox" checked={draft.confirmed} onChange={(event) => setDrafts((current) => ({ ...current, [record.id]: { ...current[record.id], confirmed: event.target.checked } }))} /><span>I confirm that {record.learner_name} will return for {record.school_year} and that the information above is correct.</span></label>
-          <button className="db-button-primary" type="button" onClick={() => void submit(record)} disabled={savingId === record.id}>{savingId === record.id ? "Submitting..." : record.status === "declined" ? "Update and Resubmit" : "Submit Re-enrolment"}</button>
-        </div> : <div className="db-success-banner">The school has received this digital form and will update you if anything else is needed.</div>}
+          <div className="db-page-actions"><button className="db-button-primary" type="button" onClick={() => void submit(record)} disabled={savingId === record.id}>{savingId === record.id ? "Submitting..." : record.status === "declined" ? "Update and Resubmit" : "Submit Re-enrolment"}</button><button className="db-button-secondary" type="button" onClick={() => void markNotReturning(record)} disabled={savingId === record.id}>Learner Will Not Return</button></div>
+        </div> : record.status !== "approved" ? <div className="db-success-banner">The school has received this digital form and will update you if anything else is needed.</div> : null}
       </section>;
     })}
   </main>;

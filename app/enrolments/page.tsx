@@ -57,7 +57,6 @@ type Enquiry = {
   placement?: { academic_year: number; classroom_id: number | null; placement_status: "pending" | "future" | "current" | "completed"; classrooms?: { classroom_name?: string | null } | { classroom_name?: string | null }[] | null } | null;
 };
 
-type Classroom = { id: number; classroom_name: string };
 
 type ShareDetails = {
   title: string;
@@ -113,7 +112,6 @@ export default function EnrolmentsPage() {
   const [schoolName, setSchoolName] = useState("Your school");
   const [forms, setForms] = useState<Form[]>([]);
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -136,7 +134,6 @@ export default function EnrolmentsPage() {
   const [manualSource, setManualSource] = useState<"paper_manual_capture" | "printed_blank_form" | null>(() => searchParams.get("action") === "add" ? "paper_manual_capture" : null);
   const [manualYear, setManualYear] = useState(new Date().getFullYear());
   const [startingManual, setStartingManual] = useState(false);
-  const [waitingClassrooms, setWaitingClassrooms] = useState<Record<string, string>>({});
   const directAddStarted = useRef(false);
 
   const schoolQuery = useMemo(() => {
@@ -166,7 +163,6 @@ export default function EnrolmentsPage() {
       const loadedForms = (body.forms || []) as Form[];
       setForms(loadedForms);
       setEnquiries((body.enquiries || []) as Enquiry[]);
-      setClassrooms((body.classrooms || []) as Classroom[]);
       setSchoolName(body.school_name || "Your school");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Enrolments could not be loaded.");
@@ -225,7 +221,7 @@ export default function EnrolmentsPage() {
     }
   }
 
-  async function runAction(enquiry: Enquiry, action: "verify_registration_payment" | "issue_form" | "reopen_form" | "review" | "mark_paper_received" | "assign_waiting_classroom" | "withdraw" | "delete_withdrawn", extras: Record<string, string> = {}) {
+  async function runAction(enquiry: Enquiry, action: "verify_registration_payment" | "issue_form" | "reopen_form" | "review" | "mark_paper_received" | "withdraw" | "delete_withdrawn", extras: Record<string, string> = {}) {
     if (!schoolId) return;
     setWorkingId(enquiry.id);
     setError("");
@@ -260,8 +256,6 @@ export default function EnrolmentsPage() {
         setMessage(extras.decision === "approved" ? "Enrolment approved. The learner profile was created and added to the academic-year waiting list." : "Enrolment declined and the reason was recorded.");
       } else if (action === "mark_paper_received") {
         setMessage(`Paper form received for ${enquiry.enquiry_reference}. You can now capture it into DailyBloom.`);
-      } else if (action === "assign_waiting_classroom") {
-        setMessage(`${enquiry.enquiry_reference} has been allocated to the selected classroom for ${enquiry.academic_year}.`);
       } else if (action === "withdraw") {
         setMessage(`Enrolment ${enquiry.enquiry_reference} was withdrawn.`);
       } else if (action === "delete_withdrawn") {
@@ -378,26 +372,6 @@ export default function EnrolmentsPage() {
         {manualSource ? <div className="db-soft-card" style={{ padding: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Academic year</span><select className="db-input" value={manualYear} onChange={(event) => setManualYear(Number(event.target.value))}><option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option><option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option></select></label><button className="db-button-primary" type="button" disabled={startingManual} onClick={() => void startManualApplication(true)}>{startingManual ? "Creating..." : manualSource === "printed_blank_form" ? "Create and open printable form" : "Start capture"}</button><button className="db-button-secondary" type="button" onClick={() => setManualSource(null)}>Cancel</button></div> : null}
         </> : null}
       </section>
-
-      {enquiries.some((enquiry) => enquiry.status === "approved" && enquiry.learner_id) ? (
-        <section className="db-card db-card-green" style={{ display: "grid", gap: 14 }}>
-          <div>
-            <h2 style={{ margin: 0 }}>Approved Learners &amp; Classroom Allocation</h2>
-            <p className="db-helper" style={{ marginBottom: 0 }}>Approved learners remain here by academic year until you allocate their classroom. Future-year allocation does not move a learner into the current year&apos;s class.</p>
-          </div>
-          <div style={{ display: "grid", gap: 10 }}>
-            {enquiries.filter((enquiry) => enquiry.status === "approved" && enquiry.learner_id).map((enquiry) => {
-              const placementClassroom = first(enquiry.placement?.classrooms);
-              const waiting = !enquiry.placement?.classroom_id;
-              return <div className="db-soft-card" key={`waiting-${enquiry.id}`} style={{ padding: 12, display: "grid", gridTemplateColumns: "minmax(150px, 1.2fr) minmax(130px, .8fr) minmax(180px, 1.5fr)", gap: 12, alignItems: "center" }}>
-                <div><strong>{enquiry.enquiry_reference}</strong><small className="db-helper" style={{ display: "block" }}>{enquiry.parent_name}</small></div>
-                <div><strong>{enquiry.academic_year}</strong><small className="db-helper" style={{ display: "block" }}>{waiting ? "Waiting for classroom" : placementClassroom?.classroom_name || "Classroom planned"}</small></div>
-                {waiting ? <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><select className="db-input" aria-label={`Classroom for ${enquiry.enquiry_reference}`} value={waitingClassrooms[enquiry.id] || ""} onChange={(event) => setWaitingClassrooms((current) => ({ ...current, [enquiry.id]: event.target.value }))}><option value="">Select classroom when ready</option>{classrooms.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.classroom_name}</option>)}</select><button className="db-button-primary" type="button" disabled={!waitingClassrooms[enquiry.id] || workingId === enquiry.id} onClick={() => void runAction(enquiry, "assign_waiting_classroom", { classroom_id: waitingClassrooms[enquiry.id] })}>{workingId === enquiry.id ? "Saving..." : "Allocate"}</button></div> : <span className="db-status-pill">Classroom allocated</span>}
-              </div>;
-            })}
-          </div>
-        </section>
-      ) : null}
 
       <section className="db-card db-card-lavender enrolment-pipeline-card" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", justifyContent: "stretch", gap: 14 }}>
         <div className="enrolment-pipeline-header" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>

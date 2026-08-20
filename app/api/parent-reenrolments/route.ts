@@ -80,24 +80,31 @@ export async function POST(request: Request) {
 
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
-  if (body.action !== "submit") return NextResponse.json({ error: "Unsupported re-enrolment action." }, { status: 400 });
+  if (body.action !== "submit" && body.action !== "not_returning") return NextResponse.json({ error: "Unsupported re-enrolment action." }, { status: 400 });
 
   const reenrolmentId = asText(body.reenrolment_id, 64);
   if (!reenrolmentId) return NextResponse.json({ error: "A re-enrolment record is required." }, { status: 400 });
-  if (body.confirm_return !== true) return NextResponse.json({ error: "Confirm that the learner will return before submitting." }, { status: 400 });
+  if (body.action === "submit" && body.confirm_return !== true) return NextResponse.json({ error: "Confirm that the learner will return before submitting." }, { status: 400 });
 
   const recordResult = await supabaseAdmin.from("learner_reenrolments").select("id, campaign_id, school_id, learner_id, status, submitted_data, renewal_snapshot").eq("id", reenrolmentId).maybeSingle();
   if (recordResult.error) return NextResponse.json({ error: recordResult.error.message }, { status: 500 });
   if (!recordResult.data || !parentCanAccessLearnerAtSchool(parent.children || [], Number(recordResult.data.school_id), String(recordResult.data.learner_id))) {
     return NextResponse.json({ error: "This re-enrolment record is not available to this parent." }, { status: 403 });
   }
-  if (recordResult.data.status !== "awaiting_parent" && recordResult.data.status !== "declined") {
+  if (recordResult.data.status !== "awaiting_parent" && recordResult.data.status !== "declined" && recordResult.data.status !== "no_response") {
     return NextResponse.json({ error: "This re-enrolment has already been submitted or approved." }, { status: 409 });
   }
 
   const campaignResult = await supabaseAdmin.from("school_reenrolment_campaigns").select("status").eq("id", recordResult.data.campaign_id).maybeSingle();
   if (campaignResult.error) return NextResponse.json({ error: campaignResult.error.message }, { status: 500 });
   if (!campaignResult.data || campaignResult.data.status !== "open") return NextResponse.json({ error: "This re-enrolment campaign is closed." }, { status: 400 });
+
+  if (body.action === "not_returning") {
+    const updatedAt = new Date().toISOString();
+    const updateResult = await supabaseAdmin.from("learner_reenrolments").update({ status: "not_returning", submitted_data: { ...asObject(recordResult.data.submitted_data), parent_notes: asText(body.parent_notes), parent_confirmed_not_returning_at: updatedAt }, updated_at: updatedAt }).eq("id", reenrolmentId).in("status", ["awaiting_parent", "declined", "no_response"]);
+    if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  }
 
   const parentPortalPhone = toSouthAfricanSmsNumber(asText(body.parent_portal_phone, 32));
   if (!/^27\d{9}$/.test(parentPortalPhone)) {
@@ -162,7 +169,7 @@ export async function POST(request: Request) {
       parent_confirmed_at: submittedAt,
     },
     updated_at: submittedAt,
-  }).eq("id", reenrolmentId).in("status", ["awaiting_parent", "declined"]);
+  }).eq("id", reenrolmentId).in("status", ["awaiting_parent", "declined", "no_response"]);
   if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 });
 
   return NextResponse.json({ success: true });

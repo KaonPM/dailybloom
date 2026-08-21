@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
@@ -24,12 +24,6 @@ type PrincipalProfile = {
   is_active?: boolean | null;
   created_at?: string | null;
   last_login_at?: string | null;
-  schools?: {
-    school_name?: string | null;
-    status?: string | null;
-    package_name?: string | null;
-    wageflow_enabled?: boolean | null;
-  } | null;
 };
 
 export default function PrincipalsPage() {
@@ -56,11 +50,45 @@ export default function PrincipalsPage() {
   const [canManageSchoolStatus, setCanManageSchoolStatus] = useState(false);
   const [canManagePrincipals, setCanManagePrincipals] = useState(false);
 
-  useEffect(() => {
-    loadPage();
+  const fetchSchools = useCallback(async (): Promise<string | null> => {
+    const { data, error } = await supabase
+      .from("schools")
+      .select("id, school_name, status, package_name, wageflow_enabled")
+      .order("school_name", { ascending: true });
+
+    if (error) {
+      return `Schools could not be loaded: ${error.message}`;
+    }
+
+    setSchools(data || []);
+    return null;
   }, []);
 
-  async function loadPage() {
+  const fetchPrincipals = useCallback(async (): Promise<string | null> => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(`
+        id,
+        full_name,
+        email,
+        role,
+        school_id,
+        is_active,
+        created_at,
+        last_login_at
+      `)
+      .in("role", ["owner", "principal"])
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return `Principals could not be loaded: ${error.message}`;
+    }
+
+    setPrincipals((data ?? []) as PrincipalProfile[]);
+    return null;
+  }, []);
+
+  const loadPage = useCallback(async () => {
     const { profile, error } = await getCurrentProfile();
 
     if (error || !profile) {
@@ -93,59 +121,25 @@ export default function PrincipalsPage() {
     const loadErrors = await Promise.all([fetchSchools(), fetchPrincipals()]);
     setLoadError(loadErrors.filter(Boolean).join(" "));
     setLoading(false);
-  }
+  }, [fetchPrincipals, fetchSchools, router]);
 
-  async function fetchSchools(): Promise<string | null> {
-    const { data, error } = await supabase
-      .from("schools")
-      .select("id, school_name, status, package_name, wageflow_enabled")
-      .order("school_name", { ascending: true });
+  useEffect(() => {
+    void loadPage();
+  }, [loadPage]);
 
-    if (error) {
-      return `Schools could not be loaded: ${error.message}`;
-    }
-
-    setSchools(data || []);
-    return null;
-  }
-
-  async function fetchPrincipals(): Promise<string | null> {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select(`
-        id,
-        full_name,
-        email,
-        role,
-        school_id,
-        is_active,
-        created_at,
-        last_login_at,
-        schools (
-          school_name,
-          status,
-          package_name,
-          wageflow_enabled
-        )
-      `)
-      .in("role", ["owner", "principal"])
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      return `Principals could not be loaded: ${error.message}`;
-    }
-
-    setPrincipals((data ?? []) as PrincipalProfile[]);
-    return null;
-  }
+  const schoolsById = useMemo(
+    () => new Map(schools.map((school) => [school.id, school])),
+    [schools]
+  );
 
   const filteredPrincipals = useMemo(() => {
     return principals.filter((principal) => {
+      const school = schoolsById.get(Number(principal.school_id));
       const matchesSchool =
         selectedSchoolId === "all" ||
         String(principal.school_id || "") === selectedSchoolId;
 
-      const schoolIsActive = String(principal.schools?.status || "active").toLowerCase() === "active";
+      const schoolIsActive = String(school?.status || "active").toLowerCase() === "active";
       const principalIsActive = principal.is_active !== false;
 
       const effectiveStatus =
@@ -160,11 +154,11 @@ export default function PrincipalsPage() {
         !search ||
         (principal.full_name || "").toLowerCase().includes(search) ||
         (principal.email || "").toLowerCase().includes(search) ||
-        (principal.schools?.school_name || "").toLowerCase().includes(search);
+        (school?.school_name || "").toLowerCase().includes(search);
 
       return matchesSchool && matchesStatus && matchesSearch;
     });
-  }, [principals, selectedSchoolId, selectedStatus, searchTerm]);
+  }, [principals, schoolsById, selectedSchoolId, selectedStatus, searchTerm]);
 
   const visiblePrincipals = filteredPrincipals.slice(0, visiblePrincipalCount);
   const hasMorePrincipals = visiblePrincipalCount < filteredPrincipals.length;
@@ -431,15 +425,16 @@ export default function PrincipalsPage() {
           <>
             <div style={{ display: "grid", gap: "12px" }}>
               {visiblePrincipals.map((principal) => {
-                const schoolIsActive = String(principal.schools?.status || "active").toLowerCase() === "active";
+                const school = schoolsById.get(Number(principal.school_id));
+                const schoolIsActive = String(school?.status || "active").toLowerCase() === "active";
                 const principalIsActive = principal.is_active !== false;
                 const effectiveActive = schoolIsActive && principalIsActive;
                 const isBusy = actionLoadingId === principal.id;
 
-                const schoolPackage = principal.schools?.package_name || "Bloom";
+                const schoolPackage = school?.package_name || "Bloom";
                 const hasWageFlow =
                   schoolPackage === "Bloom Elite" ||
-                  principal.schools?.wageflow_enabled === true;
+                  school?.wageflow_enabled === true;
 
                 const isExpanded = expandedPrincipalId === principal.id;
 
@@ -502,7 +497,7 @@ export default function PrincipalsPage() {
                               </div>
                             ) : null}
                             <p style={textStyle}>
-                              School: {principal.schools?.school_name || "Not linked"}
+                              School: {school?.school_name || "Not linked"}
                             </p>
                             <p style={textStyle}>Package: {schoolPackage}</p>
                             <p style={textStyle}>

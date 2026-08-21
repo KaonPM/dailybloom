@@ -30,6 +30,7 @@ type MaybeSponsorProgrammeRelation =
 type SchoolRow = {
   id: number;
   school_name?: string | null;
+  status?: string | null;
   sponsor_programme_id?: number | null;
   sponsor_programmes?: SponsorProgramme | null;
 };
@@ -124,6 +125,7 @@ type SuccessStoryQueryRow = Omit<SuccessStory, "schools"> & {
 };
 
 type GeneratedReport = {
+  portfolioScope: string;
   sponsorProgramme: string;
   schoolScope: string;
   reportingPeriod: string;
@@ -168,6 +170,13 @@ const monthOptions = [
 ];
 const quarterOptions = ["Q1", "Q2", "Q3", "Q4"];
 const semesterOptions = ["Semester 1", "Semester 2"];
+const reportScopes = [
+  { value: "all", label: "All ECD schools" },
+  { value: "sponsored", label: "Sponsored schools" },
+  { value: "non-sponsored", label: "Non-sponsored schools" },
+] as const;
+
+type ReportScope = (typeof reportScopes)[number]["value"];
 
 function normalizeSponsorProgramme(
   sponsorProgrammes: MaybeSponsorProgrammeRelation
@@ -275,6 +284,7 @@ export default function ImpactSponsorshipDashboard() {
   const [savingSponsor, setSavingSponsor] = useState(false);
 
   const [reportSponsorProgrammeId, setReportSponsorProgrammeId] = useState("");
+  const [reportScope, setReportScope] = useState<ReportScope>("all");
   const [reportSchoolId, setReportSchoolId] = useState("");
   const [reportPeriodType, setReportPeriodType] = useState("Quarter");
   const [reportMonth, setReportMonth] = useState(String(new Date().getMonth()));
@@ -318,6 +328,7 @@ export default function ImpactSponsorshipDashboard() {
     const { data, error } = await supabase
       .from("schools")
       .select("*, sponsor_programmes(*)")
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
     if (!error) {
@@ -550,30 +561,46 @@ export default function ImpactSponsorshipDashboard() {
     alert("Success story saved.");
   }
 
-  const sponsoredSchools = useMemo(() => {
-    return schools.filter((school) => school.sponsor_programme_id);
+  const activeSchools = useMemo(() => {
+    return schools.filter(
+      (school) => String(school.status || "active").toLowerCase() === "active"
+    );
   }, [schools]);
+
+  const sponsoredSchools = useMemo(() => {
+    return activeSchools.filter((school) => school.sponsor_programme_id);
+  }, [activeSchools]);
+
+  const nonSponsoredSchools = useMemo(() => {
+    return activeSchools.filter((school) => !school.sponsor_programme_id);
+  }, [activeSchools]);
 
   const schoolsForSponsor = useMemo(() => {
     if (!selectedSponsorProgrammeId) {
       return sponsoredSchools;
     }
 
-    return schools.filter(
+    return activeSchools.filter(
       (school) =>
         String(school.sponsor_programme_id) ===
         String(selectedSponsorProgrammeId)
     );
-  }, [schools, sponsoredSchools, selectedSponsorProgrammeId]);
+  }, [activeSchools, sponsoredSchools, selectedSponsorProgrammeId]);
 
   const reportSchools = useMemo(() => {
+    const scopeSchools =
+      reportScope === "sponsored"
+        ? sponsoredSchools
+        : reportScope === "non-sponsored"
+          ? nonSponsoredSchools
+          : activeSchools;
     const sponsorScopedSchools = reportSponsorProgrammeId
-      ? schools.filter(
+      ? activeSchools.filter(
           (school) =>
             String(school.sponsor_programme_id) ===
             String(reportSponsorProgrammeId)
         )
-      : sponsoredSchools;
+      : scopeSchools;
 
     if (!reportSchoolId) {
       return sponsorScopedSchools;
@@ -582,7 +609,14 @@ export default function ImpactSponsorshipDashboard() {
     return sponsorScopedSchools.filter(
       (school) => String(school.id) === String(reportSchoolId)
     );
-  }, [schools, sponsoredSchools, reportSponsorProgrammeId, reportSchoolId]);
+  }, [
+    activeSchools,
+    nonSponsoredSchools,
+    reportScope,
+    reportSchoolId,
+    reportSponsorProgrammeId,
+    sponsoredSchools,
+  ]);
 
   const sponsoredSchoolIds = useMemo(
     () => schoolsForSponsor.map((school) => school.id),
@@ -602,12 +636,22 @@ export default function ImpactSponsorshipDashboard() {
     sponsoredSchoolIds.includes(Number(record.school_id))
   );
 
-  const trainingRecordsForSponsor = trainingRecords.filter((record) =>
-    sponsoredSchoolIds.includes(Number(record.school_id))
+  const trainingRecordsForPortfolio = trainingRecords.filter((record) =>
+    activeSchools.some((school) => school.id === Number(record.school_id))
   );
 
-  const successStoriesForSponsor = successStories.filter((story) =>
-    sponsoredSchoolIds.includes(Number(story.school_id))
+  const successStoriesForPortfolio = successStories.filter((story) =>
+    activeSchools.some((school) => school.id === Number(story.school_id))
+  );
+
+  const reportScopeLabel =
+    reportScopes.find((scope) => scope.value === reportScope)?.label ||
+    "All ECD schools";
+  const trainingSchool = activeSchools.find(
+    (school) => String(school.id) === String(trainingSchoolId)
+  );
+  const storySchool = activeSchools.find(
+    (school) => String(school.id) === String(storySchoolId)
   );
 
   const attendanceRate =
@@ -962,12 +1006,15 @@ export default function ImpactSponsorshipDashboard() {
     ]);
 
     setGeneratedReport({
+      portfolioScope: reportScopeLabel,
       sponsorProgramme: selectedSponsor
         ? `${selectedSponsor.sponsor_name} - ${selectedSponsor.programme_name}`
-        : "All sponsor programmes",
+        : reportScope === "sponsored"
+          ? "All sponsor programmes"
+          : "Not sponsor-scoped",
       schoolScope: selectedSchool
         ? selectedSchool.school_name || "Selected school"
-        : "All sponsored schools",
+        : reportScopeLabel,
       reportingPeriod: getReportingPeriodLabel(),
       schoolsSupported: reportSchools.length,
       learnersSupported: reportLearners.length,
@@ -992,6 +1039,7 @@ export default function ImpactSponsorshipDashboard() {
     if (!generatedReport) return [];
 
     return [
+      ["Portfolio Scope", generatedReport.portfolioScope],
       ["Sponsor Programme", generatedReport.sponsorProgramme],
       ["School Scope", generatedReport.schoolScope],
       ["Reporting Period", generatedReport.reportingPeriod],
@@ -1210,14 +1258,37 @@ export default function ImpactSponsorshipDashboard() {
         <div className="db-grid-2">
           <select
             className="db-input"
-            value={reportSponsorProgrammeId}
+            value={reportScope}
             onChange={(event) => {
-              setReportSponsorProgrammeId(event.target.value);
+              setReportScope(event.target.value as ReportScope);
+              setReportSponsorProgrammeId("");
               setReportSchoolId("");
               setGeneratedReport(null);
             }}
           >
-            <option value="">All sponsor programmes</option>
+            {reportScopes.map((scope) => (
+              <option key={scope.value} value={scope.value}>
+                {scope.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="db-input"
+            value={reportSponsorProgrammeId}
+            onChange={(event) => {
+              setReportSponsorProgrammeId(event.target.value);
+              if (event.target.value) setReportScope("sponsored");
+              setReportSchoolId("");
+              setGeneratedReport(null);
+            }}
+            disabled={reportScope === "non-sponsored"}
+          >
+            <option value="">
+              {reportScope === "non-sponsored"
+                ? "Sponsor filter not applicable"
+                : "All sponsor programmes"}
+            </option>
             {sponsors.map((sponsor) => (
               <option key={sponsor.id} value={sponsor.id}>
                 {sponsor.sponsor_name} - {sponsor.programme_name}
@@ -1233,7 +1304,7 @@ export default function ImpactSponsorshipDashboard() {
               setGeneratedReport(null);
             }}
           >
-            <option value="">All sponsored schools</option>
+            <option value="">{reportScopeLabel}</option>
             {reportSchools.map((school) => (
               <option key={school.id} value={school.id}>
                 {school.school_name || "Unnamed school"}
@@ -1485,12 +1556,20 @@ export default function ImpactSponsorshipDashboard() {
                 onChange={(event) => setTrainingSchoolId(event.target.value)}
               >
                 <option value="">Select school</option>
-                {sponsoredSchools.map((school) => (
+                {activeSchools.map((school) => (
                   <option key={school.id} value={school.id}>
                     {school.school_name || "Unnamed school"}
                   </option>
                 ))}
               </select>
+
+              {trainingSchool ? (
+                <p style={textStyle}>
+                  Sponsor attribution: {trainingSchool.sponsor_programmes
+                    ? `${trainingSchool.sponsor_programmes.sponsor_name} - ${trainingSchool.sponsor_programmes.programme_name}`
+                    : "Platform impact (not sponsored)"}
+                </p>
+              ) : null}
 
               <input
                 className="db-input"
@@ -1535,10 +1614,10 @@ export default function ImpactSponsorshipDashboard() {
           )}
 
           <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
-            {trainingRecordsForSponsor.length === 0 ? (
+            {trainingRecordsForPortfolio.length === 0 ? (
               <p className="db-helper">No training records captured yet.</p>
             ) : (
-              trainingRecordsForSponsor.map((record) => (
+              trainingRecordsForPortfolio.map((record) => (
                 <div key={record.id} className="db-list-card">
                   <strong>{record.training_type}</strong>
                   <p style={textStyle}>
@@ -1547,6 +1626,9 @@ export default function ImpactSponsorshipDashboard() {
                   <p style={textStyle}>Date: {record.training_date}</p>
                   <p style={textStyle}>
                     Attendees: {Number(record.attendees_count || 0)}
+                  </p>
+                  <p style={textStyle}>
+                    Attribution: {record.sponsor_programme_id ? "Sponsor programme" : "Platform impact"}
                   </p>
                   {record.notes && <p style={textStyle}>Notes: {record.notes}</p>}
                 </div>
@@ -1578,12 +1660,20 @@ export default function ImpactSponsorshipDashboard() {
                 onChange={(event) => setStorySchoolId(event.target.value)}
               >
                 <option value="">Select school</option>
-                {sponsoredSchools.map((school) => (
+                {activeSchools.map((school) => (
                   <option key={school.id} value={school.id}>
                     {school.school_name || "Unnamed school"}
                   </option>
                 ))}
               </select>
+
+              {storySchool ? (
+                <p style={textStyle}>
+                  Sponsor attribution: {storySchool.sponsor_programmes
+                    ? `${storySchool.sponsor_programmes.sponsor_name} - ${storySchool.sponsor_programmes.programme_name}`
+                    : "Platform impact (not sponsored)"}
+                </p>
+              ) : null}
 
               <input
                 className="db-input"
@@ -1627,16 +1717,19 @@ export default function ImpactSponsorshipDashboard() {
           )}
 
           <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
-            {successStoriesForSponsor.length === 0 ? (
+            {successStoriesForPortfolio.length === 0 ? (
               <p className="db-helper">No success stories captured yet.</p>
             ) : (
-              successStoriesForSponsor.map((story) => (
+              successStoriesForPortfolio.map((story) => (
                 <div key={story.id} className="db-list-card">
                   <strong>{story.title}</strong>
                   <p style={textStyle}>
                     School: {story.schools?.school_name || "Not linked"}
                   </p>
                   <p style={textStyle}>Date: {story.story_date}</p>
+                  <p style={textStyle}>
+                    Attribution: {story.sponsor_programme_id ? "Sponsor programme" : "Platform impact"}
+                  </p>
                   {story.summary && (
                     <p style={textStyle}>Summary: {story.summary}</p>
                   )}

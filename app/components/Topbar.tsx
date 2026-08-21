@@ -58,7 +58,7 @@ export default function Topbar() {
 
         {profile?.role === "master" ? (
           <Link
-            href="/master?view=manage-schools"
+            href="/master?view=dashboard"
             className="db-topbar-link db-topbar-link-master"
           >
             Master Dashboard

@@ -9,7 +9,6 @@ import { PERMISSIONS } from "../../lib/permissions";
 type SchoolRow = {
   id: number;
   school_name?: string | null;
-  is_active?: boolean | null;
   billing_status?: string | null;
   status?: string | null;
   package_name?: string | null;
@@ -75,7 +74,7 @@ export default function MasterAnalyticsPage() {
       ] = await Promise.all([
         supabase
           .from("schools")
-          .select("id, school_name, is_active, billing_status, status, package_name, registration_status, wageflow_enabled"),
+          .select("id, school_name, billing_status, status, package_name, registration_status, wageflow_enabled"),
 
         supabase
           .from("school_subscriptions")

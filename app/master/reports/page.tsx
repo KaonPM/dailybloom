@@ -15,7 +15,6 @@ type SchoolOption = {
   id: number;
   school_name: string;
   sponsor_programme_id?: number | null;
-  is_active?: boolean | null;
   billing_status?: string | null;
   status?: string | null;
   package_name?: string | null;
@@ -35,7 +34,6 @@ type ReportSourceRow = {
   id?: number | string | null;
   school_id?: number | null;
   school_name?: string | null;
-  is_active?: boolean | null;
   billing_status?: string | null;
   status?: string | null;
   package_name?: string | null;
@@ -140,7 +138,7 @@ export default function MasterReportsPage() {
         supabase
           .from("schools")
           .select(
-            "id, school_name, sponsor_programme_id, is_active, billing_status, status, package_name, registration_status, province, district, is_sponsored"
+            "id, school_name, sponsor_programme_id, billing_status, status, package_name, registration_status, province, district, is_sponsored"
           )
           .is("deleted_at", null)
           .order("school_name", { ascending: true }),
@@ -340,7 +338,7 @@ export default function MasterReportsPage() {
     ).length;
     const attentionSchoolRecords = selectedSchools.filter(
       (school) =>
-        school.is_active === false ||
+        String(school.status || "active").toLowerCase() !== "active" ||
         ["overdue", "cancelled"].includes(
           String(school.billing_status || "").toLowerCase()
         ) ||
@@ -812,7 +810,7 @@ export default function MasterReportsPage() {
 
     const { data, error } = await supabase
       .from("schools")
-      .select("id, school_name, is_active, billing_status, status, package_name, registration_status, province, district")
+      .select("id, school_name, billing_status, status, package_name, registration_status, province, district")
       .in("id", schoolIds)
       .order("school_name", { ascending: true });
 
@@ -1174,9 +1172,8 @@ export default function MasterReportsPage() {
 
     const { data, error } = await supabase
       .from("schools")
-      .select("school_name, is_active, status, billing_status")
+      .select("school_name, status, billing_status")
       .in("id", schoolIds)
-      .eq("is_active", true)
       .order("school_name", { ascending: true });
 
     if (error) {
@@ -1185,13 +1182,15 @@ export default function MasterReportsPage() {
     }
 
     setRows(
-      ((data || []) as ReportSourceRow[]).map((school) => ({
-        school: school.school_name || "Unnamed school",
-        type: "Active School",
-        detail: `Billing: ${school.billing_status || "Not set"}`,
-        value: school.status || "Active",
-        status: "Active",
-      }))
+      ((data || []) as ReportSourceRow[])
+        .filter((school) => String(school.status || "active").toLowerCase() === "active")
+        .map((school) => ({
+          school: school.school_name || "Unnamed school",
+          type: "Active School",
+          detail: `Billing: ${school.billing_status || "Not set"}`,
+          value: school.status || "Active",
+          status: "Active",
+        }))
     );
   }
 

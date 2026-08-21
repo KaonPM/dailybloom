@@ -1,5 +1,6 @@
 import "./globals.css";
 import AppChrome from "./components/AppChrome";
+import AlertSurface from "./components/AlertSurface";
 import RegisterServiceWorker from "./components/RegisterServiceWorker";
 import { Suspense } from "react";
 import Script from "next/script";
@@ -70,6 +71,7 @@ export default function RootLayout({
         />
 
         <RegisterServiceWorker />
+        <AlertSurface />
 
         <Suspense
           fallback={

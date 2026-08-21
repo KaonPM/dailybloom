@@ -217,7 +217,9 @@ export default function MasterPage() {
   const [approvingSignup, setApprovingSignup] = useState(false);
   const [updatingSchoolId, setUpdatingSchoolId] = useState<number | null>(null);
 
-  const [showManageSchools, setShowManageSchools] = useState(false);
+  const [showManageSchools, setShowManageSchools] = useState(
+    searchParams.get("view") === "manage-schools"
+  );
   const [manualSetupOpen, setManualSetupOpen] = useState(false);
   const [schoolSearch, setSchoolSearch] = useState("");
   const [expandedSchoolId, setExpandedSchoolId] = useState<number | null>(null);
@@ -231,6 +233,12 @@ export default function MasterPage() {
   useEffect(() => {
     loadMasterPage();
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("view") === "manage-schools") {
+      setShowManageSchools(true);
+    }
+  }, [searchParams]);
 
   async function loadMasterPage() {
     const { profile, error } = await getCurrentProfile();
@@ -503,15 +511,27 @@ export default function MasterPage() {
   }
 
   async function updateSchoolStatus(schoolId: number, nextStatus: string) {
+    const statusLabel = nextStatus.charAt(0).toUpperCase() + nextStatus.slice(1);
+    const confirmed = window.confirm(
+      `${statusLabel} this school? This updates access for its principal and practitioners and sends the principal a status email.`
+    );
+    if (!confirmed) return;
+
     setUpdatingSchoolId(schoolId);
 
-    const { error } = await supabase
-      .from("schools")
-      .update({ status: nextStatus })
-      .eq("id", schoolId);
+    const statusResponse = await authenticatedFetch("/api/platform-operations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "set_school_access_status",
+        school_id: schoolId,
+        status: nextStatus,
+      }),
+    });
+    const statusResult = await statusResponse.json();
 
-    if (error) {
-      alert(error.message);
+    if (!statusResponse.ok) {
+      alert(statusResult.error || "Could not update school access.");
       setUpdatingSchoolId(null);
       return;
     }

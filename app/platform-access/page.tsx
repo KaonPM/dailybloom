@@ -106,6 +106,18 @@ export default function PlatformAccessPage() {
     }
   }
 
+  function toggleMasterAdminStatus(assignment: Assignment) {
+    const nextStatus = assignment.status === "active" ? "suspended" : "active";
+    const action = nextStatus === "active" ? "restore access for" : "suspend access for";
+    if (!window.confirm(`Are you sure you want to ${action} ${assignment.profile?.full_name || "this Master Admin"}?`)) {
+      return;
+    }
+    void saveRequest(
+      { user_id: assignment.user_id, status: nextStatus, permissions: assignment.permissions },
+      nextStatus === "active" ? "Master Admin access restored." : "Master Admin access suspended."
+    );
+  }
+
   async function resendLogin(assignment: Assignment) {
     if (!assignment.profile?.email) {
       setMessage({ type: "error", text: "This Master Admin does not have an email address." });
@@ -174,7 +186,7 @@ export default function PlatformAccessPage() {
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button className="db-button-secondary" type="button" onClick={() => { setEditingUserId(assignment.user_id); setEditingPermissions([...assignment.permissions]); }} disabled={saving}>Edit Permissions</button>
                     <button className="db-button-secondary" type="button" onClick={() => resendLogin(assignment)} disabled={saving || resendingUserId === assignment.user_id}>{resendingUserId === assignment.user_id ? "Sending..." : "Resend Login Email"}</button>
-                    <button className="db-button-secondary" type="button" onClick={() => saveRequest({ user_id: assignment.user_id, status: assignment.status === "active" ? "suspended" : "active", permissions: assignment.permissions }, assignment.status === "active" ? "Master Admin access suspended." : "Master Admin access restored.")} disabled={saving}>{assignment.status === "active" ? "Suspend Access" : "Restore Access"}</button>
+                    <button className="db-button-secondary" type="button" onClick={() => toggleMasterAdminStatus(assignment)} disabled={saving}>{assignment.status === "active" ? "Suspend Access" : "Restore Access"}</button>
                   </div>
                 </div>
                 {editingUserId === assignment.user_id ? (

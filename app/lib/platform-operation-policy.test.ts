@@ -5,6 +5,7 @@ import { platformOperationPermission } from "./platform-operation-policy";
 
 test("school status operations require school status permission", () => {
   assert.equal(platformOperationPermission("set_school_active"), PERMISSIONS.SCHOOL_STATUS);
+  assert.equal(platformOperationPermission("set_school_access_status"), PERMISSIONS.SCHOOL_STATUS);
   assert.equal(platformOperationPermission("activate_school"), PERMISSIONS.SCHOOL_STATUS);
 });
 

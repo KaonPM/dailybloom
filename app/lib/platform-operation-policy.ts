@@ -2,6 +2,7 @@ import { PERMISSIONS, type Permission } from "./permissions";
 
 export const PLATFORM_OPERATION_PERMISSIONS = {
   set_school_active: PERMISSIONS.SCHOOL_STATUS,
+  set_school_access_status: PERMISSIONS.SCHOOL_STATUS,
   activate_school: PERMISSIONS.SCHOOL_STATUS,
   remove_principal: PERMISSIONS.PRINCIPAL_MANAGE,
   save_onboarding: PERMISSIONS.SCHOOL_ONBOARD,

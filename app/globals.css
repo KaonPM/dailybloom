@@ -1717,6 +1717,36 @@ line-height:1.45;
   margin-top: 14px;
 }
 
+.db-notice-region {
+  position: fixed;
+  z-index: 2000;
+  top: 88px;
+  right: 18px;
+  display: grid;
+  width: min(420px, calc(100vw - 36px));
+  gap: 10px;
+  pointer-events: none;
+}
+
+.db-notice {
+  padding: 13px 15px;
+  border: 1px solid #e6cfd9;
+  border-radius: 14px;
+  background: #fffdfb;
+  color: var(--db-text);
+  box-shadow: 0 12px 26px rgba(45, 42, 62, 0.16);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+@media (max-width: 820px) {
+  .db-notice-region {
+    top: 14px;
+    right: 14px;
+    width: min(420px, calc(100vw - 28px));
+  }
+}
+
 /* Parent Portal school administration */
 .parent-school-admin {
   display: grid;

@@ -92,7 +92,13 @@ export async function POST(request: Request) {
 
     if (action === "set_school_active") {
       if (!schoolId || typeof body.is_active !== "boolean") return NextResponse.json({ error: "School and status are required." }, { status: 400 });
-      const { error: schoolError } = await supabaseAdmin.from("schools").update({ is_active: body.is_active }).eq("id", schoolId);
+      const { error: schoolError } = await supabaseAdmin
+        .from("schools")
+        .update({
+          is_active: body.is_active,
+          status: body.is_active ? "active" : "suspended",
+        })
+        .eq("id", schoolId);
       if (schoolError) throw schoolError;
       const { error: profileError } = await supabaseAdmin.from("profiles").update({ is_active: body.is_active }).eq("school_id", schoolId).in("role", ["owner", "principal", "admin", "teacher"]);
       if (profileError) throw profileError;
@@ -100,6 +106,32 @@ export async function POST(request: Request) {
         await repairBillingAccount(schoolId);
       }
       await writeSecurityAudit(authorization.staff, "platform.school_access_updated", { school_id: schoolId, is_active: body.is_active });
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "set_school_access_status") {
+      const status = String(body.status || "").toLowerCase();
+      if (!schoolId || !["active", "suspended", "inactive"].includes(status)) {
+        return NextResponse.json({ error: "School and status are required." }, { status: 400 });
+      }
+      const isActive = status === "active";
+      const { error: schoolError } = await supabaseAdmin
+        .from("schools")
+        .update({ status, is_active: isActive })
+        .eq("id", schoolId);
+      if (schoolError) throw schoolError;
+      const { error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .update({ is_active: isActive })
+        .eq("school_id", schoolId)
+        .in("role", ["owner", "principal", "admin", "teacher"]);
+      if (profileError) throw profileError;
+      if (isActive) await repairBillingAccount(schoolId);
+      await writeSecurityAudit(authorization.staff, "platform.school_access_updated", {
+        school_id: schoolId,
+        status,
+        is_active: isActive,
+      });
       return NextResponse.json({ success: true });
     }
 

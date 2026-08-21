@@ -10,7 +10,7 @@ import { PERMISSIONS } from "../lib/permissions";
 type School = {
   id: number;
   school_name: string;
-  is_active?: boolean | null;
+  status?: string | null;
   package_name?: string | null;
   wageflow_enabled?: boolean | null;
 };
@@ -26,7 +26,7 @@ type PrincipalProfile = {
   last_login_at?: string | null;
   schools?: {
     school_name?: string | null;
-    is_active?: boolean | null;
+    status?: string | null;
     package_name?: string | null;
     wageflow_enabled?: boolean | null;
   } | null;
@@ -37,6 +37,7 @@ export default function PrincipalsPage() {
 
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const [schools, setSchools] = useState<School[]>([]);
@@ -89,25 +90,26 @@ export default function PrincipalsPage() {
       profile.role === "master" || delegatedPermissions.includes(PERMISSIONS.PRINCIPAL_MANAGE)
     );
     setCheckingAccess(false);
-    await Promise.all([fetchSchools(), fetchPrincipals()]);
+    const loadErrors = await Promise.all([fetchSchools(), fetchPrincipals()]);
+    setLoadError(loadErrors.filter(Boolean).join(" "));
     setLoading(false);
   }
 
-  async function fetchSchools() {
+  async function fetchSchools(): Promise<string | null> {
     const { data, error } = await supabase
       .from("schools")
-      .select("id, school_name, is_active, package_name, wageflow_enabled")
+      .select("id, school_name, status, package_name, wageflow_enabled")
       .order("school_name", { ascending: true });
 
     if (error) {
-      alert(error.message);
-      return;
+      return `Schools could not be loaded: ${error.message}`;
     }
 
     setSchools(data || []);
+    return null;
   }
 
-  async function fetchPrincipals() {
+  async function fetchPrincipals(): Promise<string | null> {
     const { data, error } = await supabase
       .from("profiles")
       .select(`
@@ -121,7 +123,7 @@ export default function PrincipalsPage() {
         last_login_at,
         schools (
           school_name,
-          is_active,
+          status,
           package_name,
           wageflow_enabled
         )
@@ -130,11 +132,11 @@ export default function PrincipalsPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      alert(error.message);
-      return;
+      return `Principals could not be loaded: ${error.message}`;
     }
 
     setPrincipals((data ?? []) as PrincipalProfile[]);
+    return null;
   }
 
   const filteredPrincipals = useMemo(() => {
@@ -143,7 +145,7 @@ export default function PrincipalsPage() {
         selectedSchoolId === "all" ||
         String(principal.school_id || "") === selectedSchoolId;
 
-      const schoolIsActive = principal.schools?.is_active !== false;
+      const schoolIsActive = String(principal.schools?.status || "active").toLowerCase() === "active";
       const principalIsActive = principal.is_active !== false;
 
       const effectiveStatus =
@@ -361,6 +363,12 @@ export default function PrincipalsPage() {
         </p>
       </div>
 
+      {loadError ? (
+        <div className="db-card" role="alert" style={{ padding: "14px 16px", marginBottom: "24px", borderColor: "#EBC9D8", background: "#FFF6F8" }}>
+          {loadError}
+        </div>
+      ) : null}
+
       <div className="db-card db-card-blue" style={{ padding: "20px", marginBottom: "24px" }}>
         <h3 style={sectionTitle}>Filters</h3>
 
@@ -423,7 +431,7 @@ export default function PrincipalsPage() {
           <>
             <div style={{ display: "grid", gap: "12px" }}>
               {visiblePrincipals.map((principal) => {
-                const schoolIsActive = principal.schools?.is_active !== false;
+                const schoolIsActive = String(principal.schools?.status || "active").toLowerCase() === "active";
                 const principalIsActive = principal.is_active !== false;
                 const effectiveActive = schoolIsActive && principalIsActive;
                 const isBusy = actionLoadingId === principal.id;

@@ -337,13 +337,13 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const formUrl = `${publicAppOrigin(request)}/enrolment/${token}`;
     const school = Array.isArray(enquiry.schools) ? enquiry.schools[0] : enquiry.schools;
-    const message = `Hello ${enquiry.parent_name}, your private enrolment form for ${school?.school_name || "your school"} is ready. Reference: ${enquiry.enquiry_reference}. Complete it here: ${formUrl}. This link expires in 24 hours, is tied to one learner, and must not be forwarded or shared.`;
+    const message = `Hello ${enquiry.parent_name}, your private enrolment form for ${school?.school_name || "your school"} is ready. Reference: ${enquiry.enquiry_reference}. Complete it here: ${formUrl}. This link expires in 72 hours, is tied to one learner, and must not be forwarded or shared.`;
     const delivery = await sendEnrolmentWhatsAppMessage({
       enquiryId,
       schoolId,
       phone: enquiry.parent_phone,
       kind: "form",
-      bodyParameters: [enquiry.parent_name, school?.school_name || "your school", enquiry.enquiry_reference, formUrl, "24 hours"],
+      bodyParameters: [enquiry.parent_name, school?.school_name || "your school", enquiry.enquiry_reference, formUrl, "72 hours"],
     });
     await writeSecurityAudit(authorization.staff, reopening ? "enrolment.form_reopened" : "enrolment.form_issued", { school_id: schoolId, enquiry_id: enquiryId, previous_token_revoked: true, expires_at: expiry, whatsapp_sent: delivery.sent });
     return NextResponse.json({ form_url: formUrl, whatsapp_message: message, whatsapp_sent: delivery.sent, whatsapp_retry_scheduled: delivery.retryScheduled, whatsapp_error: delivery.error || null, expires_at: expiry });

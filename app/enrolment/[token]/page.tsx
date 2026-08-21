@@ -378,7 +378,7 @@ export default function SecureEnrolmentFormPage() {
           {info?.reference ? ` · Reference ${info.reference}` : ""}
         </p>
         <div className="db-helper" style={{ display: "grid", gap: 2 }}><p style={{ margin: 0 }}><strong>Registration / EMIS / NPO number:</strong> {info?.school_registration_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Registered address:</strong> {info?.school_physical_address || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Contact number:</strong> {info?.school_contact_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Email:</strong> {info?.school_email_address || "Not provided by the school"}</p></div>
-        <div className="db-soft-card" style={{ padding: 10, borderLeft: `4px solid ${info?.school_primary_color || "#5ab8de"}` }}><strong>{isStaffCapture ? "Capture learner enrolment" : "Private digital school enrolment form"}</strong><span className="db-helper" style={{ display: "block", marginTop: 3 }}>{isStaffCapture ? "Complete the universal enrolment form below. The learner information remains attached to this enrolment reference." : "This private link is tied to one learner and expires after 24 hours. Please do not forward or share it. Your school details and enrolment reference are already included."}</span></div>
+        <div className="db-soft-card" style={{ padding: 10, borderLeft: `4px solid ${info?.school_primary_color || "#5ab8de"}` }}><strong>{isStaffCapture ? "Capture learner enrolment" : "Private digital school enrolment form"}</strong><span className="db-helper" style={{ display: "block", marginTop: 3 }}>{isStaffCapture ? "Complete the universal enrolment form below. The learner information remains attached to this enrolment reference." : "This private link is tied to one learner and expires after 72 hours. Please do not forward or share it. Your school details and enrolment reference are already included."}</span></div>
       </section>
 
       {isPreview ? (
@@ -394,7 +394,7 @@ export default function SecureEnrolmentFormPage() {
           <h2 style={{ margin: 0 }}>We could not open this enrolment link</h2>
           <p style={{ color: "#a33d45", margin: 0 }}>{accessError}</p>
           <p className="db-helper" style={{ margin: 0 }}>
-            For privacy, secure links expire after 24 hours and cannot be reused after a form is submitted. Please contact the school that sent the link to request a fresh link.
+            For privacy, secure links expire after 72 hours and cannot be reused after a form is submitted. Please contact the school that sent the link to request a fresh link.
           </p>
         </section>
       ) : null}

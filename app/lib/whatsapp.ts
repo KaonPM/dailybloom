@@ -270,7 +270,7 @@ export async function sendEnrolmentWhatsApp(input: {
     headerParameters: usesSchoolHeader ? [input.bodyParameters[1] || ""] : undefined,
     bodyParameters: input.kind === "form"
       // Meta Utility template body: school, parent, reference, full secure link, expiry.
-      ? [input.bodyParameters[1] || "", input.bodyParameters[0] || "", input.bodyParameters[2] || "", input.bodyParameters[3] || "", input.bodyParameters[4] || "24 hours"]
+      ? [input.bodyParameters[1] || "", input.bodyParameters[0] || "", input.bodyParameters[2] || "", input.bodyParameters[3] || "", input.bodyParameters[4] || "72 hours"]
       : input.kind === "registration"
         // Meta Utility template body: parent, school, fee, payment reference, banking details.
         ? [input.bodyParameters[0] || "", input.bodyParameters[1] || "", input.bodyParameters[2] || "", input.bodyParameters[3] || "", input.bodyParameters[4] || ""]

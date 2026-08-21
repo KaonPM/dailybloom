@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "crypto";
 
-export const FORM_LINK_LIFETIME_MS = 24 * 60 * 60 * 1000;
+export const FORM_LINK_LIFETIME_MS = 72 * 60 * 60 * 1000;
 export const FORM_ACCESS_CODE_LIFETIME_MS = 10 * 60 * 1000;
 export const FORM_ACCESS_SESSION_LIFETIME_MS = 24 * 60 * 60 * 1000;
 

@@ -393,6 +393,10 @@ export default function MasterSchoolOverviewPage() {
             Open Learners
           </Link>
 
+          <Link href={`/data-migration?school=${school.id}`} style={topButtonBlue}>
+            Open Data Migration
+          </Link>
+
           <Link href={`/events?school=${school.id}`} style={topButtonBlue}>
             Open Events
           </Link>

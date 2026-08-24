@@ -225,6 +225,7 @@ export default function Sidebar() {
         permission: PERMISSIONS.SCHOOL_MANAGE,
       },
       { label: "Meetings, Minutes & Surveys", href: "/school-administration", match: ["/school-administration"], permission: PERMISSIONS.SCHOOL_MANAGE },
+      { label: "Data Migration", href: "/data-migration", match: ["/data-migration"], permission: PERMISSIONS.SCHOOL_MANAGE },
       { label: "Classrooms", href: "/classrooms", match: ["/classrooms"], permission: PERMISSIONS.CLASSROOM_ASSIGN },
       {
         label: "Learner Attendance",
@@ -789,6 +790,7 @@ export default function Sidebar() {
               : []),
             ...itemsNamed(
               "Meetings, Minutes & Surveys",
+              "Data Migration",
               "Learner Requirements Tracking",
               "School Setup",
               "School Printable Documents",

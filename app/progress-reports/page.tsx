@@ -2247,6 +2247,7 @@ export default function ProgressReportsPage() {
       >
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
           <h3 style={{ ...sectionTitle, margin: 0 }}>Reports</h3>
+          {selectedClassroomId && selectedLearnerId && selectedPeriodId ? <button className="db-button-primary" onClick={() => router.push(`/teacher-assessments?classroom=${encodeURIComponent(selectedClassroomId)}&learner=${encodeURIComponent(selectedLearnerId)}&period=${encodeURIComponent(selectedPeriodId)}`)}>Open Evidence Review</button> : null}
           <button
             className="db-button-primary"
             style={{ background: "#777" }}

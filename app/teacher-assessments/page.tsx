@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { reportCategories } from "../lib/report-categories";
 import {
   gradeRRCategories,
@@ -70,6 +71,7 @@ type AssessmentRow = {
   status?: string | null;
 };
 type AssessmentValues = Record<string, Record<string, { level: string }>>;
+type EvidenceSnapshot = { attendance: { present: number; absent: number; rate: number | null }; activities: Array<{ developmental_area?: string | null; activity_name?: string | null }>; support_cases: Array<{ developmental_area?: string | null; support_status?: string | null; observation?: string | null }>; support_updates: Array<{ support_status?: string | null; intervention?: string | null; progress_note?: string | null; next_review_date?: string | null }>; summaries: Array<{ notes?: string | null; teacher_notes?: string | null }>; awards: Array<{ award_name?: string | null; award_reason?: string | null }> };
 type AssessmentUpsertRow = {
   school_id: number;
   classroom_id: number;
@@ -88,6 +90,7 @@ type AssessmentUpsertRow = {
 
 export default function TeacherAssessmentsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
@@ -107,6 +110,8 @@ export default function TeacherAssessmentsPage() {
   const [assessmentValues, setAssessmentValues] = useState<AssessmentValues>({});
   const [overallComment, setOverallComment] = useState("");
   const [existingAssessments, setExistingAssessments] = useState<AssessmentRow[]>([]);
+  const [evidence, setEvidence] = useState<EvidenceSnapshot | null>(null);
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -149,6 +154,24 @@ export default function TeacherAssessmentsPage() {
   useEffect(() => {
     loadPage();
   }, []);
+
+  useEffect(() => {
+    if (!schoolId || !selectedLearnerId || !selectedPeriodId) { setEvidence(null); return; }
+    let cancelled = false;
+    async function loadEvidence() {
+      setEvidenceLoading(true);
+      try {
+        const response = await authenticatedFetch(`/api/learner-evidence?school_id=${schoolId}&learner_id=${selectedLearnerId}&report_period_id=${selectedPeriodId}`);
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Evidence could not be loaded.");
+        if (!cancelled) setEvidence(payload as EvidenceSnapshot);
+      } catch (error) {
+        if (!cancelled) alert(error instanceof Error ? error.message : "Evidence could not be loaded.");
+      } finally { if (!cancelled) setEvidenceLoading(false); }
+    }
+    void loadEvidence();
+    return () => { cancelled = true; };
+  }, [schoolId, selectedLearnerId, selectedPeriodId]);
 
   function getCategoryIndicators(category: Category): Indicator[] {
     return (
@@ -229,7 +252,18 @@ export default function TeacherAssessmentsPage() {
     setSchoolId(Number(currentProfile.school_id));
 
     const classroomRows = await fetchClassrooms(Number(currentProfile.school_id));
-    await fetchPeriods(Number(currentProfile.school_id));
+    const periodRows = await fetchPeriods(Number(currentProfile.school_id));
+    const requestedClassroomId = searchParams.get("classroom") || "";
+    const requestedLearnerId = searchParams.get("learner") || "";
+    const requestedPeriodId = searchParams.get("period") || "";
+    const requestedClassroom = classroomRows.find((item) => String(item.id) === requestedClassroomId);
+    if (requestedClassroom && requestedLearnerId && periodRows.some((item) => String(item.id) === requestedPeriodId)) {
+      setSelectedClassroomId(requestedClassroomId);
+      setSelectedLearnerId(requestedLearnerId);
+      setSelectedPeriodId(requestedPeriodId);
+      setReportType(getClassroomReportType(requestedClassroom.classroom_name));
+      await fetchLearnersByClassroom(requestedClassroomId);
+    }
 
     if (role === "teacher" && currentProfile.classroom_id) {
       const assignedClassroom = classroomRows.find(
@@ -273,10 +307,12 @@ export default function TeacherAssessmentsPage() {
 
     if (error) {
       alert(error.message);
-      return;
+      return [] as PeriodRow[];
     }
 
-    setPeriods(data || []);
+    const nextPeriods = (data || []) as PeriodRow[];
+    setPeriods(nextPeriods);
+    return nextPeriods;
   }
 
   async function fetchLearnersByClassroom(classroomId: string) {
@@ -625,6 +661,19 @@ export default function TeacherAssessmentsPage() {
           ))}
         </select>
       </div>
+
+      {canShowAssessmentForm ? (
+        <details className="db-card db-card-green" style={{ padding: 20, marginBottom: 20 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 800, color: "#2D2A3E" }}>Evidence for this review</summary>
+          {evidenceLoading ? <p style={textStyle}>Loading learner evidence…</p> : evidence ? <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+            <p style={textStyle}>Use this evidence to inform your professional judgement. It does not automatically set a rating.</p>
+            <div className="db-list-card"><strong>Attendance</strong><p style={textStyle}>{evidence.attendance.rate === null ? "No attendance captured for this period." : `${evidence.attendance.rate}% present · ${evidence.attendance.present} present · ${evidence.attendance.absent} absent`}</p></div>
+            <div className="db-list-card"><strong>Completed learning activities ({evidence.activities.length})</strong><p style={textStyle}>{[...new Set(evidence.activities.map((item) => item.developmental_area).filter(Boolean))].join(" · ") || "No completed activities recorded for this period."}</p></div>
+            <div className="db-list-card"><strong>Support and interventions</strong><p style={textStyle}>{evidence.support_cases.length ? `${evidence.support_cases.length} support case(s) · ${evidence.support_updates.length} recorded follow-up(s)` : "No learner support cases recorded for this period."}</p>{evidence.support_updates.slice(0, 2).map((item, index) => <p key={index} style={textStyle}>{item.intervention || item.progress_note || item.support_status}{item.next_review_date ? ` · Review: ${item.next_review_date}` : ""}</p>)}</div>
+            <div className="db-list-card"><strong>Daily observations and achievements</strong><p style={textStyle}>{evidence.summaries.length} summary observation(s) · {evidence.awards.length} award(s)</p></div>
+          </div> : null}
+        </details>
+      ) : null}
 
       {canShowAssessmentForm ? (
         <div className="db-card db-card-lavender" style={{ padding: 20 }}>

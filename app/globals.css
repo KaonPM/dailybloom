@@ -370,6 +370,18 @@ textarea {
   outline-offset: 2px;
 }
 
+.db-collapsible-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.db-collapsible-heading h2 { margin: 0; }
+.db-collapsible-heading .db-helper { margin-bottom: 0; }
+.db-collapsible-content { margin-top: 16px; }
+
 /* Native disclosure sections use the same compact, far-right Open/Close cue. */
 .db-main-content details > summary {
   display: flex;

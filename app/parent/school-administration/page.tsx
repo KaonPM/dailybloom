@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import jsPDF from "jspdf";
+import CollapsibleSection from "@/app/components/CollapsibleSection";
 
 type Child = { id: string; name: string };
 type Meeting = { id: string; title: string; meeting_date: string; agenda_url?: string; agenda_content?: string; minutes_url?: string; minutes_content?: string; minutes_published_at?: string; eligible_learner_ids?: string[]; school_meeting_acknowledgements?: Array<{ learner_id: string; acknowledged_at: string }> };
@@ -98,11 +99,7 @@ export default function ParentSchoolAdministrationPage() {
       <Link className="db-button-primary parent-school-admin-action" href="/parent/re-enrolment">Open Re-enrolment</Link>
     </section>
 
-    <section className="db-card parent-school-admin-section" id="meeting-documents">
-      <div className="parent-school-admin-section-heading">
-        <div><p className="db-eyebrow">School meetings</p><h2>Meeting Agenda &amp; Minutes</h2></div>
-        <p className="db-helper">Download the agenda before a meeting, then read and acknowledge the published minutes.</p>
-      </div>
+    <CollapsibleSection id="meeting-documents" title="Meeting Agenda & Minutes" description="Download the agenda before a meeting, then read and acknowledge the published minutes." openLabel="Open meeting documents" closeLabel="Close meeting documents" className="db-card parent-school-admin-section">
       <div className="parent-school-admin-list">
         {data.meetings.length === 0 ? <p className="db-helper">No meeting documents have been published yet.</p> : null}
         {data.meetings.slice(0, meetingVisible).map((meeting) => {
@@ -122,13 +119,9 @@ export default function ParentSchoolAdministrationPage() {
         })}
         {meetingVisible < data.meetings.length ? <button className="db-button-secondary" type="button" onClick={() => setMeetingVisible((count) => count + 10)}>Show next 10</button> : null}
       </div>
-    </section>
+    </CollapsibleSection>
 
-    <section className="db-card parent-school-admin-section" id="surveys">
-      <div className="parent-school-admin-section-heading">
-        <div><p className="db-eyebrow">Parent feedback</p><h2>Surveys</h2></div>
-        <p className="db-helper">Complete a DailyBloom survey or open a survey link shared by the school.</p>
-      </div>
+    <CollapsibleSection id="surveys" title="Surveys" description="Complete a DailyBloom survey or open a survey link shared by the school." openLabel="Open surveys" closeLabel="Close surveys" className="db-card parent-school-admin-section">
       <div className="parent-school-admin-list">
         {data.surveys.length === 0 ? <p className="db-helper">No surveys are currently available.</p> : null}
         {data.surveys.slice(0, surveyVisible).map((survey) => {
@@ -141,6 +134,6 @@ export default function ParentSchoolAdministrationPage() {
         })}
         {surveyVisible < data.surveys.length ? <button className="db-button-secondary" type="button" onClick={() => setSurveyVisible((count) => count + 10)}>Show next 10</button> : null}
       </div>
-    </section>
+    </CollapsibleSection>
   </div>;
 }

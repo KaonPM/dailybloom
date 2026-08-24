@@ -6,6 +6,7 @@ import jsPDF from "jspdf";
 
 import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 import { resolveSchoolContext } from "@/app/lib/school-context";
+import CollapsibleSection from "@/app/components/CollapsibleSection";
 
 type Meeting = { id: string; title: string; meeting_date: string; agenda_url?: string; agenda_content?: string; minutes_url?: string; minutes_content?: string; minutes_published_at?: string; acknowledgements?: Array<{ count: number }> };
 type Survey = { id: string; title: string; survey_type: "dailybloom" | "external"; external_url?: string; closes_at?: string; responses?: Array<{ count: number }> };
@@ -132,9 +133,7 @@ export default function SchoolAdministrationPage() {
     {error ? <div className="db-error-banner" role="alert">{error}</div> : null}
     {message ? <div className="db-success-banner" role="status">{message}</div> : null}
 
-    <section className="db-card" style={{ padding: 24 }}>
-      <h2>Meeting Agenda &amp; Minutes</h2>
-      <p className="db-helper">Type and download an agenda before the meeting. Type and download separate approved minutes afterwards; parents can download and acknowledge the published minutes.</p>
+    <CollapsibleSection title="Meeting Agenda & Minutes" description="Type and download an agenda before the meeting. Type and download separate approved minutes afterwards; parents can download and acknowledge them." openLabel="Open meetings" closeLabel="Close meetings">
       <form onSubmit={(event) => void submit(event, "meeting")} style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", alignItems: "end" }}>
         <label><span className="db-label">Meeting title</span><input className="db-input" name="title" required /></label>
         <label><span className="db-label">Meeting date and time</span><input className="db-input" type="datetime-local" name="meeting_date" required /></label>
@@ -153,10 +152,9 @@ export default function SchoolAdministrationPage() {
         </article>)}
         {meetingVisible < data.meetings.length ? <button className="db-button-secondary" type="button" onClick={() => setMeetingVisible((count) => count + 10)}>Show next 10</button> : null}
       </div>
-    </section>
+    </CollapsibleSection>
 
-    <section className="db-card" style={{ padding: 24 }}>
-      <h2>Surveys &amp; Forms</h2><p className="db-helper">Create a survey in DailyBloom or share an existing Google Forms or Microsoft Forms link.</p>
+    <CollapsibleSection title="Surveys & Forms" description="Create a survey in DailyBloom or share an existing Google Forms or Microsoft Forms link." openLabel="Open surveys" closeLabel="Close surveys">
       <form onSubmit={(event) => void submit(event, "survey")} style={{ display: "grid", gap: 12 }}>
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))" }}>
           <label><span className="db-label">Survey title</span><input className="db-input" name="title" required /></label>
@@ -185,6 +183,6 @@ export default function SchoolAdministrationPage() {
         {data.surveys.slice(0, surveyVisible).map((survey) => <article className="db-soft-card" key={survey.id} style={{ padding: 16 }}><strong>{survey.title}</strong><p className="db-helper">{survey.survey_type === "dailybloom" ? "DailyBloom survey" : "External form"} · {survey.responses?.[0]?.count || 0} responses{survey.closes_at ? ` · closes ${new Date(survey.closes_at).toLocaleString("en-ZA")}` : ""}</p>{survey.external_url ? <a className="db-button-secondary" href={survey.external_url} target="_blank" rel="noreferrer">Open Form</a> : null}</article>)}
         {surveyVisible < data.surveys.length ? <button className="db-button-secondary" type="button" onClick={() => setSurveyVisible((count) => count + 10)}>Show next 10</button> : null}
       </div>
-    </section>
+    </CollapsibleSection>
   </div>;
 }

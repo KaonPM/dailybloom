@@ -37,6 +37,8 @@ type StatementResponse = {
   school?: FeeStatementSchool | null;
   learner?: Learner | null;
   balance?: number;
+  opening_balance?: number;
+  statement_period?: string | null;
   error?: string;
 };
 
@@ -44,6 +46,7 @@ export default function ParentFeeStatementPage() {
   const params = useSearchParams();
   const learnerId = params.get("learner") || "";
   const schoolId = params.get("school") || "";
+  const period = params.get("period") || "";
   const missingContext = !learnerId || !schoolId;
   const [result, setResult] = useState<StatementResponse | null>(null);
   const [error, setError] = useState("");
@@ -54,6 +57,7 @@ export default function ParentFeeStatementPage() {
     const query = new URLSearchParams({
       learner_id: learnerId,
       school_id: schoolId,
+      ...(period ? { period } : {}),
     });
     fetch(`/api/parent-fees?${query}`, { cache: "no-store" })
       .then(async (response) => {
@@ -121,6 +125,7 @@ export default function ParentFeeStatementPage() {
       monthlyFee={Number(result.learner?.monthly_fee || 0)}
       balance={Number(result.balance || 0)}
       rows={rows}
+      statementTitle={period ? "Monthly Fee Statement" : "Year-to-Date Fee Statement"}
     />
   );
 }
@@ -128,6 +133,7 @@ export default function ParentFeeStatementPage() {
 function buildStatement(result: StatementResponse | null) {
   if (!result) return [];
   const activities = [
+    ...(Number(result.opening_balance || 0) ? [{ id: "opening-balance", date: "", order: -1, activity: "Opening balance", invoiced: Number(result.opening_balance || 0) > 0 ? Number(result.opening_balance) : 0, payment: Number(result.opening_balance || 0) < 0 ? Math.abs(Number(result.opening_balance)) : 0, detail: "Balance brought forward" }] : []),
     ...(result.charges || []).map((charge) => ({
       id: `charge-${charge.id}`,
       date: charge.billing_period,

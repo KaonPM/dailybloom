@@ -164,8 +164,14 @@ export async function POST(request: Request) {
       recipientName = String(learner.legal_name || learner.name || "Learner");
       externalIds = uniqueValues([learner.parent_phone]).filter((phone) => allowedParentPhones.includes(phone));
       title = `${schoolName} fee statement`;
-      message = `${recipientName}'s latest fee statement is available in the Parent Portal.`;
-      url = `${siteUrl}/parent/fees/invoice?school=${schoolId}&learner=${encodeURIComponent(learnerId)}`;
+      const statementPeriod = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(body.statement_period || ""))
+        ? String(body.statement_period)
+        : "";
+      const statementName = statementPeriod
+        ? new Date(`${statementPeriod}-01T12:00:00`).toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+        : "year-to-date";
+      message = `${recipientName}'s ${statementName} fee statement is available in the Parent Portal.`;
+      url = `${siteUrl}/parent/fees/invoice?school=${schoolId}&learner=${encodeURIComponent(learnerId)}${statementPeriod ? `&period=${statementPeriod}` : ""}`;
     }
 
     const result = await sendOneSignalPush({

@@ -9,6 +9,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const learnerId = String(searchParams.get("learner_id") || "").trim();
   const schoolId = Number(searchParams.get("school_id"));
+  const period = String(searchParams.get("period") || "").trim();
 
   if (!learnerId || !Number.isFinite(schoolId) || schoolId <= 0) {
     return NextResponse.json(
@@ -23,6 +24,9 @@ export async function GET(request: Request) {
     schoolId
   );
   if (!authorization.ok) return authorization.response;
+  if (period && !/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+    return NextResponse.json({ error: "Choose a valid statement month." }, { status: 400 });
+  }
 
   const [chargeResult, paymentResult, schoolResult, registrationResult, learnerResult] =
     await Promise.all([
@@ -34,7 +38,7 @@ export async function GET(request: Request) {
         .order("billing_period", { ascending: false }),
       supabaseAdmin
         .from("learner_fee_payments")
-        .select("id, amount, payment_date, payment_method, reference_number, receipt_number, created_at")
+        .select("id, amount, payment_date, allocation_period, payment_method, reference_number, receipt_number, created_at")
         .eq("school_id", schoolId)
         .eq("learner_id", learnerId)
         .order("payment_date", { ascending: false }),
@@ -69,15 +73,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Learner not found." }, { status: 404 });
   }
 
-  const charges = chargeResult.data || [];
-  const payments = paymentResult.data || [];
-  const totalCharged = charges
+  const allCharges = chargeResult.data || [];
+  const allPayments = paymentResult.data || [];
+  const accountCharges = allCharges
     .filter((row) => !row.is_scheduled)
-    .reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const totalPaid = payments.reduce(
-    (sum, row) => sum + Number(row.amount || 0),
-    0
-  );
+  const accountPayments = allPayments;
+  const periodKey = period || null;
+  const charges = periodKey ? accountCharges.filter((row) => String(row.billing_period || "").slice(0, 7) === periodKey) : allCharges;
+  const payments = periodKey ? accountPayments.filter((row) => String(row.allocation_period || row.payment_date || "").slice(0, 7) === periodKey) : allPayments;
+  const openingBalance = periodKey
+    ? accountCharges.filter((row) => String(row.billing_period || "") < `${periodKey}-01`).reduce((sum, row) => sum + Number(row.amount || 0), 0)
+      - accountPayments.filter((row) => String(row.allocation_period || row.payment_date || "") < `${periodKey}-01`).reduce((sum, row) => sum + Number(row.amount || 0), 0)
+    : 0;
+  const totalCharged = charges.filter((row) => !row.is_scheduled).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const totalPaid = payments.reduce((sum, row) => sum + Number(row.amount || 0), 0);
 
   return NextResponse.json(
     {
@@ -85,7 +94,9 @@ export async function GET(request: Request) {
       payments,
       total_charged: totalCharged,
       total_paid: totalPaid,
-      balance: totalCharged - totalPaid,
+      balance: openingBalance + totalCharged - totalPaid,
+      opening_balance: openingBalance,
+      statement_period: periodKey,
       learner: learnerResult.data,
       school: {
         ...(schoolResult.data || {}),

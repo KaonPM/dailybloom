@@ -28,6 +28,7 @@ type Props = {
   monthlyFee: number;
   balance: number;
   rows: FeeStatementRow[];
+  statementTitle?: string;
   backHref?: string;
   backLabel?: string;
 };
@@ -50,6 +51,7 @@ export default function FeeStatementDocument({
   monthlyFee,
   balance,
   rows,
+  statementTitle = "Fee Statement",
   backHref = "/parent/fees",
   backLabel = "Back",
 }: Props) {
@@ -93,8 +95,8 @@ export default function FeeStatementDocument({
           </div>
         </div>
         <div className="fee-document-title">
-          <h1>Fee Statement</h1>
-          <p>Continuous learner account</p>
+          <h1>{statementTitle}</h1>
+          <p>{statementTitle === "Monthly Fee Statement" ? "Selected billing month" : "Continuous learner account"}</p>
         </div>
       </header>
 

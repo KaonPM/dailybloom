@@ -88,6 +88,9 @@ export default function PaymentsPage() {
   const [showUnpaidLearners, setShowUnpaidLearners] = useState(false);
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
   const [statementLearnerId, setStatementLearnerId] = useState("");
+  const [statementMode, setStatementMode] = useState<"ytd" | "monthly">("ytd");
+  const [statementMonth, setStatementMonth] = useState(String(today.getMonth() + 1));
+  const [statementYear, setStatementYear] = useState(String(today.getFullYear()));
   const [statementDelivery, setStatementDelivery] = useState<StatementDelivery | null>(null);
   const [statementDeliveryLoading, setStatementDeliveryLoading] = useState(false);
   const [statementSending, setStatementSending] = useState(false);
@@ -278,6 +281,7 @@ export default function PaymentsPage() {
           type: "fee_statement",
           school_id: schoolId,
           learner_id: statementLearnerId,
+          statement_period: statementMode === "monthly" ? `${statementYear}-${String(statementMonth).padStart(2, "0")}` : undefined,
         }),
       });
       const body = await response.json();
@@ -296,6 +300,7 @@ export default function PaymentsPage() {
   }
 
   const selectedStatementLearner = learners.find((learner) => learner.id === statementLearnerId) || null;
+  const statementPeriod = statementMode === "monthly" ? `${statementYear}-${String(statementMonth).padStart(2, "0")}` : "";
 
   function handleLearnerSelection(value: string) {
     setLearnerName(value);
@@ -907,13 +912,14 @@ export default function PaymentsPage() {
         </div>
 
         <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
-          <div style={sectionHeader}><div><h3 style={sectionTitle}>Learner Fee Statements</h3><p style={smallText}>1. Select learner. 2. Create/view the current statement. 3. Send its Parent Portal message.</p></div></div>
+          <div style={sectionHeader}><div><h3 style={sectionTitle}>Learner Fee Statements</h3><p style={smallText}>Choose a Year-to-Date account statement or a selected Monthly statement, then create and send it.</p></div></div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 250px), 1fr))", gap: 14, marginTop: 12, alignItems: "stretch" }}>
             <label style={{ display: "grid", gap: 6 }}><span style={labelText}>Learner</span><select className="db-input" value={statementLearnerId} onChange={(event) => setStatementLearnerId(event.target.value)}><option value="">Select learner</option>{learners.map((learner) => <option key={learner.id} value={learner.id}>{learner.name || "Unnamed learner"}</option>)}</select></label>
+            <label style={{ display: "grid", gap: 6 }}><span style={labelText}>Statement type</span><select className="db-input" value={statementMode} onChange={(event) => setStatementMode(event.target.value as "ytd" | "monthly")}><option value="ytd">Year-to-Date Statement</option><option value="monthly">Monthly Statement</option></select>{statementMode === "monthly" ? <span style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}><select className="db-input" value={statementMonth} onChange={(event) => setStatementMonth(event.target.value)}>{months.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select><input className="db-input" type="number" value={statementYear} onChange={(event) => setStatementYear(event.target.value)} aria-label="Statement year" /></span> : null}</label>
             <div className="db-soft-card" style={{ padding: 14, boxShadow: "none" }}>
               {!selectedStatementLearner ? <p style={smallText}>Select a learner to see the statement delivery history.</p> : statementDeliveryLoading ? <p style={smallText}>Loading delivery history...</p> : statementDelivery ? <><strong>{statementDeliveryStatusLabel(statementDelivery.status)}</strong><p style={smallText}>Last attempt: {formatStatementDeliveryDate(statementDelivery.sent_at || statementDelivery.created_at)}</p><p style={smallText}>Parent contact: {statementDelivery.recipient_phone || selectedStatementLearner.parent_phone || "Not added"}</p>{statementDelivery.error_message ? <p style={{ ...smallText, color: "#a33a3a" }}>{statementDelivery.error_message}</p> : null}</> : <><strong>Not sent yet</strong><p style={smallText}>The statement is available in the Parent Portal, but no statement notification has been recorded.</p></>}
             </div>
-            <div className="db-soft-card" style={{ padding: 14, boxShadow: "none", display: "grid", alignContent: "center", gap: 10 }}><strong>Statement actions</strong><button type="button" className="db-button-secondary" disabled={!statementLearnerId || !schoolId} onClick={() => router.push(`/payments/statement?school=${schoolId}&learner=${encodeURIComponent(statementLearnerId)}`)}>Create / view statement</button><button type="button" className="db-button-primary" disabled={!statementLearnerId || !schoolId || statementSending} onClick={() => void sendStatementNotification()}>{statementSending ? "Sending..." : statementDelivery ? "Resend to Parent Portal" : "Send to Parent Portal"}</button></div>
+            <div className="db-soft-card" style={{ padding: 14, boxShadow: "none", display: "grid", alignContent: "center", gap: 10 }}><strong>{statementMode === "monthly" ? `${months[Number(statementMonth) - 1]} ${statementYear} statement` : "Year-to-Date statement"}</strong><button type="button" className="db-button-secondary" disabled={!statementLearnerId || !schoolId} onClick={() => router.push(`/payments/statement?school=${schoolId}&learner=${encodeURIComponent(statementLearnerId)}${statementPeriod ? `&period=${statementPeriod}` : ""}`)}>Create / view statement</button><button type="button" className="db-button-primary" disabled={!statementLearnerId || !schoolId || statementSending} onClick={() => void sendStatementNotification()}>{statementSending ? "Sending..." : statementDelivery ? "Resend to Parent Portal" : "Send to Parent Portal"}</button></div>
           </div>
           {statementMessage ? <div className={statementMessageType === "error" ? "db-error-banner" : "db-success-banner"} role={statementMessageType === "error" ? "alert" : "status"} style={{ marginTop: 12 }}>{statementMessage}</div> : null}
         </div>

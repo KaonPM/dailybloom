@@ -32,6 +32,8 @@ type StatementResponse = {
   charges?: Charge[];
   payments?: Payment[];
   balance?: number;
+  opening_balance?: number;
+  statement_period?: string | null;
   learner?: { name?: string | null; legal_name?: string | null; monthly_fee?: number | null } | null;
   school?: FeeStatementSchool | null;
   error?: string;
@@ -56,8 +58,9 @@ const nextMonthlyBillingDate = () => {
     .slice(0, 10);
 };
 
-function buildStatement(charges: Charge[], payments: Payment[]): FeeStatementRow[] {
+function buildStatement(charges: Charge[], payments: Payment[], openingBalance = 0): FeeStatementRow[] {
   const entries = [
+    ...(openingBalance ? [{ id: "opening-balance", date: "", activity: "Opening balance", invoiced: openingBalance > 0 ? openingBalance : 0, payment: openingBalance < 0 ? Math.abs(openingBalance) : 0, detail: "Balance brought forward" }] : []),
     ...charges.map((charge) => ({
       id: `charge-${charge.id}`,
       date: charge.billing_period || charge.due_date || charge.created_at || "",
@@ -91,6 +94,7 @@ export default function StaffLearnerFeeStatementPage() {
   const searchParams = useSearchParams();
   const learnerId = String(searchParams.get("learner") || "");
   const schoolId = Number(searchParams.get("school"));
+  const period = String(searchParams.get("period") || "");
   const [statement, setStatement] = useState<StatementResponse | null>(null);
   const [error, setError] = useState("");
 
@@ -104,7 +108,7 @@ export default function StaffLearnerFeeStatementPage() {
     async function loadStatement() {
       try {
         const response = await authenticatedFetch(
-          `/api/learner-fees/statement?learner_id=${encodeURIComponent(learnerId)}&school_id=${schoolId}`
+          `/api/learner-fees/statement?learner_id=${encodeURIComponent(learnerId)}&school_id=${schoolId}${period ? `&period=${encodeURIComponent(period)}` : ""}`
         );
         const payload = (await response.json()) as StatementResponse;
         if (!response.ok) throw new Error(payload.error || "Could not load this statement.");
@@ -123,10 +127,10 @@ export default function StaffLearnerFeeStatementPage() {
     return () => {
       cancelled = true;
     };
-  }, [learnerId, schoolId]);
+  }, [learnerId, period, schoolId]);
 
   const rows = useMemo(
-    () => buildStatement(statement?.charges || [], statement?.payments || []),
+    () => buildStatement(statement?.charges || [], statement?.payments || [], Number(statement?.opening_balance || 0)),
     [statement]
   );
 
@@ -159,6 +163,7 @@ export default function StaffLearnerFeeStatementPage() {
         monthlyFee={Number(statement.learner?.monthly_fee || 0)}
         balance={Number(statement.balance || 0)}
         rows={rows}
+        statementTitle={period ? "Monthly Fee Statement" : "Year-to-Date Fee Statement"}
         backHref={`/payments?school=${schoolId}`}
         backLabel="Back to payments"
       />

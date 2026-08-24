@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resolveSchoolContext } from "../lib/school-context";
-import SubscriptionGuard from "../components/SubscriptionGuard";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type PaymentItem = {
@@ -613,8 +612,7 @@ export default function PaymentsPage() {
   }
 
   return (
-    <SubscriptionGuard schoolId={schoolId} featureKey="payment_tracking">
-      <div>
+    <div>
         <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
           <div
             style={{
@@ -1078,7 +1076,6 @@ export default function PaymentsPage() {
           ) : null}
         </div>
       </div>
-    </SubscriptionGuard>
   );
 }
 

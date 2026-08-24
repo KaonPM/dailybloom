@@ -167,6 +167,8 @@ export async function POST(request: Request) {
         reference_number: referenceNumber,
         receipt_number: receipt,
         recorded_by: authorization.staff.userId,
+        entry_source: "payment",
+        allocation_period: billingPeriod,
       })
       .select("id")
       .single();
@@ -179,6 +181,7 @@ export async function POST(request: Request) {
       .select("id, amount, billing_period")
       .eq("school_id", schoolId)
       .eq("learner_id", learnerId)
+      .eq("is_scheduled", false)
       .order("billing_period", { ascending: true })
       .order("id", { ascending: true });
     if (outstandingResult.error) throw outstandingResult.error;
@@ -207,7 +210,17 @@ export async function POST(request: Request) {
       charge_id: number;
       amount: number;
     }> = [];
-    for (const item of outstandingResult.data || []) {
+    // A payment captured for a chosen month settles that month first. Any
+    // remainder then follows the oldest outstanding balance, preserving the
+    // existing account flow while making backdated capture predictable.
+    const orderedOutstanding = [...(outstandingResult.data || [])].sort(
+      (left, right) => {
+        const leftTarget = left.billing_period === billingPeriod ? 0 : 1;
+        const rightTarget = right.billing_period === billingPeriod ? 0 : 1;
+        return leftTarget - rightTarget;
+      }
+    );
+    for (const item of orderedOutstanding) {
       if (remaining <= 0) break;
       const outstanding = Math.max(
         0,

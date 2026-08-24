@@ -14,6 +14,7 @@ type Charge = {
   billing_period?: string | null;
   due_date?: string | null;
   amount?: number | null;
+  is_scheduled?: boolean | null;
   created_at?: string | null;
 };
 
@@ -61,9 +62,11 @@ function buildStatement(charges: Charge[], payments: Payment[]): FeeStatementRow
       id: `charge-${charge.id}`,
       date: charge.billing_period || charge.due_date || charge.created_at || "",
       activity: charge.description || "Learner fee charge",
-      invoiced: Number(charge.amount || 0),
+      invoiced: charge.is_scheduled ? 0 : Number(charge.amount || 0),
       payment: 0,
-      detail: charge.due_date ? `Due ${displayDate(charge.due_date)}` : null,
+      detail: charge.is_scheduled
+        ? `Scheduled for ${displayDate(charge.billing_period || charge.due_date)}`
+        : charge.due_date ? `Due ${displayDate(charge.due_date)}` : null,
     })),
     ...payments.map((payment) => ({
       id: `payment-${payment.id}`,

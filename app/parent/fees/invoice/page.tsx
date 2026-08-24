@@ -13,6 +13,7 @@ type Charge = {
   billing_period: string;
   due_date: string;
   amount: number;
+  is_scheduled?: boolean | null;
 };
 
 type Payment = {
@@ -132,9 +133,11 @@ function buildStatement(result: StatementResponse | null) {
       date: charge.billing_period,
       order: 0,
       activity: charge.description,
-      invoiced: Number(charge.amount || 0),
+      invoiced: charge.is_scheduled ? 0 : Number(charge.amount || 0),
       payment: 0,
-      detail: `Due ${charge.due_date}`,
+      detail: charge.is_scheduled
+        ? `Scheduled for ${charge.billing_period}`
+        : `Due ${charge.due_date}`,
     })),
     ...(result.payments || []).map((payment) => ({
       id: `payment-${payment.id}`,

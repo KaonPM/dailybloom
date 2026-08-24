@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     await Promise.all([
       supabaseAdmin
         .from("learner_fee_charges")
-        .select("id, description, billing_period, due_date, amount, created_at")
+        .select("id, description, billing_period, due_date, amount, is_scheduled, created_at")
         .eq("school_id", schoolId)
         .eq("learner_id", learnerId)
         .order("billing_period", { ascending: false }),
@@ -71,10 +71,9 @@ export async function GET(request: Request) {
 
   const charges = chargeResult.data || [];
   const payments = paymentResult.data || [];
-  const totalCharged = charges.reduce(
-    (sum, row) => sum + Number(row.amount || 0),
-    0
-  );
+  const totalCharged = charges
+    .filter((row) => !row.is_scheduled)
+    .reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const totalPaid = payments.reduce(
     (sum, row) => sum + Number(row.amount || 0),
     0

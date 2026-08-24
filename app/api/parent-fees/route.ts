@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   }
 
   const [chargeResult, paymentResult, schoolResult, registrationResult, learnerResult] = await Promise.all([
-    supabaseAdmin.from("learner_fee_charges").select("id, description, billing_period, due_date, amount, created_at").eq("school_id", schoolId).eq("learner_id", learnerId).order("billing_period", { ascending: false }),
+    supabaseAdmin.from("learner_fee_charges").select("id, description, billing_period, due_date, amount, is_scheduled, created_at").eq("school_id", schoolId).eq("learner_id", learnerId).order("billing_period", { ascending: false }),
     supabaseAdmin.from("learner_fee_payments").select("id, amount, payment_date, payment_method, reference_number, receipt_number, created_at").eq("school_id", schoolId).eq("learner_id", learnerId).order("payment_date", { ascending: false }),
     supabaseAdmin.from("schools").select("id, school_name, logo_url, contact_number, primary_color, secondary_color").eq("id", schoolId).maybeSingle(),
     supabaseAdmin.from("dbe_registration").select("email_address, physical_address, contact_number").eq("school_id", schoolId).maybeSingle(),
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
   const charges = chargeResult.data || [];
   const payments = paymentResult.data || [];
-  const totalCharged = charges.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const totalCharged = charges.filter((row) => !row.is_scheduled).reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const totalPaid = payments.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   return NextResponse.json(
     {

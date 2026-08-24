@@ -42,6 +42,7 @@ export default function SchoolAdministrationPage() {
   const [surveyAudience, setSurveyAudience] = useState<"whole_school" | "classroom">("whole_school");
   const [questions, setQuestions] = useState<SurveyQuestion[]>([emptyQuestion()]);
   const [meetingVisible, setMeetingVisible] = useState(10);
+  const [selectedMinutesMeetingId, setSelectedMinutesMeetingId] = useState("");
   const [surveyVisible, setSurveyVisible] = useState(10);
 
   const load = useCallback(async (id: number) => {
@@ -128,6 +129,8 @@ export default function SchoolAdministrationPage() {
     }
   }
 
+  const selectedMinutesMeeting = data.meetings.find((meeting) => meeting.id === selectedMinutesMeetingId) || null;
+
   return <div style={{ display: "grid", gap: 18 }}>
     <section className="db-page-header db-card-blue"><p className="db-eyebrow">School Administration</p><h1>Meetings, Minutes &amp; Surveys</h1><p className="db-page-subtitle">Publish meeting documents and collect parent responses in one auditable workspace.</p></section>
     {error ? <div className="db-error-banner" role="alert">{error}</div> : null}
@@ -155,12 +158,12 @@ export default function SchoolAdministrationPage() {
 
     <CollapsibleSection title="Meeting Minutes" description="Type, approve and publish minutes after the meeting. Parents receive a separate notification and acknowledgement request." openLabel="Open minutes" closeLabel="Close minutes">
       <div style={{ display: "grid", gap: 10 }}>
-        {data.meetings.length === 0 ? <p className="db-helper">No meeting minutes are ready to capture yet.</p> : null}
-        {data.meetings.slice(0, meetingVisible).map((meeting) => <article className="db-soft-card" key={meeting.id} style={{ padding: 16 }}>
-          <strong>{meeting.title}</strong><p className="db-helper">{new Date(meeting.meeting_date).toLocaleString("en-ZA")} · {meeting.minutes_published_at ? `${meeting.acknowledgements?.[0]?.count || 0} parent acknowledgements` : "Minutes not published"}</p>
-          <div className="db-page-actions">{meeting.minutes_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(meeting.title, meeting.meeting_date, "Minutes", meeting.minutes_content || "")}>Download Typed Minutes</button> : null}{meeting.minutes_url ? <a className="db-button-secondary" href={meeting.minutes_url} target="_blank" rel="noreferrer">Download Minutes Attachment</a> : null}</div>
-          {!meeting.minutes_published_at ? <form onSubmit={(event) => void publishMinutes(event, meeting.id)} style={{ display: "grid", gap: 10, marginTop: 12 }}><label><span className="db-label">Typed approved minutes</span><textarea className="db-input" name="minutes_content" rows={9} placeholder={"Attendees and apologies\nMatters discussed\nDecisions made\nActions, owners and due dates"} /></label><label><span className="db-label">Optional minutes attachment</span><input className="db-input" type="file" name="minutes_file" accept=".pdf,.doc,.docx" /></label><button className="db-button-primary">Publish Minutes &amp; Prompt Parents</button></form> : null}
-        </article>)}
+        {data.meetings.length === 0 ? <p className="db-helper">No meeting agenda has been created yet. Create the agenda first; that meeting will then be available here for its minutes.</p> : <label><span className="db-label">Meeting agenda</span><select className="db-input" value={selectedMinutesMeetingId} onChange={(event) => setSelectedMinutesMeetingId(event.target.value)}><option value="">Select the meeting to minute</option>{data.meetings.map((meeting) => <option key={meeting.id} value={meeting.id}>{meeting.title} · {new Date(meeting.meeting_date).toLocaleString("en-ZA")}</option>)}</select></label>}
+        {selectedMinutesMeeting ? <article className="db-soft-card" style={{ padding: 16 }}>
+          <strong>{selectedMinutesMeeting.title}</strong><p className="db-helper">{new Date(selectedMinutesMeeting.meeting_date).toLocaleString("en-ZA")} · {selectedMinutesMeeting.minutes_published_at ? `${selectedMinutesMeeting.acknowledgements?.[0]?.count || 0} parent acknowledgements` : "Ready to capture minutes"}</p>
+          <div className="db-page-actions">{selectedMinutesMeeting.minutes_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(selectedMinutesMeeting.title, selectedMinutesMeeting.meeting_date, "Minutes", selectedMinutesMeeting.minutes_content || "")}>Download Typed Minutes</button> : null}{selectedMinutesMeeting.minutes_url ? <a className="db-button-secondary" href={selectedMinutesMeeting.minutes_url} target="_blank" rel="noreferrer">Download Minutes Attachment</a> : null}</div>
+          {!selectedMinutesMeeting.minutes_published_at ? <form onSubmit={(event) => void publishMinutes(event, selectedMinutesMeeting.id)} style={{ display: "grid", gap: 10, marginTop: 12 }}><label><span className="db-label">Typed approved minutes</span><textarea className="db-input" name="minutes_content" rows={9} placeholder={"Attendees and apologies\nMatters discussed\nDecisions made\nActions, owners and due dates"} /></label><label><span className="db-label">Optional minutes attachment</span><input className="db-input" type="file" name="minutes_file" accept=".pdf,.doc,.docx" /></label><button className="db-button-primary">Publish Minutes &amp; Prompt Parents</button></form> : null}
+        </article> : null}
       </div>
     </CollapsibleSection>
 

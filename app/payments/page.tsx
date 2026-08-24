@@ -906,6 +906,18 @@ export default function PaymentsPage() {
           ) : null}
         </div>
 
+        <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
+          <div style={sectionHeader}><div><h3 style={sectionTitle}>Learner Fee Statements</h3><p style={smallText}>1. Select learner. 2. Create/view the current statement. 3. Send its Parent Portal message.</p></div></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 250px), 1fr))", gap: 14, marginTop: 12, alignItems: "stretch" }}>
+            <label style={{ display: "grid", gap: 6 }}><span style={labelText}>Learner</span><select className="db-input" value={statementLearnerId} onChange={(event) => setStatementLearnerId(event.target.value)}><option value="">Select learner</option>{learners.map((learner) => <option key={learner.id} value={learner.id}>{learner.name || "Unnamed learner"}</option>)}</select></label>
+            <div className="db-soft-card" style={{ padding: 14, boxShadow: "none" }}>
+              {!selectedStatementLearner ? <p style={smallText}>Select a learner to see the statement delivery history.</p> : statementDeliveryLoading ? <p style={smallText}>Loading delivery history...</p> : statementDelivery ? <><strong>{statementDeliveryStatusLabel(statementDelivery.status)}</strong><p style={smallText}>Last attempt: {formatStatementDeliveryDate(statementDelivery.sent_at || statementDelivery.created_at)}</p><p style={smallText}>Parent contact: {statementDelivery.recipient_phone || selectedStatementLearner.parent_phone || "Not added"}</p>{statementDelivery.error_message ? <p style={{ ...smallText, color: "#a33a3a" }}>{statementDelivery.error_message}</p> : null}</> : <><strong>Not sent yet</strong><p style={smallText}>The statement is available in the Parent Portal, but no statement notification has been recorded.</p></>}
+            </div>
+            <div className="db-soft-card" style={{ padding: 14, boxShadow: "none", display: "grid", alignContent: "center", gap: 10 }}><strong>Statement actions</strong><button type="button" className="db-button-secondary" disabled={!statementLearnerId || !schoolId} onClick={() => router.push(`/payments/statement?school=${schoolId}&learner=${encodeURIComponent(statementLearnerId)}`)}>Create / view statement</button><button type="button" className="db-button-primary" disabled={!statementLearnerId || !schoolId || statementSending} onClick={() => void sendStatementNotification()}>{statementSending ? "Sending..." : statementDelivery ? "Resend to Parent Portal" : "Send to Parent Portal"}</button></div>
+          </div>
+          {statementMessage ? <div className={statementMessageType === "error" ? "db-error-banner" : "db-success-banner"} role={statementMessageType === "error" ? "alert" : "status"} style={{ marginTop: 12 }}>{statementMessage}</div> : null}
+        </div>
+
         <div className="db-card db-card-green" style={{ padding: 16, marginBottom: 18 }}>
           <div style={sectionHeader}>
             <div>
@@ -948,18 +960,6 @@ export default function PaymentsPage() {
             </div>
             {reconciliationMessage ? <div className={reconciliationMessageType === "error" ? "db-error-banner" : "db-success-banner"} role={reconciliationMessageType === "error" ? "alert" : "status"} style={{ marginTop: 12 }}>{reconciliationMessage}</div> : null}
           </> : null}
-        </div>
-
-        <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
-          <div style={sectionHeader}><div><h3 style={sectionTitle}>Learner Fee Statements</h3><p style={smallText}>1. Select learner. 2. Create/view the current statement. 3. Send its Parent Portal message.</p></div></div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 250px), 1fr))", gap: 14, marginTop: 12, alignItems: "stretch" }}>
-            <label style={{ display: "grid", gap: 6 }}><span style={labelText}>Learner</span><select className="db-input" value={statementLearnerId} onChange={(event) => setStatementLearnerId(event.target.value)}><option value="">Select learner</option>{learners.map((learner) => <option key={learner.id} value={learner.id}>{learner.name || "Unnamed learner"}</option>)}</select></label>
-            <div className="db-soft-card" style={{ padding: 14, boxShadow: "none" }}>
-              {!selectedStatementLearner ? <p style={smallText}>Select a learner to see the statement delivery history.</p> : statementDeliveryLoading ? <p style={smallText}>Loading delivery history...</p> : statementDelivery ? <><strong>{statementDeliveryStatusLabel(statementDelivery.status)}</strong><p style={smallText}>Last attempt: {formatStatementDeliveryDate(statementDelivery.sent_at || statementDelivery.created_at)}</p><p style={smallText}>Parent contact: {statementDelivery.recipient_phone || selectedStatementLearner.parent_phone || "Not added"}</p>{statementDelivery.error_message ? <p style={{ ...smallText, color: "#a33a3a" }}>{statementDelivery.error_message}</p> : null}</> : <><strong>Not sent yet</strong><p style={smallText}>The statement is available in the Parent Portal, but no statement notification has been recorded.</p></>}
-            </div>
-            <div className="db-soft-card" style={{ padding: 14, boxShadow: "none", display: "grid", alignContent: "center", gap: 10 }}><strong>Statement actions</strong><button type="button" className="db-button-secondary" disabled={!statementLearnerId || !schoolId} onClick={() => router.push(`/payments/statement?school=${schoolId}&learner=${encodeURIComponent(statementLearnerId)}`)}>Create / view statement</button><button type="button" className="db-button-primary" disabled={!statementLearnerId || !schoolId || statementSending} onClick={() => void sendStatementNotification()}>{statementSending ? "Sending..." : statementDelivery ? "Resend to Parent Portal" : "Send to Parent Portal"}</button></div>
-          </div>
-          {statementMessage ? <div className={statementMessageType === "error" ? "db-error-banner" : "db-success-banner"} role={statementMessageType === "error" ? "alert" : "status"} style={{ marginTop: 12 }}>{statementMessage}</div> : null}
         </div>
 
         <div className="db-card db-card-lavender" style={{ padding: 16 }}>

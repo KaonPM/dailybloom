@@ -133,7 +133,7 @@ export default function SchoolAdministrationPage() {
     {error ? <div className="db-error-banner" role="alert">{error}</div> : null}
     {message ? <div className="db-success-banner" role="status">{message}</div> : null}
 
-    <CollapsibleSection title="Meeting Agenda & Minutes" description="Type and download an agenda before the meeting. Type and download separate approved minutes afterwards; parents can download and acknowledge them." openLabel="Open meetings" closeLabel="Close meetings">
+    <CollapsibleSection title="Meeting Agenda" description="Create, type and download the agenda before the meeting. This is separate from the approved minutes." openLabel="Open agendas" closeLabel="Close agendas">
       <form onSubmit={(event) => void submit(event, "meeting")} style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", alignItems: "end" }}>
         <label><span className="db-label">Meeting title</span><input className="db-input" name="title" required /></label>
         <label><span className="db-label">Meeting date and time</span><input className="db-input" type="datetime-local" name="meeting_date" required /></label>
@@ -146,11 +146,21 @@ export default function SchoolAdministrationPage() {
       <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
         {data.meetings.length === 0 ? <p className="db-helper">No meeting agendas have been published yet.</p> : null}
         {data.meetings.slice(0, meetingVisible).map((meeting) => <article className="db-soft-card" key={meeting.id} style={{ padding: 16 }}>
-          <strong>{meeting.title}</strong><p className="db-helper">{new Date(meeting.meeting_date).toLocaleString("en-ZA")} · {meeting.minutes_published_at ? "Minutes published" : "Agenda published"} · {meeting.acknowledgements?.[0]?.count || 0} acknowledgements</p>
-          <div className="db-page-actions">{meeting.agenda_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(meeting.title, meeting.meeting_date, "Agenda", meeting.agenda_content || "")}>Download Typed Agenda</button> : null}{meeting.agenda_url ? <a className="db-button-secondary" href={meeting.agenda_url} target="_blank" rel="noreferrer">Download Agenda Attachment</a> : null}{meeting.minutes_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(meeting.title, meeting.meeting_date, "Minutes", meeting.minutes_content || "")}>Download Typed Minutes</button> : null}{meeting.minutes_url ? <a className="db-button-secondary" href={meeting.minutes_url} target="_blank" rel="noreferrer">Download Minutes Attachment</a> : null}</div>
-          {!meeting.minutes_published_at ? <form onSubmit={(event) => void publishMinutes(event, meeting.id)} style={{ display: "grid", gap: 10, marginTop: 12 }}><label><span className="db-label">Typed approved minutes</span><textarea className="db-input" name="minutes_content" rows={9} placeholder={"Attendees and apologies\nMatters discussed\nDecisions made\nActions, owners and due dates"} /></label><label><span className="db-label">Optional minutes attachment</span><input className="db-input" type="file" name="minutes_file" accept=".pdf,.doc,.docx" /></label><button className="db-button-primary">Publish Minutes &amp; Prompt Parents</button></form> : null}
+          <strong>{meeting.title}</strong><p className="db-helper">{new Date(meeting.meeting_date).toLocaleString("en-ZA")} · Agenda published</p>
+          <div className="db-page-actions">{meeting.agenda_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(meeting.title, meeting.meeting_date, "Agenda", meeting.agenda_content || "")}>Download Typed Agenda</button> : null}{meeting.agenda_url ? <a className="db-button-secondary" href={meeting.agenda_url} target="_blank" rel="noreferrer">Download Agenda Attachment</a> : null}</div>
         </article>)}
         {meetingVisible < data.meetings.length ? <button className="db-button-secondary" type="button" onClick={() => setMeetingVisible((count) => count + 10)}>Show next 10</button> : null}
+      </div>
+    </CollapsibleSection>
+
+    <CollapsibleSection title="Meeting Minutes" description="Type, approve and publish minutes after the meeting. Parents receive a separate notification and acknowledgement request." openLabel="Open minutes" closeLabel="Close minutes">
+      <div style={{ display: "grid", gap: 10 }}>
+        {data.meetings.length === 0 ? <p className="db-helper">No meeting minutes are ready to capture yet.</p> : null}
+        {data.meetings.slice(0, meetingVisible).map((meeting) => <article className="db-soft-card" key={meeting.id} style={{ padding: 16 }}>
+          <strong>{meeting.title}</strong><p className="db-helper">{new Date(meeting.meeting_date).toLocaleString("en-ZA")} · {meeting.minutes_published_at ? `${meeting.acknowledgements?.[0]?.count || 0} parent acknowledgements` : "Minutes not published"}</p>
+          <div className="db-page-actions">{meeting.minutes_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(meeting.title, meeting.meeting_date, "Minutes", meeting.minutes_content || "")}>Download Typed Minutes</button> : null}{meeting.minutes_url ? <a className="db-button-secondary" href={meeting.minutes_url} target="_blank" rel="noreferrer">Download Minutes Attachment</a> : null}</div>
+          {!meeting.minutes_published_at ? <form onSubmit={(event) => void publishMinutes(event, meeting.id)} style={{ display: "grid", gap: 10, marginTop: 12 }}><label><span className="db-label">Typed approved minutes</span><textarea className="db-input" name="minutes_content" rows={9} placeholder={"Attendees and apologies\nMatters discussed\nDecisions made\nActions, owners and due dates"} /></label><label><span className="db-label">Optional minutes attachment</span><input className="db-input" type="file" name="minutes_file" accept=".pdf,.doc,.docx" /></label><button className="db-button-primary">Publish Minutes &amp; Prompt Parents</button></form> : null}
+        </article>)}
       </div>
     </CollapsibleSection>
 

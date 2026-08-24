@@ -99,25 +99,30 @@ export default function ParentSchoolAdministrationPage() {
       <Link className="db-button-primary parent-school-admin-action" href="/parent/re-enrolment">Open Re-enrolment</Link>
     </section>
 
-    <CollapsibleSection id="meeting-documents" title="Meeting Agenda & Minutes" description="Download the agenda before a meeting, then read and acknowledge the published minutes." openLabel="Open meeting documents" closeLabel="Close meeting documents" className="db-card parent-school-admin-section">
+    <CollapsibleSection id="meeting-documents" title="Meeting Agenda" description="Download the agenda before the meeting." openLabel="Open agendas" closeLabel="Close agendas" className="db-card parent-school-admin-section">
       <div className="parent-school-admin-list">
         {data.meetings.length === 0 ? <p className="db-helper">No meeting documents have been published yet.</p> : null}
         {data.meetings.slice(0, meetingVisible).map((meeting) => {
-          const learnerId = meeting.eligible_learner_ids?.[0];
-          const acknowledged = meeting.school_meeting_acknowledgements?.some((item) => item.learner_id === learnerId);
           return <article className="db-soft-card parent-school-admin-item" key={meeting.id}>
             <div><strong>{meeting.title}</strong><p className="db-helper">{new Date(meeting.meeting_date).toLocaleString("en-ZA")}</p></div>
             <div className="db-page-actions parent-school-admin-item-actions">
               {meeting.agenda_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(meeting.title, meeting.meeting_date, "Agenda", meeting.agenda_content || "")}>Download Agenda</button> : null}
               {meeting.agenda_url ? <a className="db-button-secondary" href={meeting.agenda_url} target="_blank" rel="noreferrer">Download Agenda Attachment</a> : null}
-              {meeting.minutes_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(meeting.title, meeting.meeting_date, "Minutes", meeting.minutes_content || "")}>Download Minutes</button> : null}
-              {meeting.minutes_url ? <a className="db-button-secondary" href={meeting.minutes_url} target="_blank" rel="noreferrer">Download Minutes Attachment</a> : null}
-              {meeting.minutes_published_at && !acknowledged && learnerId ? <button className="db-button-primary" type="button" onClick={() => void act({ action: "acknowledge_minutes", meeting_id: meeting.id, learner_id: learnerId })}>I confirm that I have received and read these meeting minutes.</button> : null}
-              {acknowledged ? <span className="parent-school-admin-status">✓ Minutes acknowledged</span> : null}
             </div>
           </article>;
         })}
         {meetingVisible < data.meetings.length ? <button className="db-button-secondary" type="button" onClick={() => setMeetingVisible((count) => count + 10)}>Show next 10</button> : null}
+      </div>
+    </CollapsibleSection>
+
+    <CollapsibleSection title="Meeting Minutes" description="Download published minutes and acknowledge that you have read them." openLabel="Open minutes" closeLabel="Close minutes" className="db-card parent-school-admin-section">
+      <div className="parent-school-admin-list">
+        {data.meetings.filter((meeting) => meeting.minutes_published_at).length === 0 ? <p className="db-helper">No meeting minutes have been published yet.</p> : null}
+        {data.meetings.filter((meeting) => meeting.minutes_published_at).slice(0, meetingVisible).map((meeting) => {
+          const learnerId = meeting.eligible_learner_ids?.[0];
+          const acknowledged = meeting.school_meeting_acknowledgements?.some((item) => item.learner_id === learnerId);
+          return <article className="db-soft-card parent-school-admin-item" key={meeting.id}><div><strong>{meeting.title}</strong><p className="db-helper">{new Date(meeting.meeting_date).toLocaleString("en-ZA")}</p></div><div className="db-page-actions parent-school-admin-item-actions">{meeting.minutes_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(meeting.title, meeting.meeting_date, "Minutes", meeting.minutes_content || "")}>Download Minutes</button> : null}{meeting.minutes_url ? <a className="db-button-secondary" href={meeting.minutes_url} target="_blank" rel="noreferrer">Download Minutes Attachment</a> : null}{!acknowledged && learnerId ? <button className="db-button-primary" type="button" onClick={() => void act({ action: "acknowledge_minutes", meeting_id: meeting.id, learner_id: learnerId })}>I confirm that I have received and read these meeting minutes.</button> : null}{acknowledged ? <span className="parent-school-admin-status">✓ Minutes acknowledged</span> : null}</div></article>;
+        })}
       </div>
     </CollapsibleSection>
 

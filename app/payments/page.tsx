@@ -105,6 +105,8 @@ export default function PaymentsPage() {
   const [reconciliationLoading, setReconciliationLoading] = useState(false);
   const [reconciliationMessage, setReconciliationMessage] = useState("");
   const [reconciliationMessageType, setReconciliationMessageType] = useState<"success" | "error" | "">("");
+  const [showReconciliation, setShowReconciliation] = useState(false);
+  const [showJournalForm, setShowJournalForm] = useState(false);
 
   const [highlightRecordForm, setHighlightRecordForm] = useState(false);
   const [lastSavedSuccess, setLastSavedSuccess] = useState(false);
@@ -462,6 +464,14 @@ export default function PaymentsPage() {
     } finally {
       setReconciliationLoading(false);
     }
+  }
+
+  function openHistoricalPaymentCapture() {
+    const learner = learners.find((item) => item.id === reconciliationLearnerId);
+    if (learner?.name) handleLearnerSelection(learner.name);
+    setShowRecordForm(true);
+    setHighlightRecordForm(true);
+    window.setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
 
   const paidLearnersForSelectedMonth = useMemo(() => {
@@ -900,52 +910,56 @@ export default function PaymentsPage() {
           <div style={sectionHeader}>
             <div>
               <h3 style={sectionTitle}>Statement &amp; Reconciliation</h3>
-              <p style={smallText}>Set up the full year, capture a verified opening balance or correction, then send the current statement to the Parent Portal. Normal monthly billing continues automatically.</p>
+              <p style={smallText}>Set up historic fees and payments once, then let monthly billing continue as normal.</p>
             </div>
-          </div>
-
-          <div style={formGrid}>
-            <label>
-              <span style={labelText}>Billing year</span>
-              <input className="db-input" type="number" value={reconciliationYear} onChange={(event) => setReconciliationYear(event.target.value)} />
-            </label>
-            <div style={{ alignSelf: "end" }}>
-              <button type="button" className="db-button-secondary" disabled={!schoolId || reconciliationLoading} onClick={() => void createYearSchedule()}>
-                {reconciliationLoading ? "Working..." : "Create January-December Schedule"}
-              </button>
-            </div>
-          </div>
-
-          <div className="db-soft-card" style={{ padding: 14, marginTop: 12, boxShadow: "none" }}>
-            <h4 style={{ ...sectionTitle, fontSize: 16 }}>Manual capture / debit-credit journal</h4>
-            <p style={smallText}>Use this once to bring the learner account up to date before automatic billing, or later for an auditable adjustment. Entries cannot be edited; correct an error with an opposite journal.</p>
-            <div style={{ ...formGrid, marginTop: 12 }}>
-              <label><span style={labelText}>Learner</span><select className="db-input" value={reconciliationLearnerId} onChange={(event) => setReconciliationLearnerId(event.target.value)}><option value="">Select learner</option>{learners.map((learner) => <option key={learner.id} value={learner.id}>{learner.name || "Unnamed learner"}</option>)}</select></label>
-              <label><span style={labelText}>Journal</span><select className="db-input" value={journalType} onChange={(event) => setJournalType(event.target.value as "debit" | "credit")}><option value="debit">Debit (adds to balance)</option><option value="credit">Credit (reduces balance)</option></select></label>
-              <label><span style={labelText}>Applies to</span><select className="db-input" value={journalScope} onChange={(event) => setJournalScope(event.target.value)}><option value="opening_balance">Opening balance</option><option value="monthly_fee">School fees</option><option value="registration_fee">Registration fee</option><option value="correction">Correction</option></select></label>
-              <label><span style={labelText}>Amount</span><input className="db-input" type="number" min="0" step="0.01" value={journalAmount} onChange={(event) => setJournalAmount(event.target.value)} placeholder="Amount" /></label>
-              <label><span style={labelText}>Effective date</span><input className="db-input" type="date" max={todayDate} value={journalDate} onChange={(event) => setJournalDate(event.target.value)} /></label>
-              <label><span style={labelText}>Allocation month</span><select className="db-input" value={journalMonth} onChange={(event) => setJournalMonth(event.target.value)}>{months.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select></label>
-              <label><span style={labelText}>Allocation year</span><input className="db-input" type="number" value={journalYear} onChange={(event) => setJournalYear(event.target.value)} /></label>
-              <label style={{ gridColumn: "span 2" }}><span style={labelText}>Reason / source record</span><input className="db-input" value={journalReason} onChange={(event) => setJournalReason(event.target.value)} placeholder="e.g. Balance manually captured from 2026 fee register" /></label>
-            </div>
-            <button type="button" className="db-button-primary" disabled={reconciliationLoading} onClick={() => void recordJournal()}>
-              {reconciliationLoading ? "Recording..." : `Record ${journalType === "debit" ? "Debit" : "Credit"} Journal`}
+            <button type="button" className="db-collapse-action db-section-toggle" onClick={() => setShowReconciliation((current) => !current)}>
+              {showReconciliation ? "Close reconciliation" : "Open reconciliation"}
             </button>
           </div>
-          {reconciliationMessage ? <div className={reconciliationMessageType === "error" ? "db-error-banner" : "db-success-banner"} role={reconciliationMessageType === "error" ? "alert" : "status"} style={{ marginTop: 12 }}>{reconciliationMessage}</div> : null}
+
+          {showReconciliation ? <>
+            <div className="db-soft-card" style={{ padding: 14, marginTop: 12, boxShadow: "none" }}>
+              <h4 style={{ ...sectionTitle, fontSize: 16 }}>Historical account setup</h4>
+              <ol style={{ ...smallText, paddingLeft: 20, marginBottom: 0 }}>
+                <li>Create the January-December fee schedule once. It adds January to the current month to the live account and keeps future months scheduled.</li>
+                <li>Use <strong>Record Payment</strong> for each historic payment, select its actual payment date and the school-fee month it settles.</li>
+                <li>Use the journal only for an opening balance, registration fee, or a correction. It is an audit adjustment, not the everyday payment screen.</li>
+              </ol>
+              <div style={{ ...formGrid, marginTop: 12 }}>
+                <label><span style={labelText}>Billing year</span><input className="db-input" type="number" value={reconciliationYear} onChange={(event) => setReconciliationYear(event.target.value)} /></label>
+                <label><span style={labelText}>Learner for historic payment</span><select className="db-input" value={reconciliationLearnerId} onChange={(event) => setReconciliationLearnerId(event.target.value)}><option value="">Select learner</option>{learners.map((learner) => <option key={learner.id} value={learner.id}>{learner.name || "Unnamed learner"}</option>)}</select></label>
+                <div style={{ alignSelf: "end" }}><button type="button" className="db-button-secondary" disabled={!schoolId || reconciliationLoading} onClick={() => void createYearSchedule()}>{reconciliationLoading ? "Working..." : "Create January-December Schedule"}</button></div>
+                <div style={{ alignSelf: "end" }}><button type="button" className="db-button-secondary" disabled={!reconciliationLearnerId} onClick={openHistoricalPaymentCapture}>Capture historic payment</button></div>
+              </div>
+            </div>
+
+            <div className="db-soft-card" style={{ padding: 14, marginTop: 12, boxShadow: "none" }}>
+              <div style={sectionHeader}><div><h4 style={{ ...sectionTitle, fontSize: 16 }}>Manual adjustment journal</h4><p style={smallText}>For opening balances, registration fees and corrections only. Entries are closed and immutable after saving.</p></div><button type="button" className="db-collapse-action db-section-toggle" onClick={() => setShowJournalForm((current) => !current)}>{showJournalForm ? "Close journal" : "Open journal"}</button></div>
+              {showJournalForm ? <><div style={{ ...formGrid, marginTop: 12 }}>
+                <label><span style={labelText}>Learner</span><select className="db-input" value={reconciliationLearnerId} onChange={(event) => setReconciliationLearnerId(event.target.value)}><option value="">Select learner</option>{learners.map((learner) => <option key={learner.id} value={learner.id}>{learner.name || "Unnamed learner"}</option>)}</select></label>
+                <label><span style={labelText}>Entry type</span><select className="db-input" value={journalType} onChange={(event) => setJournalType(event.target.value as "debit" | "credit")}><option value="debit">Debit — adds to balance</option><option value="credit">Credit — reduces balance</option></select></label>
+                <label><span style={labelText}>Applies to</span><select className="db-input" value={journalScope} onChange={(event) => setJournalScope(event.target.value)}><option value="opening_balance">Opening balance</option><option value="monthly_fee">School fees</option><option value="registration_fee">Registration fee</option><option value="correction">Correction</option></select></label>
+                <label><span style={labelText}>Amount</span><input className="db-input" type="number" min="0" step="0.01" value={journalAmount} onChange={(event) => setJournalAmount(event.target.value)} placeholder="Amount" /></label>
+                <label><span style={labelText}>Effective date</span><input className="db-input" type="date" max={todayDate} value={journalDate} onChange={(event) => setJournalDate(event.target.value)} /></label>
+                <label><span style={labelText}>Allocation month</span><select className="db-input" value={journalMonth} onChange={(event) => setJournalMonth(event.target.value)}>{months.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select></label>
+                <label><span style={labelText}>Allocation year</span><input className="db-input" type="number" value={journalYear} onChange={(event) => setJournalYear(event.target.value)} /></label>
+                <label><span style={labelText}>Reason / source record</span><input className="db-input" value={journalReason} onChange={(event) => setJournalReason(event.target.value)} placeholder="e.g. 2026 fee register" /></label>
+              </div><button type="button" className="db-button-primary" disabled={reconciliationLoading} onClick={() => void recordJournal()}>{reconciliationLoading ? "Recording..." : `Record ${journalType === "debit" ? "Debit" : "Credit"} Journal`}</button></> : null}
+            </div>
+            {reconciliationMessage ? <div className={reconciliationMessageType === "error" ? "db-error-banner" : "db-success-banner"} role={reconciliationMessageType === "error" ? "alert" : "status"} style={{ marginTop: 12 }}>{reconciliationMessage}</div> : null}
+          </> : null}
         </div>
 
         <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
-          <div style={sectionHeader}><div><h3 style={sectionTitle}>Learner Fee Statements</h3><p style={smallText}>View the latest reconciled statement, confirm delivery, or send it to the Parent Portal.</p></div></div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 14, marginTop: 12 }}>
+          <div style={sectionHeader}><div><h3 style={sectionTitle}>Learner Fee Statements</h3><p style={smallText}>1. Select learner. 2. Create/view the current statement. 3. Send its Parent Portal message.</p></div></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 250px), 1fr))", gap: 14, marginTop: 12, alignItems: "stretch" }}>
             <label style={{ display: "grid", gap: 6 }}><span style={labelText}>Learner</span><select className="db-input" value={statementLearnerId} onChange={(event) => setStatementLearnerId(event.target.value)}><option value="">Select learner</option>{learners.map((learner) => <option key={learner.id} value={learner.id}>{learner.name || "Unnamed learner"}</option>)}</select></label>
             <div className="db-soft-card" style={{ padding: 14, boxShadow: "none" }}>
               {!selectedStatementLearner ? <p style={smallText}>Select a learner to see the statement delivery history.</p> : statementDeliveryLoading ? <p style={smallText}>Loading delivery history...</p> : statementDelivery ? <><strong>{statementDeliveryStatusLabel(statementDelivery.status)}</strong><p style={smallText}>Last attempt: {formatStatementDeliveryDate(statementDelivery.sent_at || statementDelivery.created_at)}</p><p style={smallText}>Parent contact: {statementDelivery.recipient_phone || selectedStatementLearner.parent_phone || "Not added"}</p>{statementDelivery.error_message ? <p style={{ ...smallText, color: "#a33a3a" }}>{statementDelivery.error_message}</p> : null}</> : <><strong>Not sent yet</strong><p style={smallText}>The statement is available in the Parent Portal, but no statement notification has been recorded.</p></>}
             </div>
+            <div className="db-soft-card" style={{ padding: 14, boxShadow: "none", display: "grid", alignContent: "center", gap: 10 }}><strong>Statement actions</strong><button type="button" className="db-button-secondary" disabled={!statementLearnerId || !schoolId} onClick={() => router.push(`/payments/statement?school=${schoolId}&learner=${encodeURIComponent(statementLearnerId)}`)}>Create / view statement</button><button type="button" className="db-button-primary" disabled={!statementLearnerId || !schoolId || statementSending} onClick={() => void sendStatementNotification()}>{statementSending ? "Sending..." : statementDelivery ? "Resend to Parent Portal" : "Send to Parent Portal"}</button></div>
           </div>
           {statementMessage ? <div className={statementMessageType === "error" ? "db-error-banner" : "db-success-banner"} role={statementMessageType === "error" ? "alert" : "status"} style={{ marginTop: 12 }}>{statementMessage}</div> : null}
-          <div className="db-page-actions" style={{ marginTop: 12 }}><button type="button" className="db-button-secondary" disabled={!statementLearnerId || !schoolId} onClick={() => router.push(`/payments/statement?school=${schoolId}&learner=${encodeURIComponent(statementLearnerId)}`)}>View Statement</button><button type="button" className="db-button-primary" disabled={!statementLearnerId || !schoolId || statementSending} onClick={() => void sendStatementNotification()}>{statementSending ? "Sending..." : statementDelivery ? "Resend Statement" : "Send Statement"}</button></div>
         </div>
 
         <div className="db-card db-card-lavender" style={{ padding: 16 }}>

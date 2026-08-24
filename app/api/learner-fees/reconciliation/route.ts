@@ -42,12 +42,14 @@ async function allocateCredit({
   paymentId,
   amount,
   allocationPeriod,
+  entryScope,
 }: {
   schoolId: number;
   learnerId: string;
   paymentId: number;
   amount: number;
   allocationPeriod: string | null;
+  entryScope: string;
 }) {
   const chargesResult = await supabaseAdmin
     .from("learner_fee_charges")
@@ -75,13 +77,27 @@ async function allocateCredit({
     allocated.set(chargeId, (allocated.get(chargeId) || 0) + Number(row.amount || 0));
   }
 
-  const orderedCharges = allocationPeriod
-    ? [...charges].sort((left, right) => {
-        const leftMatch = left.billing_period === allocationPeriod ? 0 : 1;
-        const rightMatch = right.billing_period === allocationPeriod ? 0 : 1;
-        return leftMatch - rightMatch;
-      })
-    : charges;
+  const journalChargesResult = entryScope === "registration_fee"
+    ? await supabaseAdmin
+        .from("learner_fee_journal_entries")
+        .select("charge_id")
+        .eq("school_id", schoolId)
+        .eq("learner_id", learnerId)
+        .eq("entry_scope", "registration_fee")
+        .not("charge_id", "is", null)
+    : { data: [], error: null };
+  if (journalChargesResult.error) throw journalChargesResult.error;
+  const priorityChargeIds = new Set(
+    (journalChargesResult.data || []).map((entry) => Number(entry.charge_id))
+  );
+  const orderedCharges = [...charges].sort((left, right) => {
+    const leftRegistration = priorityChargeIds.has(Number(left.id)) ? 0 : 1;
+    const rightRegistration = priorityChargeIds.has(Number(right.id)) ? 0 : 1;
+    if (leftRegistration !== rightRegistration) return leftRegistration - rightRegistration;
+    const leftMonth = allocationPeriod && left.billing_period === allocationPeriod ? 0 : 1;
+    const rightMonth = allocationPeriod && right.billing_period === allocationPeriod ? 0 : 1;
+    return leftMonth - rightMonth;
+  });
   let remaining = amount;
   const rows: Array<{ payment_id: number; charge_id: number; amount: number }> = [];
   for (const charge of orderedCharges) {
@@ -245,7 +261,10 @@ export async function POST(request: Request) {
         .select("id")
         .single();
       if (paymentResult.error || !paymentResult.data) throw paymentResult.error || new Error("Could not record credit journal.");
-      await allocateCredit({ schoolId, learnerId, paymentId: Number(paymentResult.data.id), amount, allocationPeriod });
+      await allocateCredit({
+        schoolId, learnerId, paymentId: Number(paymentResult.data.id), amount,
+        allocationPeriod, entryScope,
+      });
       const journalResult = await supabaseAdmin
         .from("learner_fee_journal_entries")
         .insert({

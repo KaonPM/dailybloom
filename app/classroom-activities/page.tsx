@@ -153,6 +153,8 @@ export default function ClassroomActivitiesPage() {
   const [supportLearnerIds, setSupportLearnerIds] = useState<string[]>([]);
   const [supportLearnerStatuses, setSupportLearnerStatuses] = useState<Record<string, string>>({});
   const [supportLearnerNotes, setSupportLearnerNotes] = useState<Record<string, string>>({});
+  const [strengthLearnerIds, setStrengthLearnerIds] = useState<string[]>([]);
+  const [strengthLearnerNotes, setStrengthLearnerNotes] = useState<Record<string, string>>({});
   const [observation, setObservation] = useState("");
 
   const [showLibraryForm, setShowLibraryForm] = useState(false);
@@ -1144,12 +1146,19 @@ export default function ClassroomActivitiesPage() {
       observation:
         supportLearnerNotes[String(learnerId)]?.trim() || observation.trim() || null,
     }));
+    const strengthRows = strengthLearnerIds
+      .filter((learnerId) => String(learnerId).trim() !== "")
+      .map((learnerId) => ({
+        learner_id: learnerId,
+        observation: strengthLearnerNotes[String(learnerId)]?.trim() || observation.trim() || null,
+      }));
 
     const { error } = await supabase.rpc("complete_classroom_activity", {
       p_school_id: schoolId,
       p_plan_id: selectedTodayPlan.id,
       p_recorded_by: profile?.id || null,
       p_support_rows: supportRows,
+      p_strength_rows: strengthRows,
     });
 
     if (error) {
@@ -1161,6 +1170,8 @@ export default function ClassroomActivitiesPage() {
     setSupportLearnerIds([]);
     setSupportLearnerStatuses({});
     setSupportLearnerNotes({});
+    setStrengthLearnerIds([]);
+    setStrengthLearnerNotes({});
     setObservation("");
     setSelectedTodayPlanId(null);
 
@@ -1179,8 +1190,8 @@ export default function ClassroomActivitiesPage() {
     setSaving(false);
 
     alert(
-      validLearnerIds.length > 0
-        ? "Activity completed and learner support cases updated."
+      validLearnerIds.length > 0 || strengthRows.length > 0
+        ? "Activity completed and learner progress records updated."
         : "Activity completed. Learners not selected are treated as meeting expectations."
     );
   }
@@ -1202,6 +1213,13 @@ export default function ClassroomActivitiesPage() {
         return current.filter((id) => id !== learnerId);
       }
 
+      setStrengthLearnerIds((strengths) => strengths.filter((id) => id !== learnerId));
+      setStrengthLearnerNotes((notes) => {
+        const next = { ...notes };
+        delete next[learnerId];
+        return next;
+      });
+
       const openSupport = selectedTodayPlan
         ? getOpenSupportOutcome(
             learnerId,
@@ -1215,6 +1233,31 @@ export default function ClassroomActivitiesPage() {
         [learnerId]: openSupport ? supportStatusValue(openSupport) : "new",
       }));
 
+      return [...current, learnerId];
+    });
+  }
+
+  function toggleStrengthLearner(learnerId: string) {
+    setStrengthLearnerIds((current) => {
+      if (current.includes(learnerId)) {
+        setStrengthLearnerNotes((notes) => {
+          const next = { ...notes };
+          delete next[learnerId];
+          return next;
+        });
+        return current.filter((id) => id !== learnerId);
+      }
+      setSupportLearnerIds((support) => support.filter((id) => id !== learnerId));
+      setSupportLearnerStatuses((statuses) => {
+        const next = { ...statuses };
+        delete next[learnerId];
+        return next;
+      });
+      setSupportLearnerNotes((notes) => {
+        const next = { ...notes };
+        delete next[learnerId];
+        return next;
+      });
       return [...current, learnerId];
     });
   }
@@ -1702,9 +1745,9 @@ export default function ClassroomActivitiesPage() {
               Development focus is captured in the background: {selectedTodayPlan.developmental_area}.
             </p>
 
-            <label style={labelStyle}>Select Learners Needing Support</label>
+            <label style={labelStyle}>Record learner progress from this activity</label>
             <p style={smallHint}>
-              Select only learners who need support. Everyone not selected is treated as meeting expectations.
+              Mark only learners needing support or showing exceptional progress. Everyone else is recorded as having taken part in the class learning opportunity.
             </p>
 
             {learners.length === 0 ? (
@@ -1714,6 +1757,7 @@ export default function ClassroomActivitiesPage() {
                 {visibleLearners.map((learner) => {
                   const learnerId = String(learner.id);
                   const selected = supportLearnerIds.includes(learnerId);
+                  const strengthSelected = strengthLearnerIds.includes(learnerId);
                   const previous = getPreviousOutcome(String(learner.id), selectedTodayPlan.developmental_area, selectedTodayPlan.id);
 
                   return (
@@ -1721,6 +1765,11 @@ export default function ClassroomActivitiesPage() {
                       <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                         <input type="checkbox" checked={selected} onChange={() => toggleSupportLearner(learnerId)} />
                         <strong>{learner.name}</strong>
+                      </label>
+
+                      <label style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "8px" }}>
+                        <input type="checkbox" checked={strengthSelected} onChange={() => toggleStrengthLearner(learnerId)} />
+                        <strong>Highlight exceptional progress</strong>
                       </label>
 
                       {previous ? (
@@ -1750,6 +1799,16 @@ export default function ClassroomActivitiesPage() {
                             style={{ minHeight: "64px", marginTop: "8px" }}
                           />
                         </>
+                      ) : null}
+
+                      {strengthSelected ? (
+                        <textarea
+                          className="db-input"
+                          value={strengthLearnerNotes[learnerId] || ""}
+                          onChange={(event) => setStrengthLearnerNotes((current) => ({ ...current, [learnerId]: event.target.value }))}
+                          placeholder={`Strength or next challenge for ${learner.name}`}
+                          style={{ minHeight: "64px", marginTop: "8px" }}
+                        />
                       ) : null}
                     </div>
                   );

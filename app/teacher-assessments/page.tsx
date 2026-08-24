@@ -71,7 +71,7 @@ type AssessmentRow = {
   status?: string | null;
 };
 type AssessmentValues = Record<string, Record<string, { level: string }>>;
-type EvidenceSnapshot = { attendance: { present: number; absent: number; rate: number | null }; activities: Array<{ developmental_area?: string | null; activity_name?: string | null }>; support_cases: Array<{ developmental_area?: string | null; support_status?: string | null; observation?: string | null }>; support_updates: Array<{ support_status?: string | null; intervention?: string | null; progress_note?: string | null; next_review_date?: string | null }>; summaries: Array<{ notes?: string | null; teacher_notes?: string | null }>; awards: Array<{ award_name?: string | null; award_reason?: string | null }> };
+type EvidenceSnapshot = { attendance: { present: number; absent: number; rate: number | null }; activities: Array<{ developmental_area?: string | null; activity_name?: string | null }>; support_cases: Array<{ developmental_area?: string | null; support_status?: string | null; observation?: string | null }>; strengths: Array<{ developmental_area?: string | null; observation?: string | null }>; support_updates: Array<{ support_status?: string | null; intervention?: string | null; progress_note?: string | null; next_review_date?: string | null }>; summaries: Array<{ notes?: string | null; teacher_notes?: string | null }>; awards: Array<{ award_name?: string | null; award_reason?: string | null }> };
 type AssessmentUpsertRow = {
   school_id: number;
   classroom_id: number;
@@ -262,7 +262,7 @@ export default function TeacherAssessmentsPage() {
       setSelectedLearnerId(requestedLearnerId);
       setSelectedPeriodId(requestedPeriodId);
       setReportType(getClassroomReportType(requestedClassroom.classroom_name));
-      await fetchLearnersByClassroom(requestedClassroomId);
+      await fetchLearnersByClassroom(requestedClassroomId, Number(currentProfile.school_id), classroomRows);
     }
 
     if (role === "teacher" && currentProfile.classroom_id) {
@@ -315,20 +315,20 @@ export default function TeacherAssessmentsPage() {
     return nextPeriods;
   }
 
-  async function fetchLearnersByClassroom(classroomId: string) {
-    if (!schoolId || !classroomId) {
+  async function fetchLearnersByClassroom(classroomId: string, requestedSchoolId = schoolId, classroomRows = classrooms) {
+    if (!requestedSchoolId || !classroomId) {
       setLearners([]);
       return;
     }
 
-    const selectedClassroom = classrooms.find(
+    const selectedClassroom = classroomRows.find(
       (room) => String(room.id) === String(classroomId)
     );
 
     const { data, error } = await supabase
       .from("learners")
       .select("*")
-      .eq("school_id", schoolId)
+      .eq("school_id", requestedSchoolId)
       .or("is_deleted.is.null,is_deleted.eq.false")
       .order("name", { ascending: true });
 
@@ -553,8 +553,7 @@ export default function TeacherAssessmentsPage() {
       <div className="db-soft-card" style={{ padding: 22, marginBottom: 24 }}>
         <h1 className="db-page-title">Learner Progress Assessments</h1>
         <p className="db-page-subtitle">
-          Complete the assessment type selected by the principal for the open
-          report period.
+          Review the learner's evidence before completing the formal assessment in Progress Reports.
         </p>
       </div>
 
@@ -668,8 +667,9 @@ export default function TeacherAssessmentsPage() {
           {evidenceLoading ? <p style={textStyle}>Loading learner evidence…</p> : evidence ? <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
             <p style={textStyle}>Use this evidence to inform your professional judgement. It does not automatically set a rating.</p>
             <div className="db-list-card"><strong>Attendance</strong><p style={textStyle}>{evidence.attendance.rate === null ? "No attendance captured for this period." : `${evidence.attendance.rate}% present · ${evidence.attendance.present} present · ${evidence.attendance.absent} absent`}</p></div>
-            <div className="db-list-card"><strong>Completed learning activities ({evidence.activities.length})</strong><p style={textStyle}>{[...new Set(evidence.activities.map((item) => item.developmental_area).filter(Boolean))].join(" · ") || "No completed activities recorded for this period."}</p></div>
+            <div className="db-list-card"><strong>Completed class learning opportunities ({evidence.activities.length})</strong><p style={textStyle}>{[...new Set(evidence.activities.map((item) => item.developmental_area).filter(Boolean))].join(" · ") || "No completed activities recorded for this period."}</p></div>
             <div className="db-list-card"><strong>Support and interventions</strong><p style={textStyle}>{evidence.support_cases.length ? `${evidence.support_cases.length} support case(s) · ${evidence.support_updates.length} recorded follow-up(s)` : "No learner support cases recorded for this period."}</p>{evidence.support_updates.slice(0, 2).map((item, index) => <p key={index} style={textStyle}>{item.intervention || item.progress_note || item.support_status}{item.next_review_date ? ` · Review: ${item.next_review_date}` : ""}</p>)}</div>
+            <div className="db-list-card"><strong>Strengths and exceptional progress</strong><p style={textStyle}>{evidence.strengths.length ? `${evidence.strengths.length} strength record(s) from classroom activities.` : "No exceptional-progress records for this period."}</p>{evidence.strengths.slice(0, 2).map((item, index) => <p key={index} style={textStyle}>{item.developmental_area}{item.observation ? ` · ${item.observation}` : ""}</p>)}</div>
             <div className="db-list-card"><strong>Daily observations and achievements</strong><p style={textStyle}>{evidence.summaries.length} summary observation(s) · {evidence.awards.length} award(s)</p></div>
           </div> : null}
         </details>
@@ -677,86 +677,12 @@ export default function TeacherAssessmentsPage() {
 
       {canShowAssessmentForm ? (
         <div className="db-card db-card-lavender" style={{ padding: 20 }}>
-          <h3 style={sectionTitle}>
-            {reportType === "grade-r"
-              ? "Grade R Assessment Indicators"
-              : reportType === "grade-rr"
-                ? "Grade RR Assessment Indicators"
-                : "Development Indicators"}
-          </h3>
-
-          <div style={{ display: "grid", gap: 16 }}>
-            {(activeCategories as Category[]).map((category) => (
-              <div key={category.key} className="db-list-card">
-                <strong>{category.label}</strong>
-                <p style={textStyle}>{category.description}</p>
-
-                <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
-                  {getCategoryIndicators(category).map((indicator) => (
-                    <div key={indicator.key}>
-                      <label style={labelText}>{indicator.label}</label>
-
-                      <select
-                        className="db-input"
-                        value={
-                          assessmentValues?.[category.key]?.[indicator.key]
-                            ?.level || ""
-                        }
-                        onChange={(e) =>
-                          updateAssessmentLevel(
-                            category.key,
-                            indicator.key,
-                            e.target.value
-                          )
-                        }
-                      >
-                        <option value="">Select Level</option>
-                        {(activeLevels as LevelOption[]).map((level) => (
-                          <option
-                            key={String(level.value)}
-                            value={String(level.value)}
-                          >
-                            {level.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="db-list-card" style={{ marginTop: 20 }}>
-            <strong>Practitioner Observation</strong>
-            <textarea
-              className="db-input"
-              rows={3}
-              placeholder="Practitioner observation"
-              value={overallComment}
-              onChange={(e) => setOverallComment(e.target.value)}
-            />
-          </div>
-
-          <div style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
-            <button
-              className="db-button-primary"
-              onClick={() => saveAssessment("draft")}
-              disabled={saving}
-            >
-              {saving ? "Saving..." : "Save Draft"}
-            </button>
-
-            <button
-              className="db-button-primary"
-              onClick={() => saveAssessment("submitted")}
-              disabled={saving}
-            >
-              {saving ? "Submitting..." : "Submit to Principal"}
-            </button>
-          </div>
+          <h3 style={sectionTitle}>Complete the formal assessment</h3>
+          <p style={textStyle}>Ratings and practitioner remarks are captured once in Progress Reports. This prevents duplicate assessment records and keeps the principal review flow clear.</p>
+          <button className="db-button-primary" onClick={() => router.push("/progress-reports")}>Open Progress Reports</button>
         </div>
       ) : null}
+
     </div>
   );
 }

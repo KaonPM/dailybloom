@@ -88,10 +88,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const [learnerResult, schoolResult] = await Promise.all([
+    const [learnerResult, schoolResult, standardFeeResult] = await Promise.all([
       supabaseAdmin
         .from("learners")
-        .select("id, name, parent_phone, monthly_fee")
+        .select("id, name, parent_phone, monthly_fee, monthly_fee_type_id")
         .eq("id", learnerId)
         .eq("school_id", schoolId)
         .maybeSingle(),
@@ -99,6 +99,14 @@ export async function POST(request: Request) {
         .from("schools")
         .select("school_name")
         .eq("id", schoolId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("school_fee_types")
+        .select("id, amount")
+        .eq("school_id", schoolId)
+        .eq("fee_code", "monthly_school_fee")
+        .eq("fee_category", "monthly")
+        .eq("is_active", true)
         .maybeSingle(),
     ]);
     const learner = learnerResult.data;
@@ -108,12 +116,33 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
-    const monthlyFee = Number(learner.monthly_fee || 0);
+    if (standardFeeResult.error) throw standardFeeResult.error;
+    const selectedFeeTypeId = Number(learner.monthly_fee_type_id || 0);
+    const selectedFeeResult = selectedFeeTypeId
+      ? await supabaseAdmin
+          .from("school_fee_types")
+          .select("id, amount")
+          .eq("id", selectedFeeTypeId)
+          .eq("school_id", schoolId)
+          .eq("fee_category", "monthly")
+          .eq("is_active", true)
+          .maybeSingle()
+      : null;
+    if (selectedFeeResult?.error) throw selectedFeeResult.error;
+
+    // A learner-specific fee plan overrides the school default. Existing
+    // learner.monthly_fee values remain a fallback for legacy records.
+    const monthlyFee = Number(
+      selectedFeeResult?.data?.amount ??
+        standardFeeResult.data?.amount ??
+        learner.monthly_fee ??
+        0
+    );
     if (monthlyFee <= 0) {
       return NextResponse.json(
         {
           error:
-            "Set this learner's monthly school fee before recording a payment.",
+            "Set a monthly school fee in School Setup or assign a learner fee plan before recording a payment.",
         },
         { status: 400 }
       );
@@ -296,6 +325,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       receipt_number: receipt,
+      allocated_amount: paymentAmount - remaining,
+      credit_amount: remaining,
       push,
     });
   } catch (error: unknown) {

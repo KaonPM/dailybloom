@@ -544,8 +544,8 @@ export default function ProgressReportsPage() {
   }
 
   async function createReportPeriod() {
-    if (!schoolId || !newPeriodTitle.trim()) {
-      alert("Please enter a progress report period title.");
+    if (!schoolId || !newPeriodTitle.trim() || !newOpeningDate || !newClosingDate) {
+      alert("Please enter a report title, opening date and closing date.");
       return;
     }
 
@@ -978,11 +978,11 @@ export default function ProgressReportsPage() {
     nextOpeningDate: string,
     nextClosingDate: string
   ) {
-    if (
-      nextOpeningDate &&
-      nextClosingDate &&
-      nextClosingDate < nextOpeningDate
-    ) {
+    if (!nextOpeningDate || !nextClosingDate) {
+      alert("Every report period needs an opening and closing date.");
+      return;
+    }
+    if (nextClosingDate < nextOpeningDate) {
       alert("Closing date cannot be before the opening date.");
       return;
     }

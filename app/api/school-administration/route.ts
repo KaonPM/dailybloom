@@ -58,7 +58,10 @@ export async function POST(request: Request) {
       const classroom = await supabaseAdmin.from("classrooms").select("id").eq("id", classroomId).eq("school_id", schoolId).maybeSingle();
       if (classroom.error || !classroom.data) return NextResponse.json({ error: classroom.error?.message || "The selected classroom does not belong to this school." }, { status: 400 });
     }
-    const result = await supabaseAdmin.from("school_meetings").insert({ school_id: schoolId, title, meeting_date: meetingDate, audience, classroom_id: audience === "classroom" ? classroomId : null, agenda_url: text(body.agenda_url, 1000) || null, agenda_published_at: body.publish_agenda ? new Date().toISOString() : null, minutes_url: text(body.minutes_url, 1000) || null, minutes_published_at: body.publish_minutes ? new Date().toISOString() : null, acknowledgement_required: true, created_by: access.staff.userId }).select("id,title,classroom_id").single();
+    const agendaUrl = text(body.agenda_url, 1000) || null;
+    const agendaContent = text(body.agenda_content, 20_000) || null;
+    if (!agendaUrl && !agendaContent) return NextResponse.json({ error: "Type an agenda or attach an agenda document." }, { status: 400 });
+    const result = await supabaseAdmin.from("school_meetings").insert({ school_id: schoolId, title, meeting_date: meetingDate, audience, classroom_id: audience === "classroom" ? classroomId : null, agenda_url: agendaUrl, agenda_content: agendaContent, agenda_published_at: body.publish_agenda ? new Date().toISOString() : null, minutes_url: text(body.minutes_url, 1000) || null, minutes_content: text(body.minutes_content, 20_000) || null, minutes_published_at: body.publish_minutes ? new Date().toISOString() : null, acknowledgement_required: true, created_by: access.staff.userId }).select("id,title,classroom_id").single();
     if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
     const delivery = body.publish_agenda ? await notifyParents(schoolId, result.data.classroom_id, `${result.data.title} agenda available`, "A meeting agenda is ready to download in your Parent Portal.") : "skipped";
     return NextResponse.json({ success: true, id: result.data.id, delivery });
@@ -66,7 +69,10 @@ export async function POST(request: Request) {
   if (action === "publish_minutes") {
     const meetingId=text(body.meeting_id,64); const meeting=await supabaseAdmin.from("school_meetings").select("id,title,classroom_id").eq("id",meetingId).eq("school_id",schoolId).maybeSingle();
     if(meeting.error||!meeting.data)return NextResponse.json({error:meeting.error?.message||"Meeting not found."},{status:404});
-    const result = await supabaseAdmin.from("school_meetings").update({ minutes_url: text(body.minutes_url, 1000), minutes_published_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", meetingId).eq("school_id", schoolId);
+    const minutesUrl = text(body.minutes_url, 1000) || null;
+    const minutesContent = text(body.minutes_content, 20_000) || null;
+    if (!minutesUrl && !minutesContent) return NextResponse.json({ error: "Type the minutes or attach an approved minutes document." }, { status: 400 });
+    const result = await supabaseAdmin.from("school_meetings").update({ minutes_url: minutesUrl, minutes_content: minutesContent, minutes_published_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", meetingId).eq("school_id", schoolId);
     if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
     const delivery=await notifyParents(schoolId,meeting.data.classroom_id,`${meeting.data.title} minutes available`,"Meeting minutes are ready. Please read and acknowledge them in your Parent Portal.");
     return NextResponse.json({ success: true, delivery });

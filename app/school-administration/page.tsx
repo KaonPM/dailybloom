@@ -2,16 +2,33 @@
 
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import jsPDF from "jspdf";
 
 import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 import { resolveSchoolContext } from "@/app/lib/school-context";
 
-type Meeting = { id: string; title: string; meeting_date: string; agenda_url?: string; minutes_url?: string; minutes_published_at?: string; acknowledgements?: Array<{ count: number }> };
+type Meeting = { id: string; title: string; meeting_date: string; agenda_url?: string; agenda_content?: string; minutes_url?: string; minutes_content?: string; minutes_published_at?: string; acknowledgements?: Array<{ count: number }> };
 type Survey = { id: string; title: string; survey_type: "dailybloom" | "external"; external_url?: string; closes_at?: string; responses?: Array<{ count: number }> };
 type SurveyQuestion = { id: string; label: string; type: "short_text" | "long_text" | "yes_no" | "rating" | "single_choice" | "checkbox"; options: string[] };
 type AdministrationData = { meetings: Meeting[]; surveys: Survey[]; classrooms: Array<{ id: number; classroom_name: string }> };
 
 const emptyQuestion = (): SurveyQuestion => ({ id: crypto.randomUUID(), label: "", type: "long_text", options: [] });
+
+function downloadMeetingPdf(title: string, meetingDate: string, documentName: "Agenda" | "Minutes", content: string) {
+  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 18;
+  let y = 20;
+  pdf.setFontSize(18); pdf.text(`${title} — ${documentName}`, margin, y); y += 9;
+  pdf.setFontSize(10); pdf.text(new Date(meetingDate).toLocaleString("en-ZA"), margin, y); y += 10;
+  pdf.setFontSize(11);
+  for (const line of pdf.splitTextToSize(content, pageWidth - margin * 2)) {
+    if (y > pageHeight - 18) { pdf.addPage(); y = 20; }
+    pdf.text(line, margin, y); y += 6;
+  }
+  pdf.save(`${title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "meeting"}-${documentName.toLowerCase()}.pdf`);
+}
 
 export default function SchoolAdministrationPage() {
   const params = useSearchParams();
@@ -67,14 +84,15 @@ export default function SchoolAdministrationPage() {
       const form = new FormData(formElement);
       const values = Object.fromEntries(form.entries());
       let agendaUrl = "";
+      const agendaContent = String(form.get("agenda_content") || "").trim();
       if (kind === "meeting") {
         const file = form.get("agenda_file");
-        if (!(file instanceof File) || !file.size) throw new Error("Choose the meeting agenda PDF or Word document.");
-        agendaUrl = await uploadDocument(file);
+        if (file instanceof File && file.size) agendaUrl = await uploadDocument(file);
+        if (!agendaUrl && !agendaContent) throw new Error("Type the agenda or attach a PDF or Word document.");
       }
       const surveyQuestions = questions.map((question, index) => ({ ...question, id: `q${index + 1}`, label: question.label.trim() })).filter((question) => question.label);
       const payload = kind === "meeting"
-        ? { ...values, agenda_file: undefined, agenda_url: agendaUrl, action: "save_meeting", school_id: schoolId, publish_agenda: true }
+        ? { ...values, agenda_file: undefined, agenda_url: agendaUrl, agenda_content: agendaContent, action: "save_meeting", school_id: schoolId, publish_agenda: true }
         : { ...values, survey_type: surveyType, action: "save_survey", school_id: schoolId, questions: surveyQuestions, anonymous: values.anonymous === "on" };
       const response = await authenticatedFetch("/api/school-administration", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const body = await response.json();
@@ -94,10 +112,12 @@ export default function SchoolAdministrationPage() {
     if (!schoolId) return;
     setError(""); setMessage("");
     try {
-      const file = new FormData(event.currentTarget).get("minutes_file");
-      if (!(file instanceof File) || !file.size) throw new Error("Choose the approved minutes PDF or Word document.");
-      const minutesUrl = await uploadDocument(file);
-      const response = await authenticatedFetch("/api/school-administration", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "publish_minutes", school_id: schoolId, meeting_id: meetingId, minutes_url: minutesUrl }) });
+      const form = new FormData(event.currentTarget);
+      const file = form.get("minutes_file");
+      const minutesContent = String(form.get("minutes_content") || "").trim();
+      const minutesUrl = file instanceof File && file.size ? await uploadDocument(file) : "";
+      if (!minutesUrl && !minutesContent) throw new Error("Type the approved minutes or attach a PDF or Word document.");
+      const response = await authenticatedFetch("/api/school-administration", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "publish_minutes", school_id: schoolId, meeting_id: meetingId, minutes_url: minutesUrl, minutes_content: minutesContent }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Minutes could not be published.");
       setMessage(`Minutes published. Parent notification ${body.delivery === "sent" ? "sent" : "is available in Parent Portal"}.`);
@@ -114,21 +134,22 @@ export default function SchoolAdministrationPage() {
 
     <section className="db-card" style={{ padding: 24 }}>
       <h2>Meeting Agenda &amp; Minutes</h2>
-      <p className="db-helper">Publish the agenda before the meeting. Upload the approved minutes afterwards so parents can read and acknowledge them.</p>
+      <p className="db-helper">Type and download an agenda before the meeting. Type and download separate approved minutes afterwards; parents can download and acknowledge the published minutes.</p>
       <form onSubmit={(event) => void submit(event, "meeting")} style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", alignItems: "end" }}>
         <label><span className="db-label">Meeting title</span><input className="db-input" name="title" required /></label>
         <label><span className="db-label">Meeting date and time</span><input className="db-input" type="datetime-local" name="meeting_date" required /></label>
         <label><span className="db-label">Audience</span><select className="db-input" name="audience" value={meetingAudience} onChange={(event) => setMeetingAudience(event.target.value as typeof meetingAudience)}><option value="whole_school">Whole school</option><option value="classroom">One classroom</option></select></label>
         {meetingAudience === "classroom" ? <label><span className="db-label">Classroom</span><select className="db-input" name="classroom_id" required><option value="">Select classroom</option>{data.classrooms.map((room) => <option key={room.id} value={room.id}>{room.classroom_name}</option>)}</select></label> : null}
-        <label><span className="db-label">Agenda document</span><input className="db-input" type="file" name="agenda_file" required accept=".pdf,.doc,.docx" /><small className="db-helper">PDF or Word, up to 10 MB.</small></label>
-        <button className="db-button-primary" type="submit">Upload &amp; Publish Agenda</button>
+        <label><span className="db-label">Optional agenda attachment</span><input className="db-input" type="file" name="agenda_file" accept=".pdf,.doc,.docx" /><small className="db-helper">PDF or Word, up to 10 MB.</small></label>
+        <label style={{ gridColumn: "1 / -1" }}><span className="db-label">Typed agenda</span><textarea className="db-input" name="agenda_content" rows={9} placeholder={"Welcome and apologies\nReview of previous actions\nAgenda items\nDecisions and next steps"} /></label>
+        <button className="db-button-primary" type="submit">Publish Typed Agenda</button>
       </form>
       <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
         {data.meetings.length === 0 ? <p className="db-helper">No meeting agendas have been published yet.</p> : null}
         {data.meetings.slice(0, meetingVisible).map((meeting) => <article className="db-soft-card" key={meeting.id} style={{ padding: 16 }}>
           <strong>{meeting.title}</strong><p className="db-helper">{new Date(meeting.meeting_date).toLocaleString("en-ZA")} · {meeting.minutes_published_at ? "Minutes published" : "Agenda published"} · {meeting.acknowledgements?.[0]?.count || 0} acknowledgements</p>
-          <div className="db-page-actions">{meeting.agenda_url ? <a className="db-button-secondary" href={meeting.agenda_url} target="_blank" rel="noreferrer">Download Agenda</a> : null}{meeting.minutes_url ? <a className="db-button-secondary" href={meeting.minutes_url} target="_blank" rel="noreferrer">Download Minutes</a> : null}</div>
-          {!meeting.minutes_published_at ? <form onSubmit={(event) => void publishMinutes(event, meeting.id)} style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap", alignItems: "end" }}><label style={{ flex: "1 1 280px" }}><span className="db-label">Approved minutes</span><input className="db-input" type="file" name="minutes_file" required accept=".pdf,.doc,.docx" /></label><button className="db-button-primary">Upload Minutes &amp; Prompt Parents</button></form> : null}
+          <div className="db-page-actions">{meeting.agenda_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(meeting.title, meeting.meeting_date, "Agenda", meeting.agenda_content || "")}>Download Typed Agenda</button> : null}{meeting.agenda_url ? <a className="db-button-secondary" href={meeting.agenda_url} target="_blank" rel="noreferrer">Download Agenda Attachment</a> : null}{meeting.minutes_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(meeting.title, meeting.meeting_date, "Minutes", meeting.minutes_content || "")}>Download Typed Minutes</button> : null}{meeting.minutes_url ? <a className="db-button-secondary" href={meeting.minutes_url} target="_blank" rel="noreferrer">Download Minutes Attachment</a> : null}</div>
+          {!meeting.minutes_published_at ? <form onSubmit={(event) => void publishMinutes(event, meeting.id)} style={{ display: "grid", gap: 10, marginTop: 12 }}><label><span className="db-label">Typed approved minutes</span><textarea className="db-input" name="minutes_content" rows={9} placeholder={"Attendees and apologies\nMatters discussed\nDecisions made\nActions, owners and due dates"} /></label><label><span className="db-label">Optional minutes attachment</span><input className="db-input" type="file" name="minutes_file" accept=".pdf,.doc,.docx" /></label><button className="db-button-primary">Publish Minutes &amp; Prompt Parents</button></form> : null}
         </article>)}
         {meetingVisible < data.meetings.length ? <button className="db-button-secondary" type="button" onClick={() => setMeetingVisible((count) => count + 10)}>Show next 10</button> : null}
       </div>

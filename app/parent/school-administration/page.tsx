@@ -2,12 +2,29 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import jsPDF from "jspdf";
 
 type Child = { id: string; name: string };
-type Meeting = { id: string; title: string; meeting_date: string; agenda_url?: string; minutes_url?: string; minutes_published_at?: string; eligible_learner_ids?: string[]; school_meeting_acknowledgements?: Array<{ learner_id: string; acknowledged_at: string }> };
+type Meeting = { id: string; title: string; meeting_date: string; agenda_url?: string; agenda_content?: string; minutes_url?: string; minutes_content?: string; minutes_published_at?: string; eligible_learner_ids?: string[]; school_meeting_acknowledgements?: Array<{ learner_id: string; acknowledged_at: string }> };
 type Question = { id: string; label: string; type: "short_text" | "long_text" | "yes_no" | "rating" | "single_choice" | "checkbox"; options?: string[] };
 type Survey = { id: string; title: string; description?: string; survey_type: "dailybloom" | "external"; external_url?: string; questions?: Question[]; closes_at?: string; eligible_learner_ids?: string[]; school_survey_responses?: Array<{ learner_id: string; submitted_at: string }>; school_survey_completions?: Array<{ learner_id: string; completed_at: string }> };
 type ParentAdministrationData = { meetings: Meeting[]; surveys: Survey[]; children: Child[] };
+
+function downloadMeetingPdf(title: string, meetingDate: string, documentName: "Agenda" | "Minutes", content: string) {
+  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 18;
+  let y = 20;
+  pdf.setFontSize(18); pdf.text(`${title} — ${documentName}`, margin, y); y += 9;
+  pdf.setFontSize(10); pdf.text(new Date(meetingDate).toLocaleString("en-ZA"), margin, y); y += 10;
+  pdf.setFontSize(11);
+  for (const line of pdf.splitTextToSize(content, pageWidth - margin * 2)) {
+    if (y > pageHeight - 18) { pdf.addPage(); y = 20; }
+    pdf.text(line, margin, y); y += 6;
+  }
+  pdf.save(`${title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "meeting"}-${documentName.toLowerCase()}.pdf`);
+}
 
 export default function ParentSchoolAdministrationPage() {
   const [data, setData] = useState<ParentAdministrationData>({ meetings: [], surveys: [], children: [] });
@@ -94,8 +111,10 @@ export default function ParentSchoolAdministrationPage() {
           return <article className="db-soft-card parent-school-admin-item" key={meeting.id}>
             <div><strong>{meeting.title}</strong><p className="db-helper">{new Date(meeting.meeting_date).toLocaleString("en-ZA")}</p></div>
             <div className="db-page-actions parent-school-admin-item-actions">
-              {meeting.agenda_url ? <a className="db-button-secondary" href={meeting.agenda_url} target="_blank" rel="noreferrer">Download Agenda</a> : null}
-              {meeting.minutes_url ? <a className="db-button-secondary" href={meeting.minutes_url} target="_blank" rel="noreferrer">Download Minutes</a> : null}
+              {meeting.agenda_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(meeting.title, meeting.meeting_date, "Agenda", meeting.agenda_content || "")}>Download Agenda</button> : null}
+              {meeting.agenda_url ? <a className="db-button-secondary" href={meeting.agenda_url} target="_blank" rel="noreferrer">Download Agenda Attachment</a> : null}
+              {meeting.minutes_content ? <button className="db-button-secondary" type="button" onClick={() => downloadMeetingPdf(meeting.title, meeting.meeting_date, "Minutes", meeting.minutes_content || "")}>Download Minutes</button> : null}
+              {meeting.minutes_url ? <a className="db-button-secondary" href={meeting.minutes_url} target="_blank" rel="noreferrer">Download Minutes Attachment</a> : null}
               {meeting.minutes_published_at && !acknowledged && learnerId ? <button className="db-button-primary" type="button" onClick={() => void act({ action: "acknowledge_minutes", meeting_id: meeting.id, learner_id: learnerId })}>I confirm that I have received and read these meeting minutes.</button> : null}
               {acknowledged ? <span className="parent-school-admin-status">✓ Minutes acknowledged</span> : null}
             </div>

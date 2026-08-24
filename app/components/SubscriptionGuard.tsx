@@ -7,6 +7,7 @@ type SubscriptionGuardProps = {
   schoolId: number | null;
   featureKey: string;
   children: React.ReactNode;
+  allowWhenUnavailable?: boolean;
 };
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -45,6 +46,7 @@ export default function SubscriptionGuard({
   schoolId,
   featureKey,
   children,
+  allowWhenUnavailable = false,
 }: SubscriptionGuardProps) {
   const [checking, setChecking] = useState(true);
   const [allowed, setAllowed] = useState(false);
@@ -87,7 +89,7 @@ export default function SubscriptionGuard({
     );
   }
 
-  if (!allowed) {
+  if (!allowed && !allowWhenUnavailable) {
     return (
       <div className="db-card db-card-yellow" style={{ padding: "24px" }}>
         <h2 className="db-page-title" style={{ marginBottom: "8px" }}>

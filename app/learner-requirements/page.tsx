@@ -46,7 +46,7 @@ type ChecklistRow = {
 };
 
 type RequirementItemRow = {
-  id: number;
+  id: string | number;
   school_id: number;
   classroom_id: number;
   item_name: string;
@@ -57,6 +57,21 @@ type RequirementItemRow = {
 
 type GlobalRequirementItem = RequirementItemRow & {
   templateKey: TemplateKey | "all";
+};
+
+type SchoolRequirementTemplate = {
+  id: string;
+  template_key: TemplateKey;
+  item_name: string;
+  quantity?: string | null;
+  category: "stationery" | "hygiene";
+  is_active?: boolean | null;
+};
+
+type SchoolDocumentRequirement = {
+  id: string;
+  title: string;
+  is_active?: boolean | null;
 };
 
 type DocumentRow = {
@@ -298,6 +313,8 @@ export default function LearnerRequirementsPage() {
   const [checklist, setChecklist] = useState<ChecklistRow[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [requirementItems, setRequirementItems] = useState<RequirementItemRow[]>([]);
+  const [schoolRequirementTemplates, setSchoolRequirementTemplates] = useState<SchoolRequirementTemplate[]>([]);
+  const [schoolDocumentRequirements, setSchoolDocumentRequirements] = useState<SchoolDocumentRequirement[]>([]);
 
   const [selectedClassroomId, setSelectedClassroomId] = useState("");
   const [newItemName, setNewItemName] = useState("");
@@ -319,9 +336,9 @@ export default function LearnerRequirementsPage() {
   const [workingAction, setWorkingAction] = useState("");
   const [stationeryOpen, setStationeryOpen] = useState(false);
   const [documentsOpen, setDocumentsOpen] = useState(false);
-  const [expandedRequirementId, setExpandedRequirementId] = useState<number | null>(null);
+  const [expandedRequirementId, setExpandedRequirementId] = useState<string | number | null>(null);
   const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
-  const [expandedDocumentId, setExpandedDocumentId] = useState<number | null>(null);
+  const [expandedDocumentId, setExpandedDocumentId] = useState<string | number | null>(null);
   const [documentAction, setDocumentAction] = useState("");
 
   useEffect(() => {
@@ -353,6 +370,7 @@ export default function LearnerRequirementsPage() {
       checklistResult,
       documentsResult,
       requirementItemsResult,
+      schoolDefaultsResult,
     ] = await Promise.all([
       supabase
         .from("learners")
@@ -390,6 +408,9 @@ export default function LearnerRequirementsPage() {
         .limit(0)
         .order("category", { ascending: true })
         .order("item_name", { ascending: true }),
+
+      authenticatedFetch(`/api/learner-requirements/defaults?school_id=${context.schoolId}`)
+        .then(async (response) => ({ data: await response.json(), error: response.ok ? null : "School Setup requirements could not be loaded." })),
     ]);
 
     if (learnersResult.error) return alert(learnersResult.error.message);
@@ -399,6 +420,7 @@ export default function LearnerRequirementsPage() {
     if (requirementItemsResult.error) {
       return alert(requirementItemsResult.error.message);
     }
+    if (schoolDefaultsResult.error) return alert(schoolDefaultsResult.error);
 
     const loadedLearners = (learnersResult.data || []) as LearnerRow[];
     const loadedClassrooms = (classroomsResult.data || []) as ClassroomRow[];
@@ -407,6 +429,8 @@ export default function LearnerRequirementsPage() {
     setChecklist((checklistResult.data || []) as ChecklistRow[]);
     setDocuments((documentsResult.data || []) as DocumentRow[]);
     setRequirementItems((requirementItemsResult.data || []) as RequirementItemRow[]);
+    setSchoolRequirementTemplates((schoolDefaultsResult.data?.requirement_templates || []) as SchoolRequirementTemplate[]);
+    setSchoolDocumentRequirements((schoolDefaultsResult.data?.document_requirements || []) as SchoolDocumentRequirement[]);
     if (String(currentProfile?.role || "").toLowerCase() === "teacher") {
       const assignedClassroom = loadedClassrooms.find((classroom) =>
         Number(classroom.id) === Number(currentProfile?.classroom_id || 0) ||
@@ -543,14 +567,37 @@ export default function LearnerRequirementsPage() {
       (item) => String(item.classroom_id) === selectedClassroomId
     );
 
-    const globalItemsForClass = GLOBAL_REQUIREMENT_ITEMS.filter((item) => {
+    const configuredRequirementItems: RequirementItemRow[] = schoolRequirementTemplates
+      .filter((item) => assignedTemplateKeys.includes(item.template_key))
+      .map((item) => ({
+        id: `template-${item.id}`,
+        school_id: Number(schoolId || 0),
+        classroom_id: 0,
+        item_name: item.item_name,
+        quantity: item.quantity,
+        category: item.category === "hygiene" ? "Hygiene" : "Stationery",
+        is_active: item.is_active,
+      }));
+    const configuredDocumentItems: RequirementItemRow[] = schoolDocumentRequirements.map((item) => ({
+      id: `document-${item.id}`,
+      school_id: Number(schoolId || 0),
+      classroom_id: 0,
+      item_name: canonicalLearnerDocumentName(item.title),
+      quantity: "1 copy",
+      category: "Document",
+      is_active: item.is_active,
+    }));
+    const fallbackItemsForClass = GLOBAL_REQUIREMENT_ITEMS.filter((item) => {
       if (item.templateKey === "all") return true;
       return assignedTemplateKeys.includes(item.templateKey);
     });
+    const defaultItemsForClass = configuredRequirementItems.length || configuredDocumentItems.length
+      ? [...configuredRequirementItems, ...configuredDocumentItems]
+      : fallbackItemsForClass;
 
     const mergedMap = new Map<string, RequirementItemRow>();
 
-    globalItemsForClass.forEach((item) => {
+    defaultItemsForClass.forEach((item) => {
       const itemName =
         item.category === "Document"
           ? canonicalLearnerDocumentName(item.item_name)
@@ -573,7 +620,7 @@ export default function LearnerRequirementsPage() {
     });
 
     return Array.from(mergedMap.values());
-  }, [assignedTemplateKeys, requirementItems, selectedClassroomId]);
+  }, [assignedTemplateKeys, requirementItems, schoolDocumentRequirements, schoolId, schoolRequirementTemplates, selectedClassroomId]);
 
   const assignedStationeryTemplate =
     assignedTemplateKeys.length === 0
@@ -937,7 +984,7 @@ export default function LearnerRequirementsPage() {
                           </div>
                         </div>;
                       })}
-                      {item.id > 0 && canManageRequirements ? <button className="db-button-secondary" style={{ ...smallButton, marginTop: 8 }} onClick={() => deleteRequirementItem(item.id)}>Archive Requirement</button> : null}
+                      {typeof item.id === "number" && item.id > 0 && canManageRequirements ? <button className="db-button-secondary" style={{ ...smallButton, marginTop: 8 }} onClick={() => deleteRequirementItem(Number(item.id))}>Archive Requirement</button> : null}
                     </div> : null}
                   </div>
                 ))}
@@ -989,7 +1036,7 @@ export default function LearnerRequirementsPage() {
                           </div>
                         </div>;
                       })}
-                      {item.id > 0 && canManageRequirements ? <button type="button" className="db-button-secondary" style={{ ...smallButton, marginTop: 8 }} onClick={() => deleteRequirementItem(item.id)}>Archive Requirement</button> : null}
+                      {typeof item.id === "number" && item.id > 0 && canManageRequirements ? <button type="button" className="db-button-secondary" style={{ ...smallButton, marginTop: 8 }} onClick={() => deleteRequirementItem(Number(item.id))}>Archive Requirement</button> : null}
                     </div> : null}
                   </div>
                 ))}

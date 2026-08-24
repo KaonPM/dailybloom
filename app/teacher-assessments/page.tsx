@@ -523,15 +523,13 @@ export default function TeacherAssessmentsPage() {
       </div>
 
       <div className="db-card db-card-blue" style={{ padding: 20, marginBottom: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-          <h3 style={sectionTitle}>Class, Practitioner and Learner</h3>
-
-          {currentStatus ? (
+        {currentStatus ? (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
             <span style={currentStatus === "submitted" ? pillGreen : pillNeutral}>
               {currentStatus === "submitted" ? "Submitted" : "Draft"}
             </span>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         <div className="db-list-card" style={{ marginBottom: 14 }}>
           <strong>Assessment Type</strong>

@@ -108,15 +108,37 @@ export async function GET(request: Request) {
     }
 
     if (workflow === "learner_support") {
-      const { data, error } = await supabaseAdmin
-        .from("learner_support_updates")
-        .select("learner_id, support_status, support_identified, intervention, progress_note, parent_summary, next_review_date, recorded_by_name, recorded_at, learner_activity_outcomes(developmental_area, activity_name)")
-        .eq("school_id", schoolId)
-        .gte("recorded_at", `${from}T00:00:00`)
-        .lte("recorded_at", `${to}T23:59:59`)
-        .order("recorded_at", { ascending: false });
-      if (error) throw error;
-      rows = (data || []).map((item) => {
+      const [{ data: outcomes, error: outcomesError }, { data: updates, error: updatesError }] = await Promise.all([
+        supabaseAdmin
+          .from("learner_activity_outcomes")
+          .select("learner_id, developmental_area, activity_name, activity_date, observation, support_status, created_at")
+          .eq("school_id", schoolId)
+          .eq("outcome_status", "needs_support")
+          .gte("activity_date", from)
+          .lte("activity_date", to)
+          .order("activity_date", { ascending: false }),
+        supabaseAdmin
+          .from("learner_support_updates")
+          .select("learner_id, support_status, support_identified, intervention, progress_note, parent_summary, next_review_date, recorded_by_name, recorded_at, learner_activity_outcomes(developmental_area, activity_name)")
+          .eq("school_id", schoolId)
+          .gte("recorded_at", `${from}T00:00:00`)
+          .lte("recorded_at", `${to}T23:59:59`)
+          .order("recorded_at", { ascending: false }),
+      ]);
+      if (outcomesError || updatesError) throw outcomesError || updatesError;
+
+      const initialCases = (outcomes || []).map((item) => {
+        const learner = learnerDetails(learners, item.learner_id);
+        return {
+          date: dateOnly(item.activity_date || item.created_at),
+          learner: learner.name,
+          classroom: learner.classroom,
+          type: "Learner Support",
+          detail: `${item.developmental_area || "Support area"} | Initial support case | ${item.support_status || "new"}`,
+          extra: [item.activity_name ? `Activity: ${item.activity_name}` : "", item.observation ? `Observation: ${item.observation}` : ""].filter(Boolean).join(" | "),
+        };
+      });
+      const followUps = (updates || []).map((item) => {
         const learner = learnerDetails(learners, item.learner_id);
         const outcome = Array.isArray(item.learner_activity_outcomes) ? item.learner_activity_outcomes[0] : item.learner_activity_outcomes;
         return {
@@ -128,6 +150,7 @@ export async function GET(request: Request) {
           extra: [item.support_identified ? `Support identified: ${item.support_identified}` : "", item.intervention, item.progress_note, item.parent_summary, item.next_review_date ? `Next review: ${item.next_review_date}` : "", item.recorded_by_name ? `Recorded by: ${item.recorded_by_name}` : ""].filter(Boolean).join(" | "),
         };
       });
+      rows = [...initialCases, ...followUps].sort((a, b) => b.date.localeCompare(a.date));
     }
 
     if (workflow === "achievement_awards") {

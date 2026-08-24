@@ -70,7 +70,20 @@ export default function DataDeletionPage() {
           secure backup-retention cycle completes.
         </Section>
 
-        <Section title="5. School-managed information">
+        <Section title="5. Exports, retention and deletion procedures">
+          Exports, retention and deletion follow documented operational
+          procedures. We use authorised, access-controlled processes for data
+          exports and imports; limit exported information to the agreed purpose;
+          validate imported records before approval; and keep an audit record of
+          the action taken. Information is retained only for as long as needed
+          for the school&apos;s operational, legal, safeguarding, financial, audit
+          or dispute-resolution obligations. When deletion is approved, we
+          delete or de-identify eligible active records, restrict any information
+          that must be retained, and allow protected backup copies to expire
+          through the normal backup-retention cycle.
+        </Section>
+
+        <Section title="6. School-managed information">
           Schools use DailyBloom to manage learner and parent information. If
           your request concerns information controlled by a preschool, we may
           refer the request to that school or work with it to complete the
@@ -78,7 +91,7 @@ export default function DataDeletionPage() {
           records that the school is legally required to retain.
         </Section>
 
-        <Section title="6. Meta and WhatsApp information">
+        <Section title="7. Meta and WhatsApp information">
           If you used WhatsApp to receive a DailyBloom enrolment message, access
           code or secure form link, include the mobile number that received the
           message. DailyBloom will identify and delete eligible records under its
@@ -87,7 +100,7 @@ export default function DataDeletionPage() {
           policies.
         </Section>
 
-        <Section title="7. Questions or complaints">
+        <Section title="8. Questions or complaints">
           DailyBloom is operated by Lesedi Smart Solutions (Pty) Ltd and aims to
           process requests consistently with the Protection of Personal
           Information Act, 2013 (POPIA). You may contact us at
@@ -108,7 +121,7 @@ export default function DataDeletionPage() {
           </Link>
         </div>
 
-        <p style={updatedStyle}>Last updated: 12 August 2026</p>
+        <p style={updatedStyle}>Last updated: 24 August 2026</p>
       </section>
     </main>
   );

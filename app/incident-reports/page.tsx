@@ -184,12 +184,25 @@ export default function IncidentReportsPage() {
     setLearners((data || []) as Learner[]);
   }, []);
 
-  const fetchReports = useCallback(async (currentSchoolId: number) => {
-    const { data, error } = await supabase
+  const fetchReports = useCallback(async (currentSchoolId: number, currentProfile: ProfileRow) => {
+    let query = supabase
       .from("incident_reports")
       .select("*")
       .eq("school_id", currentSchoolId)
       .order("created_at", { ascending: false });
+
+    if (currentProfile.role === "teacher") {
+      const classroomName = String(currentProfile.classroom_name || "").trim();
+
+      if (!classroomName) {
+        setReports([]);
+        return;
+      }
+
+      query = query.eq("classroom_name", classroomName);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Incident reports fetch error:", error);
@@ -221,7 +234,7 @@ export default function IncidentReportsPage() {
 
     await Promise.all([
       fetchLearners(context.schoolId, currentProfile),
-      fetchReports(context.schoolId),
+      fetchReports(context.schoolId, currentProfile),
     ]);
 
     setLoading(false);
@@ -369,7 +382,7 @@ export default function IncidentReportsPage() {
       resetForm();
       setShowForm(false);
       setSelectedReport(null);
-      await fetchReports(schoolId);
+      await fetchReports(schoolId, profile);
       alert(principalCreatedReport ? "Incident report saved for review." : "Incident report submitted to principal.");
     } catch (error: unknown) {
       if (uploadedPhotoPaths.length > 0) {
@@ -404,7 +417,7 @@ export default function IncidentReportsPage() {
     }
 
     setAcknowledgeNotes("");
-    await fetchReports(schoolId);
+    await fetchReports(schoolId, profile);
     setSelectedReport(null);
     setAcknowledgingId(null);
     alert("Incident report moved to under review.");
@@ -421,7 +434,7 @@ export default function IncidentReportsPage() {
         incident_report_id: report.id, school_id: schoolId, action,
         actor_id: profile.id, actor_name: profile.full_name || null, details: updates,
       });
-      await fetchReports(schoolId);
+      await fetchReports(schoolId, profile);
       setSelectedReport(null);
     } else alert(error.message);
     setAcknowledgingId(null);

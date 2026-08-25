@@ -500,14 +500,24 @@ export default function ClassroomActivitiesPage() {
 
     setSchoolId(context.schoolId);
 
-    const classroomRows = await fetchClassrooms(context.schoolId);
+    const classroomRows = await fetchClassrooms(context.schoolId, currentProfile);
     await fetchActivityLibrary(context.schoolId);
     await ensureDefaultLibrary(context.schoolId, currentProfile);
-    await fetchWeeklyPlans(context.schoolId);
-    await fetchOutcomes(context.schoolId);
-    await fetchAllLearners(context.schoolId);
-
     const teacherClassroom = getTeacherClassroom(classroomRows, currentProfile);
+    const scopedClassroomId = teacherClassroom?.id;
+
+    if (String(currentProfile.role || "").toLowerCase() === "teacher" && !scopedClassroomId) {
+      setWeeklyPlans([]);
+      setOutcomes([]);
+      setLearners([]);
+      setLoading(false);
+      return;
+    }
+
+    await fetchWeeklyPlans(context.schoolId, scopedClassroomId);
+    await fetchOutcomes(context.schoolId, scopedClassroomId);
+    await fetchAllLearners(context.schoolId, scopedClassroomId);
+
     const firstClassroom = classroomRows[0];
 
     const initialClassroom = teacherClassroom || firstClassroom;
@@ -524,7 +534,10 @@ export default function ClassroomActivitiesPage() {
     setLoading(false);
   }
 
-  async function fetchClassrooms(currentSchoolId: number) {
+  async function fetchClassrooms(
+    currentSchoolId: number,
+    currentProfile: ProfileRow
+  ) {
     const { data, error } = await supabase
       .from("classrooms")
       .select("*")
@@ -536,8 +549,20 @@ export default function ClassroomActivitiesPage() {
       return [];
     }
 
-    setClassrooms(data || []);
-    return data || [];
+    const allClassrooms = (data || []) as ClassroomRow[];
+    const scopedClassrooms = String(currentProfile.role || "").toLowerCase() === "teacher"
+      ? allClassrooms.filter((classroom) => {
+          const assignedId = String(currentProfile.classroom_id || "");
+          const assignedName = String(currentProfile.classroom_name || "").trim().toLowerCase();
+          return (
+            (assignedId && String(classroom.id) === assignedId) ||
+            (assignedName && String(classroom.classroom_name || "").trim().toLowerCase() === assignedName)
+          );
+        })
+      : allClassrooms;
+
+    setClassrooms(scopedClassrooms);
+    return scopedClassrooms;
   }
 
   function getTeacherClassroom(classroomRows: ClassroomRow[], currentProfile: ProfileRow) {
@@ -698,16 +723,20 @@ export default function ClassroomActivitiesPage() {
     }
   }
 
-  async function fetchWeeklyPlans(currentSchoolId: number) {
+  async function fetchWeeklyPlans(currentSchoolId: number, classroomId?: number) {
     const rangeStart = addDays(getJohannesburgDate(), -370);
     const rangeEnd = addDays(getJohannesburgDate(), 180);
-    const { data, error } = await supabase
+    let query = supabase
       .from("weekly_activity_plans")
       .select("*")
       .eq("school_id", currentSchoolId)
       .gte("activity_date", rangeStart)
       .lte("activity_date", rangeEnd)
       .order("activity_date", { ascending: true });
+
+    if (classroomId) query = query.eq("classroom_id", classroomId);
+
+    const { data, error } = await query;
 
     if (error) {
       alert(error.message);
@@ -717,9 +746,9 @@ export default function ClassroomActivitiesPage() {
     setWeeklyPlans(data || []);
   }
 
-  async function fetchOutcomes(currentSchoolId: number) {
+  async function fetchOutcomes(currentSchoolId: number, classroomId?: number) {
     const recentHistoryStart = `${addDays(getJohannesburgDate(), -730)}T00:00:00`;
-    const { data, error } = await supabase
+    let query = supabase
       .from("learner_activity_outcomes")
       .select("*")
       .eq("school_id", currentSchoolId)
@@ -727,6 +756,10 @@ export default function ClassroomActivitiesPage() {
         `support_status.is.null,support_status.neq.resolved,created_at.gte.${recentHistoryStart}`
       )
       .order("created_at", { ascending: false });
+
+    if (classroomId) query = query.eq("classroom_id", classroomId);
+
+    const { data, error } = await query;
 
     if (error) {
       alert(error.message);
@@ -754,12 +787,16 @@ export default function ClassroomActivitiesPage() {
     setLearners(data || []);
   }
 
-  async function fetchAllLearners(currentSchoolId: number) {
-    const { data, error } = await supabase
+  async function fetchAllLearners(currentSchoolId: number, classroomId?: number) {
+    let query = supabase
       .from("learners")
       .select("*")
       .eq("school_id", currentSchoolId)
       .order("name", { ascending: true });
+
+    if (classroomId) query = query.eq("classroom_id", classroomId);
+
+    const { data, error } = await query;
 
     if (error) {
       alert(error.message);

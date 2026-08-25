@@ -4,6 +4,7 @@ import type { ChangeEvent } from "react";
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabase";
+import { getCurrentProfile } from "../../lib/auth";
 import { resolveSchoolContext } from "../../lib/school-context";
 import { authenticatedFetch } from "../../lib/authenticated-fetch";
 import {
@@ -397,6 +398,7 @@ export default function LearnerProfilePage() {
   const [enrolmentHistory, setEnrolmentHistory] = useState<Array<{ id: string; enquiry_reference: string; academic_year: number; status: string; enrolment_source: string; submitted_data?: Record<string, unknown> | null }>>([]);
   const [placementHistory, setPlacementHistory] = useState<Array<{ id: string; academic_year: number; placement_status: string; classroom_id?: number | null; classrooms?: { classroom_name?: string | null } | Array<{ classroom_name?: string | null }> | null }>>([]);
   const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [isTeacherViewer, setIsTeacherViewer] = useState(false);
   const [requirementNote, setRequirementNote] = useState("");
   const [savingRequirementNote, setSavingRequirementNote] = useState(false);
   const [requirementsExpanded, setRequirementsExpanded] = useState(false);
@@ -434,7 +436,10 @@ export default function LearnerProfilePage() {
   }, []);
 
   async function loadLearnerProfile() {
-    const context = await resolveSchoolContext(schoolParam);
+    const [context, { profile }] = await Promise.all([
+      resolveSchoolContext(schoolParam),
+      getCurrentProfile(),
+    ]);
 
     if (context.error) {
       router.push("/login");
@@ -448,12 +453,29 @@ export default function LearnerProfilePage() {
 
     setSchoolId(context.schoolId);
 
-    const { data, error } = await supabase
+    const teacherViewer = String(profile?.role || "").toLowerCase() === "teacher";
+    setIsTeacherViewer(teacherViewer);
+
+    const teacherClassroomName = String(profile?.classroom_name || "").trim();
+    if (teacherViewer && !teacherClassroomName) {
+      alert("You are not assigned to a classroom.");
+      router.push(schoolParam ? `/children?school=${schoolParam}` : "/children");
+      return;
+    }
+
+    let learnerQuery = supabase
       .from("learners")
-      .select("*")
+      .select(
+        teacherViewer
+          ? "id, name, legal_name, class, classroom_id, date_of_birth, gender, nationality, home_language, support_needs, notes, allergies, medical_conditions, medical_instructions"
+          : "*"
+      )
       .eq("id", learnerId)
-      .eq("school_id", context.schoolId)
-      .single();
+      .eq("school_id", context.schoolId);
+
+    if (teacherViewer) learnerQuery = learnerQuery.eq("class", teacherClassroomName);
+
+    const { data, error } = await learnerQuery.single();
 
     if (error || !data) {
       alert(error?.message || "Learner not found.");
@@ -461,11 +483,13 @@ export default function LearnerProfilePage() {
       return;
     }
 
-    const currentLearner = data as LearnerRow;
+    const currentLearner = data as unknown as LearnerRow;
     setLearner(currentLearner);
-    const historyResponse = await authenticatedFetch(`/api/learners/enrolment-history?school_id=${context.schoolId}&learner_id=${encodeURIComponent(currentLearner.id)}`);
-    const historyBody = await historyResponse.json().catch(() => ({}));
-    if (historyResponse.ok) { setEnrolmentHistory(historyBody.history || []); setPlacementHistory(historyBody.placements || []); }
+    if (!teacherViewer) {
+      const historyResponse = await authenticatedFetch(`/api/learners/enrolment-history?school_id=${context.schoolId}&learner_id=${encodeURIComponent(currentLearner.id)}`);
+      const historyBody = await historyResponse.json().catch(() => ({}));
+      if (historyResponse.ok) { setEnrolmentHistory(historyBody.history || []); setPlacementHistory(historyBody.placements || []); }
+    }
     setRequirementNote(currentLearner.notes || "");
 
     if (currentLearner.classroom_id) {
@@ -1228,35 +1252,41 @@ export default function LearnerProfilePage() {
             <Info label="Gender" value={learner.gender} />
             <Info label="Nationality" value={learner.nationality} />
             <Info label="Home Language" value={learner.home_language} />
-            <Info
-              label="Birth Certificate Number"
-              value={learner.birth_certificate_number}
-            />
-            <Info label="SA ID Number" value={learner.sa_id_number} />
-            {/\bgrade\s*r\b/i.test(learner.class || "") &&
-            !/\bgrade\s*rr\b/i.test(learner.class || "") ? (
-              <Info
-                label="Admission Number"
-                value={learner.admission_number || "Not assigned"}
-              />
+            {!isTeacherViewer ? (
+              <>
+                <Info
+                  label="Birth Certificate Number"
+                  value={learner.birth_certificate_number}
+                />
+                <Info label="SA ID Number" value={learner.sa_id_number} />
+                {/\bgrade\s*r\b/i.test(learner.class || "") &&
+                !/\bgrade\s*rr\b/i.test(learner.class || "") ? (
+                  <Info
+                    label="Admission Number"
+                    value={learner.admission_number || "Not assigned"}
+                  />
+                ) : null}
+                <Info label="Passport Number" value={learner.passport_number} />
+              </>
             ) : null}
-            <Info label="Passport Number" value={learner.passport_number} />
             <Info label="Classroom" value={learner.class} />
           </div>
 
-          <h3 style={sectionTitle}>Primary Contact</h3>
+          {!isTeacherViewer ? (
+            <>
+              <h3 style={sectionTitle}>Primary Contact</h3>
 
-          <div style={grid}>
-            <Info label="Name" value={learner.guardian_name} />
-            <Info label="Relationship" value={learner.guardian_relationship} />
-            <Info label="Phone" value={learner.parent_phone} />
-            <Info label="Email" value={learner.parent_email} />
-            <Info label="ID Number" value={learner.guardian_id_number} />
-          </div>
-          <div style={{ marginTop: 18 }}><h3 style={sectionTitle}>Enrolment History</h3>{enrolmentHistory.length ? <div style={{ display: "grid", gap: 8 }}>{enrolmentHistory.map((record) => <details className="db-soft-card" key={record.id} style={{ padding: 10 }}><summary style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", cursor: "pointer" }}><strong>{record.academic_year} · {record.status.replace(/_/g, " ")}</strong><span className="db-helper">Ref: {record.enquiry_reference} · {record.enrolment_source.replace(/_/g, " ")}</span></summary><LearnerFormSnapshot data={record.submitted_data} /></details>)}</div> : <p className="db-helper">No enrolment history is linked to this learner yet.</p>}</div>
-          <div style={{ marginTop: 18 }}><h3 style={sectionTitle}>Classroom Placement History</h3>{placementHistory.length ? <div style={{ display: "grid", gap: 8 }}>{placementHistory.map((placement) => { const classroom = Array.isArray(placement.classrooms) ? placement.classrooms[0] : placement.classrooms; return <div className="db-soft-card" key={placement.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong>{placement.academic_year} · {classroom?.classroom_name || "Awaiting classroom"}</strong><span className="db-helper">{placement.placement_status.replace(/_/g, " ")}</span></div>; })}</div> : <p className="db-helper">No classroom placement history is recorded yet.</p>}</div>
+              <div style={grid}>
+                <Info label="Name" value={learner.guardian_name} />
+                <Info label="Relationship" value={learner.guardian_relationship} />
+                <Info label="Phone" value={learner.parent_phone} />
+                <Info label="Email" value={learner.parent_email} />
+                <Info label="ID Number" value={learner.guardian_id_number} />
+              </div>
+              <div style={{ marginTop: 18 }}><h3 style={sectionTitle}>Enrolment History</h3>{enrolmentHistory.length ? <div style={{ display: "grid", gap: 8 }}>{enrolmentHistory.map((record) => <details className="db-soft-card" key={record.id} style={{ padding: 10 }}><summary style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", cursor: "pointer" }}><strong>{record.academic_year} · {record.status.replace(/_/g, " ")}</strong><span className="db-helper">Ref: {record.enquiry_reference} · {record.enrolment_source.replace(/_/g, " ")}</span></summary><LearnerFormSnapshot data={record.submitted_data} /></details>)}</div> : <p className="db-helper">No enrolment history is linked to this learner yet.</p>}</div>
+              <div style={{ marginTop: 18 }}><h3 style={sectionTitle}>Classroom Placement History</h3>{placementHistory.length ? <div style={{ display: "grid", gap: 8 }}>{placementHistory.map((placement) => { const classroom = Array.isArray(placement.classrooms) ? placement.classrooms[0] : placement.classrooms; return <div className="db-soft-card" key={placement.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong>{placement.academic_year} · {classroom?.classroom_name || "Awaiting classroom"}</strong><span className="db-helper">{placement.placement_status.replace(/_/g, " ")}</span></div>; })}</div> : <p className="db-helper">No classroom placement history is recorded yet.</p>}</div>
 
-          <div className="db-soft-card" style={{ padding: 12, marginTop: 10 }}>
+              <div className="db-soft-card" style={{ padding: 12, marginTop: 10 }}>
             <strong style={labelText}>Parent Portal Phone Number</strong>
             <p style={{ ...valueText, marginBottom: 10 }}>
               Used for Parent Portal access and parent-facing notifications.
@@ -1299,25 +1329,31 @@ export default function LearnerProfilePage() {
                 Edit Parent Portal Phone Number
               </button>
             )}
-          </div>
+              </div>
+            </>
+          ) : null}
 
           <h3 style={sectionTitle}>Medical Aid Information</h3>
           <div style={grid}>
-            <Info
-              label="Has Medical Aid"
-              value={learner.has_medical_aid ? "Yes" : "No"}
-            />
-            {learner.has_medical_aid ? (
+            {!isTeacherViewer ? (
               <>
-                <Info label="Medical Aid Name" value={learner.medical_aid_name} />
-                <Info label="Membership Number" value={learner.medical_aid_number} />
-                <Info label="Main Member" value={learner.medical_aid_main_member} />
-                <Info label="Medical Aid Telephone" value={learner.medical_aid_phone} />
+                <Info
+                  label="Has Medical Aid"
+                  value={learner.has_medical_aid ? "Yes" : "No"}
+                />
+                {learner.has_medical_aid ? (
+                  <>
+                    <Info label="Medical Aid Name" value={learner.medical_aid_name} />
+                    <Info label="Membership Number" value={learner.medical_aid_number} />
+                    <Info label="Main Member" value={learner.medical_aid_main_member} />
+                    <Info label="Medical Aid Telephone" value={learner.medical_aid_phone} />
+                  </>
+                ) : null}
+                <Info label="Family Doctor" value={learner.family_doctor_name} />
+                <Info label="Doctor Telephone" value={learner.family_doctor_phone} />
+                <Info label="Preferred Hospital" value={learner.preferred_hospital} />
               </>
             ) : null}
-            <Info label="Family Doctor" value={learner.family_doctor_name} />
-            <Info label="Doctor Telephone" value={learner.family_doctor_phone} />
-            <Info label="Preferred Hospital" value={learner.preferred_hospital} />
             <Info label="Allergies" value={learner.allergies || "None recorded"} />
             <Info
               label="Medical Conditions"

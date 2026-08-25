@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
+import { getCurrentProfile } from "../lib/auth";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { resolveSchoolContext } from "../lib/school-context";
+import { PERMISSIONS } from "../lib/permissions";
 
 type EventRow = {
   id: number;
@@ -36,13 +39,17 @@ export default function EventsPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [canManageEvents, setCanManageEvents] = useState(false);
 
   useEffect(() => {
     loadPage();
   }, []);
 
   async function loadPage() {
-    const context = await resolveSchoolContext(schoolParam);
+    const [context, { profile }] = await Promise.all([
+      resolveSchoolContext(schoolParam),
+      getCurrentProfile(),
+    ]);
 
     if (context.error) {
       router.push("/login");
@@ -54,6 +61,11 @@ export default function EventsPage() {
       return;
     }
 
+    const role = String(profile?.role || "").toLowerCase();
+    setCanManageEvents(
+      ["owner", "principal", "master"].includes(role) ||
+        (role === "admin" && Boolean(profile?.permissions?.includes(PERMISSIONS.EVENTS_MANAGE)))
+    );
     setSchoolId(context.schoolId);
     await fetchEvents(context.schoolId);
     setLoading(false);
@@ -93,7 +105,7 @@ export default function EventsPage() {
   }
 
   async function saveEvent() {
-    if (!schoolId) return;
+    if (!schoolId || !canManageEvents) return;
 
     if (!eventDate || !title.trim()) {
       alert("Please complete event date and event title.");
@@ -102,43 +114,33 @@ export default function EventsPage() {
 
     setSaving(true);
 
+    const response = await authenticatedFetch("/api/school-events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: editingId ? "update" : "create",
+        school_id: schoolId,
+        event_id: editingId,
+        event_date: eventDate,
+        title: title.trim(),
+        description: description.trim() || null,
+      }),
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "Could not save school event.");
+      setSaving(false);
+      return;
+    }
+
     if (editingId) {
-      const { error } = await supabase
-        .from("events")
-        .update({
-          event_date: eventDate,
-          title: title.trim(),
-          description: description.trim() || null,
-        })
-        .eq("id", editingId);
-
-      if (error) {
-        alert(error.message);
-        setSaving(false);
-        return;
-      }
-
       resetForm();
       setShowForm(false);
       await fetchEvents(schoolId);
 
       setSaving(false);
       alert("School event updated.");
-      return;
-    }
-
-    const { error } = await supabase.from("events").insert([
-      {
-        school_id: schoolId,
-        event_date: eventDate,
-        title: title.trim(),
-        description: description.trim() || null,
-      },
-    ]);
-
-    if (error) {
-      alert(error.message);
-      setSaving(false);
       return;
     }
 
@@ -151,13 +153,19 @@ export default function EventsPage() {
   }
 
   async function deleteEvent(eventId: number) {
+    if (!schoolId || !canManageEvents) return;
     const confirmed = confirm("Delete this school event?");
     if (!confirmed) return;
 
-    const { error } = await supabase.from("events").delete().eq("id", eventId);
+    const response = await authenticatedFetch("/api/school-events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", school_id: schoolId, event_id: eventId }),
+    });
+    const result = await response.json();
 
-    if (error) {
-      alert(error.message);
+    if (!response.ok) {
+      alert(result.error || "Could not delete school event.");
       return;
     }
 
@@ -201,7 +209,7 @@ export default function EventsPage() {
             ) : null}
           </div>
 
-          <button
+          {canManageEvents ? <button
             type="button"
             className="db-button-primary"
             onClick={() => {
@@ -210,11 +218,11 @@ export default function EventsPage() {
             }}
           >
             {showForm ? "Close" : "Create School Event"}
-          </button>
+          </button> : null}
         </div>
       </div>
 
-      {showForm ? (
+      {showForm && canManageEvents ? (
         <div
           className="db-card db-card-blue"
           style={{ padding: 16, marginBottom: 18 }}

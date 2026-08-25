@@ -70,14 +70,14 @@ export async function POST(request: Request) {
 
     await admin
       .from("profiles")
-      .update({ classroom_id: null, classroom_name: null })
+      .update({ classroom_name: null })
       .eq("school_id", schoolId)
       .eq("role", "teacher")
       .eq("classroom_name", classroomName);
 
     const { data: assignedTeacher, error } = await admin
       .from("profiles")
-      .update({ classroom_id: classroom.id, classroom_name: classroomName })
+      .update({ classroom_name: classroomName })
       .eq("id", teacherId)
       .eq("school_id", schoolId)
       .eq("role", "teacher")

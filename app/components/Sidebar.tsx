@@ -540,10 +540,6 @@ export default function Sidebar() {
   const showSchoolActions = !isMasterAdmin && (Boolean(school) || !isMaster);
 
   useEffect(() => {
-    if (isTeacher) setQuickActionsOpen(true);
-  }, [isTeacher]);
-
-  useEffect(() => {
     if (!profile?.id) return;
 
     const channel = supabase

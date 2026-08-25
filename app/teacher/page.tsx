@@ -31,7 +31,7 @@ type EventItem = {
 };
 
 type LearnerItem = {
-  id: number;
+  id: string;
   name?: string | null;
   class?: string | null;
   classroom_id?: number | null;
@@ -68,7 +68,7 @@ type AttendanceItem = {
 };
 
 type UpcomingBirthdayItem = {
-  id: number;
+  id: string;
   name?: string | null;
   nextBirthdayLabel: string;
   daysUntil: number;
@@ -82,19 +82,19 @@ type TeacherOverview = {
 };
 
 type OutstandingRequirementItem = {
-  learnerId: number;
+  learnerId: string;
   learnerName: string;
   missingItems: string[];
 };
 
 type StationeryChecklistSource = {
-  learner_id: number;
+  learner_id: string;
   item_name?: string | null;
   received?: boolean | null;
 };
 
 type OtherRequirementSource = {
-  learner_id: number;
+  learner_id: string;
   requirement_name?: string | null;
   completed?: boolean | null;
 };
@@ -460,10 +460,10 @@ export default function TeacherDashboardPage() {
     }
 
     const learnerIds = learners.map((learner) => learner.id);
-    const learnerMap = new Map<number, LearnerItem>();
+    const learnerMap = new Map<string, LearnerItem>();
 
     learners.forEach((learner) => {
-      learnerMap.set(Number(learner.id), learner);
+      learnerMap.set(String(learner.id), learner);
     });
 
     const [stationeryRes, otherRequirementsRes] = await Promise.all([
@@ -490,12 +490,12 @@ export default function TeacherDashboardPage() {
       return;
     }
 
-    const missingByLearner = new Map<number, string[]>();
+    const missingByLearner = new Map<string, string[]>();
 
     ((stationeryRes.data || []) as StationeryChecklistSource[]).forEach((item) => {
       if (item.received === true) return;
 
-      const learnerId = Number(item.learner_id);
+      const learnerId = String(item.learner_id);
       const currentItems = missingByLearner.get(learnerId) || [];
 
       currentItems.push(item.item_name || "Unnamed item");
@@ -506,7 +506,7 @@ export default function TeacherDashboardPage() {
     ((otherRequirementsRes.data || []) as OtherRequirementSource[]).forEach((item) => {
       if (item.completed === true) return;
 
-      const learnerId = Number(item.learner_id);
+      const learnerId = String(item.learner_id);
       const currentItems = missingByLearner.get(learnerId) || [];
 
       currentItems.push(item.requirement_name || "Unnamed requirement");

@@ -68,7 +68,7 @@ export default function Sidebar() {
   const [filteredSchoolManagementNav, setFilteredSchoolManagementNav] = useState<NavItem[]>([]);
   const [filteredTeacherSchoolManagementNav, setFilteredTeacherSchoolManagementNav] = useState<NavItem[]>([]);
 
-  const [quickActionsOpen, setQuickActionsOpen] = useState(true);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [openWorkflowGroups, setOpenWorkflowGroups] = useState<
     Record<string, { pathname: string; open: boolean }>
   >({});
@@ -386,18 +386,6 @@ export default function Sidebar() {
     ],
     []
   );
-
-  useEffect(() => {
-    const savedQuickActions = localStorage.getItem("db-quick-actions");
-
-    if (savedQuickActions !== null) {
-      setQuickActionsOpen(savedQuickActions === "true");
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("db-quick-actions", String(quickActionsOpen));
-  }, [quickActionsOpen]);
 
   useEffect(() => {
     loadSidebarContext();

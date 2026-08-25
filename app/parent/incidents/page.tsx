@@ -9,6 +9,8 @@ type ParentIncident = {
   action_taken?: string; urgency?: string; injury_occurred?: string; injury_description?: string;
   medical_assistance_required?: boolean; parent_portal_message?: string;
   parent_acknowledged_at?: string; parent_acknowledged_by?: string; parent_comment?: string;
+  behaviour_trigger?: string; behaviour_duration?: string; people_affected?: string; deescalation_used?: string;
+  settling_support?: string; learner_support_required?: boolean; follow_up_owner?: string; follow_up_due_date?: string;
 };
 
 export default function ParentIncidentsPage() {
@@ -46,7 +48,7 @@ export default function ParentIncidentsPage() {
       reports.map((report) => <article key={report.id} className="db-soft-card" style={{ padding: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div><h2 style={{ margin: 0, color: "#2D2A3E" }}>{report.incident_type || "Incident report"}</h2>
-          <p className="db-helper">{report.learner_name} - {report.incident_date} {report.incident_time || ""}</p></div>
+          <p className="db-helper">{report.learner_name} · {report.incident_date ? new Date(`${report.incident_date}T${report.incident_time || "00:00"}`).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: report.incident_time ? "short" : undefined }) : "Date not recorded"}{report.report_reference ? ` · Ref ${report.report_reference}` : ""}</p></div>
           <span style={{ alignSelf: "start", borderRadius: 999, padding: "6px 10px", background: report.parent_acknowledged_at ? "#EEF9EE" : "#FFF7D9", fontWeight: 800 }}>
             {report.parent_acknowledged_at ? "Receipt acknowledged" : "Please acknowledge"}</span>
         </div>
@@ -54,6 +56,7 @@ export default function ParentIncidentsPage() {
         <p><strong>What happened:</strong> {report.description}</p>
         <p><strong>Action taken:</strong> {report.action_taken || "No additional action recorded."}</p>
         {report.injury_occurred && report.injury_occurred !== "no" ? <p><strong>Injury:</strong> {report.injury_description || "An injury was recorded."}</p> : null}
+        {[report.behaviour_trigger, report.behaviour_duration, report.people_affected, report.deescalation_used, report.settling_support, report.learner_support_required, report.follow_up_owner, report.follow_up_due_date].some(Boolean) ? <div style={{ padding: 12, borderRadius: 12, background: "#F8F4FF", marginTop: 12 }}><strong>Behaviour support and follow-up</strong>{report.behaviour_trigger ? <p><strong>What happened before:</strong> {report.behaviour_trigger}</p> : null}{report.behaviour_duration ? <p><strong>Duration:</strong> {report.behaviour_duration}</p> : null}{report.people_affected ? <p><strong>People involved:</strong> {report.people_affected}</p> : null}{report.deescalation_used ? <p><strong>Support used:</strong> {report.deescalation_used}</p> : null}{report.settling_support ? <p><strong>What helped:</strong> {report.settling_support}</p> : null}{report.learner_support_required ? <p><strong>Follow-up:</strong> {report.follow_up_owner || "The school will provide additional support."}{report.follow_up_due_date ? ` · by ${new Date(`${report.follow_up_due_date}T00:00`).toLocaleDateString("en-ZA", { dateStyle: "medium" })}` : ""}</p> : null}</div> : null}
         {report.parent_portal_message ? <div style={{ padding: 12, borderRadius: 12, background: "#EAF7FD" }}><strong>Message from the principal</strong><p style={{ marginBottom: 0 }}>{report.parent_portal_message}</p></div> : null}
         {!report.parent_acknowledged_at ? <div style={{ marginTop: 14 }}>
           <label><strong>Optional comment</strong><textarea className="db-input" rows={3} value={comments[report.id] || ""} onChange={(event) => setComments((current) => ({ ...current, [report.id]: event.target.value }))} /></label>

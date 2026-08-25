@@ -18,6 +18,7 @@ export type FeeStatementSchool = {
   physical_address?: string | null;
   primary_color?: string | null;
   secondary_color?: string | null;
+  banking_details?: { bank_account_name?: string | null; bank_name?: string | null; bank_account_number?: string | null; bank_branch_code?: string | null; bank_account_type?: string | null } | null;
 };
 
 type Props = {
@@ -171,6 +172,16 @@ export default function FeeStatementDocument({
           </small>
         ) : null}
       </aside>
+
+      {school?.banking_details?.bank_account_number ? (
+        <section className="fee-document-identity" style={{ background: secondary }}>
+          <div><strong>Payment details</strong><p>{school.banking_details.bank_account_name || school.school_name || "School account"}</p></div>
+          {school.banking_details.bank_name ? <div><strong>Bank</strong><p>{school.banking_details.bank_name}</p></div> : null}
+          <div><strong>Account number</strong><p>{school.banking_details.bank_account_number}</p></div>
+          {school.banking_details.bank_branch_code ? <div><strong>Branch code</strong><p>{school.banking_details.bank_branch_code}</p></div> : null}
+          {school.banking_details.bank_account_type ? <div><strong>Account type</strong><p>{school.banking_details.bank_account_type}</p></div> : null}
+        </section>
+      ) : null}
 
       <footer className="fee-document-footer">
         <span>

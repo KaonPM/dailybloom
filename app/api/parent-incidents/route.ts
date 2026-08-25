@@ -17,6 +17,8 @@ async function getParentSession() {
 const parentSafeFields = `id, learner_id, learner_name, report_reference, incident_date,
   incident_time, incident_location, incident_type, description, action_taken, urgency,
   injury_occurred, injury_description, medical_assistance_required, parent_portal_message,
+  behaviour_trigger, behaviour_duration, people_affected, deescalation_used, settling_support,
+  learner_support_required, follow_up_owner, follow_up_due_date, resolution_notes,
   parent_portal_published_at, parent_acknowledged_at, parent_acknowledged_by, parent_comment`;
 
 export async function GET() {

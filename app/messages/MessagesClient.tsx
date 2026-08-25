@@ -442,21 +442,29 @@ export default function MessagesClient({
       });
     });
 
-    if (contacts.length > 0) {
+    const uniqueContacts = contacts.filter((contact, index, all) =>
+      all.findIndex((candidate) =>
+        candidate.id === contact.id &&
+        candidate.learner_id === contact.learner_id &&
+        candidate.role === contact.role
+      ) === index
+    );
+
+    if (uniqueContacts.length > 0) {
       const requestedContactId = searchParams.get("contact");
       const requestedLearnerId = searchParams.get("learner");
-      const requestedContact = contacts.find((contact) =>
+      const requestedContact = uniqueContacts.find((contact) =>
         (!requestedContactId || String(contact.id) === requestedContactId) &&
         (!requestedLearnerId || String(contact.learner_id || "") === requestedLearnerId)
       );
-      setActiveContact(requestedContact || contacts[0]);
+      setActiveContact(requestedContact || uniqueContacts[0]);
     } else {
       setActiveContact(null);
     }
 
-    setPrincipalContacts(contacts.filter((contact) => contact.role === "principal"));
-    setAdministratorContacts(contacts.filter((contact) => contact.role === "admin"));
-    setTeacherContacts(contacts.filter((contact) => contact.role === "teacher"));
+    setPrincipalContacts(uniqueContacts.filter((contact) => contact.role === "principal"));
+    setAdministratorContacts(uniqueContacts.filter((contact) => contact.role === "admin"));
+    setTeacherContacts(uniqueContacts.filter((contact) => contact.role === "teacher"));
     setSupportContacts([]);
   }
 
@@ -1189,7 +1197,9 @@ export default function MessagesClient({
             <p className="db-page-subtitle">
               {role === "master" || role === "master_admin"
                 ? "Respond to secure DailyBloom Support messages from school leadership."
-                : "Send and receive messages with parents, practitioners and school leadership."}
+                : mode === "parent"
+                  ? "Send and receive private messages with your school team."
+                  : "Send and receive messages with parents, practitioners and school leadership."}
             </p>
           </div>
 

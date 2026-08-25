@@ -616,6 +616,7 @@ export default function IncidentReportsPage() {
                 <option value="">Select incident type</option>
                 {incidentTypes.map((type) => <option key={type} value={type}>{type}</option>)}
               </select>
+              <p style={smallText}>Choose “Accident or injury” for falls, bruises or other physical injuries. Choose a behaviour type only when the main concern is the learner&apos;s behaviour.</p>
             </Field>
 
             <Field label="Incident Date">

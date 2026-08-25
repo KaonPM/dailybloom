@@ -12,7 +12,8 @@ type Payment = {
   payment_method: string;
   receipt_number: string;
 };
-type School = { school_name?: string | null; logo_url?: string | null };
+type BankingDetails = { bank_account_name?: string | null; bank_name?: string | null; bank_account_number?: string | null; bank_branch_code?: string | null; bank_account_type?: string | null };
+type School = { school_name?: string | null; logo_url?: string | null; banking_details?: BankingDetails | null };
 type LearnerAccount = { monthly_fee?: number | null };
 type ActivityRow = {
   date: string;
@@ -184,6 +185,19 @@ export default function ParentFeesPage() {
           >
             Open / Print Statement
           </button>
+        ) : null}
+
+        {school?.banking_details?.bank_account_number ? (
+          <div className="db-soft-card" style={{ marginTop: 18, padding: 14, background: "#F8F4FF" }}>
+            <strong style={{ color: "#2D2A3E" }}>Payment details</strong>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8, marginTop: 10 }}>
+              {school.banking_details.bank_account_name ? <span><strong>Account name:</strong> {school.banking_details.bank_account_name}</span> : null}
+              {school.banking_details.bank_name ? <span><strong>Bank:</strong> {school.banking_details.bank_name}</span> : null}
+              <span><strong>Account number:</strong> {school.banking_details.bank_account_number}</span>
+              {school.banking_details.bank_branch_code ? <span><strong>Branch code:</strong> {school.banking_details.bank_branch_code}</span> : null}
+              {school.banking_details.bank_account_type ? <span><strong>Account type:</strong> {school.banking_details.bank_account_type}</span> : null}
+            </div>
+          </div>
         ) : null}
 
         <h2 style={{ color: "#2D2A3E", marginTop: 24 }}>Account activity</h2>

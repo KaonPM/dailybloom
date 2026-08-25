@@ -53,16 +53,15 @@ export async function POST(request: Request) {
 
     const { data: teacher, error: teacherError } = await admin
       .from("profiles")
-      .select("id")
+      .select("id, is_active")
       .eq("id", teacherId)
       .eq("school_id", schoolId)
       .eq("role", "teacher")
-      .eq("is_active", true)
       .maybeSingle();
     if (teacherError) {
       return NextResponse.json({ error: teacherError.message }, { status: 400 });
     }
-    if (!teacher) {
+    if (!teacher || teacher.is_active === false) {
       return NextResponse.json(
         { error: "The selected practitioner could not be found in this school." },
         { status: 404 }

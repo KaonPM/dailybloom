@@ -18,7 +18,7 @@ using (
         )
         or (
           profile.school_id = incident_reports.school_id
-          and profile.role = 'teacher'
+          and profile.role in ('teacher', 'practitioner', 'educator')
           and incident_reports.teacher_id = auth.uid()
           and nullif(trim(profile.classroom_name), '') is not null
           and exists (

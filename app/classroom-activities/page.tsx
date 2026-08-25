@@ -506,7 +506,7 @@ export default function ClassroomActivitiesPage() {
     const teacherClassroom = getTeacherClassroom(classroomRows, currentProfile);
     const scopedClassroomId = teacherClassroom?.id;
 
-    if (String(currentProfile.role || "").toLowerCase() === "teacher" && !scopedClassroomId) {
+    if (["teacher", "practitioner", "educator"].includes(String(currentProfile.role || "").toLowerCase()) && !scopedClassroomId) {
       setWeeklyPlans([]);
       setOutcomes([]);
       setLearners([]);
@@ -550,7 +550,7 @@ export default function ClassroomActivitiesPage() {
     }
 
     const allClassrooms = (data || []) as ClassroomRow[];
-    const scopedClassrooms = String(currentProfile.role || "").toLowerCase() === "teacher"
+    const scopedClassrooms = ["teacher", "practitioner", "educator"].includes(String(currentProfile.role || "").toLowerCase())
       ? allClassrooms.filter((classroom) => {
           const assignedId = String(currentProfile.classroom_id || "");
           const assignedName = String(currentProfile.classroom_name || "").trim().toLowerCase();

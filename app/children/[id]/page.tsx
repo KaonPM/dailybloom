@@ -453,7 +453,9 @@ export default function LearnerProfilePage() {
 
     setSchoolId(context.schoolId);
 
-    const teacherViewer = String(profile?.role || "").toLowerCase() === "teacher";
+    const teacherViewer = ["teacher", "practitioner", "educator"].includes(
+      String(profile?.role || "").toLowerCase()
+    );
     setIsTeacherViewer(teacherViewer);
 
     const teacherClassroomName = String(profile?.classroom_name || "").trim();

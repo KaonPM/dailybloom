@@ -191,7 +191,7 @@ export default function IncidentReportsPage() {
       .eq("school_id", currentSchoolId)
       .order("created_at", { ascending: false });
 
-    if (currentProfile.role === "teacher") {
+    if (["teacher", "practitioner", "educator"].includes(String(currentProfile.role || "").toLowerCase())) {
       const classroomName = String(currentProfile.classroom_name || "").trim();
 
       if (!classroomName) {

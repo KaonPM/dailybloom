@@ -27,6 +27,7 @@ type SchoolSettings = {
 };
 
 type SchoolBrand = { school_name?: string | null; logo_url?: string | null; primary_color?: string | null };
+type SchoolRegistration = { registration_number?: string | null; physical_address?: string | null; contact_number?: string | null; email_address?: string | null };
 type UniversalEnrolmentConfiguration = { form_title: string; introduction?: string | null; is_open: boolean; second_guardian_mode: "hidden" | "optional" | "required"; emergency_contact_mode: "hidden" | "optional" | "required"; previous_school_enabled: boolean; additional_declaration?: string | null; custom_fields?: CustomFormField[] };
 type DocumentRequirement = { id: string; title: string; instructions?: string | null; is_required: boolean; is_active: boolean; display_order: number };
 type RequirementTemplateKey = "0_2" | "2_6";
@@ -60,6 +61,7 @@ export default function SchoolSetupPage() {
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [settings, setSettings] = useState<SchoolSettings>(emptySettings);
   const [schoolBrand, setSchoolBrand] = useState<SchoolBrand | null>(null);
+  const [schoolRegistration, setSchoolRegistration] = useState<SchoolRegistration | null>(null);
   const [universalConfiguration, setUniversalConfiguration] = useState<UniversalEnrolmentConfiguration>(emptyUniversalConfiguration);
   const [documentRequirements, setDocumentRequirements] = useState<DocumentRequirement[]>([]);
   const [requirementTemplates, setRequirementTemplates] = useState<RequirementTemplate[]>([]);
@@ -138,6 +140,7 @@ export default function SchoolSetupPage() {
       if (!response.ok) throw new Error(body.error || "School Setup could not be loaded.");
       setSettings({ ...emptySettings, ...(body.settings || {}) });
       setSchoolBrand(body.school || null);
+      setSchoolRegistration(body.registration || null);
       setUniversalConfiguration({ ...emptyUniversalConfiguration, ...(body.enrolment_configuration || {}) });
       setDocumentRequirements(body.document_requirements || []);
       const loadedRequirements = ((body.requirement_templates || []) as Array<Partial<RequirementTemplate> & Pick<RequirementTemplate, "id" | "category" | "item_name" | "is_required" | "is_active" | "display_order">>).map((item) => ({ ...item, template_key: item.template_key === "0_2" ? "0_2" : "2_6", available_from_months: item.available_from_months ?? (item.template_key === "0_2" ? (item.category === "hygiene" ? 0 : 6) : 24), available_to_months: item.available_to_months ?? (item.template_key === "0_2" ? 24 : 72) })) as RequirementTemplate[];
@@ -482,6 +485,10 @@ export default function SchoolSetupPage() {
       school_name: schoolBrand?.school_name || "Your School",
       school_logo_url: schoolBrand?.logo_url || null,
       school_primary_color: schoolBrand?.primary_color || null,
+      school_registration_number: schoolRegistration?.registration_number || null,
+      school_physical_address: schoolRegistration?.physical_address || null,
+      school_contact_number: schoolRegistration?.contact_number || null,
+      school_email_address: schoolRegistration?.email_address || null,
       fees: schoolFeeTypes,
       banking_details: settings,
     };

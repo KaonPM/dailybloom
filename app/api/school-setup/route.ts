@@ -102,7 +102,7 @@ export async function GET(request: Request) {
   const authorization = await requireStaffPermission(request, PERMISSIONS.SCHOOL_MANAGE, schoolId);
   if (!authorization.ok) return authorization.response;
 
-  const [{ data: settings, error: settingsError }, { data: forms, error: formsError }, { data: registrationFee, error: feeError }, { data: school, error: schoolError }, { data: enrolmentConfiguration, error: configurationError }, { data: documentRequirements, error: documentsError }, { data: requirementTemplates, error: requirementsError }, { data: consents, error: consentsError }, { data: terms, error: termsError }] = await Promise.all([
+  const [{ data: settings, error: settingsError }, { data: forms, error: formsError }, { data: registrationFee, error: feeError }, { data: school, error: schoolError }, { data: enrolmentConfiguration, error: configurationError }, { data: documentRequirements, error: documentsError }, { data: requirementTemplates, error: requirementsError }, { data: consents, error: consentsError }, { data: terms, error: termsError }, { data: registration, error: registrationError }, { data: signupRows, error: signupError }] = await Promise.all([
     supabaseAdmin.from("school_setup_settings").select("*").eq("school_id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_enrolment_forms").select("*").eq("school_id", schoolId).order("form_type"),
     supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("school_id", schoolId).eq("fee_code", "registration").maybeSingle(),
@@ -112,8 +112,10 @@ export async function GET(request: Request) {
     supabaseAdmin.from("school_enrolment_requirement_templates").select("*").eq("school_id", schoolId).order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("*").eq("school_id", schoolId).order("display_order"),
     supabaseAdmin.from("school_enrolment_terms_sections").select("*").eq("school_id", schoolId).order("display_order"),
+    supabaseAdmin.from("dbe_registration").select("registration_number, physical_address, contact_number, email_address").eq("school_id", schoolId).maybeSingle(),
+    supabaseAdmin.from("school_signup_requests").select("school_address, school_phone, school_email").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(1),
   ]);
-  const error = settingsError || formsError || feeError || schoolError || configurationError || documentsError || requirementsError || consentsError || termsError;
+  const error = settingsError || formsError || feeError || schoolError || configurationError || documentsError || requirementsError || consentsError || termsError || registrationError || signupError;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const audit = { school_id: schoolId, created_by: authorization.staff.userId, updated_by: authorization.staff.userId };
   const [seededDocuments, seededRequirements, seededConsents, seededTerms] = await Promise.all([
@@ -124,7 +126,8 @@ export async function GET(request: Request) {
   ]);
   const seedError = seededDocuments.error || seededRequirements.error || seededConsents.error || seededTerms.error;
   if (seedError) return NextResponse.json({ error: seedError.message }, { status: 500 });
-  return NextResponse.json({ settings, forms: forms || [], registration_fee: registrationFee, school, enrolment_configuration: enrolmentConfiguration ? { ...enrolmentConfiguration, additional_declaration: enrolmentConfiguration.additional_declaration || DEFAULT_PARENT_DECLARATION } : null, document_requirements: seededDocuments.data || [], requirement_templates: seededRequirements.data || [], consents: seededConsents.data || [], terms: seededTerms.data || [] });
+  const signup = signupRows?.[0];
+  return NextResponse.json({ settings, forms: forms || [], registration_fee: registrationFee, school, registration: { registration_number: registration?.registration_number || null, physical_address: registration?.physical_address || signup?.school_address || null, contact_number: registration?.contact_number || signup?.school_phone || null, email_address: registration?.email_address || signup?.school_email || null }, enrolment_configuration: enrolmentConfiguration ? { ...enrolmentConfiguration, additional_declaration: enrolmentConfiguration.additional_declaration || DEFAULT_PARENT_DECLARATION } : null, document_requirements: seededDocuments.data || [], requirement_templates: seededRequirements.data || [], consents: seededConsents.data || [], terms: seededTerms.data || [] });
 }
 
 export async function POST(request: Request) {

@@ -187,6 +187,35 @@ export async function POST(request: Request) {
       updated_by: authorization.staff.userId, updated_at: new Date().toISOString(),
     }, { onConflict: "school_id" }).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // The universal configuration is the source of truth for the current
+    // enrolment form. Keep the legacy/general form record in sync because
+    // Enrolments uses it to decide whether a new enquiry may be started.
+    const { data: existingForm, error: existingFormError } = await supabaseAdmin
+      .from("school_enrolment_forms")
+      .select("created_by")
+      .eq("school_id", schoolId)
+      .eq("form_type", "general")
+      .maybeSingle();
+    if (existingFormError) return NextResponse.json({ error: existingFormError.message }, { status: 500 });
+
+    const { error: formError } = await supabaseAdmin
+      .from("school_enrolment_forms")
+      .upsert({
+        school_id: schoolId,
+        form_type: "general",
+        form_name: formTitle,
+        instructions: text(body.introduction, 3000) || null,
+        custom_fields: customFields(body.custom_fields),
+        required_documents: [],
+        stationery_list: [],
+        is_active: body.is_open !== false,
+        created_by: existingForm?.created_by || authorization.staff.userId,
+        updated_by: authorization.staff.userId,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "school_id,form_type" });
+    if (formError) return NextResponse.json({ error: formError.message }, { status: 500 });
+
     await writeSecurityAudit(authorization.staff, "school_setup.universal_enrolment_saved", { school_id: schoolId });
     return NextResponse.json({ enrolment_configuration: data });
   }

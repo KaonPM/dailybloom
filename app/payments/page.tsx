@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { resolveSchoolContext } from "../lib/school-context";
 import SubscriptionGuard from "../components/SubscriptionGuard";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import { getCurrentProfile } from "../lib/auth";
+import { PERMISSIONS } from "../lib/permissions";
 
 type PaymentItem = {
   id: number;
@@ -189,6 +191,24 @@ export default function PaymentsPage() {
   }, [highlightRecordForm]);
 
   async function loadPage() {
+    const { profile, error: profileError } = await getCurrentProfile();
+
+    if (profileError || !profile) {
+      router.push("/login");
+      return;
+    }
+
+    const role = String(profile.role || "").toLowerCase();
+    const mayManageBilling =
+      ["master", "principal", "owner"].includes(role) ||
+      (role === "admin" &&
+        (profile.permissions || []).includes(PERMISSIONS.BILLING_MANAGE));
+
+    if (!mayManageBilling) {
+      router.push(role === "teacher" ? "/teacher" : "/dashboard");
+      return;
+    }
+
     const context = await resolveSchoolContext(schoolParam);
 
     if (context.error) {

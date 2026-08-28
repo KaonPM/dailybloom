@@ -352,13 +352,16 @@ export default function ProgressReportsPage() {
     }
 
     await fetchSchool(currentSchoolId);
-    await fetchClassrooms(currentSchoolId);
+    const classroomRows = await fetchClassrooms(currentSchoolId, profile);
     await fetchTeachers(currentSchoolId);
-    await fetchLearners(currentSchoolId);
+    const learnerRows = await fetchLearners(currentSchoolId, classroomRows, profile);
     await fetchPeriods(currentSchoolId);
-    await fetchAllAssessments(currentSchoolId);
-    await fetchGradeRTermResults(currentSchoolId);
-    await fetchGeneratedReports(currentSchoolId);
+    const permittedLearnerIds = profile.role === "teacher"
+      ? learnerRows.map((learner) => String(learner.id))
+      : undefined;
+    await fetchAllAssessments(currentSchoolId, permittedLearnerIds);
+    await fetchGradeRTermResults(currentSchoolId, permittedLearnerIds);
+    await fetchGeneratedReports(currentSchoolId, permittedLearnerIds);
 
     if (profile.role === "teacher") {
       await fetchTeacherReportSummaries(currentSchoolId, profile.id);
@@ -382,7 +385,44 @@ export default function ProgressReportsPage() {
     setSchool(data);
   }
 
-  async function fetchClassrooms(currentSchoolId: number) {
+  function restrictTeacherClassrooms(
+    classroomRows: ClassroomRow[],
+    currentProfile: ProfileRow
+  ) {
+    if (String(currentProfile.role || "").toLowerCase() !== "teacher") {
+      return classroomRows;
+    }
+
+    const assignedClassroomId =
+      currentProfile.classroom_id || currentProfile.assigned_classroom_id;
+    if (assignedClassroomId) {
+      return classroomRows.filter(
+        (classroom) => String(classroom.id) === String(assignedClassroomId)
+      );
+    }
+
+    const assignedClassroomName = String(
+      currentProfile.classroom_name ||
+        currentProfile.assigned_classroom_name ||
+        currentProfile.class ||
+        ""
+    )
+      .trim()
+      .toLowerCase();
+
+    return assignedClassroomName
+      ? classroomRows.filter(
+          (classroom) =>
+            String(classroom.classroom_name || "").trim().toLowerCase() ===
+            assignedClassroomName
+        )
+      : [];
+  }
+
+  async function fetchClassrooms(
+    currentSchoolId: number,
+    currentProfile: ProfileRow | null = profile
+  ) {
     const { data, error } = await supabase
       .from("classrooms")
       .select("*")
@@ -391,10 +431,14 @@ export default function ProgressReportsPage() {
 
     if (error) {
       alert(error.message);
-      return;
+      return [] as ClassroomRow[];
     }
 
-    setClassrooms(data || []);
+    const nextClassrooms = currentProfile
+      ? restrictTeacherClassrooms((data || []) as ClassroomRow[], currentProfile)
+      : ((data || []) as ClassroomRow[]);
+    setClassrooms(nextClassrooms);
+    return nextClassrooms;
   }
 
   async function fetchTeachers(currentSchoolId: number) {
@@ -451,7 +495,11 @@ export default function ProgressReportsPage() {
     setTeachers(rpcData || []);
   }
 
-  async function fetchLearners(currentSchoolId: number) {
+  async function fetchLearners(
+    currentSchoolId: number,
+    permittedClassrooms: ClassroomRow[] = [],
+    currentProfile: ProfileRow | null = profile
+  ) {
     const { data, error } = await supabase
       .from("learners")
       .select("*")
@@ -461,10 +509,35 @@ export default function ProgressReportsPage() {
 
     if (error) {
       alert(error.message);
-      return;
+      return [] as LearnerRow[];
     }
 
-    setLearners(data || []);
+    const restrictToAssignedClassroom =
+      String(currentProfile?.role || "").toLowerCase() === "teacher";
+    const permittedClassroomIds = new Set(
+      permittedClassrooms.map((classroom) => String(classroom.id))
+    );
+    const permittedClassroomNames = new Set(
+      permittedClassrooms.map((classroom) =>
+        String(classroom.classroom_name || "").trim().toLowerCase()
+      )
+    );
+    const nextLearners = ((data || []) as LearnerRow[]).filter((learner) => {
+      if (!restrictToAssignedClassroom) return true;
+      const classroomId = String(getLearnerClassroomId(learner));
+      const classroomName = String(
+        learner.classroom_name || learner.class || ""
+      )
+        .trim()
+        .toLowerCase();
+      return (
+        permittedClassroomIds.has(classroomId) ||
+        (classroomName && permittedClassroomNames.has(classroomName))
+      );
+    });
+
+    setLearners(nextLearners);
+    return nextLearners;
   }
 
   async function fetchPeriods(currentSchoolId: number) {
@@ -482,7 +555,10 @@ export default function ProgressReportsPage() {
     setPeriods(data || []);
   }
 
-  async function fetchAllAssessments(currentSchoolId: number) {
+  async function fetchAllAssessments(
+    currentSchoolId: number,
+    permittedLearnerIds?: string[]
+  ) {
     const { data, error } = await supabase
       .from("learner_assessments")
       .select("*")
@@ -495,10 +571,21 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    setAllAssessments(data || []);
+    const permitted =
+      permittedLearnerIds || String(profile?.role || "").toLowerCase() === "teacher"
+        ? new Set(permittedLearnerIds || learners.map((learner) => String(learner.id)))
+        : null;
+    setAllAssessments(
+      (data || []).filter(
+        (assessment) => !permitted || permitted.has(String(assessment.learner_id))
+      )
+    );
   }
 
-  async function fetchGradeRTermResults(currentSchoolId: number) {
+  async function fetchGradeRTermResults(
+    currentSchoolId: number,
+    permittedLearnerIds?: string[]
+  ) {
     const { data, error } = await supabase
       .from("grade_r_term_results")
       .select("*")
@@ -509,10 +596,21 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    setGradeRTermResults(data || []);
+    const permitted =
+      permittedLearnerIds || String(profile?.role || "").toLowerCase() === "teacher"
+        ? new Set(permittedLearnerIds || learners.map((learner) => String(learner.id)))
+        : null;
+    setGradeRTermResults(
+      (data || []).filter(
+        (result) => !permitted || permitted.has(String(result.learner_id))
+      )
+    );
   }
 
-  async function fetchGeneratedReports(currentSchoolId: number) {
+  async function fetchGeneratedReports(
+    currentSchoolId: number,
+    permittedLearnerIds?: string[]
+  ) {
     const { data, error } = await supabase
       .from("generated_reports")
       .select("*")
@@ -524,7 +622,15 @@ export default function ProgressReportsPage() {
       return;
     }
 
-    setGeneratedReports(data || []);
+    const permitted =
+      permittedLearnerIds || String(profile?.role || "").toLowerCase() === "teacher"
+        ? new Set(permittedLearnerIds || learners.map((learner) => String(learner.id)))
+        : null;
+    setGeneratedReports(
+      (data || []).filter(
+        (report) => !permitted || permitted.has(String(report.learner_id))
+      )
+    );
   }
 
   function formatPeriodType(type?: string | null) {

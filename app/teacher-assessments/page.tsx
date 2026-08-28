@@ -43,6 +43,12 @@ type ProfileRow = {
   role?: string | null;
   school_id?: number | null;
   classroom_id?: number | null;
+  assigned_classroom_id?: number | null;
+  classroom_name?: string | null;
+  assigned_classroom_name?: string | null;
+  classroom?: string | null;
+  assigned_classroom?: string | null;
+  class?: string | null;
   full_name?: string | null;
   name?: string | null;
   email?: string | null;
@@ -290,7 +296,10 @@ export default function TeacherAssessmentsPage() {
     setProfile(currentProfile);
     setSchoolId(Number(currentProfile.school_id));
 
-    const classroomRows = await fetchClassrooms(Number(currentProfile.school_id));
+    const classroomRows = await fetchClassrooms(
+      Number(currentProfile.school_id),
+      currentProfile
+    );
     const periodRows = await fetchPeriods(Number(currentProfile.school_id));
     const requestedClassroomId = searchParams.get("classroom") || "";
     const requestedLearnerId = searchParams.get("learner") || "";
@@ -304,13 +313,15 @@ export default function TeacherAssessmentsPage() {
       await fetchLearnersByClassroom(requestedClassroomId, Number(currentProfile.school_id), classroomRows);
     }
 
-    if (role === "teacher" && currentProfile.classroom_id) {
+    const assignedClassroomId =
+      currentProfile.classroom_id || currentProfile.assigned_classroom_id;
+    if (role === "teacher" && assignedClassroomId) {
       const assignedClassroom = classroomRows.find(
         (classroom) =>
-          String(classroom.id) === String(currentProfile.classroom_id)
+          String(classroom.id) === String(assignedClassroomId)
       );
 
-      setSelectedClassroomId(String(currentProfile.classroom_id));
+      setSelectedClassroomId(String(assignedClassroomId));
       setReportType(
         getClassroomReportType(assignedClassroom?.classroom_name)
       );
@@ -319,7 +330,46 @@ export default function TeacherAssessmentsPage() {
     setLoading(false);
   }
 
-  async function fetchClassrooms(currentSchoolId: number) {
+  function restrictTeacherClassrooms(
+    classroomRows: ClassroomRow[],
+    currentProfile: ProfileRow
+  ) {
+    if (String(currentProfile.role || "").toLowerCase() !== "teacher") {
+      return classroomRows;
+    }
+
+    const assignedClassroomId =
+      currentProfile.classroom_id || currentProfile.assigned_classroom_id;
+    if (assignedClassroomId) {
+      return classroomRows.filter(
+        (classroom) => String(classroom.id) === String(assignedClassroomId)
+      );
+    }
+
+    const assignedClassroomName = String(
+      currentProfile.classroom_name ||
+        currentProfile.assigned_classroom_name ||
+        currentProfile.classroom ||
+        currentProfile.assigned_classroom ||
+        currentProfile.class ||
+        ""
+    )
+      .trim()
+      .toLowerCase();
+
+    return assignedClassroomName
+      ? classroomRows.filter(
+          (classroom) =>
+            String(classroom.classroom_name || "").trim().toLowerCase() ===
+            assignedClassroomName
+        )
+      : [];
+  }
+
+  async function fetchClassrooms(
+    currentSchoolId: number,
+    currentProfile: ProfileRow | null = profile
+  ) {
     const { data, error } = await supabase
       .from("classrooms")
       .select("*")
@@ -331,7 +381,9 @@ export default function TeacherAssessmentsPage() {
       return [] as ClassroomRow[];
     }
 
-    const nextClassrooms = (data || []) as ClassroomRow[];
+    const nextClassrooms = currentProfile
+      ? restrictTeacherClassrooms((data || []) as ClassroomRow[], currentProfile)
+      : ((data || []) as ClassroomRow[]);
     setClassrooms(nextClassrooms);
     return nextClassrooms;
   }
@@ -483,6 +535,11 @@ export default function TeacherAssessmentsPage() {
     const selectedPeriod = periods.find(
       (period) => String(period.id) === String(selectedPeriodId)
     );
+
+    if (!selectedClassroom) {
+      setLearners([]);
+      return;
+    }
     const template = selectedClassroomReportType || "developmental";
 
     if (normalizeReportType(selectedPeriod?.report_template) !== template) {

@@ -28,6 +28,8 @@ type LearnerItem = {
   parent_phone?: string | null;
   school_id?: number | null;
   monthly_fee?: number | null;
+  payment_arrangement_active?: boolean | null;
+  payment_arrangement_note?: string | null;
 };
 
 type SchoolItem = {
@@ -61,6 +63,7 @@ export default function PaymentsPage() {
   const [learners, setLearners] = useState<LearnerItem[]>([]);
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [school, setSchool] = useState<SchoolItem | null>(null);
+  const [paymentReminderDay, setPaymentReminderDay] = useState<number | null>(null);
 
   const [learnerName, setLearnerName] = useState("");
   const [amount, setAmount] = useState("");
@@ -116,6 +119,7 @@ export default function PaymentsPage() {
   const [lastSavedSuccess, setLastSavedSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scheduling, setScheduling] = useState(false);
+  const [arrangementSavingId, setArrangementSavingId] = useState("");
 
   const formRef = useRef<HTMLDivElement | null>(null);
   const learnerInputRef = useRef<HTMLInputElement | null>(null);
@@ -203,6 +207,7 @@ export default function PaymentsPage() {
       fetchSchool(context.schoolId),
       fetchPayments(context.schoolId),
       fetchLearners(context.schoolId),
+      fetchPaymentReminderSettings(context.schoolId),
     ]);
   }
 
@@ -234,7 +239,7 @@ export default function PaymentsPage() {
   async function fetchLearners(currentSchoolId: number) {
     const { data, error } = await supabase
       .from("learners")
-      .select("id, name, parent_phone, school_id, monthly_fee")
+      .select("id, name, parent_phone, school_id, monthly_fee, payment_arrangement_active, payment_arrangement_note")
       .eq("school_id", currentSchoolId)
       .order("name", { ascending: true });
 
@@ -244,6 +249,22 @@ export default function PaymentsPage() {
     }
 
     setLearners((data || []) as LearnerItem[]);
+  }
+
+  async function fetchPaymentReminderSettings(currentSchoolId: number) {
+    const { data } = await supabase
+      .from("school_setup_settings")
+      .select("payment_reminder_day")
+      .eq("school_id", currentSchoolId)
+      .maybeSingle();
+    const day = Number(data?.payment_reminder_day || 0);
+    if (!Number.isInteger(day) || day < 1 || day > 28) return;
+    setPaymentReminderDay(day);
+    const nextDate = new Date();
+    nextDate.setHours(0, 0, 0, 0);
+    nextDate.setDate(day);
+    if (nextDate < new Date(new Date().toDateString())) nextDate.setMonth(nextDate.getMonth() + 1);
+    setScheduledReminderDate(nextDate.toISOString().slice(0, 10));
   }
 
   async function fetchStatementDelivery(currentSchoolId: number, learnerId: string) {
@@ -513,9 +534,14 @@ export default function PaymentsPage() {
 
   const unpaidLearnersWithPhones = useMemo(() => {
     return unpaidLearners.filter((learner) =>
-      Boolean(String(learner.parent_phone || "").trim())
+      !learner.payment_arrangement_active && Boolean(String(learner.parent_phone || "").trim())
     );
   }, [unpaidLearners]);
+
+  const learnersWithPaymentArrangements = useMemo(
+    () => unpaidLearners.filter((learner) => learner.payment_arrangement_active),
+    [unpaidLearners]
+  );
 
   const filteredPaymentHistory = useMemo(() => {
     return payments.filter((payment) => {
@@ -548,7 +574,7 @@ export default function PaymentsPage() {
     }
 
     const confirmSchedule = window.confirm(
-      `Schedule ${unpaidLearnersWithPhones.length} SMS reminder message(s) for ${scheduledReminderDate}?`
+      `Schedule ${unpaidLearnersWithPhones.length} SMS reminder message(s) for ${scheduledReminderDate}? Learners with an active payment arrangement are excluded.`
     );
 
     if (!confirmSchedule) return;
@@ -603,6 +629,25 @@ export default function PaymentsPage() {
 
     setScheduling(false);
     alert(`${reminderRows.length} SMS reminder message(s) scheduled.`);
+  }
+
+  async function setPaymentArrangement(learner: LearnerItem, active: boolean) {
+    if (!schoolId) return;
+    setArrangementSavingId(learner.id);
+    try {
+      const response = await authenticatedFetch("/api/learner-fees/payment-arrangements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ school_id: schoolId, learner_id: learner.id, active }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Payment arrangement could not be updated.");
+      setLearners((current) => current.map((item) => item.id === learner.id ? { ...item, payment_arrangement_active: active, payment_arrangement_note: active ? "Active arrangement" : null } : item));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Payment arrangement could not be updated.");
+    } finally {
+      setArrangementSavingId("");
+    }
   }
 
   function buildPaymentReminderMessage(learner: LearnerItem) {
@@ -852,12 +897,13 @@ export default function PaymentsPage() {
             <div>
               <h3 style={sectionTitle}>Monthly Payment Reminders</h3>
               <p style={smallText}>
-                Schedule SMS reminders to parents of unpaid learners for the selected month.
+                Schedule SMS reminders to parents of unpaid learners for the selected month. Learners with an active payment arrangement are excluded.
               </p>
             </div>
 
             <div style={{ marginTop: 12, marginBottom: 12 }}>
               <p style={labelText}>Reminder Send Date</p>
+              {paymentReminderDay ? <p style={{ ...smallText, marginTop: 0 }}>Pre-filled from School Setup: day {paymentReminderDay} of the month.</p> : null}
 
               <input
                 className="db-input"
@@ -888,6 +934,7 @@ export default function PaymentsPage() {
                 ? "Scheduling..."
                 : `Schedule Reminder Messages (${unpaidLearnersWithPhones.length})`}
             </button>
+            {learnersWithPaymentArrangements.length > 0 ? <span className="db-helper" style={{ alignSelf: "center" }}>{learnersWithPaymentArrangements.length} unpaid learner(s) excluded by arrangement</span> : null}
           </div>
 
           {showUnpaidLearners ? (
@@ -903,7 +950,11 @@ export default function PaymentsPage() {
                         <p style={smallText}>
                           Parent Phone: {learner.parent_phone || "Not added"}
                         </p>
+                        {learner.payment_arrangement_active ? <p style={{ ...smallText, color: "#7a5a00", fontWeight: 700 }}>Payment arrangement active — no reminder will be sent.</p> : null}
                       </div>
+                      <button type="button" className="db-button-secondary" disabled={arrangementSavingId === learner.id} onClick={() => void setPaymentArrangement(learner, !learner.payment_arrangement_active)}>
+                        {arrangementSavingId === learner.id ? "Saving..." : learner.payment_arrangement_active ? "Clear arrangement" : "Flag arrangement"}
+                      </button>
                     </div>
                   ))}
                 </div>

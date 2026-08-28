@@ -34,8 +34,20 @@ export async function GET(request: Request) {
     supabaseAdmin.from("summaries").select("notes, teacher_notes, created_at").eq("school_id", schoolId).eq("learner_name", learner.name).gte("created_at", `${from}T00:00:00`).lte("created_at", `${to}T23:59:59`).order("created_at", { ascending: false }).limit(5),
     supabaseAdmin.from("achievement_awards").select("award_name, award_reason, issued_at, created_at").eq("school_id", schoolId).eq("learner_id", learnerId).gte("created_at", `${from}T00:00:00`).lte("created_at", `${to}T23:59:59`).order("created_at", { ascending: false }),
   ]);
-  const queryError = attendanceError || activitiesError || outcomesError || strengthsError || updatesError || summariesError || awardsError;
-  if (queryError) return NextResponse.json({ error: "Learner evidence could not be loaded." }, { status: 500 });
+  // Evidence sources were introduced at different times for existing schools.
+  // A missing legacy source must not prevent a practitioner from seeing the
+  // rest of the learner's progress snapshot.
+  if (attendanceError || activitiesError || outcomesError || strengthsError || updatesError || summariesError || awardsError) {
+    console.warn("One or more learner evidence sources could not be loaded", {
+      attendanceError,
+      activitiesError,
+      outcomesError,
+      strengthsError,
+      updatesError,
+      summariesError,
+      awardsError,
+    });
+  }
   const present = (attendance || []).filter((item) => String(item.status).toLowerCase() === "present").length;
   const absent = (attendance || []).filter((item) => String(item.status).toLowerCase() === "absent").length;
   return NextResponse.json({ period: { from, to }, attendance: { present, absent, rate: present + absent ? Math.round((present / (present + absent)) * 100) : null }, activities: activities || [], support_cases: outcomes || [], strengths: strengths || [], support_updates: updates || [], summaries: summaries || [], awards: awards || [] });

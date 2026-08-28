@@ -25,6 +25,7 @@ type AttendanceRow = {
   absence_reason?: string | null;
   attendance_date?: string;
   created_at?: string;
+  late_capture_reason?: string | null;
 };
 
 export default function AttendancePage() {
@@ -40,6 +41,8 @@ export default function AttendancePage() {
 
   const [attendance, setAttendance] = useState<Record<string, string>>({});
   const [absenceReasons, setAbsenceReasons] = useState<Record<string, string>>({});
+  const [attendanceDate, setAttendanceDate] = useState(today);
+  const [lateCaptureReason, setLateCaptureReason] = useState("");
 
   const [selectedLearnerName, setSelectedLearnerName] = useState("");
   const [learnerHistoryRows, setLearnerHistoryRows] = useState<AttendanceRow[]>([]);
@@ -60,12 +63,12 @@ export default function AttendancePage() {
 
   useEffect(() => {
     if (schoolId) {
-      loadTodayAttendance(schoolId);
+      loadAttendanceForDate(schoolId, attendanceDate);
       setSelectedLearnerName("");
       setLearnerHistoryRows([]);
       setClassHistoryRows([]);
     }
-  }, [openClassroom, schoolId]);
+  }, [openClassroom, schoolId, attendanceDate]);
 
   async function loadPage() {
     const { profile } = await getCurrentProfile();
@@ -90,7 +93,7 @@ export default function AttendancePage() {
     await Promise.all([
       loadClassrooms(currentSchoolId),
       loadLearners(currentSchoolId),
-      loadTodayAttendance(currentSchoolId),
+      loadAttendanceForDate(currentSchoolId, attendanceDate),
     ]);
 
     setLoading(false);
@@ -126,12 +129,12 @@ export default function AttendancePage() {
     setAllLearners((data || []) as Learner[]);
   }
 
-  async function loadTodayAttendance(currentSchoolId: number) {
+  async function loadAttendanceForDate(currentSchoolId: number, date: string) {
     const { data, error } = await supabase
       .from("attendance")
       .select("*")
       .eq("school_id", currentSchoolId)
-      .eq("attendance_date", today);
+      .eq("attendance_date", date);
 
     if (error) {
       alert(error.message);
@@ -304,7 +307,9 @@ export default function AttendancePage() {
           attendance[learner.name] === "absent"
             ? absenceReasons[learner.name] || ""
             : "",
-        attendance_date: today,
+        attendance_date: attendanceDate,
+        late_capture_reason:
+          attendanceDate < today ? lateCaptureReason || null : null,
       }));
 
     if (rows.length === 0) {
@@ -320,7 +325,7 @@ export default function AttendancePage() {
       .from("attendance")
       .delete()
       .eq("school_id", schoolId)
-      .eq("attendance_date", today)
+      .eq("attendance_date", attendanceDate)
       .in("learner_name", learnerNames);
 
     if (deleteError) {
@@ -337,14 +342,14 @@ export default function AttendancePage() {
       return;
     }
 
-    await loadTodayAttendance(schoolId);
+    await loadAttendanceForDate(schoolId, attendanceDate);
 
     if (classroomToCollapse && openClassroom === classroomToCollapse) {
       setOpenClassroom("");
     }
 
     setSaving(false);
-    alert("Attendance saved.");
+    alert(attendanceDate < today ? "Missed attendance saved for the selected date." : "Attendance saved.");
   }
 
   async function viewLearnerHistory(learnerName: string) {
@@ -463,7 +468,7 @@ export default function AttendancePage() {
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">Attendance</h2>
         <p className="db-page-subtitle">
-          Today: {today} | View: {viewLabel}
+          Recording date: {attendanceDate} | View: {viewLabel}
         </p>
       </div>
 
@@ -483,6 +488,38 @@ export default function AttendancePage() {
           <MiniStat label="Unmarked" value={unmarkedCount} />
           <MiniStat label="Learners" value={visibleLearners.length} />
         </div>
+      </div>
+
+      <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
+        <label style={labelText}>Attendance date</label>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+          <input
+            type="date"
+            className="db-input"
+            value={attendanceDate}
+            min={new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)}
+            max={today}
+            onChange={(event) => {
+              setAttendanceDate(event.target.value);
+              setLateCaptureReason("");
+            }}
+          />
+          {attendanceDate < today ? (
+            <select
+              className="db-input"
+              value={lateCaptureReason}
+              onChange={(event) => setLateCaptureReason(event.target.value)}
+            >
+              <option value="">Reason for late capture (optional)</option>
+              <option value="Loadshedding">Loadshedding</option>
+              <option value="Internet outage">Internet outage</option>
+              <option value="Other operational disruption">Other operational disruption</option>
+            </select>
+          ) : null}
+        </div>
+        <p className="db-helper" style={{ marginBottom: 0 }}>
+          You can capture the previous 7 days. This keeps the selected attendance date on reports; it is never treated as an absence while it is still unrecorded.
+        </p>
       </div>
 
       {role !== "teacher" ? (

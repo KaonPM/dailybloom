@@ -257,6 +257,23 @@ export default function ClassroomActivitiesPage() {
       .sort((a, b) => String(a.activity_date).localeCompare(String(b.activity_date)));
   }, [weeklyPlans, activeClassroomId, todayDate]);
 
+  const missedTeachingPlans = useMemo(() => {
+    return weeklyPlans
+      .filter((plan) =>
+        String(plan.classroom_id) === String(activeClassroomId) &&
+        plan.activity_date < todayDate &&
+        isTeachingDay(plan.day_type) &&
+        Boolean(plan.activity_library_id) &&
+        !plan.completed
+      )
+      .sort((a, b) => String(b.activity_date).localeCompare(String(a.activity_date)));
+  }, [weeklyPlans, activeClassroomId, todayDate]);
+
+  const completablePlans = useMemo(
+    () => [...todaysPlans, ...missedTeachingPlans],
+    [todaysPlans, missedTeachingPlans]
+  );
+
   const completedPlans = useMemo(() => {
     return weeklyPlans
       .filter((plan) => {
@@ -276,8 +293,8 @@ export default function ClassroomActivitiesPage() {
 
   const selectedTodayPlan = useMemo(() => {
     if (!selectedTodayPlanId) return null;
-    return todaysPlans.find((plan) => plan.id === selectedTodayPlanId) || null;
-  }, [todaysPlans, selectedTodayPlanId]);
+    return completablePlans.find((plan) => plan.id === selectedTodayPlanId) || null;
+  }, [completablePlans, selectedTodayPlanId]);
 
   const latestOutcomes = useMemo(() => {
     const latest = new Map<string, OutcomeRow>();
@@ -469,12 +486,12 @@ export default function ClassroomActivitiesPage() {
   useEffect(() => {
     if (!selectedTodayPlanId) return;
 
-    const stillExists = todaysPlans.some((plan) => plan.id === selectedTodayPlanId);
+    const stillExists = completablePlans.some((plan) => plan.id === selectedTodayPlanId);
 
     if (!stillExists) {
       setSelectedTodayPlanId(null);
     }
-  }, [todaysPlans, selectedTodayPlanId]);
+  }, [completablePlans, selectedTodayPlanId]);
 
   async function loadPage() {
     const { profile: currentProfile, error } = await getCurrentProfile();
@@ -1796,9 +1813,38 @@ export default function ClassroomActivitiesPage() {
           </div>
         ) : null}
 
+        {missedTeachingPlans.length > 0 ? (
+          <div style={{ marginTop: "14px" }}>
+            <h4 style={subTitle}>Missed Activities</h4>
+            <p style={smallHint}>Complete these after a disruption. The original activity date is kept for learner evidence and reports.</p>
+            <div style={{ display: "grid", gap: "10px" }}>
+              {missedTeachingPlans.map((plan) => (
+                <button
+                  key={plan.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTodayPlanId(plan.id);
+                    setSupportLearnerIds([]);
+                    setSupportLearnerStatuses({});
+                    setSupportLearnerNotes({});
+                    setSupportLearnerInterventions({});
+                    setStrengthLearnerIds([]);
+                    setStrengthLearnerNotes({});
+                  }}
+                  style={{ ...todayPlanButton, border: selectedTodayPlan?.id === plan.id ? "2px solid #7CCCF3" : "1px solid #E3D9CD" }}
+                >
+                  <strong>{plan.activity_name}</strong>
+                  <span style={smallHint}>{formatDisplayDate(plan.activity_date)}</span>
+                  <span style={smallHint}>{plan.theme}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {selectedTodayPlan ? (
           <div style={completionBox}>
-            <h4 style={subTitle}>Complete Activity</h4>
+            <h4 style={subTitle}>{selectedTodayPlan.activity_date < todayDate ? "Complete Missed Activity" : "Complete Activity"}</h4>
             <p style={textStyle}>{selectedTodayPlan.description || "No description added."}</p>
             <p style={smallHint}>
               Development focus is captured in the background: {selectedTodayPlan.developmental_area}.

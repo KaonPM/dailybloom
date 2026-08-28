@@ -795,14 +795,6 @@ export default function TeacherAssessmentsPage() {
         </details>
       ) : null}
 
-      {canShowAssessmentForm ? (
-        <div className="db-card db-card-lavender" style={{ padding: 20 }}>
-          <h3 style={sectionTitle}>Formal Progress Report</h3>
-          <p style={textStyle}>When you are ready to assess, use Progress Reports. Ratings are captured once there and then sent to the principal for review.</p>
-          <button className="db-button-primary" onClick={() => router.push(`/progress-reports?classroom=${encodeURIComponent(selectedClassroomId)}&learner=${encodeURIComponent(selectedLearnerId)}&period=${encodeURIComponent(selectedPeriodId)}`)}>Open Progress Reports</button>
-        </div>
-      ) : null}
-
     </div>
   );
 }

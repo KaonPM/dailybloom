@@ -220,8 +220,8 @@ export default function Sidebar() {
       { label: "Re-enrolments", href: "/re-enrolments", match: ["/re-enrolments"], permission: PERMISSIONS.SCHOOL_MANAGE },
       {
         label: "Awaiting Classroom Allocation",
-        href: "/re-enrolments#awaiting-classroom-allocation",
-        match: [],
+        href: "/awaiting-classroom-allocation",
+        match: ["/awaiting-classroom-allocation"],
         permission: PERMISSIONS.SCHOOL_MANAGE,
       },
       { label: "Meetings, Minutes & Surveys", href: "/school-administration", match: ["/school-administration"], permission: PERMISSIONS.SCHOOL_MANAGE },

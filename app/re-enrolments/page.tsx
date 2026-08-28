@@ -99,12 +99,10 @@ export default function ReEnrolmentsPage() {
   const [responseDeadline, setResponseDeadline] = useState("");
   const [applyRegistrationFee, setApplyRegistrationFee] = useState(false);
   const [sourceFormId, setSourceFormId] = useState("");
-  const [allocationSelections, setAllocationSelections] = useState<Record<string, string>>({});
   const [selectedForReviewId, setSelectedForReviewId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [reviewing, setReviewing] = useState(false);
   const [rollingOver, setRollingOver] = useState(false);
-  const [selectedApprovedId, setSelectedApprovedId] = useState<string | null>(null);
 
   const schoolQuery = useMemo(() => (isMaster && schoolId ? `?school=${schoolId}` : ""), [isMaster, schoolId]);
 
@@ -235,23 +233,10 @@ export default function ReEnrolmentsPage() {
     }
   }
 
-  async function assignClassroom(reenrolmentId: string) {
-    const classroomId = allocationSelections[`reenrolment:${reenrolmentId}`];
-    if (!schoolId || !classroomId) { setError("Select the learner's next-year classroom."); return; }
-    setReviewing(true); setError(""); setMessage("");
-    try {
-      const response = await authenticatedFetch("/api/re-enrolments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "assign_classroom", school_id: schoolId, reenrolment_id: reenrolmentId, next_classroom_id: Number(classroomId) }) });
-      const body = await response.json(); if (!response.ok) throw new Error(body.error || "The classroom could not be allocated.");
-      setMessage(body.message); setAllocationSelections((current) => ({ ...current, [`reenrolment:${reenrolmentId}`]: "" })); await load(schoolId);
-    } catch (allocationError) { setError(allocationError instanceof Error ? allocationError.message : "The classroom could not be allocated."); }
-    finally { setReviewing(false); }
-  }
   async function updateReenrolmentStatus(reenrolmentId:string,action:"mark_school_leaver"|"mark_no_response"){
     if(!schoolId)return;setReviewing(true);setError("");
     try{const response=await authenticatedFetch("/api/re-enrolments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,school_id:schoolId,reenrolment_id:reenrolmentId})});const body=await response.json();if(!response.ok)throw new Error(body.error||"Status could not be updated.");setMessage(action==="mark_school_leaver"?"Learner marked as a Grade R-completed / expected school leaver.":"Learner marked for no-response follow-up.");await load(schoolId)}catch(statusError){setError(statusError instanceof Error?statusError.message:"Status could not be updated.")}finally{setReviewing(false)}
   }
-  async function allocateApprovedEnrolment(enquiryId:string){const classroomId=allocationSelections[`approved:${enquiryId}`];if(!schoolId||!classroomId){setError("Select a classroom first.");return}setReviewing(true);const response=await authenticatedFetch("/api/enrolments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"assign_waiting_classroom",school_id:schoolId,enquiry_id:enquiryId,classroom_id:Number(classroomId)})});const body=await response.json();if(!response.ok)setError(body.error||"Classroom allocation failed.");else{setMessage("Approved learner classroom allocated.");setAllocationSelections((current)=>({...current,[`approved:${enquiryId}`]:""}));await load(schoolId)}setReviewing(false)}
-
   async function applyClassroomRollover() {
     if (!schoolId || !data?.campaign) return;
     setRollingOver(true);
@@ -281,7 +266,6 @@ export default function ReEnrolmentsPage() {
   const submittedCount = reenrolments.filter((record) => record.status === "submitted").length;
   const approvedCount = reenrolments.filter((record) => record.status === "approved").length;
   const selectedForReview = reenrolments.find((record) => record.id === selectedForReviewId) || null;
-  const selectedApproved = data?.approved_enrolments?.find((record) => record.id === selectedApprovedId) || null;
   const rolloverAvailable = campaign ? Date.now() >= new Date(`${campaign.school_year}-01-01T00:00:00+02:00`).getTime() : false;
 
   return (
@@ -303,45 +287,6 @@ export default function ReEnrolmentsPage() {
       {error ? <div className="db-error-banner" role="alert">{error}</div> : null}
       {message ? <div className="db-success-banner" role="status">{message}</div> : null}
       {loading ? <section className="db-card"><p className="db-helper">Loading re-enrolment information…</p></section> : null}
-
-      {!loading && data && (data.approved_enrolments.some((item) => !item.placement?.classroom_id) || reenrolments.some((item) => item.status === "approved" && !item.next_classroom_id)) ? (
-        <section
-          id="awaiting-classroom-allocation"
-          className="db-card db-card-green"
-          style={{ padding: 24, scrollMarginTop: 24 }}
-        >
-          <h2>Approved Enrolments — Awaiting Classroom Allocation</h2>
-          <p className="db-helper">Approved learners remain available in Parent Portal while next-year classrooms are being prepared.</p>
-          <div style={{ display: "grid", gap: 10 }}>
-            {data.approved_enrolments.filter((item) => !item.placement?.classroom_id).map((item) => {
-              const selectionKey = `approved:${item.id}`;
-              const selectedClassroom = allocationSelections[selectionKey] || "";
-              return (
-                <div className="db-soft-card" key={item.id} style={{ padding: 14, display: "grid", gridTemplateColumns: "minmax(210px, 1.1fr) minmax(150px, .8fr) minmax(330px, 1.5fr)", gap: 12, alignItems: "center" }}>
-                  <div><strong>{item.learner?.name || item.learner?.legal_name || "Approved learner"}</strong><small className="db-helper" style={{ display: "block" }}>{item.parent_name || item.learner?.guardian_name || "Parent not recorded"}</small><small className="db-helper" style={{ display: "block" }}>{item.enquiry_reference} · {item.academic_year}</small></div>
-                  <div><small className="db-helper" style={{ display: "block" }}>Current classroom</small>{item.learner?.class || "Unassigned"}</div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <select className="db-input" aria-label={`Classroom for ${item.enquiry_reference}`} value={selectedClassroom} onChange={(event) => setAllocationSelections((current) => ({ ...current, [selectionKey]: event.target.value }))}>
-                      <option value="">Select classroom</option>
-                      {data.classrooms.map((room) => <option key={room.id} value={room.id}>{room.classroom_name}</option>)}
-                    </select>
-                    <button className="db-button-primary" disabled={!selectedClassroom || reviewing} onClick={() => void allocateApprovedEnrolment(item.id)}>Allocate</button>
-                    <button className="db-button-secondary" type="button" onClick={() => setSelectedApprovedId(item.id)}>View form</button>
-                    <Link className="db-button-secondary" href={`/children/${item.learner_id}${schoolQuery}`}>View learner</Link>
-                    <Link className="db-button-secondary" href={isMaster && schoolId ? `/children?school=${schoolId}&edit=${item.learner_id}` : `/children?edit=${item.learner_id}`}>Edit learner</Link>
-                  </div>
-                </div>
-              );
-            })}
-            {reenrolments.filter((item) => item.status === "approved" && !item.next_classroom_id).map((item) => {
-              const selectionKey = `reenrolment:${item.id}`;
-              const selectedClassroom = allocationSelections[selectionKey] || "";
-              return <div className="db-soft-card" key={item.id} style={{ padding: 14, display: "grid", gridTemplateColumns: "minmax(210px, 1.1fr) minmax(150px, .8fr) minmax(330px, 1.5fr)", gap: 12, alignItems: "center" }}><div><strong>{item.learner_name}</strong><small className="db-helper" style={{ display: "block" }}>{item.reenrolment_reference} · Re-enrolment</small></div><div><small className="db-helper" style={{ display: "block" }}>Current classroom</small>{item.classroom_name || "Unassigned"}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><select className="db-input" aria-label={`Next-year classroom for ${item.learner_name}`} value={selectedClassroom} onChange={(event) => setAllocationSelections((current) => ({ ...current, [selectionKey]: event.target.value }))}><option value="">Select next-year classroom</option>{data.classrooms.map((room) => <option key={room.id} value={room.id}>{room.classroom_name}</option>)}</select><button className="db-button-primary" disabled={!selectedClassroom || reviewing} onClick={() => void assignClassroom(item.id)}>Allocate</button><button className="db-button-secondary" type="button" onClick={() => { setSelectedForReviewId(item.id); setDeclineReason(""); }}>View form</button><Link className="db-button-secondary" href={`/children/${item.learner_id}${schoolQuery}`}>View learner</Link><Link className="db-button-secondary" href={isMaster && schoolId ? `/children?school=${schoolId}&edit=${item.learner_id}` : `/children?edit=${item.learner_id}`}>Edit learner</Link></div></div>;
-            })}
-          </div>
-          {selectedApproved ? <div className="db-soft-card" style={{ padding: 16, marginTop: 14 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}><div><p className="db-eyebrow">Approved enrolment form</p><h3 style={{ margin: "4px 0" }}>{selectedApproved.learner?.name || selectedApproved.learner?.legal_name || selectedApproved.enquiry_reference}</h3><p className="db-helper" style={{ margin: 0 }}>{selectedApproved.enquiry_reference}</p></div><button className="db-button-secondary" type="button" onClick={() => setSelectedApprovedId(null)}>Close</button></div><SubmittedFormSummary data={selectedApproved.submitted_data} /></div> : null}
-        </section>
-      ) : null}
 
       {!loading && data && !campaign ? (
         <section className="db-card" style={{ padding: 24 }}>
@@ -426,7 +371,7 @@ export default function ReEnrolmentsPage() {
                         {record.status === "submitted" ? (
                           <button className="db-button-secondary" type="button" onClick={() => { setSelectedForReviewId(record.id); setDeclineReason(""); }}>Review</button>
                         ) : record.status === "declined" ? "Returned to parent for updates" : record.status === "approved" ? (
-                          record.next_classroom_id ? <span>Classroom planned</span> : <span>Awaiting classroom allocation above</span>
+                          record.next_classroom_id ? <span>Classroom planned</span> : <Link href={`/awaiting-classroom-allocation${schoolQuery}`}>Awaiting classroom allocation</Link>
                         ) : record.status === "school_leaver" ? "Expected school leaver" : record.status === "no_response" ? "Follow up required" : record.status === "awaiting_parent" ? <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="db-button-secondary" type="button" disabled={reviewing} onClick={()=>void updateReenrolmentStatus(record.id,"mark_no_response")}>Mark No Response</button><button className="db-button-secondary" type="button" disabled={reviewing} onClick={()=>{if(window.confirm(`Mark ${record.learner_name} as Grade R completed / expected school leaver?`))void updateReenrolmentStatus(record.id,"mark_school_leaver")}}>Grade R Completed</button></div> : "Parent response recorded"}
                       </td>
                     </tr>

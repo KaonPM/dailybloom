@@ -153,9 +153,9 @@ export default function ClassroomActivitiesPage() {
   const [supportLearnerIds, setSupportLearnerIds] = useState<string[]>([]);
   const [supportLearnerStatuses, setSupportLearnerStatuses] = useState<Record<string, string>>({});
   const [supportLearnerNotes, setSupportLearnerNotes] = useState<Record<string, string>>({});
+  const [supportLearnerInterventions, setSupportLearnerInterventions] = useState<Record<string, string>>({});
   const [strengthLearnerIds, setStrengthLearnerIds] = useState<string[]>([]);
   const [strengthLearnerNotes, setStrengthLearnerNotes] = useState<Record<string, string>>({});
-  const [observation, setObservation] = useState("");
 
   const [showLibraryForm, setShowLibraryForm] = useState(false);
   const [editingLibraryId, setEditingLibraryId] = useState<number | null>(null);
@@ -1173,6 +1173,11 @@ export default function ClassroomActivitiesPage() {
   async function markComplete() {
     if (!schoolId || !selectedTodayPlan) return;
 
+    if (supportLearnerIds.some((learnerId) => !supportLearnerInterventions[learnerId]?.trim())) {
+      alert("Add an intervention or next step for every learner who needs support.");
+      return;
+    }
+
     setSaving(true);
 
     const validLearnerIds = supportLearnerIds.filter((learnerId) => String(learnerId).trim() !== "");
@@ -1180,14 +1185,14 @@ export default function ClassroomActivitiesPage() {
     const supportRows = validLearnerIds.map((learnerId) => ({
       learner_id: learnerId,
       support_status: supportLearnerStatuses[String(learnerId)] || "new",
-      observation:
-        supportLearnerNotes[String(learnerId)]?.trim() || observation.trim() || null,
+      observation: supportLearnerNotes[String(learnerId)]?.trim() || null,
+      intervention: supportLearnerInterventions[String(learnerId)]?.trim() || null,
     }));
     const strengthRows = strengthLearnerIds
       .filter((learnerId) => String(learnerId).trim() !== "")
       .map((learnerId) => ({
         learner_id: learnerId,
-        observation: strengthLearnerNotes[String(learnerId)]?.trim() || observation.trim() || null,
+        observation: strengthLearnerNotes[String(learnerId)]?.trim() || null,
       }));
 
     const { error } = await supabase.rpc("complete_classroom_activity", {
@@ -1207,9 +1212,9 @@ export default function ClassroomActivitiesPage() {
     setSupportLearnerIds([]);
     setSupportLearnerStatuses({});
     setSupportLearnerNotes({});
+    setSupportLearnerInterventions({});
     setStrengthLearnerIds([]);
     setStrengthLearnerNotes({});
-    setObservation("");
     setSelectedTodayPlanId(null);
 
     setIsTodayOpen(true);
@@ -1246,6 +1251,11 @@ export default function ClassroomActivitiesPage() {
           delete next[learnerId];
           return next;
         });
+        setSupportLearnerInterventions((interventions) => {
+          const next = { ...interventions };
+          delete next[learnerId];
+          return next;
+        });
 
         return current.filter((id) => id !== learnerId);
       }
@@ -1253,6 +1263,11 @@ export default function ClassroomActivitiesPage() {
       setStrengthLearnerIds((strengths) => strengths.filter((id) => id !== learnerId));
       setStrengthLearnerNotes((notes) => {
         const next = { ...notes };
+        delete next[learnerId];
+        return next;
+      });
+      setSupportLearnerInterventions((interventions) => {
+        const next = { ...interventions };
         delete next[learnerId];
         return next;
       });
@@ -1292,6 +1307,11 @@ export default function ClassroomActivitiesPage() {
       });
       setSupportLearnerNotes((notes) => {
         const next = { ...notes };
+        delete next[learnerId];
+        return next;
+      });
+      setSupportLearnerInterventions((interventions) => {
+        const next = { ...interventions };
         delete next[learnerId];
         return next;
       });
@@ -1730,7 +1750,9 @@ export default function ClassroomActivitiesPage() {
                   setSupportLearnerIds([]);
                   setSupportLearnerStatuses({});
                   setSupportLearnerNotes({});
-                  setObservation("");
+                  setSupportLearnerInterventions({});
+                  setStrengthLearnerIds([]);
+                  setStrengthLearnerNotes({});
                 }}
                 style={{
                   ...todayPlanButton,
@@ -1799,53 +1821,45 @@ export default function ClassroomActivitiesPage() {
 
                   return (
                     <div key={learner.id} style={learnerCard}>
-                      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <strong>{learner.name}</strong>
+                      <label style={learnerTickLabel}>
                         <input type="checkbox" checked={selected} onChange={() => toggleSupportLearner(learnerId)} />
-                        <strong>{learner.name}</strong>
+                        Needs support
                       </label>
-
-                      <label style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "8px" }}>
+                      <label style={learnerTickLabel}>
                         <input type="checkbox" checked={strengthSelected} onChange={() => toggleStrengthLearner(learnerId)} />
-                        <strong>Highlight exceptional progress</strong>
+                        Exceptional progress
                       </label>
 
                       {previous ? (
-                        <p style={smallHint}>
+                        <p style={{ ...smallHint, gridColumn: "1 / -1", margin: 0 }}>
                           Previous: {supportStatusLabel(supportStatusValue(previous))} on {previous.activity_date || formatShortDate(previous.created_at || "")}
                         </p>
                       ) : null}
 
                       {selected ? (
-                        <>
-                          <label style={labelStyle}>Support Status</label>
-                          <select className="db-input" value={supportLearnerStatuses[learnerId] || "new"} onChange={(e) => updateSelectedSupportStatus(learnerId, e.target.value)}>
+                        <div style={supportDetailRow}>
+                          <p style={{ ...smallHint, margin: 0, gridColumn: "1 / -1" }}>Support is tracked under <strong>{selectedTodayPlan.developmental_area}</strong>.</p>
+                          <label style={compactFieldLabel}>Support status
+                            <select className="db-input" value={supportLearnerStatuses[learnerId] || "new"} onChange={(e) => updateSelectedSupportStatus(learnerId, e.target.value)}>
                             {supportStatuses.map((status) => (
                               <option key={status.value} value={status.value}>{status.label}</option>
                             ))}
                           </select>
-                          <textarea
-                            className="db-input"
-                            value={supportLearnerNotes[learnerId] || ""}
-                            onChange={(event) =>
-                              setSupportLearnerNotes((current) => ({
-                                ...current,
-                                [learnerId]: event.target.value,
-                              }))
-                            }
-                            placeholder={`Support note for ${learner.name}`}
-                            style={{ minHeight: "64px", marginTop: "8px" }}
-                          />
-                        </>
+                          </label>
+                          <label style={compactFieldLabel}>Intervention / next step *
+                            <textarea className="db-input" value={supportLearnerInterventions[learnerId] || ""} onChange={(event) => setSupportLearnerInterventions((current) => ({ ...current, [learnerId]: event.target.value }))} placeholder={`How will ${learner.name} be supported?`} rows={2} />
+                          </label>
+                          <label style={{ ...compactFieldLabel, gridColumn: "1 / -1" }}>Observation (optional)
+                            <textarea className="db-input" value={supportLearnerNotes[learnerId] || ""} onChange={(event) => setSupportLearnerNotes((current) => ({ ...current, [learnerId]: event.target.value }))} placeholder={`What did you observe for ${learner.name}?`} rows={2} />
+                          </label>
+                        </div>
                       ) : null}
 
                       {strengthSelected ? (
-                        <textarea
-                          className="db-input"
-                          value={strengthLearnerNotes[learnerId] || ""}
-                          onChange={(event) => setStrengthLearnerNotes((current) => ({ ...current, [learnerId]: event.target.value }))}
-                          placeholder={`Strength or next challenge for ${learner.name}`}
-                          style={{ minHeight: "64px", marginTop: "8px" }}
-                        />
+                        <label style={{ ...compactFieldLabel, gridColumn: "1 / -1" }}>Strength or next challenge (optional)
+                          <textarea className="db-input" value={strengthLearnerNotes[learnerId] || ""} onChange={(event) => setStrengthLearnerNotes((current) => ({ ...current, [learnerId]: event.target.value }))} placeholder={`Optional strength note for ${learner.name}`} rows={2} />
+                        </label>
                       ) : null}
                     </div>
                   );
@@ -1858,9 +1872,6 @@ export default function ClassroomActivitiesPage() {
                 Show More Learners
               </button>
             ) : null}
-
-            <label style={labelStyle}>Practitioner Notes</label>
-            <textarea className="db-input" value={observation} onChange={(e) => setObservation(e.target.value)} placeholder="Optional note for the selected learners needing support" style={{ minHeight: "72px" }} />
 
             <button type="button" className="db-button-primary" style={{ width: "100%", marginTop: "10px" }} onClick={markComplete} disabled={saving}>
               {saving ? "Saving..." : "Mark Complete"}
@@ -2341,15 +2352,44 @@ const completionBox = {
 
 const learnerGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gridTemplateColumns: "1fr",
   gap: "8px",
 };
 
 const learnerCard = {
-  padding: "10px",
+  display: "grid",
+  gridTemplateColumns: "minmax(130px, 1fr) minmax(130px, auto) minmax(170px, auto)",
+  alignItems: "center",
+  gap: "10px",
+  padding: "9px 12px",
   borderRadius: "12px",
   border: "1px solid #E3D9CD",
   background: "#FFFDFB",
+};
+
+const learnerTickLabel = {
+  display: "flex",
+  gap: "7px",
+  alignItems: "center",
+  fontSize: "14px",
+  whiteSpace: "nowrap",
+};
+
+const supportDetailRow = {
+  gridColumn: "1 / -1",
+  display: "grid",
+  gridTemplateColumns: "minmax(150px, .6fr) minmax(230px, 1fr)",
+  gap: "8px",
+  padding: "10px",
+  borderRadius: "10px",
+  background: "#FFF7DF",
+};
+
+const compactFieldLabel = {
+  display: "grid",
+  gap: "5px",
+  fontSize: "13px",
+  fontWeight: 700,
 };
 
 const filterGrid = {

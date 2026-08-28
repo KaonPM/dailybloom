@@ -152,6 +152,10 @@ export default function ProgressReportsPage() {
   const [periods, setPeriods] = useState<PeriodRow[]>([]);
   const [allAssessments, setAllAssessments] = useState<AssessmentRow[]>([]);
   const [generatedReports, setGeneratedReports] = useState<GeneratedReportRow[]>([]);
+  const [gradeRTermResults, setGradeRTermResults] = useState<GradeRTermResult[]>([]);
+  const [gradeRFinalisationMarks, setGradeRFinalisationMarks] = useState<
+    Record<string, { sba: string; exam: string }>
+  >({});
   const [daysAbsent, setDaysAbsent] = useState<number | null>(null);
 
   const [reportType, setReportType] = useState<ReportType>(
@@ -353,6 +357,7 @@ export default function ProgressReportsPage() {
     await fetchLearners(currentSchoolId);
     await fetchPeriods(currentSchoolId);
     await fetchAllAssessments(currentSchoolId);
+    await fetchGradeRTermResults(currentSchoolId);
     await fetchGeneratedReports(currentSchoolId);
 
     if (profile.role === "teacher") {
@@ -491,6 +496,20 @@ export default function ProgressReportsPage() {
     }
 
     setAllAssessments(data || []);
+  }
+
+  async function fetchGradeRTermResults(currentSchoolId: number) {
+    const { data, error } = await supabase
+      .from("grade_r_term_results")
+      .select("*")
+      .eq("school_id", currentSchoolId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setGradeRTermResults(data || []);
   }
 
   async function fetchGeneratedReports(currentSchoolId: number) {
@@ -1855,11 +1874,13 @@ export default function ProgressReportsPage() {
       ".report-print-area"
     ) as HTMLElement;
     const pdfButtons = document.querySelector(".pdf-hide") as HTMLElement;
-    const bookletPages = Array.from(
-      document.querySelectorAll(".booklet-page")
+    const reportPages = Array.from(
+      document.querySelectorAll(
+        reportType === "grade-r" ? ".grade-r-dbe-sheet" : ".booklet-page"
+      )
     ) as HTMLElement[];
 
-    if (!reportElement || bookletPages.length === 0) {
+    if (!reportElement || reportPages.length === 0) {
       alert("Report not found.");
       return;
     }
@@ -1883,8 +1904,8 @@ export default function ProgressReportsPage() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
 
-      for (let index = 0; index < bookletPages.length; index++) {
-        const page = bookletPages[index];
+      for (let index = 0; index < reportPages.length; index++) {
+        const page = reportPages[index];
 
         const canvas = await html2canvas(page, {
           scale: 2,
@@ -2014,6 +2035,139 @@ export default function ProgressReportsPage() {
   }
 
   const primaryColor = school?.primary_color || "#4f6fbd";
+
+  const gradeRSubjects = [
+    {
+      assessmentCategory: "english_home_language",
+      resultKey: "english_home_language",
+      label: "English Home Language",
+    },
+    {
+      assessmentCategory: "mathematics",
+      resultKey: "mathematics",
+      label: "Mathematics",
+    },
+    {
+      assessmentCategory: "life_skills",
+      resultKey: "life_skills",
+      label: "Life Skills",
+    },
+    {
+      assessmentCategory: "first_additional_language",
+      resultKey: "afrikaans_first_additional_language",
+      label: "Afrikaans First Additional Language",
+    },
+  ] as const;
+
+  function getGradeRTermNumber(period?: PeriodRow) {
+    return Number(
+      String(period?.title || period?.term || "").match(/term\s*([1-4])/i)?.[1] || 0
+    );
+  }
+
+  function dbCodeFromPercent(mark: number) {
+    if (mark >= 70) return 4;
+    if (mark >= 50) return 3;
+    if (mark >= 35) return 2;
+    return 1;
+  }
+
+  function getAutoGradeRSbaMark(assessmentCategory: string) {
+    const ratingToMark: Record<number, number> = {
+      1: 20,
+      2: 35,
+      3: 45,
+      4: 55,
+      5: 65,
+      6: 80,
+      7: 95,
+    };
+    const values = allAssessments
+      .filter(
+        (item) =>
+          String(item.learner_id) === String(selectedLearnerId) &&
+          String(item.report_period_id) === String(selectedPeriodId) &&
+          item.report_type === "grade-r" &&
+          item.category === assessmentCategory
+      )
+      .map((item) => ratingToMark[Number(getAssessmentValue(item))])
+      .filter((value): value is number => Number.isFinite(value));
+
+    return values.length
+      ? values.reduce((total, value) => total + value, 0) / values.length
+      : null;
+  }
+
+  function getGradeRStoredResult(resultKey: string) {
+    return gradeRTermResults.find(
+      (item) =>
+        String(item.learner_id) === String(selectedLearnerId) &&
+        String(item.report_period_id) === String(selectedPeriodId) &&
+        item.subject_key === resultKey
+    );
+  }
+
+  async function saveGradeRTermResults() {
+    const termNumber = getGradeRTermNumber(selectedPeriod);
+    if (
+      !schoolId ||
+      !profile?.id ||
+      !selectedClassroomId ||
+      !selectedLearnerId ||
+      !selectedPeriodId ||
+      !termNumber
+    ) {
+      alert("Select the classroom, learner and Grade R term before saving.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const rows = gradeRSubjects.map((subject) => {
+      const stored = getGradeRStoredResult(subject.resultKey);
+      const marks = gradeRFinalisationMarks[subject.resultKey] || { sba: "", exam: "" };
+      const calculatedSba = getAutoGradeRSbaMark(subject.assessmentCategory);
+      const sba = Number(marks.sba !== "" ? marks.sba : stored?.sba_mark ?? calculatedSba);
+      const examMark = Number(marks.exam !== "" ? marks.exam : stored?.exam_mark);
+      const exam = termNumber === 4 ? examMark : null;
+
+      if (!Number.isFinite(sba) || sba < 0 || sba > 100) {
+        throw new Error(`Enter an SBA mark from 0 to 100 for ${subject.label}.`);
+      }
+      if (termNumber === 4 && (!Number.isFinite(examMark) || examMark < 0 || examMark > 100)) {
+        throw new Error(`Enter an exam mark from 0 to 100 for ${subject.label}.`);
+      }
+
+      const finalMark = termNumber === 4 ? sba * 0.4 + examMark * 0.6 : sba;
+      return {
+        school_id: schoolId,
+        classroom_id: Number(selectedClassroomId),
+        learner_id: selectedLearnerId,
+        report_period_id: Number(selectedPeriodId),
+        subject_key: subject.resultKey,
+        term_number: termNumber,
+        sba_mark: sba,
+        exam_mark: exam,
+        final_mark: finalMark,
+        final_code: dbCodeFromPercent(finalMark),
+        confirmed_by: profile.id,
+        confirmed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      });
+      const { error } = await supabase
+        .from("grade_r_term_results")
+        .upsert(rows, { onConflict: "learner_id,report_period_id,subject_key" });
+      if (error) throw error;
+
+      await fetchGradeRTermResults(schoolId);
+      alert(`Term ${termNumber} Grade R results saved and confirmed.`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not save Grade R term results.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (loading) return <p>Loading...</p>;
 
@@ -2843,14 +2997,89 @@ export default function ProgressReportsPage() {
         selectedLearner &&
         selectedPeriod &&
         reviewAssessments.length > 0 && (
-          <div
-            className="db-card db-card-lavender report-print-area"
-            style={{
-              padding: "24px",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
+          <>
+            {isPrincipal && reportType === "grade-r" && (
+              <div className="db-card db-card-blue no-print" style={{ padding: "20px", marginBottom: "20px" }}>
+                <h3 style={{ ...sectionTitle, fontSize: "18px" }}>Grade R Term Result Confirmation</h3>
+                <p style={textStyle}>
+                  The practitioner checklist remains unchanged. Confirm the official marks below: Terms 1–3 use SBA; Term 4 calculates the final mark as 40% SBA and 60% examination.
+                </p>
+                <div style={{ overflowX: "auto" }}>
+                  <table className="grade-r-finalisation-table">
+                    <thead>
+                      <tr>
+                        <th>Subject</th>
+                        <th>SBA mark (%)</th>
+                        {getGradeRTermNumber(selectedPeriod) === 4 ? <th>Exam mark (%)</th> : null}
+                        <th>Final mark / DBE code</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gradeRSubjects.map((subject) => {
+                        const stored = getGradeRStoredResult(subject.resultKey);
+                        const edited = gradeRFinalisationMarks[subject.resultKey];
+                        const autoSba = getAutoGradeRSbaMark(subject.assessmentCategory);
+                        const sbaValue = edited?.sba ?? (stored?.sba_mark != null ? String(stored.sba_mark) : autoSba?.toFixed(1) || "");
+                        const examValue = edited?.exam ?? (stored?.exam_mark != null ? String(stored.exam_mark) : "");
+                        const sba = Number(sbaValue);
+                        const exam = Number(examValue);
+                        const isTermFour = getGradeRTermNumber(selectedPeriod) === 4;
+                        const finalMark = Number.isFinite(sba) && (!isTermFour || Number.isFinite(exam))
+                          ? isTermFour ? sba * 0.4 + exam * 0.6 : sba
+                          : null;
+                        return (
+                          <tr key={subject.resultKey}>
+                            <td>{subject.label}</td>
+                            <td>
+                              <input
+                                className="db-input"
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                value={sbaValue}
+                                onChange={(event) => setGradeRFinalisationMarks((current) => ({
+                                  ...current,
+                                  [subject.resultKey]: { sba: event.target.value, exam: current[subject.resultKey]?.exam ?? examValue },
+                                }))}
+                              />
+                            </td>
+                            {isTermFour ? (
+                              <td>
+                                <input
+                                  className="db-input"
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.1"
+                                  value={examValue}
+                                  onChange={(event) => setGradeRFinalisationMarks((current) => ({
+                                    ...current,
+                                    [subject.resultKey]: { sba: current[subject.resultKey]?.sba ?? sbaValue, exam: event.target.value },
+                                  }))}
+                                />
+                              </td>
+                            ) : null}
+                            <td>{finalMark == null ? "Enter marks" : `${finalMark.toFixed(1)}% · Code ${dbCodeFromPercent(finalMark)}`}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <button className="db-button-primary" style={{ marginTop: "14px" }} onClick={saveGradeRTermResults} disabled={saving}>
+                  {saving ? "Saving..." : `Save and confirm Term ${getGradeRTermNumber(selectedPeriod)} results`}
+                </button>
+              </div>
+            )}
+            <div
+              className="db-card db-card-lavender report-print-area"
+              style={{
+                padding: "24px",
+                position: "relative",
+                overflow: "hidden",
+              }}
+            >
             {reportType === "grade-r" && school?.logo_url ? (
               <img
                 aria-hidden="true"
@@ -2869,6 +3098,21 @@ export default function ProgressReportsPage() {
                 }}
               />
             ) : null}
+            {reportType === "grade-r" ? (
+              <GradeRDBEReport
+                learner={selectedLearner}
+                classroom={selectedClassroom}
+                school={school}
+                teacherName={teacherName}
+                periods={periods}
+                assessments={allAssessments}
+                termResults={gradeRTermResults}
+                currentPeriod={selectedPeriod}
+                daysAbsent={daysAbsent}
+                remarks={teacherObservation || teacherComment}
+                principalComment={principalComment}
+              />
+            ) : <>
             <div className="booklet-page">
               <div style={bookletPanel}>
                 <h3 className="report-booklet-section-title" style={bookletSectionTitle}>National Codes</h3>
@@ -2876,9 +3120,7 @@ export default function ProgressReportsPage() {
                 <div style={codesBox}>
                   <strong>Codes / Level of Competence</strong>
                   <br />
-                  {reportType === "grade-r"
-                    ? "1 = Not Achieved | 2 = Elementary | 3 = Moderate | 4 = Adequate | 5 = Substantial | 6 = Meritorious | 7 = Outstanding"
-                    : reportType === "grade-rr"
+                  {reportType === "grade-rr"
                     ? "1 = Not Achieved | 2 = Partially Achieved | 3 = Achieved | 4 = Outstanding Achievement"
                     : "NP = Needs Practice | PA = Partially Achieved | A = Achieved | G = Good | VG = Very Good"}
                 </div>
@@ -3005,7 +3247,9 @@ export default function ProgressReportsPage() {
                 </p>
               </div>
             </div>
+            </>}
 
+            {reportType !== "grade-r" && (
             <div className="booklet-page">
               <div style={bookletPanel}>
                 <h2 style={bookletTitle}>{reportTitleUpper}</h2>
@@ -3036,7 +3280,7 @@ export default function ProgressReportsPage() {
                     {daysAbsent === null ? "Calculating..." : daysAbsent}
                   </p>
 
-                  {reportType === "grade-rr" || reportType === "grade-r" ? (
+                  {reportType === "grade-rr" ? (
                     <>
                       <p style={bookletText}>
                         <strong>Opening Date:</strong>{" "}
@@ -3047,12 +3291,6 @@ export default function ProgressReportsPage() {
                         <strong>Closing Date:</strong>{" "}
                         {closingDate || "Not added"}
                       </p>
-                      {reportType === "grade-r" ? (
-                        <p style={bookletText}>
-                          <strong>Admission No:</strong>{" "}
-                          {selectedLearner.admission_number || "Not assigned"}
-                        </p>
-                      ) : null}
                     </>
                   ) : null}
                 </div>
@@ -3095,6 +3333,7 @@ export default function ProgressReportsPage() {
               </div>
 
             </div>
+            )}
 
             <p
               className="no-print"
@@ -3209,7 +3448,8 @@ export default function ProgressReportsPage() {
                 short edge | A4
               </p>
             </div>
-          </div>
+            </div>
+          </>
         )}
 
       <style jsx global>{`
@@ -3242,6 +3482,23 @@ export default function ProgressReportsPage() {
           word-spacing: 0.12em;
           text-transform: none;
         }
+
+        .grade-r-dbe-sheet { background:#fff; border:1px solid #8b8b8b; min-height:190mm; padding:10mm; color:#171717; font-family:Arial,sans-serif; font-size:11px; }
+        .grade-r-dbe-header { display:flex; justify-content:space-between; gap:20px; border-bottom:2px solid #222; padding-bottom:8px; font-size:12px; line-height:1.45; }
+        .grade-r-dbe-header > :last-child { text-align:right; font-size:15px; }
+        .grade-r-dbe-meta { display:grid; grid-template-columns:repeat(3,1fr); gap:7px 14px; border:1px solid #555; border-top:0; padding:8px; }
+        .grade-r-dbe-key { margin:12px 0 8px; font-size:10px; }
+        .grade-r-dbe-table { width:100%; border-collapse:collapse; font-size:10px; }
+        .grade-r-dbe-table th,.grade-r-dbe-table td { border:1px solid #333; padding:7px 6px; text-align:center; vertical-align:middle; }
+        .grade-r-dbe-table th:first-child,.grade-r-dbe-table td:first-child { text-align:left; width:29%; font-weight:700; }
+        .grade-r-dbe-table th { background:#f2f2f2; font-weight:700; }
+        .grade-r-dbe-detail { border:1px solid #333; border-top:0; min-height:48mm; padding:8px; }
+        .grade-r-dbe-detail p { margin:5px 0; }
+        .grade-r-dbe-signatures { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:15px; font-weight:700; }
+        .grade-r-finalisation-table { width:100%; border-collapse:collapse; min-width:650px; }
+        .grade-r-finalisation-table th,.grade-r-finalisation-table td { border:1px solid #bdd2e9; padding:8px; text-align:left; }
+        .grade-r-finalisation-table th { background:#e8f3ff; color:#2c4a68; }
+        .grade-r-finalisation-table .db-input { width:110px; min-width:0; }
 
         .compact-textarea {
           min-height: 54px !important;
@@ -3309,6 +3566,36 @@ export default function ProgressReportsPage() {
       `}</style>
     </div>
   );
+}
+
+function GradeRDBEReport({ learner, classroom, school, teacherName, periods, assessments, termResults, currentPeriod, daysAbsent, remarks, principalComment }: {
+  learner: LearnerRow; classroom: ClassroomRow; school: SchoolRow | null; teacherName: string; periods: PeriodRow[]; assessments: AssessmentRow[]; termResults: GradeRTermResult[]; currentPeriod: PeriodRow; daysAbsent: number | null; remarks: string; principalComment: string;
+}) {
+  const subjectRows = [
+    ["english_home_language", "english_home_language", "English Home Language"],
+    ["mathematics", "mathematics", "Mathematics"],
+    ["life_skills", "life_skills", "Life Skills"],
+    ["first_additional_language", "afrikaans_first_additional_language", "Afrikaans First Additional Language"],
+  ] as const;
+  const termNumber = (period?: PeriodRow) => Number(String(period?.title || period?.term || "").match(/term\s*([1-4])/i)?.[1] || 0);
+  const terms = [1, 2, 3, 4].map((term) => ({ term, periodIds: new Set(periods.filter((period) => termNumber(period) === term && normalizeReportType(period.report_template || period.report_type) === "grade-r").map((period) => Number(period.id))) }));
+  const dbCode = (average: number | null) => average === null ? "" : average >= 5.5 ? "4" : average >= 4 ? "3" : average >= 2.5 ? "2" : "1";
+  const band = (code: string) => ({ "4": "70-100%", "3": "50-69%", "2": "35-49%", "1": "1-34%" }[code] || "");
+  const result = (assessmentCategory: string, resultKey: string, periodIds: Set<number>) => {
+    const stored = termResults.find((item) => String(item.learner_id) === String(learner.id) && item.subject_key === resultKey && periodIds.has(Number(item.report_period_id)));
+    if (stored?.final_mark !== null && stored?.final_mark !== undefined) return { code: String(stored.final_code || ""), band: `${Number(stored.final_mark).toFixed(1)}%`, mark: Number(stored.final_mark), sba: stored.sba_mark == null ? null : Number(stored.sba_mark), exam: stored.exam_mark == null ? null : Number(stored.exam_mark) };
+    const values = assessments.filter((item) => String(item.learner_id) === String(learner.id) && item.report_type === "grade-r" && item.category === assessmentCategory && periodIds.has(Number(item.report_period_id))).map((item) => Number(getAssessmentValue(item))).filter((value) => Number.isFinite(value));
+    const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+    const code = dbCode(average); return { code, band: band(code), mark: null, sba: null, exam: null };
+  };
+  return <div className="grade-r-dbe-sheet">
+    <header className="grade-r-dbe-header"><div><strong>{school?.school_name || "School Name"}</strong><br />{school?.address || school?.physical_address || ""}<br />{school?.emis_number ? `EMIS: ${school.emis_number}` : ""}</div><div><strong>GRADE R LEARNER REPORT</strong><br />{currentPeriod.title || currentPeriod.term || "Term report"}</div></header>
+    <div className="grade-r-dbe-meta"><span><b>Learner:</b> {learner.legal_name || learner.name}</span><span><b>Admission No:</b> {learner.admission_number || "Not assigned"}</span><span><b>Date of Birth:</b> {learner.date_of_birth || "Not added"}</span><span><b>Class:</b> {classroom.classroom_name}</span><span><b>Educator:</b> {teacherName}</span></div>
+    <p className="grade-r-dbe-key"><b>DBE Foundation Phase codes:</b> 4 Outstanding/Excellent (70-100%) · 3 Satisfactory (50-69%) · 2 Partial (35-49%) · 1 Not achieved (1-34%)</p>
+    <table className="grade-r-dbe-table"><thead><tr><th>Subject</th>{terms.map(({ term }) => <th key={term}>Term {term}<br /><small>{term === 4 ? "SBA 40% · Exam 60%" : "Code / %"}</small></th>)}<th>Final average</th></tr></thead><tbody>{subjectRows.map(([assessmentCategory, resultKey, label]) => { const finalResults = terms.map(({ periodIds }) => result(assessmentCategory, resultKey, periodIds)).filter((item) => item.code); const savedMarks = finalResults.map((item) => item.mark).filter((mark): mark is number => mark != null); const finalMark = savedMarks.length ? savedMarks.reduce((sum, mark) => sum + mark, 0) / savedMarks.length : null; const final = finalMark == null ? finalResults.at(-1) : { code: finalMark >= 70 ? "4" : finalMark >= 50 ? "3" : finalMark >= 35 ? "2" : "1", band: `${finalMark.toFixed(1)}%` }; return <tr key={resultKey}><td>{label}</td>{terms.map(({ term, periodIds }) => { const item = result(assessmentCategory, resultKey, periodIds); return <td key={term}>{item.code ? <>{item.code}<br /><small>{item.band}</small>{term === 4 && item.sba != null && item.exam != null ? <><br /><small>SBA {item.sba.toFixed(1)} · Exam {item.exam.toFixed(1)}</small></> : null}</> : "—"}</td>; })}<td>{final?.code ? <>{final.code}<br /><small>{final.band}</small></> : "—"}</td></tr>; })}</tbody></table>
+    <div className="grade-r-dbe-detail"><p><b>Days absent:</b> {daysAbsent ?? "Calculating..."}</p><p><b>Extra-mural participation:</b> ______________________________</p><p><b>General remarks:</b> {remarks || "No practitioner remarks added."}</p><p><b>Principal comments:</b> {principalComment || "______________________________"}</p></div>
+    <footer className="grade-r-dbe-signatures"><span>Class Educator: ____________________</span><span>Principal: ____________________</span><span>Parent: ____________________</span></footer>
+  </div>;
 }
 
 function ReportSkillTable({
@@ -3555,6 +3842,8 @@ const bookletSectionTitle: React.CSSProperties = {
   letterSpacing: "0.01em",
   wordSpacing: "0.12em",
 };
+
+type GradeRTermResult = { learner_id?: IdValue; report_period_id?: IdValue; subject_key?: string | null; term_number?: number | null; sba_mark?: number | null; exam_mark?: number | null; final_mark?: number | null; final_code?: number | null; };
 
 const bookletText: React.CSSProperties = {
   fontSize: "9.5px",

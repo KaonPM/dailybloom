@@ -1869,6 +1869,11 @@ export default function ProgressReportsPage() {
         pdfButtons.style.display = "none";
       }
 
+      // html2canvas can otherwise capture the fallback font before Nunito has
+      // loaded, which makes headings look much heavier and closes word gaps in
+      // the downloaded document.
+      await document.fonts?.ready;
+
       const pdf = new jsPDF({
         orientation: "landscape",
         unit: "mm",
@@ -2866,7 +2871,7 @@ export default function ProgressReportsPage() {
             ) : null}
             <div className="booklet-page">
               <div style={bookletPanel}>
-                <h3 style={bookletSectionTitle}>National Codes</h3>
+                <h3 className="report-booklet-section-title" style={bookletSectionTitle}>National Codes</h3>
 
                 <div style={codesBox}>
                   <strong>Codes / Level of Competence</strong>
@@ -2900,7 +2905,7 @@ export default function ProgressReportsPage() {
                     </div>
                   </div>
 
-                <h3 style={bookletSectionTitle}>Practitioner Remarks</h3>
+                <h3 className="report-booklet-section-title" style={bookletSectionTitle}>Practitioner Remarks</h3>
 
                 <textarea
                   className="db-input no-print compact-textarea"
@@ -2921,7 +2926,7 @@ export default function ProgressReportsPage() {
 
                 {!isTeacher && (
                   <>
-                    <h3 style={bookletSectionTitle}>Principal Comments</h3>
+                    <h3 className="report-booklet-section-title" style={bookletSectionTitle}>Principal Comments</h3>
 
                     <textarea
                       className="db-input no-print compact-textarea"
@@ -3054,7 +3059,7 @@ export default function ProgressReportsPage() {
 
                 {(firstPageCategories as ReportCategory[]).map((category) => (
                   <React.Fragment key={category.key}>
-                    <h3 style={bookletSectionTitle}>{category.label}</h3>
+                    <h3 className="report-booklet-section-title" style={bookletSectionTitle}>{category.label}</h3>
 
                     {category.description ? (
                       <p style={bookletSmallText}>{category.description}</p>
@@ -3073,7 +3078,7 @@ export default function ProgressReportsPage() {
               <div style={bookletPanel}>
                 {(secondPageCategories as ReportCategory[]).map((category) => (
                   <React.Fragment key={category.key}>
-                    <h3 style={bookletSectionTitle}>{category.label}</h3>
+                    <h3 className="report-booklet-section-title" style={bookletSectionTitle}>{category.label}</h3>
 
                     {category.description ? (
                       <p style={bookletSmallText}>{category.description}</p>
@@ -3222,6 +3227,20 @@ export default function ProgressReportsPage() {
           border-radius: 14px;
           box-sizing: border-box;
           min-height: 190mm;
+        }
+
+        .report-print-area,
+        .report-print-area * {
+          font-family: "Nunito", Arial, sans-serif;
+        }
+
+        .report-print-area .report-booklet-section-title {
+          font-size: 9.5px !important;
+          font-weight: 700 !important;
+          line-height: 1.2;
+          letter-spacing: 0.01em;
+          word-spacing: 0.12em;
+          text-transform: none;
         }
 
         .compact-textarea {
@@ -3527,12 +3546,14 @@ const bookletTitle: React.CSSProperties = {
 
 const bookletSectionTitle: React.CSSProperties = {
   fontSize: "9.5px",
-  fontWeight: 800,
-  textTransform: "uppercase",
-  margin: "7px 0 4px",
+  fontWeight: 700,
+  margin: "8px 0 5px",
   background: "#f3f3f3",
   padding: "3px 5px",
   border: "1px solid #ddd",
+  lineHeight: 1.2,
+  letterSpacing: "0.01em",
+  wordSpacing: "0.12em",
 };
 
 const bookletText: React.CSSProperties = {
@@ -3611,6 +3632,7 @@ const signatureGrid: React.CSSProperties = {
 
 const coverSchoolName: React.CSSProperties = {
   fontSize: "22px",
+  fontWeight: 700,
   marginTop: "14px",
   marginBottom: "14px",
   color: "#222",
@@ -3618,6 +3640,8 @@ const coverSchoolName: React.CSSProperties = {
 
 const coverTitle: React.CSSProperties = {
   fontSize: "19px",
+  fontWeight: 700,
+  letterSpacing: "0.02em",
   margin: "16px 0",
   color: "#4f6fbd",
 };

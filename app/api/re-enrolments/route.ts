@@ -8,7 +8,7 @@ import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
-type ReenrolmentAction = "create_campaign" | "send_notifications" | "approve_reenrolment" | "decline_reenrolment" | "assign_classroom" | "mark_school_leaver" | "mark_no_response" | "apply_classroom_rollover";
+type ReenrolmentAction = "create_campaign" | "send_notifications" | "approve_reenrolment" | "decline_reenrolment" | "assign_classroom" | "auto_allocate_reenrolments" | "mark_school_leaver" | "mark_no_response" | "apply_classroom_rollover";
 
 function asText(value: unknown, maxLength = 160) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
@@ -67,6 +67,23 @@ function relatedClassroomName(value: unknown) {
     : "";
 }
 
+function ageOnNewYear(dateOfBirth: string | null, schoolYear: number) {
+  const match = typeof dateOfBirth === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOfBirth) : null;
+  if (!match) return null;
+  const birthYear = Number(match[1]);
+  const birthMonth = Number(match[2]);
+  const birthDay = Number(match[3]);
+  if (!Number.isInteger(birthYear) || birthMonth < 1 || birthMonth > 12 || birthDay < 1 || birthDay > 31) return null;
+  return schoolYear - birthYear - (birthMonth > 1 || (birthMonth === 1 && birthDay > 1) ? 1 : 0);
+}
+
+function classroomAcceptsAge(ageGroups: unknown, age: number) {
+  return rows<string>(Array.isArray(ageGroups) ? ageGroups : []).some((group) => {
+    const match = /^(\d+)\s*-\s*(\d+)\s*years?$/i.exec(group.trim());
+    return Boolean(match && age >= Number(match[1]) && age <= Number(match[2]));
+  });
+}
+
 async function sendParentPush(args: { externalIds: string[]; heading: string; message: string; url: string }) {
   const appId = process.env.ONESIGNAL_APP_ID || process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
   const restApiKey = process.env.ONESIGNAL_REST_API_KEY;
@@ -101,7 +118,7 @@ export async function GET(request: Request) {
     supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("school_id", schoolId).eq("fee_code", "registration").maybeSingle(),
     supabaseAdmin.from("school_reenrolment_campaigns").select("id, school_year, source_form_id, form_snapshot, registration_fee_type_id, registration_fee_amount, response_deadline, status, rollover_applied_at, created_at").eq("school_id", schoolId).order("school_year", { ascending: false }),
     supabaseAdmin.from("school_enrolment_forms").select("id, form_name, form_type, instructions").eq("school_id", schoolId).eq("form_type", "general").eq("is_active", true).order("form_name"),
-    supabaseAdmin.from("classrooms").select("id, classroom_name").eq("school_id", schoolId).order("classroom_name"),
+    supabaseAdmin.from("classrooms").select("id, classroom_name, age_groups").eq("school_id", schoolId).order("classroom_name"),
     supabaseAdmin.from("school_enrolment_enquiries").select("id,learner_id,enquiry_reference,parent_name,academic_year,submitted_data").eq("school_id",schoolId).eq("status","approved").not("learner_id","is",null).order("academic_year").order("created_at"),
   ]);
   const failure = schoolResult.error || feeResult.error || campaignsResult.error || formsResult.error || classroomsResult.error || approvedEnrolmentsResult.error;
@@ -140,6 +157,7 @@ export async function GET(request: Request) {
       );
       return {
         ...safeRecord,
+        school_year: campaign.school_year,
         learner_name: learner?.name || learner?.legal_name || "Learner",
         classroom_name: classroom?.classroom_name || "Unassigned",
         parent_notes: typeof submittedData.parent_notes === "string" ? submittedData.parent_notes : "",
@@ -461,7 +479,7 @@ export async function POST(request: Request) {
         learner_id: recordResult.data.learner_id,
         registration_fee_amount: recordResult.data.registration_fee_amount,
       });
-      return NextResponse.json({ success: true, message: "Re-enrolment approved. The learner is now awaiting next-year classroom allocation." });
+      return NextResponse.json({ success: true, message: `Re-enrolment approved. The learner will enter Awaiting Classroom Allocation on 1 January ${campaignResult.data.school_year}.` });
     }
 
     const declineReason = asText(body.decline_reason, 800);
@@ -495,6 +513,52 @@ export async function POST(request: Request) {
     if (placementUpdate.error) return NextResponse.json({ error: placementUpdate.error.message }, { status: 500 });
     await writeSecurityAudit(access.staff, "reenrolment_classroom_assigned", { reenrolment_id: reenrolmentId, next_classroom_id: nextClassroomId });
     return NextResponse.json({ success: true, message: "Next-year classroom allocated. The learner remains in the current classroom until rollover." });
+  }
+
+  if (action === "auto_allocate_reenrolments") {
+    const campaignId = asText(body.campaign_id, 64);
+    if (!campaignId) return NextResponse.json({ error: "A re-enrolment campaign is required." }, { status: 400 });
+    const campaignResult = await supabaseAdmin.from("school_reenrolment_campaigns").select("id, school_year, status").eq("id", campaignId).eq("school_id", schoolId).maybeSingle();
+    if (campaignResult.error || !campaignResult.data) return NextResponse.json({ error: campaignResult.error?.message || "Re-enrolment campaign not found." }, { status: 404 });
+    const targetStart = new Date(`${campaignResult.data.school_year}-01-01T00:00:00+02:00`);
+    if (new Date() < targetStart) return NextResponse.json({ error: `Automatic classroom allocation becomes available on 1 January ${campaignResult.data.school_year}.` }, { status: 400 });
+
+    const [recordsResult, classroomsResult, placementsResult] = await Promise.all([
+      supabaseAdmin.from("learner_reenrolments").select("id, learner_id").eq("campaign_id", campaignId).eq("school_id", schoolId).eq("status", "approved").is("next_classroom_id", null).is("classroom_applied_at", null),
+      supabaseAdmin.from("classrooms").select("id, classroom_name, age_groups").eq("school_id", schoolId).order("id"),
+      supabaseAdmin.from("learner_placements").select("classroom_id").eq("school_id", schoolId).eq("academic_year", campaignResult.data.school_year).not("classroom_id", "is", null),
+    ]);
+    const initialError = recordsResult.error || classroomsResult.error || placementsResult.error;
+    if (initialError) return NextResponse.json({ error: initialError.message }, { status: 500 });
+    const records = rows<{ id: string; learner_id: string }>(recordsResult.data);
+    if (!records.length) return NextResponse.json({ allocated: 0, awaiting_manual: 0, message: "There are no approved re-enrolments awaiting allocation." });
+    const learnerResult = await supabaseAdmin.from("learners").select("id, date_of_birth").eq("school_id", schoolId).in("id", records.map((record) => record.learner_id));
+    if (learnerResult.error) return NextResponse.json({ error: learnerResult.error.message }, { status: 500 });
+
+    const classrooms = rows<{ id: number; classroom_name: string; age_groups: string[] | null }>(classroomsResult.data);
+    const learnersById = new Map(rows<{ id: string; date_of_birth: string | null }>(learnerResult.data).map((learner) => [learner.id, learner]));
+    const classroomLoad = new Map(classrooms.map((classroom) => [classroom.id, 0]));
+    for (const placement of rows<{ classroom_id: number }>(placementsResult.data)) classroomLoad.set(placement.classroom_id, (classroomLoad.get(placement.classroom_id) || 0) + 1);
+
+    const plans: Array<{ reenrolmentId: string; learnerId: string; classroomId: number }> = [];
+    const sortedRecords = [...records].sort((left, right) => String(learnersById.get(left.learner_id)?.date_of_birth || "9999-12-31").localeCompare(String(learnersById.get(right.learner_id)?.date_of_birth || "9999-12-31")) || left.learner_id.localeCompare(right.learner_id));
+    for (const record of sortedRecords) {
+      const age = ageOnNewYear(learnersById.get(record.learner_id)?.date_of_birth || null, campaignResult.data.school_year);
+      const matches = age === null ? [] : classrooms.filter((classroom) => classroomAcceptsAge(classroom.age_groups, age));
+      if (!matches.length) continue;
+      const classroom = matches.sort((left, right) => (classroomLoad.get(left.id) || 0) - (classroomLoad.get(right.id) || 0) || left.id - right.id)[0];
+      classroomLoad.set(classroom.id, (classroomLoad.get(classroom.id) || 0) + 1);
+      plans.push({ reenrolmentId: record.id, learnerId: record.learner_id, classroomId: classroom.id });
+    }
+    const updatedAt = new Date().toISOString();
+    for (const plan of plans) {
+      const updateResult = await supabaseAdmin.from("learner_reenrolments").update({ next_classroom_id: plan.classroomId, updated_at: updatedAt }).eq("id", plan.reenrolmentId).eq("school_id", schoolId).eq("status", "approved").is("next_classroom_id", null).is("classroom_applied_at", null).select("id").maybeSingle();
+      if (updateResult.error || !updateResult.data) return NextResponse.json({ error: updateResult.error?.message || "A learner allocation changed before it could be saved." }, { status: 409 });
+      const placementResult = await supabaseAdmin.from("learner_placements").upsert({ learner_id: plan.learnerId, school_id: schoolId, academic_year: campaignResult.data.school_year, classroom_id: plan.classroomId, placement_status: "future", updated_at: updatedAt }, { onConflict: "learner_id,academic_year" });
+      if (placementResult.error) return NextResponse.json({ error: placementResult.error.message }, { status: 500 });
+    }
+    await writeSecurityAudit(access.staff, "reenrolment_classrooms_auto_allocated", { campaign_id: campaignId, school_year: campaignResult.data.school_year, allocated: plans.length, awaiting_manual: records.length - plans.length });
+    return NextResponse.json({ allocated: plans.length, awaiting_manual: records.length - plans.length, message: `${plans.length} re-enrolment classroom allocation${plans.length === 1 ? " was" : "s were"} made automatically.` });
   }
 
   if (action === "mark_school_leaver" || action === "mark_no_response") {

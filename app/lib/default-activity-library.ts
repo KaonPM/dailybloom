@@ -286,3 +286,38 @@ export const defaultActivityLibrary: DefaultActivityLibraryItem[] = [
   { theme: "Grade R Readiness", activity_name: "Number Readiness", description: "Learners count objects and recognise basic numbers.", developmental_area: "Mathematics" },
   { theme: "Grade R Readiness", activity_name: "School Readiness Activities", description: "Learners practise routines, independence and classroom participation.", developmental_area: "Life Skills" },
 ];
+
+function gradeRThemeForDevelopmentalArea(area: string) {
+  switch (area) {
+    case "Language":
+    case "Story Time":
+    case "Music & Movement":
+      return "Grade R: English Home Language";
+    case "Mathematics":
+      return "Grade R: Mathematics";
+    case "Creative Art":
+    case "Fine Motor":
+      return "Grade R: Creative Arts";
+    case "Gross Motor":
+    case "Outdoor Play":
+      return "Grade R: Physical Education";
+    case "Ring Time":
+    case "Sensory Development":
+      return "Grade R: Beginning Knowledge";
+    default:
+      return "Grade R: Personal and Social Well-being";
+  }
+}
+
+// Grade R practitioners can use the broader early-learning collection too.
+// Each item is placed under a DBE-aligned Grade R learning area while keeping
+// its original topic in the title, so similar activities remain easy to find.
+export const gradeRAlignedActivityLibrary: DefaultActivityLibraryItem[] = [
+  ...gradeRActivityLibrary,
+  ...defaultActivityLibrary.map((item) => ({
+    theme: gradeRThemeForDevelopmentalArea(item.developmental_area),
+    activity_name: `${item.activity_name} — ${item.theme}`,
+    description: item.description,
+    developmental_area: item.developmental_area,
+  })),
+];

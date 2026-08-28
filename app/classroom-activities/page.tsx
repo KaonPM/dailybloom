@@ -9,7 +9,7 @@ import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { resolveSchoolContext } from "../lib/school-context";
 import {
   defaultActivityLibrary,
-  gradeRActivityLibrary,
+  gradeRAlignedActivityLibrary,
   type DefaultActivityLibraryItem,
 } from "../lib/default-activity-library";
 import {
@@ -617,7 +617,7 @@ export default function ClassroomActivitiesPage() {
     await seedLibraryItems(
       currentSchoolId,
       currentProfile,
-      gradeRActivityLibrary,
+      gradeRAlignedActivityLibrary,
       "DBE-aligned Grade R activities added.",
       true
     );
@@ -659,7 +659,7 @@ export default function ClassroomActivitiesPage() {
     await seedLibraryItems(
       currentSchoolId,
       currentProfile,
-      gradeRActivityLibrary,
+      gradeRAlignedActivityLibrary,
       "",
       false
     );

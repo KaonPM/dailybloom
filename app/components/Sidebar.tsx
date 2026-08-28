@@ -744,6 +744,7 @@ export default function Sidebar() {
           label: "Learner Development",
           color: "#7C3AED",
           items: itemsNamed(
+            "Progress Review",
             "Progress Reports",
             "Incident Reports",
             "Achievement Awards"

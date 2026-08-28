@@ -6,6 +6,7 @@ const SCHOOL_ROUTE_PERMISSIONS: readonly [string, Permission][] = [
   ["/classroom-activities", PERMISSIONS.ACTIVITIES_MANAGE],
   ["/learner-requirements", PERMISSIONS.REQUIREMENTS_VIEW],
   ["/progress-reports", PERMISSIONS.PROGRESS_REPORTS_MANAGE],
+  ["/teacher-assessments", PERMISSIONS.PROGRESS_REPORTS_MANAGE],
   ["/achievement-awards", PERMISSIONS.AWARDS_MANAGE],
   ["/school-documents", PERMISSIONS.SCHOOL_DOCUMENTS_MANAGE],
   ["/incident-reports", PERMISSIONS.INCIDENT_REVIEW],

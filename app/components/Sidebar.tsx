@@ -287,6 +287,12 @@ export default function Sidebar() {
         permission: PERMISSIONS.PROGRESS_REPORTS_MANAGE,
       },
       {
+        label: "Progress Review",
+        href: "/teacher-assessments",
+        match: ["/teacher-assessments"],
+        permission: PERMISSIONS.PROGRESS_REPORTS_MANAGE,
+      },
+      {
         label: "Achievement Awards",
         href: "/achievement-awards",
         match: ["/achievement-awards"],
@@ -377,6 +383,11 @@ export default function Sidebar() {
         label: "Progress Reports",
         href: "/progress-reports",
         match: ["/progress-reports"],
+      },
+      {
+        label: "Progress Review",
+        href: "/teacher-assessments",
+        match: ["/teacher-assessments"],
       },
       {
         label: "Achievement Awards",
@@ -692,6 +703,7 @@ export default function Sidebar() {
           label: "Learner Development",
           color: "#7C3AED",
           items: itemsNamed(
+            "Progress Review",
             "Progress Reports",
             "Incident Reports",
             "Achievement Awards"

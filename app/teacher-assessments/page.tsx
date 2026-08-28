@@ -72,6 +72,7 @@ type AssessmentRow = {
 };
 type AssessmentValues = Record<string, Record<string, { level: string }>>;
 type EvidenceSnapshot = { attendance: { present: number; absent: number; rate: number | null }; activities: Array<{ developmental_area?: string | null; activity_name?: string | null }>; support_cases: Array<{ developmental_area?: string | null; support_status?: string | null; observation?: string | null }>; strengths: Array<{ developmental_area?: string | null; observation?: string | null }>; support_updates: Array<{ support_status?: string | null; intervention?: string | null; progress_note?: string | null; next_review_date?: string | null }>; summaries: Array<{ notes?: string | null; teacher_notes?: string | null }>; awards: Array<{ award_name?: string | null; award_reason?: string | null }> };
+type ProgressReview = { id: number; review_date: string; discussion_summary: string; agreed_actions?: string | null; home_support?: string | null; next_review_date?: string | null; recorded_by_name?: string | null; created_at: string };
 type AssessmentUpsertRow = {
   school_id: number;
   classroom_id: number;
@@ -112,6 +113,13 @@ export default function TeacherAssessmentsPage() {
   const [existingAssessments, setExistingAssessments] = useState<AssessmentRow[]>([]);
   const [evidence, setEvidence] = useState<EvidenceSnapshot | null>(null);
   const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [progressReviews, setProgressReviews] = useState<ProgressReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewDate, setReviewDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [discussionSummary, setDiscussionSummary] = useState("");
+  const [agreedActions, setAgreedActions] = useState("");
+  const [homeSupport, setHomeSupport] = useState("");
+  const [nextReviewDate, setNextReviewDate] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -172,6 +180,37 @@ export default function TeacherAssessmentsPage() {
     void loadEvidence();
     return () => { cancelled = true; };
   }, [schoolId, selectedLearnerId, selectedPeriodId]);
+
+  useEffect(() => {
+    if (!schoolId || !selectedLearnerId) {
+      setProgressReviews([]);
+      return;
+    }
+    let cancelled = false;
+    async function loadProgressReviews() {
+      setReviewsLoading(true);
+      try {
+        const response = await authenticatedFetch(`/api/learner-progress-reviews?school_id=${schoolId}&learner_id=${selectedLearnerId}&report_period_id=${selectedPeriodId}`);
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Progress reviews could not be loaded.");
+        if (!cancelled) setProgressReviews(payload.reviews || []);
+      } catch (error) {
+        if (!cancelled) alert(error instanceof Error ? error.message : "Progress reviews could not be loaded.");
+      } finally {
+        if (!cancelled) setReviewsLoading(false);
+      }
+    }
+    void loadProgressReviews();
+    return () => { cancelled = true; };
+  }, [schoolId, selectedLearnerId, selectedPeriodId]);
+
+  useEffect(() => {
+    setReviewDate(new Date().toISOString().slice(0, 10));
+    setDiscussionSummary("");
+    setAgreedActions("");
+    setHomeSupport("");
+    setNextReviewDate("");
+  }, [selectedLearnerId, selectedPeriodId]);
 
   function getCategoryIndicators(category: Category): Indicator[] {
     return (
@@ -529,6 +568,49 @@ export default function TeacherAssessmentsPage() {
     );
   }
 
+  async function saveProgressReview() {
+    if (!schoolId || !selectedClassroomId || !selectedLearnerId) {
+      alert("Select a class and learner before saving a progress review.");
+      return;
+    }
+    if (!discussionSummary.trim()) {
+      alert("Add a short summary of what was discussed.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await authenticatedFetch("/api/learner-progress-reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          school_id: schoolId,
+          classroom_id: Number(selectedClassroomId),
+          learner_id: selectedLearnerId,
+          report_period_id: selectedPeriodId ? Number(selectedPeriodId) : null,
+          review_date: reviewDate,
+          discussion_summary: discussionSummary,
+          agreed_actions: agreedActions,
+          home_support: homeSupport,
+          next_review_date: nextReviewDate || null,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Progress review could not be saved.");
+
+      setProgressReviews((current) => [payload.review, ...current]);
+      setDiscussionSummary("");
+      setAgreedActions("");
+      setHomeSupport("");
+      setNextReviewDate("");
+      alert("Progress review saved.");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Progress review could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function formatPeriodType(type?: string | null) {
     if (type === "quarterly") return "Quarterly Report";
     if (type === "biannual") return "Biannual Report";
@@ -551,9 +633,10 @@ export default function TeacherAssessmentsPage() {
   return (
     <div>
       <div className="db-soft-card" style={{ padding: 22, marginBottom: 24 }}>
-        <h1 className="db-page-title">Learner Progress Assessments</h1>
+        <p className="db-eyebrow">Learner Development</p>
+        <h1 className="db-page-title">Progress Review</h1>
         <p className="db-page-subtitle">
-          Review the learner's evidence before completing the formal assessment in Progress Reports.
+          A simple learner snapshot for parent conversations, classroom follow-up and formal Progress Reports.
         </p>
       </div>
 
@@ -662,8 +745,8 @@ export default function TeacherAssessmentsPage() {
       </div>
 
       {canShowAssessmentForm ? (
-        <details className="db-card db-card-green" style={{ padding: 20, marginBottom: 20 }}>
-          <summary style={{ cursor: "pointer", fontWeight: 800, color: "#2D2A3E" }}>Evidence for this review</summary>
+        <details className="db-card db-card-green" open style={{ padding: 20, marginBottom: 20 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 800, color: "#2D2A3E" }}>Learner progress snapshot</summary>
           {evidenceLoading ? <p style={textStyle}>Loading learner evidence…</p> : evidence ? <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
             <p style={textStyle}>Use this evidence to inform your professional judgement. It does not automatically set a rating.</p>
             <div className="db-list-card"><strong>Attendance</strong><p style={textStyle}>{evidence.attendance.rate === null ? "No attendance captured for this period." : `${evidence.attendance.rate}% present · ${evidence.attendance.present} present · ${evidence.attendance.absent} absent`}</p></div>
@@ -676,10 +759,47 @@ export default function TeacherAssessmentsPage() {
       ) : null}
 
       {canShowAssessmentForm ? (
+        <div className="db-card db-card-yellow" style={{ padding: 20, marginBottom: 20 }}>
+          <h3 style={sectionTitle}>Parent meeting or progress conversation</h3>
+          <p style={textStyle}>Capture the key discussion and agreed next steps. Each saved note stays in this learner&apos;s review history.</p>
+          <div style={{ display: "grid", gap: 12 }}>
+            <label style={labelText}>Conversation date<input className="db-input" type="date" value={reviewDate} onChange={(event) => setReviewDate(event.target.value)} /></label>
+            <label style={labelText}>What was discussed<textarea className="db-input" rows={3} value={discussionSummary} onChange={(event) => setDiscussionSummary(event.target.value)} placeholder="Share the learner's progress, strengths or any concerns discussed." /></label>
+            <label style={labelText}>Agreed next steps<textarea className="db-input" rows={2} value={agreedActions} onChange={(event) => setAgreedActions(event.target.value)} placeholder="What will the school and parent do next?" /></label>
+            <label style={labelText}>Home support<textarea className="db-input" rows={2} value={homeSupport} onChange={(event) => setHomeSupport(event.target.value)} placeholder="A simple activity or support the family can use at home." /></label>
+            <label style={labelText}>Next review date<input className="db-input" type="date" value={nextReviewDate} onChange={(event) => setNextReviewDate(event.target.value)} /></label>
+          </div>
+          <button className="db-button-primary" type="button" style={{ marginTop: 14 }} onClick={saveProgressReview} disabled={saving}>
+            {saving ? "Saving..." : "Save progress review"}
+          </button>
+        </div>
+      ) : null}
+
+      {canShowAssessmentForm ? (
+        <details className="db-card db-card-lavender" style={{ padding: 20, marginBottom: 20 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 800, color: "#2D2A3E" }}>Previous progress reviews ({progressReviews.length})</summary>
+          {reviewsLoading ? <p style={textStyle}>Loading progress reviews…</p> : null}
+          {!reviewsLoading && progressReviews.length === 0 ? <p style={textStyle}>No progress conversations have been recorded for this learner and term yet.</p> : null}
+          <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+            {progressReviews.map((review) => (
+              <article className="db-list-card" key={review.id}>
+                <strong>{new Date(`${review.review_date}T00:00:00`).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}</strong>
+                <p style={textStyle}><b>Discussed:</b> {review.discussion_summary}</p>
+                {review.agreed_actions ? <p style={textStyle}><b>Next steps:</b> {review.agreed_actions}</p> : null}
+                {review.home_support ? <p style={textStyle}><b>Home support:</b> {review.home_support}</p> : null}
+                {review.next_review_date ? <p style={textStyle}><b>Next review:</b> {new Date(`${review.next_review_date}T00:00:00`).toLocaleDateString("en-ZA")}</p> : null}
+                <p style={{ ...textStyle, marginBottom: 0, fontSize: 12 }}>Recorded by {review.recorded_by_name || "school staff"}</p>
+              </article>
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      {canShowAssessmentForm ? (
         <div className="db-card db-card-lavender" style={{ padding: 20 }}>
-          <h3 style={sectionTitle}>Complete the formal assessment</h3>
-          <p style={textStyle}>Ratings and practitioner remarks are captured once in Progress Reports. This prevents duplicate assessment records and keeps the principal review flow clear.</p>
-          <button className="db-button-primary" onClick={() => router.push("/progress-reports")}>Open Progress Reports</button>
+          <h3 style={sectionTitle}>Formal Progress Report</h3>
+          <p style={textStyle}>When you are ready to assess, use Progress Reports. Ratings are captured once there and then sent to the principal for review.</p>
+          <button className="db-button-primary" onClick={() => router.push(`/progress-reports?classroom=${encodeURIComponent(selectedClassroomId)}&learner=${encodeURIComponent(selectedLearnerId)}&period=${encodeURIComponent(selectedPeriodId)}`)}>Open Progress Reports</button>
         </div>
       ) : null}
 

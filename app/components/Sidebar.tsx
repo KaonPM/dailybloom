@@ -8,6 +8,7 @@ import { getCurrentProfile } from "../lib/auth";
 import { getAllowedNavigationItems } from "../lib/navigation-access";
 import { Permission, PERMISSIONS } from "../lib/permissions";
 import { permissionForSchoolPath } from "../lib/navigation-permissions";
+import { isGradeRClassroom } from "../lib/classroom-programme";
 
 type Profile = {
   id?: string;
@@ -452,12 +453,24 @@ export default function Sidebar() {
       allowedTeacherQuickActions,
       allowedSchoolManagement,
       allowedTeacherManagement,
+      gradeRClassrooms,
     ] = await Promise.all([
       getAllowedNavigationItems(schoolId, quickActionsNav),
       getAllowedNavigationItems(schoolId, teacherQuickActionsNav),
       getAllowedNavigationItems(schoolId, schoolManagementNav),
       getAllowedNavigationItems(schoolId, teacherSchoolManagementNav),
+      schoolId
+        ? supabase.from("classrooms").select("classroom_name").eq("school_id", schoolId)
+        : Promise.resolve({ data: [] as Array<{ classroom_name?: string | null }> }),
     ]);
+
+    const hasGradeRClassroom = (gradeRClassrooms.data || []).some((classroom) =>
+      isGradeRClassroom(classroom.classroom_name)
+    );
+    const hideGradeRHubWhenUnavailable = (items: NavItem[]) =>
+      hasGradeRClassroom
+        ? items
+        : items.filter((item) => item.href !== "/grade-r-learning");
 
     const delegatedPermissions = new Set(
       Array.isArray(currentProfile.permissions) ? currentProfile.permissions : []
@@ -484,10 +497,10 @@ export default function Sidebar() {
 
     if (currentProfile.role === "teacher") {
       setFilteredTeacherQuickActionsNav(teacherQuickActionsNav);
-      setFilteredTeacherSchoolManagementNav(teacherSchoolManagementNav);
+      setFilteredTeacherSchoolManagementNav(hideGradeRHubWhenUnavailable(teacherSchoolManagementNav));
     } else {
       setFilteredTeacherQuickActionsNav(filterForDelegatedAdmin(allowedTeacherQuickActions));
-      setFilteredTeacherSchoolManagementNav(filterForDelegatedAdmin(allowedTeacherManagement));
+      setFilteredTeacherSchoolManagementNav(hideGradeRHubWhenUnavailable(filterForDelegatedAdmin(allowedTeacherManagement)));
     }
 
     if (!schoolId || Number.isNaN(schoolId)) {

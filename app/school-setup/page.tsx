@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 import { resolveSchoolContext } from "@/app/lib/school-context";
+import { getCurrentProfile } from "@/app/lib/auth";
+import { PERMISSIONS } from "@/app/lib/permissions";
 import { MonthlyFeeSetup } from "@/app/children/MonthlyFeeOptions";
 import { OtherFeeSetup } from "@/app/children/OtherFeeSetup";
 
@@ -127,6 +129,17 @@ export default function SchoolSetupPage() {
   }
 
   async function loadPage() {
+    const { profile, error: profileError } = await getCurrentProfile();
+    if (profileError || !profile) {
+      router.push("/login");
+      return;
+    }
+    const role = String(profile.role || "").toLowerCase();
+    const mayManageSchool = ["master", "owner", "principal"].includes(role) || (role === "admin" && (profile.permissions || []).includes(PERMISSIONS.SCHOOL_MANAGE));
+    if (!mayManageSchool) {
+      router.replace("/teacher");
+      return;
+    }
     const context = await resolveSchoolContext(searchParams.get("school"));
     if (context.error) {
       setError(context.error);

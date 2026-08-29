@@ -354,6 +354,11 @@ export default function Sidebar() {
         match: ["/classroom-activities"],
       },
       {
+        label: "Grade R Learning Hub",
+        href: "/grade-r-learning",
+        match: ["/grade-r-learning"],
+      },
+      {
         label: "Learners",
         href: "/children",
         match: ["/children"],
@@ -694,6 +699,7 @@ export default function Sidebar() {
           items: itemsNamed(
             "Attendance",
             "Classroom Activities",
+            "Grade R Learning Hub",
             "Daily Summaries",
             "Events"
           ),

@@ -14,6 +14,7 @@ export default function GradeRLearningPage() {
   const [hasGradeR, setHasGradeR] = useState<boolean | null>(null);
   const [resources, setResources] = useState<Resource[]>([]);
   const [pages, setPages] = useState<Record<number, { from: string; to: string }>>({});
+  const [otherLanguage, setOtherLanguage] = useState("All languages");
 
   useEffect(() => { void load(); }, []);
   async function load() {
@@ -40,11 +41,12 @@ export default function GradeRLearningPage() {
     </div>
     <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
       {learningAreas.map((learningArea) => {
-        const areaResources = resources.filter((resource) => (resource.learning_area || "English Home Language") === learningArea);
+        const areaResources = resources.filter((resource) => (resource.learning_area || "English Home Language") === learningArea && (learningArea !== "Other Home Languages" || otherLanguage === "All languages" || resource.language === otherLanguage));
         return (
           <details className="db-card" key={learningArea} open={learningArea === "English Home Language"}>
             <summary style={{ cursor: "pointer", padding: 16, fontWeight: 700 }}>{learningArea}</summary>
             <div style={{ display: "grid", gap: 8, padding: "0 16px 16px" }}>
+              {learningArea === "Other Home Languages" ? <select className="db-input" style={{ maxWidth: 260 }} value={otherLanguage} onChange={(event) => setOtherLanguage(event.target.value)}><option>All languages</option>{[...new Set(resources.filter((resource) => resource.learning_area === "Other Home Languages").map((resource) => resource.language).filter(Boolean))].sort().map((language) => <option key={language} value={language || ""}>{language}</option>)}</select> : null}
               {[1, 2, 3, 4].map((term) => {
                 const termResources = areaResources.filter((resource) => resource.term === term);
                 return (
@@ -58,7 +60,7 @@ export default function GradeRLearningPage() {
                         return (
                           <div className="db-card db-card-lavender" style={{ padding: 14 }} key={resource.id}>
                             <strong>{resource.title}</strong>
-                            <p className="db-helper">{resource.language} · {resource.academic_year} · DBE official workbook</p>
+                            <p className="db-helper">{resource.language} · {resource.academic_year} · {resource.resource_type === "DBE Workbook" ? "DBE official workbook" : "Grade R activity collection"}</p>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
                               <input className="db-input" style={{ maxWidth: 130 }} type="number" min="1" placeholder="Page from" value={selected.from} onChange={(event) => setPages((current) => ({ ...current, [resource.id]: { ...selected, from: event.target.value } }))} />
                               <input className="db-input" style={{ maxWidth: 130 }} type="number" min="1" placeholder="Page to" value={selected.to} onChange={(event) => setPages((current) => ({ ...current, [resource.id]: { ...selected, to: event.target.value } }))} />

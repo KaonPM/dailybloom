@@ -128,6 +128,7 @@ type ProfileRow = { id: string; role?: string | null; school_id?: number | null;
 type ClassroomRow = { id: number; classroom_name?: string | null };
 type LearnerRow = { id: string; name?: string | null };
 type ActivityLibraryKey = { developmental_area: string; theme?: string | null; activity_name: string };
+type ResourceHomeworkTarget = { id: number; classroom_id: number; activity_date: string; due_date?: string | null; instruction_note?: string | null };
 
 export default function ClassroomActivitiesPage() {
   const router = useRouter();
@@ -190,6 +191,11 @@ export default function ClassroomActivitiesPage() {
   const [importingGradeRLibrary, setImportingGradeRLibrary] = useState(false);
   const [completedVisibleCount, setCompletedVisibleCount] = useState(PAGE_SIZE);
   const [activeSection, setActiveSection] = useState<ActivitySection>("today");
+  const [resourceHomeworkTargets, setResourceHomeworkTargets] = useState<ResourceHomeworkTarget[]>([]);
+  const [resourceLinkType, setResourceLinkType] = useState<"activity" | "homework">(openHomeworkFromLearningHub ? "homework" : "activity");
+  const [resourceLinkTargetId, setResourceLinkTargetId] = useState("");
+  const [resourceLinkMessage, setResourceLinkMessage] = useState("");
+  const [linkingResource, setLinkingResource] = useState(false);
   const homeworkWorkspaceRefs = useRef<
     Record<string, HomeworkWorkspaceHandle | null>
   >({});
@@ -235,6 +241,19 @@ export default function ClassroomActivitiesPage() {
       );
     });
   }, [weeklyPlans, activeClassroomId, weekStart, weekEnd]);
+
+  const visibleResourceHomeworkTargets = useMemo(
+    () => resourceHomeworkTargets.filter((item) => !activeClassroomId || String(item.classroom_id) === String(activeClassroomId)),
+    [resourceHomeworkTargets, activeClassroomId]
+  );
+
+  useEffect(() => {
+    if (!learningResourceId || !schoolId) return;
+    void authenticatedFetch(`/api/learning-resource-links?school_id=${schoolId}`)
+      .then((response) => response.json())
+      .then((body) => setResourceHomeworkTargets(body.homework || []))
+      .catch(() => setResourceHomeworkTargets([]));
+  }, [learningResourceId, schoolId]);
 
   const todaysPlans = useMemo(() => {
     return weeklyPlans.filter((plan) => {
@@ -1497,6 +1516,29 @@ export default function ClassroomActivitiesPage() {
     return <p>Loading classroom activities...</p>;
   }
 
+  async function attachLearningResource() {
+    if (!schoolId || !learningResourceId || !resourceLinkTargetId) {
+      setResourceLinkMessage("Choose the saved activity or homework assignment first.");
+      return;
+    }
+    setLinkingResource(true);
+    const response = await authenticatedFetch("/api/learning-resource-links", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        school_id: schoolId,
+        resource_id: Number(learningResourceId),
+        page_from: learningResourcePageFrom || null,
+        page_to: learningResourcePageTo || null,
+        weekly_plan_id: resourceLinkType === "activity" ? Number(resourceLinkTargetId) : null,
+        homework_assignment_id: resourceLinkType === "homework" ? Number(resourceLinkTargetId) : null,
+      }),
+    });
+    const body = await response.json();
+    setLinkingResource(false);
+    setResourceLinkMessage(response.ok ? "Workbook pages are now linked and saved." : body.error || "Workbook pages could not be linked.");
+  }
+
   return (
     <div>
       <div className="db-soft-card" style={{ padding: "18px 20px", marginBottom: "16px" }}>
@@ -1575,8 +1617,24 @@ export default function ClassroomActivitiesPage() {
         <div className="db-card db-card-yellow" style={{ padding: 14, marginBottom: 16 }}>
           <strong>Grade R Learning Hub resource selected</strong>
           <p className="db-helper" style={{ margin: "6px 0 0" }}>
-            Workbook resource #{learningResourceId}{learningResourcePageFrom ? ` · pages ${learningResourcePageFrom}${learningResourcePageTo ? `–${learningResourcePageTo}` : ""}` : ""}. {openHomeworkFromLearningHub ? "Open the Homework section in the selected planner day to assign it." : "Select the planner week and add the related classroom activity."}
+            Workbook resource #{learningResourceId}{learningResourcePageFrom ? ` · pages ${learningResourcePageFrom}${learningResourcePageTo ? `–${learningResourcePageTo}` : ""}` : ""}. Choose the saved item below to keep this workbook reference permanently.
           </p>
+          <div style={{ display: "grid", gap: 8, marginTop: 12, maxWidth: 620 }}>
+            <select className="db-input" value={resourceLinkType} onChange={(event) => { setResourceLinkType(event.target.value as "activity" | "homework"); setResourceLinkTargetId(""); setResourceLinkMessage(""); }}>
+              <option value="activity">Link to a saved classroom activity</option>
+              <option value="homework">Link to a saved homework assignment</option>
+            </select>
+            <select className="db-input" value={resourceLinkTargetId} onChange={(event) => { setResourceLinkTargetId(event.target.value); setResourceLinkMessage(""); }}>
+              <option value="">Select a saved {resourceLinkType === "activity" ? "activity" : "homework assignment"}</option>
+              {resourceLinkType === "activity"
+                ? currentWeekPlans.map((plan) => <option key={plan.id} value={plan.id}>{plan.activity_date} · {plan.activity_name}</option>)
+                : visibleResourceHomeworkTargets.map((item) => <option key={item.id} value={item.id}>{item.activity_date} · due {item.due_date || item.activity_date}</option>)}
+            </select>
+            <button type="button" className="db-button-primary" onClick={() => void attachLearningResource()} disabled={linkingResource || !resourceLinkTargetId}>
+              {linkingResource ? "Linking..." : "Save workbook link"}
+            </button>
+            {resourceLinkMessage ? <p className="db-helper" style={{ margin: 0 }}>{resourceLinkMessage}</p> : null}
+          </div>
         </div>
       ) : null}
 

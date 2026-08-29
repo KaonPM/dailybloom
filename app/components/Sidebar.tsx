@@ -129,6 +129,11 @@ export default function Sidebar() {
         match: ["/master/analytics"],
       },
       {
+        label: "DBE Resource Reviews",
+        href: "/master/resource-reviews",
+        match: ["/master/resource-reviews"],
+      },
+      {
         label: "Impact & Sponsorship",
         href: "/master/impact",
         match: ["/master/impact"],

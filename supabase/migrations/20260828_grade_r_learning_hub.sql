@@ -8,6 +8,7 @@ create table if not exists public.learning_resources (
   source_name text,
   source_url text,
   language text,
+  academic_year integer,
   term smallint check (term between 1 and 4),
   week_from smallint check (week_from between 1 and 40),
   week_to smallint check (week_to between 1 and 40),

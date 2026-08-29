@@ -38,14 +38,14 @@ export default function GradeRLearningPage() {
 
   if (hasGradeR === null) return <RouteStateCard eyebrow="Daily Classroom" title="Grade R Learning Hub" message="Loading learning resources." busy />;
   if (!hasGradeR) return <div className="db-card db-card-yellow" style={{ padding: 20 }}><h1 className="db-page-title">Grade R Learning Hub</h1><p className="db-helper">Create a Grade R classroom first to enable this learning hub.</p></div>;
-  return <div>
-    <div className="db-soft-card" style={{ padding: 20, marginBottom: 16 }}><p className="db-eyebrow">Daily Classroom</p><h1 className="db-page-title">Grade R Learning Hub</h1><p className="db-page-subtitle">A Grade R teaching workspace for DBE workbooks, resources, classroom activities and homework.</p></div>
-    <div className="db-card db-card-blue" style={{ padding: 16, display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-      <Link className="db-button-primary" href="/classroom-activities">Classroom Activities</Link>
-      <div className="db-list-card"><strong>DBE Workbooks</strong><p className="db-helper">Choose a subject, term and workbook, then select the pages you need.</p></div>
-      <div className="db-list-card"><strong>Classroom use</strong><p className="db-helper">Send the selected pages to Classroom Activities or the existing Homework workflow.</p></div>
-    </div>
-    <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+  return <div className="db-page-shell">
+    <section className="db-page-header db-card-blue"><p className="db-eyebrow">Daily Classroom</p><h1>Grade R Learning Hub</h1><p className="db-page-subtitle">DBE workbooks and Grade R activities in one place.</p></section>
+    <nav className="db-learning-hub-actions" aria-label="Grade R Learning Hub actions">
+      <Link className="db-learning-hub-action db-card-blue" href="/classroom-activities"><strong>Classroom Activities</strong><span>Plan or update the day</span></Link>
+      <a className="db-learning-hub-action db-card-lavender" href="#grade-r-resources"><strong>DBE Workbooks</strong><span>Browse by subject and term</span></a>
+      <Link className="db-learning-hub-action db-card-green" href="/classroom-activities"><strong>Homework</strong><span>Create or review homework</span></Link>
+    </nav>
+    <div id="grade-r-resources" style={{ display: "grid", gap: 12 }}>
       {(() => {
         const homeLanguage = languageSettings.grade_r_home_language || "English";
         const firstAdditionalLanguage = languageSettings.grade_r_first_additional_language || "Afrikaans";
@@ -60,7 +60,7 @@ export default function GradeRLearningPage() {
         return learningAreas.map((learningArea) => {
         const areaResources = resources.filter((resource) => resourceArea(resource) === learningArea && (learningArea !== "Other Language Workbooks" || otherLanguage === "All languages" || resource.language === otherLanguage));
         return (
-          <details className="db-card" key={learningArea} open={learningArea === `${homeLanguage} Home Language`}>
+          <details className="db-card" key={learningArea}>
             <summary style={{ cursor: "pointer", padding: 16, fontWeight: 700 }}>{learningArea}</summary>
             <div style={{ display: "grid", gap: 8, padding: "0 16px 16px" }}>
               {learningArea === "Other Language Workbooks" ? <select className="db-input" style={{ maxWidth: 260 }} value={otherLanguage} onChange={(event) => setOtherLanguage(event.target.value)}><option>All languages</option>{otherLanguages.map((language) => <option key={language} value={language || ""}>{language}</option>)}</select> : null}
@@ -85,7 +85,7 @@ export default function GradeRLearningPage() {
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                               {resource.source_url ? <Link className="db-button-secondary" href={`/grade-r-learning/reader?title=${encodeURIComponent(resource.title)}&url=${encodeURIComponent(resource.source_url)}&page_from=${encodeURIComponent(selected.from)}`}>Open workbook</Link> : null}
                               <Link className="db-button-primary" href={`/classroom-activities?${query}`}>Add to Classroom Activity</Link>
-                              <Link className="db-button-primary" href={`/classroom-activities?${query}&homework=1`}>Assign as Homework</Link>
+                              <Link className="db-button-primary" href={`/classroom-activities?${query}&homework=1`}>Link to Homework</Link>
                             </div>
                           </div>
                         );

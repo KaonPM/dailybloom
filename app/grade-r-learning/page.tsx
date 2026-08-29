@@ -8,13 +8,14 @@ import { isGradeRClassroom } from "../lib/classroom-programme";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type Resource = { id: number; title: string; resource_type: string; source_url?: string | null; language?: string | null; term?: number | null; academic_year?: number | null; learning_area?: string | null };
-const learningAreas = ["English Home Language", "Afrikaans First Additional Language", "Other Home Languages", "Mathematics", "Life Skills"];
+type GradeRLanguageSettings = { grade_r_home_language: string; grade_r_first_additional_language: string };
 
 export default function GradeRLearningPage() {
   const [hasGradeR, setHasGradeR] = useState<boolean | null>(null);
   const [resources, setResources] = useState<Resource[]>([]);
   const [pages, setPages] = useState<Record<number, { from: string; to: string }>>({});
   const [otherLanguage, setOtherLanguage] = useState("All languages");
+  const [languageSettings, setLanguageSettings] = useState<GradeRLanguageSettings>({ grade_r_home_language: "English", grade_r_first_additional_language: "Afrikaans" });
 
   useEffect(() => { void load(); }, []);
   async function load() {
@@ -24,9 +25,13 @@ export default function GradeRLearningPage() {
     const gradeRExists = (data || []).some((room) => isGradeRClassroom(room.classroom_name));
     setHasGradeR(gradeRExists);
     if (gradeRExists) {
-      const response = await authenticatedFetch(`/api/learning-resources?school_id=${profile.school_id}`);
-      const body = await response.json();
-      if (response.ok) setResources(body.resources || []);
+      const [resourcesResponse, settingsResponse] = await Promise.all([
+        authenticatedFetch(`/api/learning-resources?school_id=${profile.school_id}`),
+        authenticatedFetch(`/api/grade-r-settings?school_id=${profile.school_id}`),
+      ]);
+      const [resourcesBody, settingsBody] = await Promise.all([resourcesResponse.json(), settingsResponse.json()]);
+      if (resourcesResponse.ok) setResources(resourcesBody.resources || []);
+      if (settingsResponse.ok) setLanguageSettings(settingsBody.settings || languageSettings);
     }
   }
 
@@ -40,13 +45,24 @@ export default function GradeRLearningPage() {
       <div className="db-list-card"><strong>Classroom use</strong><p className="db-helper">Send the selected pages to Classroom Activities or the existing Homework workflow.</p></div>
     </div>
     <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-      {learningAreas.map((learningArea) => {
-        const areaResources = resources.filter((resource) => (resource.learning_area || "English Home Language") === learningArea && (learningArea !== "Other Home Languages" || otherLanguage === "All languages" || resource.language === otherLanguage));
+      {(() => {
+        const homeLanguage = languageSettings.grade_r_home_language || "English";
+        const firstAdditionalLanguage = languageSettings.grade_r_first_additional_language || "Afrikaans";
+        const learningAreas = [`${homeLanguage} Home Language`, `${firstAdditionalLanguage} First Additional Language`, "Other Language Workbooks", "Mathematics", "Life Skills"];
+        const resourceArea = (resource: Resource) => {
+          if (resource.learning_area === "Mathematics" || resource.learning_area === "Life Skills") return resource.learning_area;
+          if (resource.language === homeLanguage) return `${homeLanguage} Home Language`;
+          if (resource.language === firstAdditionalLanguage) return `${firstAdditionalLanguage} First Additional Language`;
+          return "Other Language Workbooks";
+        };
+        const otherLanguages = [...new Set(resources.filter((resource) => resourceArea(resource) === "Other Language Workbooks").map((resource) => resource.language).filter(Boolean))].sort();
+        return learningAreas.map((learningArea) => {
+        const areaResources = resources.filter((resource) => resourceArea(resource) === learningArea && (learningArea !== "Other Language Workbooks" || otherLanguage === "All languages" || resource.language === otherLanguage));
         return (
-          <details className="db-card" key={learningArea} open={learningArea === "English Home Language"}>
+          <details className="db-card" key={learningArea} open={learningArea === `${homeLanguage} Home Language`}>
             <summary style={{ cursor: "pointer", padding: 16, fontWeight: 700 }}>{learningArea}</summary>
             <div style={{ display: "grid", gap: 8, padding: "0 16px 16px" }}>
-              {learningArea === "Other Home Languages" ? <select className="db-input" style={{ maxWidth: 260 }} value={otherLanguage} onChange={(event) => setOtherLanguage(event.target.value)}><option>All languages</option>{[...new Set(resources.filter((resource) => resource.learning_area === "Other Home Languages").map((resource) => resource.language).filter(Boolean))].sort().map((language) => <option key={language} value={language || ""}>{language}</option>)}</select> : null}
+              {learningArea === "Other Language Workbooks" ? <select className="db-input" style={{ maxWidth: 260 }} value={otherLanguage} onChange={(event) => setOtherLanguage(event.target.value)}><option>All languages</option>{otherLanguages.map((language) => <option key={language} value={language || ""}>{language}</option>)}</select> : null}
               {[1, 2, 3, 4].map((term) => {
                 const termResources = areaResources.filter((resource) => resource.term === term);
                 return (
@@ -80,7 +96,8 @@ export default function GradeRLearningPage() {
             </div>
           </details>
         );
-      })}
+      });
+      })()}
     </div>
   </div>;
 }

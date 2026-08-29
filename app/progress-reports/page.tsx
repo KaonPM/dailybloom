@@ -30,6 +30,7 @@ import type {
 import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { PERMISSIONS } from "../lib/permissions";
 import {
   GeneratedReportsList,
@@ -139,12 +140,18 @@ type GeneratedReportRow = {
   generated_at?: string | null;
 };
 
+type GradeRLanguageSettings = {
+  grade_r_home_language: string;
+  grade_r_first_additional_language: string;
+};
+
 export default function ProgressReportsPage() {
   const router = useRouter();
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [school, setSchool] = useState<SchoolRow | null>(null);
+  const [gradeRLanguageSettings, setGradeRLanguageSettings] = useState<GradeRLanguageSettings>({ grade_r_home_language: "English", grade_r_first_additional_language: "Afrikaans" });
 
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
   const [teachers, setTeachers] = useState<ProfileRow[]>([]);
@@ -352,6 +359,7 @@ export default function ProgressReportsPage() {
     }
 
     await fetchSchool(currentSchoolId);
+    await fetchGradeRLanguageSettings(currentSchoolId);
     const classroomRows = await fetchClassrooms(currentSchoolId, profile);
     await fetchTeachers(currentSchoolId);
     const learnerRows = await fetchLearners(currentSchoolId, classroomRows, profile);
@@ -383,6 +391,17 @@ export default function ProgressReportsPage() {
     }
 
     setSchool(data);
+  }
+
+  async function fetchGradeRLanguageSettings(currentSchoolId: number) {
+    const response = await authenticatedFetch(`/api/grade-r-settings?school_id=${currentSchoolId}`);
+    const body = await response.json();
+    if (response.ok && body.settings) {
+      setGradeRLanguageSettings({
+        grade_r_home_language: body.settings.grade_r_home_language || "English",
+        grade_r_first_additional_language: body.settings.grade_r_first_additional_language || "Afrikaans",
+      });
+    }
   }
 
   function restrictTeacherClassrooms(
@@ -2146,7 +2165,7 @@ export default function ProgressReportsPage() {
     {
       assessmentCategory: "english_home_language",
       resultKey: "english_home_language",
-      label: "English Home Language",
+      label: `${gradeRLanguageSettings.grade_r_home_language} Home Language`,
     },
     {
       assessmentCategory: "mathematics",
@@ -2161,7 +2180,7 @@ export default function ProgressReportsPage() {
     {
       assessmentCategory: "first_additional_language",
       resultKey: "afrikaans_first_additional_language",
-      label: "Afrikaans First Additional Language",
+      label: `${gradeRLanguageSettings.grade_r_first_additional_language} First Additional Language`,
     },
   ] as const;
 
@@ -2256,6 +2275,7 @@ export default function ProgressReportsPage() {
         exam_mark: exam,
         final_mark: finalMark,
         final_code: dbCodeFromPercent(finalMark),
+        subject_label_snapshot: subject.label,
         confirmed_by: profile.id,
         confirmed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -3217,6 +3237,7 @@ export default function ProgressReportsPage() {
                 daysAbsent={daysAbsent}
                 remarks={teacherObservation || teacherComment}
                 principalComment={principalComment}
+                languageSettings={gradeRLanguageSettings}
               />
             ) : <>
             <div className="booklet-page">
@@ -3674,14 +3695,14 @@ export default function ProgressReportsPage() {
   );
 }
 
-function GradeRDBEReport({ learner, classroom, school, teacherName, periods, assessments, termResults, currentPeriod, daysAbsent, remarks, principalComment }: {
-  learner: LearnerRow; classroom: ClassroomRow; school: SchoolRow | null; teacherName: string; periods: PeriodRow[]; assessments: AssessmentRow[]; termResults: GradeRTermResult[]; currentPeriod: PeriodRow; daysAbsent: number | null; remarks: string; principalComment: string;
+function GradeRDBEReport({ learner, classroom, school, teacherName, periods, assessments, termResults, currentPeriod, daysAbsent, remarks, principalComment, languageSettings }: {
+  learner: LearnerRow; classroom: ClassroomRow; school: SchoolRow | null; teacherName: string; periods: PeriodRow[]; assessments: AssessmentRow[]; termResults: GradeRTermResult[]; currentPeriod: PeriodRow; daysAbsent: number | null; remarks: string; principalComment: string; languageSettings: GradeRLanguageSettings;
 }) {
   const subjectRows = [
-    ["english_home_language", "english_home_language", "English Home Language"],
+    ["english_home_language", "english_home_language", `${languageSettings.grade_r_home_language} Home Language`],
     ["mathematics", "mathematics", "Mathematics"],
     ["life_skills", "life_skills", "Life Skills"],
-    ["first_additional_language", "afrikaans_first_additional_language", "Afrikaans First Additional Language"],
+    ["first_additional_language", "afrikaans_first_additional_language", `${languageSettings.grade_r_first_additional_language} First Additional Language`],
   ] as const;
   const termNumber = (period?: PeriodRow) => Number(String(period?.title || period?.term || "").match(/term\s*([1-4])/i)?.[1] || 0);
   const terms = [1, 2, 3, 4].map((term) => ({ term, periodIds: new Set(periods.filter((period) => termNumber(period) === term && normalizeReportType(period.report_template || period.report_type) === "grade-r").map((period) => Number(period.id))) }));
@@ -3694,11 +3715,14 @@ function GradeRDBEReport({ learner, classroom, school, teacherName, periods, ass
     const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
     const code = dbCode(average); return { code, band: band(code), mark: null, sba: null, exam: null };
   };
+  const savedLabel = (resultKey: string, fallback: string) => termResults
+    .filter((item) => String(item.learner_id) === String(learner.id) && item.subject_key === resultKey && item.subject_label_snapshot)
+    .sort((left, right) => Number(right.term_number || 0) - Number(left.term_number || 0))[0]?.subject_label_snapshot || fallback;
   return <div className="grade-r-dbe-sheet">
     <header className="grade-r-dbe-header"><div><strong>{school?.school_name || "School Name"}</strong><br />{school?.address || school?.physical_address || ""}<br />{school?.emis_number ? `EMIS: ${school.emis_number}` : ""}</div><div><strong>GRADE R LEARNER REPORT</strong><br />{currentPeriod.title || currentPeriod.term || "Term report"}</div></header>
     <div className="grade-r-dbe-meta"><span><b>Learner:</b> {learner.legal_name || learner.name}</span><span><b>Admission No:</b> {learner.admission_number || "Not assigned"}</span><span><b>Date of Birth:</b> {learner.date_of_birth || "Not added"}</span><span><b>Class:</b> {classroom.classroom_name}</span><span><b>Educator:</b> {teacherName}</span></div>
     <p className="grade-r-dbe-key"><b>DBE Foundation Phase codes:</b> 4 Outstanding/Excellent (70-100%) · 3 Satisfactory (50-69%) · 2 Partial (35-49%) · 1 Not achieved (1-34%)</p>
-    <table className="grade-r-dbe-table"><thead><tr><th>Subject</th>{terms.map(({ term }) => <th key={term}>Term {term}<br /><small>{term === 4 ? "SBA 40% · Exam 60%" : "Code / %"}</small></th>)}<th>Final average</th></tr></thead><tbody>{subjectRows.map(([assessmentCategory, resultKey, label]) => { const finalResults = terms.map(({ periodIds }) => result(assessmentCategory, resultKey, periodIds)).filter((item) => item.code); const savedMarks = finalResults.map((item) => item.mark).filter((mark): mark is number => mark != null); const finalMark = savedMarks.length ? savedMarks.reduce((sum, mark) => sum + mark, 0) / savedMarks.length : null; const final = finalMark == null ? finalResults.at(-1) : { code: finalMark >= 70 ? "4" : finalMark >= 50 ? "3" : finalMark >= 35 ? "2" : "1", band: `${finalMark.toFixed(1)}%` }; return <tr key={resultKey}><td>{label}</td>{terms.map(({ term, periodIds }) => { const item = result(assessmentCategory, resultKey, periodIds); return <td key={term}>{item.code ? <>{item.code}<br /><small>{item.band}</small>{term === 4 && item.sba != null && item.exam != null ? <><br /><small>SBA {item.sba.toFixed(1)} · Exam {item.exam.toFixed(1)}</small></> : null}</> : "—"}</td>; })}<td>{final?.code ? <>{final.code}<br /><small>{final.band}</small></> : "—"}</td></tr>; })}</tbody></table>
+    <table className="grade-r-dbe-table"><thead><tr><th>Subject</th>{terms.map(({ term }) => <th key={term}>Term {term}<br /><small>{term === 4 ? "SBA 40% · Exam 60%" : "Code / %"}</small></th>)}<th>Final average</th></tr></thead><tbody>{subjectRows.map(([assessmentCategory, resultKey, label]) => { const finalResults = terms.map(({ periodIds }) => result(assessmentCategory, resultKey, periodIds)).filter((item) => item.code); const savedMarks = finalResults.map((item) => item.mark).filter((mark): mark is number => mark != null); const finalMark = savedMarks.length ? savedMarks.reduce((sum, mark) => sum + mark, 0) / savedMarks.length : null; const final = finalMark == null ? finalResults.at(-1) : { code: finalMark >= 70 ? "4" : finalMark >= 50 ? "3" : finalMark >= 35 ? "2" : "1", band: `${finalMark.toFixed(1)}%` }; return <tr key={resultKey}><td>{savedLabel(resultKey, label)}</td>{terms.map(({ term, periodIds }) => { const item = result(assessmentCategory, resultKey, periodIds); return <td key={term}>{item.code ? <>{item.code}<br /><small>{item.band}</small>{term === 4 && item.sba != null && item.exam != null ? <><br /><small>SBA {item.sba.toFixed(1)} · Exam {item.exam.toFixed(1)}</small></> : null}</> : "—"}</td>; })}<td>{final?.code ? <>{final.code}<br /><small>{final.band}</small></> : "—"}</td></tr>; })}</tbody></table>
     <div className="grade-r-dbe-detail"><p><b>Days absent:</b> {daysAbsent ?? "Calculating..."}</p><p><b>Extra-mural participation:</b> ______________________________</p><p><b>General remarks:</b> {remarks || "No practitioner remarks added."}</p><p><b>Principal comments:</b> {principalComment || "______________________________"}</p></div>
     <footer className="grade-r-dbe-signatures"><span>Class Educator: ____________________</span><span>Principal: ____________________</span><span>Parent: ____________________</span></footer>
   </div>;
@@ -3949,7 +3973,7 @@ const bookletSectionTitle: React.CSSProperties = {
   wordSpacing: "0.12em",
 };
 
-type GradeRTermResult = { learner_id?: IdValue; report_period_id?: IdValue; subject_key?: string | null; term_number?: number | null; sba_mark?: number | null; exam_mark?: number | null; final_mark?: number | null; final_code?: number | null; };
+type GradeRTermResult = { learner_id?: IdValue; report_period_id?: IdValue; subject_key?: string | null; subject_label_snapshot?: string | null; term_number?: number | null; sba_mark?: number | null; exam_mark?: number | null; final_mark?: number | null; final_code?: number | null; };
 
 const bookletText: React.CSSProperties = {
   fontSize: "9.5px",

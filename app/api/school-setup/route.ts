@@ -142,6 +142,11 @@ export async function POST(request: Request) {
     if (!Number.isInteger(reminderDay) || reminderDay < 1 || reminderDay > 28) {
       return NextResponse.json({ error: "Choose a payment reminder day from 1 to 28." }, { status: 400 });
     }
+    const gradeRHomeLanguage = text(body.grade_r_home_language, 80) || "English";
+    const gradeRFirstAdditionalLanguage = text(body.grade_r_first_additional_language, 80) || "Afrikaans";
+    if (gradeRHomeLanguage === gradeRFirstAdditionalLanguage) {
+      return NextResponse.json({ error: "Choose different Grade R Home and First Additional Languages." }, { status: 400 });
+    }
     const settings = {
       school_id: schoolId,
       bank_account_name: text(body.bank_account_name),
@@ -150,6 +155,8 @@ export async function POST(request: Request) {
       bank_branch_code: text(body.bank_branch_code, 60),
       bank_account_type: text(body.bank_account_type, 80),
       payment_reminder_day: reminderDay,
+      grade_r_home_language: gradeRHomeLanguage,
+      grade_r_first_additional_language: gradeRFirstAdditionalLanguage,
       updated_by: authorization.staff.userId,
       updated_at: new Date().toISOString(),
     };

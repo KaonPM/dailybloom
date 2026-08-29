@@ -24,6 +24,8 @@ type SchoolSettings = {
   bank_branch_code: string;
   bank_account_type: string;
   payment_reminder_day: number;
+  grade_r_home_language: string;
+  grade_r_first_additional_language: string;
 };
 
 type SchoolBrand = { school_name?: string | null; logo_url?: string | null; primary_color?: string | null };
@@ -52,7 +54,11 @@ const emptySettings: SchoolSettings = {
   bank_branch_code: "",
   bank_account_type: "",
   payment_reminder_day: 1,
+  grade_r_home_language: "English",
+  grade_r_first_additional_language: "Afrikaans",
 };
+
+const gradeRLanguageOptions = ["Afrikaans", "English", "IsiNdebele", "IsiXhosa", "IsiZulu", "Sepedi", "Sesotho", "Setswana", "Siswati", "Tshivenda", "Xitsonga"];
 
 
 export default function SchoolSetupPage() {
@@ -94,6 +100,7 @@ export default function SchoolSetupPage() {
   const [savingFeeSetup, setSavingFeeSetup] = useState(false);
   const [schoolFeesOpen, setSchoolFeesOpen] = useState(false);
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
+  const [gradeRLanguagesOpen, setGradeRLanguagesOpen] = useState(false);
 
   const schoolQuery = useMemo(() => {
     const value = searchParams.get("school");
@@ -265,8 +272,9 @@ export default function SchoolSetupPage() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "School settings could not be saved.");
       setSettings({ ...emptySettings, ...(body.settings || {}) });
-      setMessage("School setup saved. The bank details will appear in the registration-fee payment message.");
+      setMessage("School setup saved.");
       setPaymentDetailsOpen(false);
+      setGradeRLanguagesOpen(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "School settings could not be saved.");
     } finally {
@@ -639,6 +647,21 @@ export default function SchoolSetupPage() {
           onAdd={() => void addOtherSchoolFee()}
           onRemove={(feeId) => void updateSchoolFeeCatalog("archive_other", { fee_id: feeId })}
         />
+      </CollapsibleSetupSection>
+
+      <CollapsibleSetupSection
+        title="Grade R curriculum languages"
+        description="Choose the Home Language and First Additional Language used on Grade R reports and in the Learning Hub."
+        isOpen={gradeRLanguagesOpen}
+        onToggle={() => setGradeRLanguagesOpen((current) => !current)}
+        tone="lavender"
+      >
+        <p className="db-helper" style={{ margin: 0 }}>These labels apply to future Grade R confirmations and reports. Previously confirmed term results keep the language label recorded at the time.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+          <label style={{ display: "grid", gap: 7 }}><strong>Home Language</strong><select className="db-input" value={settings.grade_r_home_language} onChange={(event) => setSettings({ ...settings, grade_r_home_language: event.target.value, grade_r_first_additional_language: settings.grade_r_first_additional_language === event.target.value ? (event.target.value === "Afrikaans" ? "English" : "Afrikaans") : settings.grade_r_first_additional_language })}>{gradeRLanguageOptions.map((language) => <option key={language} value={language}>{language}</option>)}</select></label>
+          <label style={{ display: "grid", gap: 7 }}><strong>First Additional Language</strong><select className="db-input" value={settings.grade_r_first_additional_language} onChange={(event) => setSettings({ ...settings, grade_r_first_additional_language: event.target.value })}>{gradeRLanguageOptions.filter((language) => language !== settings.grade_r_home_language).map((language) => <option key={language} value={language}>{language}</option>)}</select></label>
+        </div>
+        <div><button className="db-button-primary" type="button" disabled={savingSettings} onClick={() => void saveSettings()}>{savingSettings ? "Saving..." : "Save Grade R languages"}</button></div>
       </CollapsibleSetupSection>
 
       <CollapsibleSetupSection

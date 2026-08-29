@@ -12,6 +12,7 @@ type Resource = { id: number; title: string; resource_type: string; source_url?:
 export default function GradeRLearningPage() {
   const [hasGradeR, setHasGradeR] = useState<boolean | null>(null);
   const [resources, setResources] = useState<Resource[]>([]);
+  const [pages, setPages] = useState<Record<number, { from: string; to: string }>>({});
 
   useEffect(() => { void load(); }, []);
   async function load() {
@@ -36,6 +37,6 @@ export default function GradeRLearningPage() {
       <div className="db-list-card"><strong>DBE Workbooks</strong><p className="db-helper">Open a full workbook now; page selections will be attached to activities and homework next.</p></div>
       <div className="db-list-card"><strong>Homework</strong><p className="db-helper">Workbook pages will be assigned through the existing homework workflow.</p></div>
     </div>
-    <div style={{ display: "grid", gap: 12, marginTop: 16 }}>{resources.map((resource) => <div className="db-card db-card-lavender" style={{ padding: 16 }} key={resource.id}><strong>{resource.title}</strong><p className="db-helper">{resource.language} · {resource.academic_year} · Term {resource.term}</p>{resource.source_url ? <Link className="db-button-primary" href={`/grade-r-learning/reader?title=${encodeURIComponent(resource.title)}&url=${encodeURIComponent(resource.source_url)}`}>Open full workbook</Link> : null}</div>)}</div>
+    <div style={{ display: "grid", gap: 12, marginTop: 16 }}>{resources.map((resource) => { const selected = pages[resource.id] || { from: "", to: "" }; const query = `resource_id=${resource.id}&page_from=${encodeURIComponent(selected.from)}&page_to=${encodeURIComponent(selected.to)}`; return <div className="db-card db-card-lavender" style={{ padding: 16 }} key={resource.id}><strong>{resource.title}</strong><p className="db-helper">{resource.language} · {resource.academic_year} · Term {resource.term}</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}><input className="db-input" style={{ maxWidth: 130 }} type="number" min="1" placeholder="Page from" value={selected.from} onChange={(event) => setPages((current) => ({ ...current, [resource.id]: { ...selected, from: event.target.value } }))} /><input className="db-input" style={{ maxWidth: 130 }} type="number" min="1" placeholder="Page to" value={selected.to} onChange={(event) => setPages((current) => ({ ...current, [resource.id]: { ...selected, to: event.target.value } }))} /></div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{resource.source_url ? <Link className="db-button-secondary" href={`/grade-r-learning/reader?title=${encodeURIComponent(resource.title)}&url=${encodeURIComponent(resource.source_url)}&page_from=${encodeURIComponent(selected.from)}`}>Open workbook</Link> : null}<Link className="db-button-primary" href={`/classroom-activities?${query}`}>Add to Classroom Activity</Link><Link className="db-button-primary" href={`/classroom-activities?${query}&homework=1`}>Assign as Homework</Link></div></div>})}</div>
   </div>;
 }

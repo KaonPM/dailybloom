@@ -133,6 +133,10 @@ export default function ClassroomActivitiesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const schoolParam = searchParams.get("school");
+  const learningResourceId = searchParams.get("resource_id") || "";
+  const learningResourcePageFrom = searchParams.get("page_from") || "";
+  const learningResourcePageTo = searchParams.get("page_to") || "";
+  const openHomeworkFromLearningHub = searchParams.get("homework") === "1";
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
@@ -1566,6 +1570,15 @@ export default function ClassroomActivitiesPage() {
           if (section === "library") setIsLibraryOpen(true);
         }}
       />
+
+      {learningResourceId ? (
+        <div className="db-card db-card-yellow" style={{ padding: 14, marginBottom: 16 }}>
+          <strong>Grade R Learning Hub resource selected</strong>
+          <p className="db-helper" style={{ margin: "6px 0 0" }}>
+            Workbook resource #{learningResourceId}{learningResourcePageFrom ? ` · pages ${learningResourcePageFrom}${learningResourcePageTo ? `–${learningResourcePageTo}` : ""}` : ""}. {openHomeworkFromLearningHub ? "Open the Homework section in the selected planner day to assign it." : "Select the planner week and add the related classroom activity."}
+          </p>
+        </div>
+      ) : null}
 
       <ActivityDashboardStats stats={dashboardStats} />
 

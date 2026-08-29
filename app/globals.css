@@ -678,6 +678,32 @@ textarea {
 .db-learning-hub-action strong { font-size: 14px; }
 .db-learning-hub-action span { color: var(--db-text-soft); font-size: 12px; line-height: 1.35; }
 .db-learning-hub-action:hover { border-color: #bddaea; box-shadow: 0 8px 18px rgba(65, 119, 148, 0.12); transform: translateY(-1px); }
+.db-learning-hub-action.db-card-blue { background: linear-gradient(135deg, #e8f8ff, #f7fdff); }
+.db-learning-hub-action.db-card-lavender { background: linear-gradient(135deg, #f1edff, #fcfbff); }
+.db-learning-hub-action.db-card-green { background: linear-gradient(135deg, #eafaf0, #fbfffc); }
+
+.db-grade-r-hub-header {
+  background: linear-gradient(112deg, #f6fbff 0%, #fff9ef 58%, #fff7fb 100%);
+}
+
+.db-learning-subject-card {
+  overflow: hidden;
+  border: 1px solid var(--db-border);
+  box-shadow: 0 5px 14px rgba(52, 70, 92, 0.05);
+}
+
+.db-learning-subject-card > summary {
+  border-left: 5px solid var(--db-blue);
+  background: #f4fbff;
+}
+
+.db-learning-subject-card:nth-child(2) > summary { border-left-color: #ad8be9; background: #f8f4ff; }
+.db-learning-subject-card:nth-child(3) > summary { border-left-color: #ed9d71; background: #fff7f0; }
+.db-learning-subject-card:nth-child(4) > summary { border-left-color: #e7b334; background: #fffbed; }
+.db-learning-subject-card:nth-child(5) > summary { border-left-color: #65ba87; background: #f1fbf4; }
+.db-learning-subject-card[open] > summary { border-bottom: 1px solid var(--db-border); }
+
+.db-grade-r-resource { background: linear-gradient(135deg, #fbf9ff, #fff); }
 
 @media (max-width: 700px) {
   .db-learning-hub-actions { grid-template-columns: 1fr; }

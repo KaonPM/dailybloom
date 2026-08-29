@@ -39,7 +39,7 @@ export default function GradeRLearningPage() {
   if (hasGradeR === null) return <RouteStateCard eyebrow="Daily Classroom" title="Grade R Learning Hub" message="Loading learning resources." busy />;
   if (!hasGradeR) return <div className="db-card db-card-yellow" style={{ padding: 20 }}><h1 className="db-page-title">Grade R Learning Hub</h1><p className="db-helper">Create a Grade R classroom first to enable this learning hub.</p></div>;
   return <div className="db-page-shell">
-    <section className="db-page-header db-card-blue"><p className="db-eyebrow">Daily Classroom</p><h1>Grade R Learning Hub</h1><p className="db-page-subtitle">DBE workbooks and Grade R activities in one place.</p></section>
+    <section className="db-page-header db-card-blue db-grade-r-hub-header"><p className="db-eyebrow">Daily Classroom</p><h1>Grade R Learning Hub</h1><p className="db-page-subtitle">DBE workbooks and Grade R activities in one place.</p></section>
     <nav className="db-learning-hub-actions" aria-label="Grade R Learning Hub actions">
       <Link className="db-learning-hub-action db-card-blue" href="/classroom-activities"><strong>Classroom Activities</strong><span>Plan or update the day</span></Link>
       <a className="db-learning-hub-action db-card-lavender" href="#grade-r-resources"><strong>DBE Workbooks</strong><span>Browse by subject and term</span></a>
@@ -60,7 +60,7 @@ export default function GradeRLearningPage() {
         return learningAreas.map((learningArea) => {
         const areaResources = resources.filter((resource) => resourceArea(resource) === learningArea && (learningArea !== "Other Language Workbooks" || otherLanguage === "All languages" || resource.language === otherLanguage));
         return (
-          <details className="db-card" key={learningArea}>
+          <details className="db-card db-learning-subject-card" key={learningArea}>
             <summary style={{ cursor: "pointer", padding: 16, fontWeight: 700 }}>{learningArea}</summary>
             <div style={{ display: "grid", gap: 8, padding: "0 16px 16px" }}>
               {learningArea === "Other Language Workbooks" ? <select className="db-input" style={{ maxWidth: 260 }} value={otherLanguage} onChange={(event) => setOtherLanguage(event.target.value)}><option>All languages</option>{otherLanguages.map((language) => <option key={language} value={language || ""}>{language}</option>)}</select> : null}
@@ -75,7 +75,7 @@ export default function GradeRLearningPage() {
                         const selected = pages[resource.id] || { from: "", to: "" };
                         const query = `resource_id=${resource.id}&page_from=${encodeURIComponent(selected.from)}&page_to=${encodeURIComponent(selected.to)}`;
                         return (
-                          <div className="db-card db-card-lavender" style={{ padding: 14 }} key={resource.id}>
+                          <div className="db-card db-card-lavender db-grade-r-resource" style={{ padding: 14 }} key={resource.id}>
                             <strong>{resource.title}</strong>
                             <p className="db-helper">{resource.language} · {resource.academic_year} · {resource.resource_type === "DBE Workbook" ? "DBE official workbook" : "Grade R activity collection"}</p>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>

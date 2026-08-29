@@ -698,8 +698,11 @@ export default function Sidebar() {
     : filteredSchoolManagementNav;
 
   function itemsNamed(...labels: string[]) {
-    const wanted = new Set(labels);
-    return visibleSchoolNav.filter((item) => wanted.has(item.label));
+    const itemsByLabel = new Map(visibleSchoolNav.map((item) => [item.label, item]));
+    return labels.flatMap((label) => {
+      const item = itemsByLabel.get(label);
+      return item ? [item] : [];
+    });
   }
 
   const messagesNavItem: NavItem = {
@@ -757,10 +760,10 @@ export default function Sidebar() {
           color: "#22C55E",
           items: itemsNamed(
             "Learner Attendance",
-            "Practitioner Attendance",
             "Classroom Activities",
             "Summaries",
-            "Events"
+            "Events",
+            "Practitioner Attendance"
           ),
         },
         {
@@ -780,8 +783,8 @@ export default function Sidebar() {
           color: "#60A5FA",
           items: itemsNamed(
             "Enrolments",
-            "Re-enrolments",
             "Awaiting Classroom Allocation",
+            "Re-enrolments",
             "Parent Consent"
           ),
         },
@@ -805,16 +808,15 @@ export default function Sidebar() {
           label: "School Administration",
           color: "#F59E0B",
           items: [
-            ...itemsNamed("Learners", "Classrooms"),
+            ...itemsNamed("School Setup", "Classrooms", "Learners"),
             ...(canViewTeachers
               ? [{ label: "Practitioners", href: "/teachers", match: ["/teachers"] }]
               : []),
             ...itemsNamed(
+              "Learner Requirements Tracking",
+              "School Printable Documents",
               "Meetings, Minutes & Surveys",
               "Data Migration",
-              "Learner Requirements Tracking",
-              "School Setup",
-              "School Printable Documents",
               "Trust & Security"
             ),
             ...(canViewDbe ? dbeNav : []),

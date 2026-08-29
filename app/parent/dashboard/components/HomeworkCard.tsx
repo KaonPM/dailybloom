@@ -9,6 +9,7 @@ type HomeworkRow = {
   due_date?: string | null;
   instruction_note?: string | null;
   homework_library?: { title?: string | null } | { title?: string | null }[] | null;
+  workbook_resources?: Array<{ resource_id: number; page_from?: number | null; page_to?: number | null; title: string }>;
 };
 
 type Props = {
@@ -94,6 +95,7 @@ export default function HomeworkCard({
               <span style={noteStyle}>
                 {row.instruction_note || "Open homework for the practitioner's instructions."}
               </span>
+              {(row.workbook_resources || []).map((resource) => <span key={resource.resource_id} style={noteStyle}>Workbook {resource.page_from ? `pages ${resource.page_from}${resource.page_to ? `–${resource.page_to}` : ""}` : "available to open or print"}</span>)}
             </a>
           ))}
         </div>

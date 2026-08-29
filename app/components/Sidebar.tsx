@@ -251,6 +251,12 @@ export default function Sidebar() {
         match: ["/classroom-activities"],
         permission: PERMISSIONS.ACTIVITIES_MANAGE,
       },
+      {
+        label: "Grade R Learning Hub",
+        href: "/grade-r-learning",
+        match: ["/grade-r-learning"],
+        permission: PERMISSIONS.ACTIVITIES_MANAGE,
+      },
       { label: "Events", href: "/events", match: ["/events"], permission: PERMISSIONS.EVENTS_MANAGE },
       {
         label: "Summaries",
@@ -498,7 +504,7 @@ export default function Sidebar() {
         : items;
 
     setFilteredQuickActionsNav(filterForDelegatedAdmin(allowedQuickActions));
-    setFilteredSchoolManagementNav(filterForDelegatedAdmin(allowedSchoolManagement));
+    setFilteredSchoolManagementNav(hideGradeRHubWhenUnavailable(filterForDelegatedAdmin(allowedSchoolManagement)));
 
     if (currentProfile.role === "teacher") {
       setFilteredTeacherQuickActionsNav(teacherQuickActionsNav);
@@ -761,6 +767,7 @@ export default function Sidebar() {
           items: itemsNamed(
             "Learner Attendance",
             "Classroom Activities",
+            "Grade R Learning Hub",
             "Summaries",
             "Events",
             "Practitioner Attendance"

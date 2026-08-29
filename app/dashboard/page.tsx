@@ -10,6 +10,7 @@ import { authenticatedFetch } from "../lib/authenticated-fetch";
 import TodaysPriorities, {
   type PriorityItem,
 } from "../components/TodaysPriorities";
+import RouteStateCard from "../components/RouteStateCard";
 
 type School = {
   id: number;
@@ -435,7 +436,7 @@ export default function PrincipalDashboardPage() {
   }
 
   if (loading) {
-    return <p>Loading dashboard...</p>;
+    return <RouteStateCard eyebrow="School overview" title="Dashboard" message="Loading today’s school overview." busy />;
   }
 
   if (!school || !schoolId) {

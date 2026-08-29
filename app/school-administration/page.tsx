@@ -131,8 +131,8 @@ export default function SchoolAdministrationPage() {
 
   const selectedMinutesMeeting = data.meetings.find((meeting) => meeting.id === selectedMinutesMeetingId) || null;
 
-  return <div style={{ display: "grid", gap: 18 }}>
-    <section className="db-page-header db-card-blue"><p className="db-eyebrow">School Administration</p><h1>Meetings, Minutes &amp; Surveys</h1><p className="db-page-subtitle">Publish meeting documents and collect parent responses in one auditable workspace.</p></section>
+  return <div style={{ display: "grid", gap: 14 }}>
+    <section className="db-page-header db-card-blue"><p className="db-eyebrow">School Administration</p><h1>Meetings, Minutes &amp; Surveys</h1><p className="db-page-subtitle">Share meeting documents and collect parent responses.</p></section>
     {error ? <div className="db-error-banner" role="alert">{error}</div> : null}
     {message ? <div className="db-success-banner" role="status">{message}</div> : null}
 

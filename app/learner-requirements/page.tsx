@@ -891,7 +891,7 @@ export default function LearnerRequirementsPage() {
         <div className="db-soft-card" style={{ padding: 18, marginBottom: 18, order: 0 }}>
           <h2 className="db-page-title">Learner Requirements Tracking</h2>
           <p className="db-page-subtitle">
-            Record stationery received and documents uploaded for each learner. Principals and admins configure the school-wide default lists in School Setup.
+            Track each learner’s documents and required items.
           </p>
           {!isTeacher ? <Link className="db-button-secondary" href={`/school-setup${schoolParam ? `?school=${encodeURIComponent(schoolParam)}` : ""}`}>Manage default lists in School Setup</Link> : null}
         </div>

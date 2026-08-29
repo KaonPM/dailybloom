@@ -579,7 +579,7 @@ export default function IncidentReportsPage() {
           <div>
             <h2 className="db-page-title">Incident Reports</h2>
             <p className="db-page-subtitle">
-              Record DSD 2022 incident details, injury map markings, photos, and principal acknowledgement.
+              Record, review and acknowledge learner incidents.
             </p>
           </div>
 

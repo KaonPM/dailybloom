@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import RouteStateCard from "../components/RouteStateCard";
 
 type Learner = {
   id: string;
@@ -460,7 +461,7 @@ export default function AttendancePage() {
       : openClassroom || "Entire school";
 
   if (loading) {
-    return <p>Loading attendance...</p>;
+    return <RouteStateCard eyebrow="Daily Classroom" title="Attendance" message="Loading attendance records." busy />;
   }
 
   return (

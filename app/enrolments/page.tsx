@@ -323,7 +323,7 @@ export default function EnrolmentsPage() {
       <section className="db-page-header db-card-blue">
         <div>
           <h1 className="db-page-title">Enrolments</h1>
-          <p className="db-page-subtitle">Create a secure parent journey from Registration Fee confirmation to form review and learner capture.</p>
+          <p className="db-page-subtitle">Manage parent enquiries, forms and learner capture.</p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Link className="db-main-pill db-main-pill-yellow" href={`/dashboard${schoolQuery}`}>Dashboard</Link>

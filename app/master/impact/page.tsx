@@ -1141,8 +1141,7 @@ export default function ImpactSponsorshipDashboard() {
         <div>
           <h1 className="db-page-title">Impact & Sponsorship Dashboard</h1>
           <p className="db-page-subtitle">
-            Pull sponsor-ready reports, track sponsored schools, capture
-            training records and record success stories.
+            Track school impact and sponsorship.
           </p>
         </div>
 

@@ -527,7 +527,7 @@ export default function SchoolSetupPage() {
       <section className="db-page-header db-card-blue">
         <div>
           <h1 className="db-page-title">School Setup</h1>
-          <p className="db-page-subtitle">Configure the universal enrolment form, school policies, fees, payment details and parent requirements.</p>
+          <p className="db-page-subtitle">Manage enrolment, fees, policies and school settings.</p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Link className="db-main-pill db-main-pill-yellow" href={`/dashboard${schoolQuery}`}>Dashboard</Link>

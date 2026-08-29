@@ -22,8 +22,8 @@ export default function RouteStateCard({
       className="db-card"
       style={{
         width: "min(680px, 100%)",
-        margin: "40px auto",
-        padding: "28px",
+        margin: "24px auto",
+        padding: "18px",
         borderTop: `6px solid ${accent}`,
       }}
     >
@@ -50,8 +50,8 @@ export default function RouteStateCard({
         <div
           aria-hidden="true"
           style={{
-            height: "8px",
-            marginTop: "22px",
+            height: "6px",
+            marginTop: "14px",
             overflow: "hidden",
             borderRadius: "999px",
             background: "#edf6fb",
@@ -75,7 +75,7 @@ export default function RouteStateCard({
             display: "flex",
             gap: "10px",
             flexWrap: "wrap",
-            marginTop: "22px",
+            marginTop: "14px",
           }}
         >
           {actions}

@@ -7,6 +7,7 @@ import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
 import SubscriptionGuard from "../components/SubscriptionGuard";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import RouteStateCard from "../components/RouteStateCard";
 
 type Learner = {
   id: string;
@@ -413,11 +414,7 @@ export default function SummariesPage() {
   }
 
   if (loading || !schoolId) {
-    return (
-      <div style={{ padding: 20 }}>
-        <p>Loading summaries...</p>
-      </div>
-    );
+    return <RouteStateCard eyebrow="Daily Classroom" title="Daily Summaries" message="Loading learner updates." busy />;
   }
 
   return (

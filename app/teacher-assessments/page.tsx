@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import RouteStateCard from "../components/RouteStateCard";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { reportCategories } from "../lib/report-categories";
 import {
@@ -684,7 +685,7 @@ export default function TeacherAssessmentsPage() {
   const currentStatus = existingAssessments?.[0]?.status || null;
 
   if (loading) {
-    return <p>Loading...</p>;
+    return <RouteStateCard eyebrow="Learner Development" title="Progress Review" message="Loading learner review." busy />;
   }
 
   return (
@@ -693,7 +694,7 @@ export default function TeacherAssessmentsPage() {
         <p className="db-eyebrow">Learner Development</p>
         <h1 className="db-page-title">Progress Review</h1>
         <p className="db-page-subtitle">
-          A simple learner snapshot for parent conversations, classroom follow-up and formal Progress Reports.
+          Review learner progress for follow-up and parent conversations.
         </p>
       </div>
 

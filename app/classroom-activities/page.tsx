@@ -18,6 +18,7 @@ import {
   scopeActivityThemeForClassroom,
 } from "../lib/classroom-programme";
 import { getJohannesburgDate } from "../lib/classroom-activity-dates";
+import RouteStateCard from "../components/RouteStateCard";
 import {
   ActivitySectionTabs,
   type ActivitySection,
@@ -1513,7 +1514,7 @@ export default function ClassroomActivitiesPage() {
   }
 
   if (loading) {
-    return <p>Loading classroom activities...</p>;
+    return <RouteStateCard eyebrow="Daily Classroom" title="Classroom Activities" message="Loading your classroom plan." busy />;
   }
 
   async function attachLearningResource() {
@@ -1544,7 +1545,7 @@ export default function ClassroomActivitiesPage() {
       <div className="db-soft-card" style={{ padding: "18px 20px", marginBottom: "16px" }}>
         <h1 className="db-page-title">Classroom Activities</h1>
         <p className="db-page-subtitle">
-          Plan each teaching day by choosing a theme and up to 3 activities. Learner support remains linked to each completed activity.
+          Plan daily activities and record learner support.
         </p>
 
         {schoolParam && schoolId ? (

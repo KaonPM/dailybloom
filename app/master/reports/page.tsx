@@ -1949,8 +1949,7 @@ export default function MasterReportsPage() {
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">Platform Reports</h2>
         <p className="db-page-subtitle">
-          Generate operational and stakeholder-ready reports across DailyBloom
-          schools.
+          Generate platform reports.
         </p>
       </div>
 

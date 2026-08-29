@@ -275,7 +275,7 @@ export default function ReEnrolmentsPage() {
           <div>
             <p className="db-eyebrow">School Management</p>
             <h1 className="db-page-title" style={{ marginBottom: 8 }}>Re-enrolments</h1>
-            <p className="db-page-subtitle">Create one protected re-enrolment number per current learner. Parents confirm return details only from their own Parent Portal.</p>
+            <p className="db-page-subtitle">Create and monitor protected re-enrolments for current learners.</p>
           </div>
           <div className="db-page-actions">
             <Link className="db-main-pill db-main-pill-yellow" href={`/dashboard${schoolQuery}`}>Dashboard</Link>

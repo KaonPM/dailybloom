@@ -208,7 +208,7 @@ export default function MasterAnalyticsPage() {
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">Platform Analytics</h2>
         <p className="db-page-subtitle">
-          Master overview of schools, subscriptions, usage and platform health.
+          Monitor platform activity and school health.
         </p>
       </div>
 

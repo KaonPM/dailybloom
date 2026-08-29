@@ -100,6 +100,61 @@ textarea {
   line-height: 1.6;
 }
 
+/* Shared operational page frame. Keep headings concise and actions close to the work. */
+.db-page-header {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  background: var(--db-card);
+  border: 1px solid var(--db-border);
+  border-radius: var(--db-radius-card);
+  box-shadow: var(--db-shadow);
+}
+
+.db-page-header > :is(h1, h2, h3, p) { margin: 0; }
+.db-page-header .db-page-subtitle { max-width: 760px; }
+
+.db-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.db-eyebrow {
+  margin: 0;
+  color: #72698b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.db-error-banner,
+.db-success-banner {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.db-error-banner,
+.db-alert-error { color: #923d45; background: #fff0f1; border-color: #f1c8ce; }
+.db-success-banner { color: #286443; background: #eefaf1; border-color: #bee5cc; }
+
+.db-page-shell { display: grid; gap: 14px; max-width: 1280px; margin: 0 auto; }
+.db-grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.db-section-title { margin: 0; font-size: 17px; line-height: 1.25; }
+.db-label { color: var(--db-text); font-size: 13px; font-weight: 700; }
+.db-checkbox-row { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.db-card-pink { border-top: 6px solid #f6a9c8; }
+.db-card-purple { border-top: 6px solid #bba7f6; }
+
 /* Keep operational screens calm and compact; printable documents use their own styles. */
 .db-main-content h1:not(.db-page-title) {
   font-size: 22px !important;
@@ -444,9 +499,34 @@ textarea {
   transform: translateY(-1px);
 }
 
+.db-action-compact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid var(--db-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--db-text);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.db-action-compact:hover { background: #fffaf6; border-color: #dfd0c4; }
+
 .db-main-pill-yellow {
   background: #fff3c4 !important;
   border-color: #f3e4a3 !important;
+}
+
+.db-main-pill-blue {
+  background: #eaf6ff !important;
+  border-color: #b9ddf2 !important;
+  color: #27678c;
 }
 
 .db-main-pill-pink {
@@ -559,6 +639,21 @@ textarea {
   border: 1px solid var(--db-border);
   border-radius: 16px;
   background: #ffffff;
+}
+
+.db-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--db-border);
+  border-radius: 14px;
+  background: #fffdfa;
+}
+
+.db-toolbar > * {
+  min-width: 0;
 }
 
 .db-helper {
@@ -1085,7 +1180,7 @@ gap:24px;
 .db-card{
 display:flex;
 flex-direction:column;
-padding:24px;
+padding:18px;
 justify-content:flex-start;
 }
 @media (max-width: 700px) {

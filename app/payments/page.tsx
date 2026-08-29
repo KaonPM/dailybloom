@@ -699,7 +699,7 @@ export default function PaymentsPage() {
             <div>
               <h2 className="db-page-title">Payments</h2>
               <p className="db-page-subtitle">
-                Record payments and schedule SMS reminders for unpaid learners.
+                Record payments and manage unpaid learner follow-up.
               </p>
             </div>
 

@@ -6,6 +6,7 @@ import { getCurrentProfile } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { isGradeRClassroom } from "../lib/classroom-programme";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import RouteStateCard from "../components/RouteStateCard";
 
 type Resource = { id: number; title: string; resource_type: string; source_url?: string | null; language?: string | null; term?: number | null; academic_year?: number | null; learning_area?: string | null };
 type GradeRLanguageSettings = { grade_r_home_language: string; grade_r_first_additional_language: string };
@@ -35,7 +36,7 @@ export default function GradeRLearningPage() {
     }
   }
 
-  if (hasGradeR === null) return <p>Loading Grade R Learning Hub...</p>;
+  if (hasGradeR === null) return <RouteStateCard eyebrow="Daily Classroom" title="Grade R Learning Hub" message="Loading learning resources." busy />;
   if (!hasGradeR) return <div className="db-card db-card-yellow" style={{ padding: 20 }}><h1 className="db-page-title">Grade R Learning Hub</h1><p className="db-helper">Create a Grade R classroom first to enable this learning hub.</p></div>;
   return <div>
     <div className="db-soft-card" style={{ padding: 20, marginBottom: 16 }}><p className="db-eyebrow">Daily Classroom</p><h1 className="db-page-title">Grade R Learning Hub</h1><p className="db-page-subtitle">A Grade R teaching workspace for DBE workbooks, resources, classroom activities and homework.</p></div>

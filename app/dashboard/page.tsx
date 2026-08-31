@@ -355,10 +355,7 @@ export default function PrincipalDashboardPage() {
 
   async function fetchConsolidatedOverview(currentSchoolId: number) {
     const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
-    const todayDate = `${yyyy}-${mm}-${dd}`;
+    const todayDate = today.toISOString().slice(0, 10);
     const currentMonth = today.getMonth() + 1;
     const currentYear = today.getFullYear();
 
@@ -376,11 +373,15 @@ export default function PrincipalDashboardPage() {
           .eq("school_id", currentSchoolId)
           .eq("attendance_date", todayDate),
 
-        supabase
-          .from("teacher_attendance")
-          .select("id, teacher_id, teacher_name, status, attendance_date")
-          .eq("school_id", currentSchoolId)
-          .eq("attendance_date", todayDate),
+        authenticatedFetch("/api/teacher-attendance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "daily_summary",
+            school_id: currentSchoolId,
+            attendance_date: todayDate,
+          }),
+        }),
 
         supabase
           .from("payments")
@@ -392,8 +393,11 @@ export default function PrincipalDashboardPage() {
 
     const learners = (learnersRes.data || []) as LearnerItem[];
     const attendance = (attendanceRes.data || []) as AttendanceItem[];
+    const teacherAttendancePayload = teacherAttendanceRes.ok
+      ? await teacherAttendanceRes.json()
+      : { attendance: [] };
     const teacherAttendance =
-      (teacherAttendanceRes.data || []) as TeacherAttendanceItem[];
+      (teacherAttendancePayload.attendance || []) as TeacherAttendanceItem[];
     const payments = (paymentsRes.data || []) as PaymentItem[];
 
     const learnerNames = learners

@@ -68,6 +68,31 @@ export async function POST(request: Request) {
       });
     }
 
+    if (body.action === "daily_summary") {
+      const attendanceDate = String(body.attendance_date || "").trim();
+      if (!schoolId || !isDate(attendanceDate)) {
+        return NextResponse.json(
+          { error: "School ID and attendance date are required." },
+          { status: 400 }
+        );
+      }
+
+      const { data: attendance, error: attendanceError } = await supabaseAdmin
+        .from("teacher_attendance")
+        .select("id, teacher_id, teacher_name, status, attendance_date")
+        .eq("school_id", schoolId)
+        .eq("attendance_date", attendanceDate);
+
+      if (attendanceError) {
+        return NextResponse.json(
+          { error: attendanceError.message },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({ attendance: attendance || [] });
+    }
+
     const inputRows = Array.isArray(body.records)
       ? (body.records as AttendanceInput[])
       : [];

@@ -31,6 +31,8 @@ type ReportSourceRow = {
   attendance_date?: string | null;
   status?: string | null;
   notes?: string | null;
+  absence_reason?: string | null;
+  late_capture_reason?: string | null;
   name?: string | null;
   legal_name?: string | null;
   class?: string | null;
@@ -50,6 +52,8 @@ type ReportSourceRow = {
   payment_year?: string | number | null;
   payment_month?: string | number | null;
   amount?: string | number | null;
+  payment_method?: string | null;
+  reference_number?: string | null;
   incident_date?: string | null;
   incident_type?: string | null;
   incident_location?: string | null;
@@ -61,6 +65,7 @@ type ReportSourceRow = {
   theme?: string | null;
   activity_name?: string | null;
   description?: string | null;
+  classrooms?: { classroom_name?: string | null } | Array<{ classroom_name?: string | null }> | null;
   event_date?: string | null;
   classroom?: string | null;
   title?: string | null;
@@ -244,6 +249,12 @@ export default function ReportsPage() {
   return "Teaching Day";
 }
 
+  function paymentPeriodLabel(item: ReportSourceRow) {
+    return item.payment_year && item.payment_month
+      ? `${item.payment_year}-${String(item.payment_month).padStart(2, "0")}`
+      : "Not recorded";
+  }
+
   function reportTypeHelper() {
     if (reportType === "School Analytics") {
       return "School Analytics produces a report output. Open the results only when you need to review, export or print that output.";
@@ -369,7 +380,10 @@ export default function ReportsPage() {
         classroom: getLearnerClass(item.learner_name || ""),
         type: "Learner Attendance",
         detail: item.status || "",
-        extra: "",
+        extra: [
+          item.absence_reason ? `Absence reason: ${item.absence_reason}` : "",
+          item.late_capture_reason ? `Late capture: ${item.late_capture_reason}` : "",
+        ].filter(Boolean).join(" | "),
       }));
 
     setReportRows(rows);
@@ -453,7 +467,7 @@ export default function ReportsPage() {
         }`,
         extra: `Guardian: ${item.guardian_name || "Not added"} | Phone: ${
           item.parent_phone || "Not added"
-        } | Email: ${item.parent_email || "Not added"}`,
+        } | Email: ${item.parent_email || "Not added"} | Receiving school: ${item.receiving_school || "Not recorded"}`,
       }));
 
     setReportRows(rows);
@@ -525,8 +539,12 @@ export default function ReportsPage() {
         learner: item.learner_name || "",
         classroom: getLearnerClass(item.learner_name || ""),
         type: "Payment",
-        detail: item.status || "No status",
-        extra: item.amount ? `Amount: ${item.amount}` : "",
+        detail: `${item.status || "No status"} | Period: ${paymentPeriodLabel(item)}`,
+        extra: [
+          item.amount ? `Amount: R${Number(item.amount).toFixed(2)}` : "",
+          item.payment_method ? `Method: ${item.payment_method}` : "",
+          item.reference_number ? `Reference: ${item.reference_number}` : "",
+        ].filter(Boolean).join(" | "),
       }));
 
     setReportRows(rows);
@@ -571,8 +589,12 @@ export default function ReportsPage() {
         learner: item.learner_name || "",
         classroom: getLearnerClass(item.learner_name || ""),
         type: "Outstanding Fee",
-        detail: item.status || "Unpaid",
-        extra: item.amount ? `Amount: ${item.amount}` : "",
+        detail: `${item.status || "Unpaid"} | Period: ${paymentPeriodLabel(item)}`,
+        extra: [
+          item.amount ? `Outstanding: R${Number(item.amount).toFixed(2)}` : "",
+          item.payment_method ? `Method: ${item.payment_method}` : "",
+          item.reference_number ? `Reference: ${item.reference_number}` : "",
+        ].filter(Boolean).join(" | "),
       }));
 
     setReportRows(rows);
@@ -600,7 +622,7 @@ export default function ReportsPage() {
         classroom: item.classroom_name || getLearnerClass(item.learner_name || ""),
         type: "Incident Report",
         detail: `${item.incident_type || "Incident"} | ${item.status || "Submitted"}`,
-        extra: `Location: ${item.incident_location || "Not added"} | Practitioner: ${item.teacher_name || "Not added"} | Principal: ${item.principal_acknowledged_by || "Not acknowledged"}`,
+        extra: [`Location: ${item.incident_location || "Not added"}`, `Practitioner: ${item.teacher_name || "Not added"}`, `Principal: ${item.principal_acknowledged_by || "Not acknowledged"}`, item.notes ? `Notes: ${item.notes}` : ""].filter(Boolean).join(" | "),
       }));
 
     setReportRows(rows);
@@ -611,7 +633,7 @@ export default function ReportsPage() {
 
   const { data, error } = await supabase
     .from("weekly_activity_plans")
-    .select("*")
+    .select("*, classrooms:classroom_id(classroom_name)")
     .eq("school_id", schoolId)
     .gte("activity_date", fromDate)
     .lte("activity_date", toDate)
@@ -632,7 +654,8 @@ export default function ReportsPage() {
       if (scope === "Entire School") return true;
 
       if (scope === "Classroom") {
-        return String(item.classroom_id) === String(selectedClassroom);
+        const classroom = Array.isArray(item.classrooms) ? item.classrooms[0] : item.classrooms;
+        return String(classroom?.classroom_name || "").trim().toLowerCase() === selectedClassroom.trim().toLowerCase();
       }
 
       if (scope === "Learner") {
@@ -641,10 +664,12 @@ export default function ReportsPage() {
 
       return true;
     })
-    .map((item) => ({
+    .map((item) => {
+      const classroom = Array.isArray(item.classrooms) ? item.classrooms[0] : item.classrooms;
+      return {
       date: item.activity_date || "",
       learner: scope === "Learner" ? selectedLearner : "Class activity",
-      classroom: String(item.classroom_id || "Classroom"),
+      classroom: classroom?.classroom_name || "Unassigned classroom",
       type:
         item.day_type && item.day_type !== "teaching_day"
           ? dayTypeLabel(item.day_type)
@@ -655,8 +680,8 @@ export default function ReportsPage() {
         item.day_type && item.day_type !== "teaching_day"
           ? dayTypeLabel(item.day_type)
           : `${item.developmental_area || "No area"} | ${item.theme || "No theme"} | ${item.activity_name || "No activity"}`,
-      extra: item.description || "",
-    }));
+      extra: item.description || "No activity description recorded.",
+    }; });
 
   setReportRows(rows);
 }

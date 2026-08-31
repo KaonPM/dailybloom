@@ -31,9 +31,13 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const schoolId = Number(body.school_id);
+    const requiredPermission =
+      body.action === "daily_summary"
+        ? PERMISSIONS.STAFF_VIEW
+        : PERMISSIONS.TEACHER_ATTENDANCE_MANAGE;
     const authorization = await requireStaffPermission(
       request,
-      PERMISSIONS.TEACHER_ATTENDANCE_MANAGE,
+      requiredPermission,
       schoolId
     );
     if (!authorization.ok) return authorization.response;

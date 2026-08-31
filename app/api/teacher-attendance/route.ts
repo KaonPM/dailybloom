@@ -38,6 +38,36 @@ export async function POST(request: Request) {
     );
     if (!authorization.ok) return authorization.response;
 
+    if (body.action === "list_practitioners") {
+      if (!schoolId) {
+        return NextResponse.json(
+          { error: "School ID is required." },
+          { status: 400 }
+        );
+      }
+
+      const { data: practitioners, error: practitionersError } =
+        await supabaseAdmin
+          .from("profiles")
+          .select("id, full_name, email, role, school_id, is_active")
+          .eq("school_id", schoolId)
+          .eq("role", "teacher")
+          .order("full_name", { ascending: true });
+
+      if (practitionersError) {
+        return NextResponse.json(
+          { error: practitionersError.message },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({
+        practitioners: (practitioners || []).filter(
+          (practitioner) => practitioner.is_active !== false
+        ),
+      });
+    }
+
     const inputRows = Array.isArray(body.records)
       ? (body.records as AttendanceInput[])
       : [];

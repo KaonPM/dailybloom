@@ -92,24 +92,31 @@ export default function TeacherAttendancePage() {
     setSchoolId(context.schoolId);
 
     await Promise.all([
-      fetchTeachers(),
+      fetchTeachers(context.schoolId),
       fetchAttendance(context.schoolId, today),
     ]);
 
     setLoading(false);
   }
 
-  async function fetchTeachers() {
-    const { data, error } = await supabase.rpc(
-      "get_school_teachers_for_attendance"
-    );
+  async function fetchTeachers(currentSchoolId: number) {
 
-    if (error) {
-      alert(error.message);
+    const response = await authenticatedFetch("/api/teacher-attendance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "list_practitioners",
+        school_id: currentSchoolId,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      alert(result.error || "Could not load practitioners.");
       return;
     }
 
-    setTeachers((data || []) as TeacherRow[]);
+    setTeachers((result.practitioners || []) as TeacherRow[]);
   }
 
   async function fetchAttendance(currentSchoolId: number, date: string) {

@@ -21,6 +21,10 @@ export function OtherFeeSetup({
   description = "Add each once-off fee separately. A fresh box remains available after every fee is saved.",
   addLabel = "+ Save Additional Fee",
   amountLabel = "once-off",
+  example = "Excursion",
+  entryLabel = "Add another fee",
+  savedLabel = "additional fees",
+  itemLabel = "Additional fee",
 }: {
   options: OtherFeeOption[];
   name: string;
@@ -34,6 +38,10 @@ export function OtherFeeSetup({
   description?: string;
   addLabel?: string;
   amountLabel?: string;
+  example?: string;
+  entryLabel?: string;
+  savedLabel?: string;
+  itemLabel?: string;
 }) {
   const [savedFeesOpen, setSavedFeesOpen] = useState(false);
   return (
@@ -46,13 +54,13 @@ export function OtherFeeSetup({
       </p>
 
       <div style={entryBox}>
-        <strong style={{ color: "#2D2A3E" }}>Add another fee</strong>
+        <strong style={{ color: "#2D2A3E" }}>{entryLabel}</strong>
         <div style={twoColumnGrid}>
           <label>
             <span style={fieldLabel}>Fee name</span>
             <input
               className="db-input"
-              placeholder="e.g. Excursion"
+              placeholder={`e.g. ${example}`}
               value={name}
               onChange={(event) => onNameChange(event.target.value)}
             />
@@ -83,13 +91,13 @@ export function OtherFeeSetup({
       {options.length ? (
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
           <button type="button" className="db-collapse-action db-section-toggle" onClick={() => setSavedFeesOpen((current) => !current)} aria-expanded={savedFeesOpen}>
-            {savedFeesOpen ? "Close" : "Open"} saved additional fees ({options.length})
+            {savedFeesOpen ? "Close" : "Open"} saved {savedLabel} ({options.length})
           </button>
           {savedFeesOpen ? <div style={savedGrid}>
           {options.map((fee, index) => (
             <article key={fee.id} style={savedFeeBox}>
               <div>
-                <span style={eyebrow}>Additional fee {index + 1}</span>
+                <span style={eyebrow}>{itemLabel} {index + 1}</span>
                 <strong style={{ display: "block", color: "#2D2A3E" }}>
                   {fee.fee_name}
                 </strong>

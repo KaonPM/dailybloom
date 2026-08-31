@@ -660,16 +660,6 @@ export default function SchoolSetupPage() {
           onRemove={(feeId) => void updateSchoolFeeCatalog("archive_monthly", { fee_id: feeId })}
         />
         <OtherFeeSetup
-          options={schoolFeeTypes.filter((fee) => fee.fee_category === "other")}
-          name={newOtherFeeName}
-          amount={newOtherFeeAmount}
-          saving={savingFeeSetup}
-          onNameChange={setNewOtherFeeName}
-          onAmountChange={setNewOtherFeeAmount}
-          onAdd={() => void addOtherSchoolFee()}
-          onRemove={(feeId) => void updateSchoolFeeCatalog("archive_other", { fee_id: feeId })}
-        />
-        <OtherFeeSetup
           options={schoolFeeTypes.filter((fee) => fee.fee_category === "recurring_addon")}
           name={newRecurringAddonName}
           amount={newRecurringAddonAmount}
@@ -682,6 +672,20 @@ export default function SchoolSetupPage() {
           description="Add services charged on top of the learner’s base monthly fee, such as aftercare, meals or a transport route."
           addLabel="+ Save Monthly Add-on"
           amountLabel="per month"
+          example="Aftercare or transport"
+          entryLabel="Add monthly service"
+          savedLabel="monthly add-ons"
+          itemLabel="Monthly add-on"
+        />
+        <OtherFeeSetup
+          options={schoolFeeTypes.filter((fee) => fee.fee_category === "other")}
+          name={newOtherFeeName}
+          amount={newOtherFeeAmount}
+          saving={savingFeeSetup}
+          onNameChange={setNewOtherFeeName}
+          onAmountChange={setNewOtherFeeAmount}
+          onAdd={() => void addOtherSchoolFee()}
+          onRemove={(feeId) => void updateSchoolFeeCatalog("archive_other", { fee_id: feeId })}
         />
       </CollapsibleSetupSection>
 

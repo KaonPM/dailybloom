@@ -69,11 +69,11 @@ export async function PATCH(request: Request) {
       );
     }
     if (
-      SCHOOL_MANAGED_ROLES.has(targetRole) &&
+      targetRole === "admin" &&
       !["principal", "owner", "master"].includes(authorization.staff.role)
     ) {
       return NextResponse.json(
-        { error: "Only the Principal or Owner may update this staff email." },
+        { error: "Only the Principal or Owner may update a preschool administrator email." },
         { status: 403 }
       );
     }

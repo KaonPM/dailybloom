@@ -298,7 +298,7 @@ export async function POST(request: Request) {
       if (deactivate.error) throw deactivate.error;
       if (safeIds.length) {
         const startDate = String(body.start_date || `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 2).padStart(2, "0")}-01`);
-        const upsert = await supabaseAdmin.from("learner_recurring_fee_assignments").upsert(safeIds.map((feeId) => ({ school_id: schoolId, learner_id: learnerId, fee_type_id: feeId, assigned_amount: Number(allowed.get(feeId)?.amount || 0), start_date: startDate, end_date: null, is_active: true, assigned_by: authorization.staff.userId, updated_at: new Date().toISOString() })), { onConflict: "school_id,learner_id,fee_type_id" });
+        const upsert = await supabaseAdmin.from("learner_recurring_fee_assignments").upsert(safeIds.map((feeId: number) => ({ school_id: schoolId, learner_id: learnerId, fee_type_id: feeId, assigned_amount: Number(allowed.get(feeId)?.amount || 0), start_date: startDate, end_date: null, is_active: true, assigned_by: authorization.staff.userId, updated_at: new Date().toISOString() })), { onConflict: "school_id,learner_id,fee_type_id" });
         if (upsert.error) throw upsert.error;
       }
     } else {

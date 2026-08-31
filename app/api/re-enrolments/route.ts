@@ -151,7 +151,7 @@ export async function GET(request: Request) {
       const learner = learnersById.get(String(record.learner_id));
       const classroom = Array.isArray(learner?.classrooms) ? learner.classrooms[0] : learner?.classrooms;
       const submittedData = record.submitted_data && typeof record.submitted_data === "object"
-        ? record.submitted_data as { parent_notes?: unknown; learner_details?: unknown; guardian_details?: unknown; medical_details?: unknown; uploaded_documents?: unknown; acknowledged_document_ids?: unknown; acknowledged_requirement_ids?: unknown }
+        ? record.submitted_data as { parent_notes?: unknown; learner_details?: unknown; guardian_details?: unknown; medical_details?: unknown; uploaded_documents?: unknown; acknowledged_document_ids?: unknown; acknowledged_requirement_ids?: unknown; requested_recurring_addon_ids?: unknown }
         : {};
       const safeRecord = Object.fromEntries(
         Object.entries(record).filter(([key]) => key !== "submitted_data"),
@@ -461,10 +461,12 @@ export async function POST(request: Request) {
 
       const campaignResult = await supabaseAdmin.from("school_reenrolment_campaigns").select("school_year").eq("id", recordResult.data.campaign_id).eq("school_id", schoolId).maybeSingle();
       if (campaignResult.error || !campaignResult.data) return NextResponse.json({ error: campaignResult.error?.message || "The re-enrolment campaign could not be found." }, { status: 500 });
+      const learnerId = recordResult.data.learner_id;
+      const campaignYear = campaignResult.data.school_year;
       const placementResult = await supabaseAdmin.from("learner_placements").upsert({
-        learner_id: recordResult.data.learner_id,
+        learner_id: learnerId,
         school_id: schoolId,
-        academic_year: Number(campaignResult.data.school_year),
+        academic_year: Number(campaignYear),
         classroom_id: null,
         placement_status: "pending",
         updated_at: reviewedAt,
@@ -477,7 +479,7 @@ export async function POST(request: Request) {
       if (requestedAddonIds.length) {
         const addonsResult = await supabaseAdmin.from("school_fee_types").select("id, amount").eq("school_id", schoolId).eq("fee_category", "recurring_addon").eq("is_active", true).in("id", requestedAddonIds);
         if (addonsResult.error) return NextResponse.json({ error: addonsResult.error.message }, { status: 500 });
-        const assignments = (addonsResult.data || []).map((addon) => ({ school_id: schoolId, learner_id: recordResult.data.learner_id, fee_type_id: addon.id, assigned_amount: Number(addon.amount || 0), start_date: `${campaignResult.data.school_year}-01-01`, is_active: true, assigned_by: access.staff.userId }));
+        const assignments = (addonsResult.data || []).map((addon) => ({ school_id: schoolId, learner_id: learnerId, fee_type_id: addon.id, assigned_amount: Number(addon.amount || 0), start_date: `${campaignYear}-01-01`, is_active: true, assigned_by: access.staff.userId }));
         if (assignments.length) {
           const assignmentResult = await supabaseAdmin.from("learner_recurring_fee_assignments").upsert(assignments, { onConflict: "school_id,learner_id,fee_type_id" });
           if (assignmentResult.error) return NextResponse.json({ error: assignmentResult.error.message }, { status: 500 });

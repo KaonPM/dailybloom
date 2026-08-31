@@ -74,7 +74,7 @@ type SchoolFeeType = {
   id: number;
   fee_code: string;
   fee_name: string;
-  fee_category: "registration" | "monthly" | "other";
+  fee_category: "registration" | "monthly" | "other" | "recurring_addon";
   billing_frequency: "once_off" | "monthly";
   amount: number;
 };
@@ -137,6 +137,7 @@ export default function LearnersPage() {
   const [registrationReference, setRegistrationReference] = useState("");
   const [schoolFeeTypes, setSchoolFeeTypes] = useState<SchoolFeeType[]>([]);
   const [selectedOtherFeeIds, setSelectedOtherFeeIds] = useState<number[]>([]);
+  const [selectedRecurringAddonIds, setSelectedRecurringAddonIds] = useState<number[]>([]);
   const [schoolRegistrationFee, setSchoolRegistrationFee] = useState("");
   const [schoolMonthlyFee, setSchoolMonthlyFee] = useState("");
 
@@ -352,6 +353,7 @@ export default function LearnersPage() {
       setSelectedOtherFeeIds(
         (result.selected_fee_ids || []).map(Number).filter(Boolean)
       );
+      setSelectedRecurringAddonIds((result.selected_recurring_addon_ids || []).map(Number).filter(Boolean));
     }
     return { fees, selectedFeeIds: result.selected_fee_ids || [] };
   }
@@ -517,6 +519,7 @@ export default function LearnersPage() {
     setRegistrationFeePaid(false);
     setRegistrationReference("");
     setSelectedOtherFeeIds([]);
+    setSelectedRecurringAddonIds([]);
     setManualClassroomId("");
     setAddToWaitingList(false);
     setWaitingAcademicYear(new Date().getFullYear() + 1);
@@ -931,6 +934,13 @@ export default function LearnersPage() {
       setSaving(false);
       return;
     }
+
+    const recurringResponse = await authenticatedFetch("/api/school-fees/catalog", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ school_id: schoolId, action: "sync_recurring_addons", learner_id: savedLearnerId, fee_ids: selectedRecurringAddonIds, start_date: nextMonthStart() }),
+    });
+    const recurringResult = await recurringResponse.json();
+    if (!recurringResponse.ok) { alert(`Learner saved, but monthly add-ons could not be updated: ${recurringResult.error || "Unknown error"}`); setSaving(false); return; }
 
     resetForm();
     setShowForm(false);
@@ -1453,6 +1463,19 @@ export default function LearnersPage() {
                     </button>
                   );
                 })}
+              </div>
+            </div>
+          ) : null}
+          {schoolFeeTypes.some((fee) => fee.fee_category === "recurring_addon") ? (
+            <div style={{ marginBottom: 14 }}>
+              <p style={labelText}>Monthly Add-ons (optional)</p>
+              <p style={helperText}>These are added on top of the selected monthly school fee and begin next month.</p>
+              <select className="db-input" value="" onChange={(event) => { const feeId = Number(event.target.value); if (feeId) setSelectedRecurringAddonIds((current) => current.includes(feeId) ? current : [...current, feeId]); }}>
+                <option value="">Select a monthly add-on</option>
+                {schoolFeeTypes.filter((fee) => fee.fee_category === "recurring_addon" && !selectedRecurringAddonIds.includes(fee.id)).map((fee) => <option key={fee.id} value={fee.id}>{fee.fee_name} · R{Number(fee.amount).toFixed(2)} / month</option>)}
+              </select>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                {selectedRecurringAddonIds.map((feeId) => { const fee = schoolFeeTypes.find((item) => item.id === feeId); return fee ? <button key={feeId} type="button" className="db-main-pill db-main-pill-blue" onClick={() => setSelectedRecurringAddonIds((current) => current.filter((id) => id !== feeId))}>{fee.fee_name} · R{Number(fee.amount).toFixed(2)} / month ×</button> : null; })}
               </div>
             </div>
           ) : null}

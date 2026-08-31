@@ -45,7 +45,7 @@ type SchoolFeeType = {
   id: number;
   fee_code: string;
   fee_name: string;
-  fee_category: "registration" | "monthly" | "other";
+  fee_category: "registration" | "monthly" | "other" | "recurring_addon";
   amount: number;
 };
 
@@ -96,6 +96,8 @@ export default function SchoolSetupPage() {
   const [newMonthlyFeeAmount, setNewMonthlyFeeAmount] = useState("");
   const [newOtherFeeName, setNewOtherFeeName] = useState("");
   const [newOtherFeeAmount, setNewOtherFeeAmount] = useState("");
+  const [newRecurringAddonName, setNewRecurringAddonName] = useState("");
+  const [newRecurringAddonAmount, setNewRecurringAddonAmount] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
@@ -263,6 +265,13 @@ export default function SchoolSetupPage() {
       setMessage("Additional fee saved.");
       setSchoolFeesOpen(false);
     }
+  }
+
+  async function addRecurringAddon() {
+    const amount = Number(newRecurringAddonAmount || 0);
+    if (!newRecurringAddonName.trim() || Number.isNaN(amount) || amount <= 0) { setError("Enter a recurring service name and monthly amount."); return; }
+    const saved = await updateSchoolFeeCatalog("add_recurring_addon", { fee_name: newRecurringAddonName.trim(), amount });
+    if (saved) { setNewRecurringAddonName(""); setNewRecurringAddonAmount(""); setMessage("Recurring service saved."); }
   }
 
   useEffect(() => {
@@ -659,6 +668,20 @@ export default function SchoolSetupPage() {
           onAmountChange={setNewOtherFeeAmount}
           onAdd={() => void addOtherSchoolFee()}
           onRemove={(feeId) => void updateSchoolFeeCatalog("archive_other", { fee_id: feeId })}
+        />
+        <OtherFeeSetup
+          options={schoolFeeTypes.filter((fee) => fee.fee_category === "recurring_addon")}
+          name={newRecurringAddonName}
+          amount={newRecurringAddonAmount}
+          saving={savingFeeSetup}
+          onNameChange={setNewRecurringAddonName}
+          onAmountChange={setNewRecurringAddonAmount}
+          onAdd={() => void addRecurringAddon()}
+          onRemove={(feeId) => void updateSchoolFeeCatalog("archive_recurring_addon", { fee_id: feeId })}
+          title="Monthly Add-ons"
+          description="Add services charged on top of the learner’s base monthly fee, such as aftercare, meals or a transport route."
+          addLabel="+ Save Monthly Add-on"
+          amountLabel="per month"
         />
       </CollapsibleSetupSection>
 

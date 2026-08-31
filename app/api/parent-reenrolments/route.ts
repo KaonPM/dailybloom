@@ -81,6 +81,17 @@ export async function GET() {
   if (campaignsResult.error) return NextResponse.json({ error: campaignsResult.error.message }, { status: 500 });
 
   const campaignRows = (campaignsResult.data || []) as ReenrolmentCampaign[];
+  const schoolIds = [...new Set(records.map((record) => Number(record.school_id)).filter(Number.isInteger))];
+  const addonsResult = schoolIds.length
+    ? await supabaseAdmin.from("school_fee_types").select("id, school_id, fee_name, amount").in("school_id", schoolIds).eq("fee_category", "recurring_addon").eq("is_active", true).order("fee_name")
+    : { data: [], error: null };
+  if (addonsResult.error) return NextResponse.json({ error: addonsResult.error.message }, { status: 500 });
+  const addonsBySchool = new Map<number, Array<{ id: number; fee_name: string; amount: number }>>();
+  for (const addon of rows<{ id: number; school_id: number; fee_name: string; amount: number }>(addonsResult.data)) {
+    const current = addonsBySchool.get(Number(addon.school_id)) || [];
+    current.push({ id: addon.id, fee_name: addon.fee_name, amount: Number(addon.amount || 0) });
+    addonsBySchool.set(Number(addon.school_id), current);
+  }
   const campaignsById = new Map(campaignRows.map((campaign) => [String(campaign.id), campaign]));
   const learnersById = new Map(children.map((child) => [child.id, child]));
   const reenrolments = records.map((record) => {
@@ -88,7 +99,7 @@ export async function GET() {
     const learner = learnersById.get(String(record.learner_id));
     if (!campaign || campaign.status !== "open" || !learner) return null;
     const classroom = Array.isArray(learner.classrooms) ? learner.classrooms[0] : learner.classrooms;
-    return { ...record, school_year: campaign.school_year, response_deadline: campaign.response_deadline, form_snapshot: campaign.form_snapshot, learner_name: learner.name, classroom_name: classroom?.classroom_name || "Unassigned" };
+    return { ...record, school_year: campaign.school_year, response_deadline: campaign.response_deadline, form_snapshot: campaign.form_snapshot, learner_name: learner.name, classroom_name: classroom?.classroom_name || "Unassigned", recurring_addons: addonsBySchool.get(Number(record.school_id)) || [] };
   }).filter(Boolean);
 
   return NextResponse.json({ parent_phone: parent.phone, reenrolments });
@@ -162,6 +173,12 @@ export async function POST(request: Request) {
   const learnerInput = asObject(body.learner_details);
   const guardianInput = asObject(body.guardian_details);
   const medicalInput = asObject(body.medical_details);
+  const requestedRecurringAddonIds = Array.isArray(body.requested_recurring_addon_ids) ? body.requested_recurring_addon_ids.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0).slice(0, 20) : [];
+  if (requestedRecurringAddonIds.length) {
+    const addonResult = await supabaseAdmin.from("school_fee_types").select("id").eq("school_id", recordResult.data.school_id).eq("fee_category", "recurring_addon").eq("is_active", true).in("id", requestedRecurringAddonIds);
+    if (addonResult.error) return NextResponse.json({ error: addonResult.error.message }, { status: 500 });
+    if ((addonResult.data || []).length !== requestedRecurringAddonIds.length) return NextResponse.json({ error: "One or more selected monthly services are no longer available." }, { status: 400 });
+  }
   const learnerDetails = {
     name: asText(learnerInput.name, 120),
     legal_name: asText(learnerInput.legal_name, 180),
@@ -210,6 +227,7 @@ export async function POST(request: Request) {
       acknowledged_requirement_ids: acknowledgedRequirementIds,
       parent_portal_phone: parentPortalPhone,
       parent_notes: asText(body.parent_notes),
+      requested_recurring_addon_ids: requestedRecurringAddonIds,
       parent_confirmed_at: action === "submit" ? submittedAt : null,
       draft_saved_at: submittedAt,
     },

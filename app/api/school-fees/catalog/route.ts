@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   );
   if (!authorization.ok) return authorization.response;
 
-  const [feesResult, assignmentsResult] = await Promise.all([
+  const [feesResult, assignmentsResult, recurringAssignmentsResult] = await Promise.all([
     supabaseAdmin
       .from("school_fee_types")
       .select(
@@ -44,10 +44,13 @@ export async function GET(request: Request) {
           .eq("learner_id", learnerId)
           .eq("is_active", true)
       : Promise.resolve({ data: [], error: null }),
+    learnerId
+      ? supabaseAdmin.from("learner_recurring_fee_assignments").select("fee_type_id, start_date, end_date").eq("school_id", schoolId).eq("learner_id", learnerId).eq("is_active", true)
+      : Promise.resolve({ data: [], error: null }),
   ]);
-  if (feesResult.error || assignmentsResult.error) {
+  if (feesResult.error || assignmentsResult.error || recurringAssignmentsResult.error) {
     return NextResponse.json(
-      { error: feesResult.error?.message || assignmentsResult.error?.message },
+      { error: feesResult.error?.message || assignmentsResult.error?.message || recurringAssignmentsResult.error?.message },
       { status: 500 }
     );
   }
@@ -56,6 +59,7 @@ export async function GET(request: Request) {
     selected_fee_ids: (assignmentsResult.data || []).map((row) =>
       Number(row.fee_type_id)
     ),
+    selected_recurring_addon_ids: (recurringAssignmentsResult.data || []).map((row) => Number(row.fee_type_id)),
   });
 }
 
@@ -145,6 +149,12 @@ export async function POST(request: Request) {
         created_by: authorization.staff.userId,
       });
       if (result.error) throw result.error;
+    } else if (action === "add_recurring_addon") {
+      const feeName = String(body.fee_name || "").trim();
+      const amount = Number(body.amount || 0);
+      if (!feeName || amount <= 0) return NextResponse.json({ error: "Enter the recurring service name and an amount greater than zero." }, { status: 400 });
+      const result = await supabaseAdmin.from("school_fee_types").insert({ school_id: schoolId, fee_code: `recurring_${crypto.randomUUID()}`, fee_name: feeName, fee_category: "recurring_addon", billing_frequency: "monthly", amount, created_by: authorization.staff.userId });
+      if (result.error) throw result.error;
     } else if (action === "archive_monthly") {
       const feeId = Number(body.fee_id);
       const { count, error: countError } = await supabaseAdmin
@@ -176,6 +186,13 @@ export async function POST(request: Request) {
         .eq("id", feeId)
         .eq("school_id", schoolId)
         .eq("fee_category", "other");
+      if (result.error) throw result.error;
+    } else if (action === "archive_recurring_addon") {
+      const feeId = Number(body.fee_id);
+      const { count, error: countError } = await supabaseAdmin.from("learner_recurring_fee_assignments").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("fee_type_id", feeId).eq("is_active", true);
+      if (countError) throw countError;
+      if (count) return NextResponse.json({ error: "This recurring service is still assigned to active learners." }, { status: 409 });
+      const result = await supabaseAdmin.from("school_fee_types").update({ is_active: false, updated_at: new Date().toISOString() }).eq("id", feeId).eq("school_id", schoolId).eq("fee_category", "recurring_addon");
       if (result.error) throw result.error;
     } else if (action === "sync_learner") {
       const learnerId = String(body.learner_id || "");
@@ -267,6 +284,22 @@ export async function POST(request: Request) {
             }
           );
         if (chargeResult.error) throw chargeResult.error;
+      }
+    } else if (action === "sync_recurring_addons") {
+      const learnerId = String(body.learner_id || "");
+      const feeIds = Array.isArray(body.fee_ids) ? body.fee_ids.map(Number).filter((id: number) => id > 0) : [];
+      const learnerResult = await supabaseAdmin.from("learners").select("id").eq("id", learnerId).eq("school_id", schoolId).maybeSingle();
+      if (!learnerResult.data) return NextResponse.json({ error: "Learner was not found in this school." }, { status: 404 });
+      const feesResult = await supabaseAdmin.from("school_fee_types").select("id, amount").eq("school_id", schoolId).eq("fee_category", "recurring_addon").eq("is_active", true);
+      if (feesResult.error) throw feesResult.error;
+      const allowed = new Map((feesResult.data || []).map((fee) => [Number(fee.id), fee]));
+      const safeIds = feeIds.filter((id: number) => allowed.has(id));
+      const deactivate = await supabaseAdmin.from("learner_recurring_fee_assignments").update({ is_active: false, end_date: body.end_date || null, updated_at: new Date().toISOString() }).eq("school_id", schoolId).eq("learner_id", learnerId);
+      if (deactivate.error) throw deactivate.error;
+      if (safeIds.length) {
+        const startDate = String(body.start_date || `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 2).padStart(2, "0")}-01`);
+        const upsert = await supabaseAdmin.from("learner_recurring_fee_assignments").upsert(safeIds.map((feeId) => ({ school_id: schoolId, learner_id: learnerId, fee_type_id: feeId, assigned_amount: Number(allowed.get(feeId)?.amount || 0), start_date: startDate, end_date: null, is_active: true, assigned_by: authorization.staff.userId, updated_at: new Date().toISOString() })), { onConflict: "school_id,learner_id,fee_type_id" });
+        if (upsert.error) throw upsert.error;
       }
     } else {
       return NextResponse.json(

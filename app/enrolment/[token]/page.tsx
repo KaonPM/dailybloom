@@ -47,6 +47,7 @@ type FormInfo = {
   initial_declaration_name?: string;
   initial_declaration_relationship?: string;
   initial_uploaded_documents?: Record<string, { name: string; path: string }>;
+  initial_requested_recurring_addon_ids?: number[];
   draft_saved_at?: string | null;
   status: string;
   school_name: string;
@@ -117,6 +118,7 @@ export default function SecureEnrolmentFormPage() {
   const [declarationName, setDeclarationName] = useState("");
   const [declarationRelationship, setDeclarationRelationship] = useState("");
   const [documentUploads, setDocumentUploads] = useState<Record<string, { name: string; path: string }>>({});
+  const [requestedRecurringAddonIds, setRequestedRecurringAddonIds] = useState<number[]>([]);
   const [uploadingDocument, setUploadingDocument] = useState("");
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -202,6 +204,7 @@ export default function SecureEnrolmentFormPage() {
       setDeclarationName(body.initial_declaration_name || "");
       setDeclarationRelationship(body.initial_declaration_relationship || "");
       setDocumentUploads(body.initial_uploaded_documents || {});
+      setRequestedRecurringAddonIds(Array.isArray(body.initial_requested_recurring_addon_ids) ? body.initial_requested_recurring_addon_ids.map(Number).filter(Number.isInteger) : []);
       setDraftSavedAt(body.draft_saved_at || "");
       if (body.draft_saved_at) setDraftMessage("Your saved draft has been restored.");
     } catch (loadError) {
@@ -232,6 +235,7 @@ export default function SecureEnrolmentFormPage() {
       terms_accepted: termsAccepted,
       declaration_name: declarationName,
       declaration_relationship: declarationRelationship,
+      requested_recurring_addon_ids: requestedRecurringAddonIds,
     };
   }
 
@@ -329,6 +333,7 @@ export default function SecureEnrolmentFormPage() {
   const legacyStationeryList = requirementTemplates.length ? [] : getTextList(info?.form?.stationery_list);
   const consents = info?.consents || [];
   const terms = info?.terms || [];
+  const recurringAddons = (info?.fees || []).filter((fee) => fee.fee_category === "recurring_addon");
 
   async function uploadDocument(documentName: string, file?: File) {
     if (!file || isPreview) return;
@@ -486,7 +491,8 @@ export default function SecureEnrolmentFormPage() {
               </div>
               </div> : null}
               {consents.length ? <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>Consent & permissions</h3><p className="db-helper" style={{ margin: 0 }}>Detailed consent requests for specific outings, activities, treatment or other situations will be sent through the Parent Portal when required by the school.</p>{consents.map((consent) => <label key={consent.id} className="db-soft-card" style={{ padding: 12, display: "flex", gap: 10, alignItems: "flex-start" }}><input type="checkbox" checked={Boolean(consentResponses[consent.id])} onChange={(event) => setConsentResponses((current) => ({ ...current, [consent.id]: event.target.checked }))} disabled={isPreview} /><span><strong>{consent.title}{consent.is_required ? " *" : ""}</strong><br /><small className="db-helper">{consent.wording}</small></span></label>)}</div> : null}
-              <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>School fees</h3>{info?.fees?.length ? <div className="blank-fee-grid">{info.fees.map((fee, index) => <p key={`${fee.fee_code || fee.fee_name}-${index}`}><strong>{fee.fee_name || "School fee"}</strong><span>R{Number(fee.amount || 0).toFixed(2)}</span>{fee.fee_category ? <small>{fee.fee_category}</small> : null}</p>)}</div> : <p className="db-helper" style={{ margin: 0 }}>No active fee amounts have been configured in School Fee Setup.</p>}</div>
+              <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>School fees</h3>{info?.fees?.length ? <div className="blank-fee-grid">{info.fees.filter((fee) => fee.fee_category !== "recurring_addon").map((fee, index) => <p key={`${fee.fee_code || fee.fee_name}-${index}`}><strong>{fee.fee_name || "School fee"}</strong><span>R{Number(fee.amount || 0).toFixed(2)}</span>{fee.fee_category ? <small>{fee.fee_category}</small> : null}</p>)}</div> : <p className="db-helper" style={{ margin: 0 }}>No active fee amounts have been configured in School Fee Setup.</p>}</div>
+              {recurringAddons.length ? <div className="db-soft-card" style={{ padding: 12, display: "grid", gap: 8 }}><div><strong>Optional monthly services</strong><p className="db-helper" style={{ margin: "3px 0 0" }}>Select services you would like to request. The school confirms them before any monthly charge starts.</p></div>{recurringAddons.map((fee, index) => { const id = Number(fee.fee_code?.replace(/^recurring_addon_/, "")); return <label key={`${fee.fee_code || fee.fee_name}-${index}`} className="db-checkbox-row"><input type="checkbox" disabled={isPreview || !Number.isInteger(id)} checked={Number.isInteger(id) && requestedRecurringAddonIds.includes(id)} onChange={(event) => { if (!Number.isInteger(id)) return; setRequestedRecurringAddonIds((current) => event.target.checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)); }} /><span>{fee.fee_name || "Monthly service"} · R{Number(fee.amount || 0).toFixed(2)} per month</span></label>; })}</div> : null}
               <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>Banking details</h3><div className="db-soft-card" style={{ padding: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}><p style={{ margin: 0 }}><strong>Account name:</strong> {info?.banking_details?.bank_account_name || "Not configured"}</p><p style={{ margin: 0 }}><strong>Bank:</strong> {info?.banking_details?.bank_name || "Not configured"}</p><p style={{ margin: 0 }}><strong>Account number:</strong> {info?.banking_details?.bank_account_number || "Not configured"}</p><p style={{ margin: 0 }}><strong>Branch code:</strong> {info?.banking_details?.bank_branch_code || "Not configured"}</p><p style={{ margin: 0 }}><strong>Account type:</strong> {info?.banking_details?.bank_account_type || "Not configured"}</p></div></div>
               {terms.length ? <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>Terms & conditions</h3><p className="db-helper" style={{ margin: 0 }}>Additional policy details, material updates and any request for fresh acceptance will be sent through the Parent Portal when required.</p>{terms.map((term) => <div key={term.id} className="db-soft-card" style={{ padding: 12 }}><strong>{term.title}</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>{term.content}</p></div>)}<label><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} disabled={isPreview} /> I accept the terms and conditions.</label></div> : null}
               <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>Declaration</h3>{info?.enrolment_configuration?.additional_declaration ? <p className="db-helper" style={{ margin: 0 }}>{info.enrolment_configuration.additional_declaration}</p> : null}<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}><label style={{ display: "grid", gap: 5 }}><strong>Parent/guardian full name</strong><input className="db-input" value={declarationName} onChange={(event) => setDeclarationName(event.target.value)} disabled={isPreview} /></label><label style={{ display: "grid", gap: 5 }}><strong>Relationship to learner</strong><input className="db-input" value={declarationRelationship} onChange={(event) => setDeclarationRelationship(event.target.value)} disabled={isPreview} /></label></div></div>

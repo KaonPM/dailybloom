@@ -113,15 +113,16 @@ export async function GET(request: Request) {
   const access = await requireStaffPermission(request, PERMISSIONS.SCHOOL_MANAGE, schoolId);
   if (!access.ok) return access.response;
 
-  const [schoolResult, feeResult, campaignsResult, formsResult, classroomsResult, approvedEnrolmentsResult] = await Promise.all([
+  const [schoolResult, feeResult, campaignsResult, formsResult, classroomsResult, approvedEnrolmentsResult, recurringAddonsResult] = await Promise.all([
     supabaseAdmin.from("schools").select("id, school_name").eq("id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("school_id", schoolId).eq("fee_code", "registration").maybeSingle(),
     supabaseAdmin.from("school_reenrolment_campaigns").select("id, school_year, source_form_id, form_snapshot, registration_fee_type_id, registration_fee_amount, response_deadline, status, rollover_applied_at, created_at").eq("school_id", schoolId).order("school_year", { ascending: false }),
     supabaseAdmin.from("school_enrolment_forms").select("id, form_name, form_type, instructions").eq("school_id", schoolId).eq("form_type", "general").eq("is_active", true).order("form_name"),
     supabaseAdmin.from("classrooms").select("id, classroom_name, age_groups").eq("school_id", schoolId).order("classroom_name"),
     supabaseAdmin.from("school_enrolment_enquiries").select("id,learner_id,enquiry_reference,parent_name,academic_year,submitted_data").eq("school_id",schoolId).eq("status","approved").not("learner_id","is",null).order("academic_year").order("created_at"),
+    supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("school_id", schoolId).eq("fee_category", "recurring_addon").eq("is_active", true).order("fee_name"),
   ]);
-  const failure = schoolResult.error || feeResult.error || campaignsResult.error || formsResult.error || classroomsResult.error || approvedEnrolmentsResult.error;
+  const failure = schoolResult.error || feeResult.error || campaignsResult.error || formsResult.error || classroomsResult.error || approvedEnrolmentsResult.error || recurringAddonsResult.error;
   if (failure) return NextResponse.json({ error: failure.message }, { status: 500 });
 
   const campaign = rows(campaignsResult.data).find((candidate) => candidate.status === "open") || null;
@@ -167,6 +168,7 @@ export async function GET(request: Request) {
         uploaded_documents: submittedData.uploaded_documents || {},
         acknowledged_document_ids: Array.isArray(submittedData.acknowledged_document_ids) ? submittedData.acknowledged_document_ids : [],
         acknowledged_requirement_ids: Array.isArray(submittedData.acknowledged_requirement_ids) ? submittedData.acknowledged_requirement_ids : [],
+        requested_recurring_addon_ids: Array.isArray(submittedData.requested_recurring_addon_ids) ? submittedData.requested_recurring_addon_ids.map(Number).filter(Number.isInteger) : [],
       };
     });
   }
@@ -187,6 +189,7 @@ export async function GET(request: Request) {
     campaigns: rows(campaignsResult.data),
     enrolment_forms: rows(formsResult.data),
     classrooms: rows(classroomsResult.data),
+    recurring_addons: rows(recurringAddonsResult.data),
     reenrolments,
     approved_enrolments: approvedRows.map((row)=>({...row,learner:approvedLearners.get(row.learner_id)||null,placement:placements.get(`${row.learner_id}:${row.academic_year}`)||null})),
   });
@@ -467,6 +470,19 @@ export async function POST(request: Request) {
         updated_at: reviewedAt,
       }, { onConflict: "learner_id,academic_year" });
       if (placementResult.error) return NextResponse.json({ error: placementResult.error.message }, { status: 500 });
+
+      const requestedAddonIds = Array.isArray(submitted.requested_recurring_addon_ids)
+        ? submitted.requested_recurring_addon_ids.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0)
+        : [];
+      if (requestedAddonIds.length) {
+        const addonsResult = await supabaseAdmin.from("school_fee_types").select("id, amount").eq("school_id", schoolId).eq("fee_category", "recurring_addon").eq("is_active", true).in("id", requestedAddonIds);
+        if (addonsResult.error) return NextResponse.json({ error: addonsResult.error.message }, { status: 500 });
+        const assignments = (addonsResult.data || []).map((addon) => ({ school_id: schoolId, learner_id: recordResult.data.learner_id, fee_type_id: addon.id, assigned_amount: Number(addon.amount || 0), start_date: `${campaignResult.data.school_year}-01-01`, is_active: true, assigned_by: access.staff.userId }));
+        if (assignments.length) {
+          const assignmentResult = await supabaseAdmin.from("learner_recurring_fee_assignments").upsert(assignments, { onConflict: "school_id,learner_id,fee_type_id" });
+          if (assignmentResult.error) return NextResponse.json({ error: assignmentResult.error.message }, { status: 500 });
+        }
+      }
 
       const updateResult = await supabaseAdmin
         .from("learner_reenrolments")

@@ -17,6 +17,10 @@ export function OtherFeeSetup({
   onAmountChange,
   onAdd,
   onRemove,
+  title = "Additional Fees",
+  description = "Add each once-off fee separately. A fresh box remains available after every fee is saved.",
+  addLabel = "+ Save Additional Fee",
+  amountLabel = "once-off",
 }: {
   options: OtherFeeOption[];
   name: string;
@@ -26,16 +30,19 @@ export function OtherFeeSetup({
   onAmountChange: (value: string) => void;
   onAdd: () => void;
   onRemove: (feeId: number) => void;
+  title?: string;
+  description?: string;
+  addLabel?: string;
+  amountLabel?: string;
 }) {
   const [savedFeesOpen, setSavedFeesOpen] = useState(false);
   return (
     <section style={{ marginTop: 18 }}>
       <h4 style={{ margin: "0 0 8px", color: "#2D2A3E" }}>
-        Additional Fees
+        {title}
       </h4>
       <p className="db-helper">
-        Add each once-off fee separately. A fresh box remains available after
-        every fee is saved.
+        {description}
       </p>
 
       <div style={entryBox}>
@@ -69,7 +76,7 @@ export function OtherFeeSetup({
           onClick={onAdd}
           disabled={saving}
         >
-          + Save Additional Fee
+          {addLabel}
         </button>
       </div>
 
@@ -87,7 +94,7 @@ export function OtherFeeSetup({
                   {fee.fee_name}
                 </strong>
                 <span style={{ color: "#746B86" }}>
-                  R{Number(fee.amount).toFixed(2)} once-off
+                  R{Number(fee.amount).toFixed(2)} {amountLabel}
                 </span>
               </div>
               <button

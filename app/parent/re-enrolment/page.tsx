@@ -22,6 +22,7 @@ type SubmittedData = {
   acknowledged_requirement_ids?: string[];
   uploaded_documents?: Record<string, { name: string; path: string }>;
   draft_saved_at?: string;
+  requested_recurring_addon_ids?: number[];
 };
 type Reenrolment = {
   id: string;
@@ -38,6 +39,7 @@ type Reenrolment = {
   response_deadline: string | null;
   learner_name: string;
   classroom_name: string;
+  recurring_addons?: Array<{ id: number; fee_name: string; amount: number }>;
 };
 type Draft = {
   learnerDetails: Record<string, string>;
@@ -48,6 +50,7 @@ type Draft = {
   acknowledgedDocumentIds: string[];
   acknowledgedRequirementIds: string[];
   uploadedDocuments: Record<string, { name: string; path: string }>;
+  requestedRecurringAddonIds: number[];
   confirmed: boolean;
 };
 
@@ -86,6 +89,7 @@ function buildDraft(record: Reenrolment, fallbackPhone: string): Draft {
     acknowledgedDocumentIds: submitted.acknowledged_document_ids || [],
     acknowledgedRequirementIds: submitted.acknowledged_requirement_ids || [],
     uploadedDocuments: submitted.uploaded_documents || {},
+    requestedRecurringAddonIds: (submitted.requested_recurring_addon_ids || []).map(Number).filter(Number.isInteger),
     confirmed: false,
   };
 }
@@ -139,6 +143,7 @@ export default function ParentReenrolmentPage() {
           learner_details: draft.learnerDetails, guardian_details: draft.guardianDetails, medical_details: draft.medicalDetails,
           uploaded_documents: draft.uploadedDocuments,
           acknowledged_document_ids: draft.acknowledgedDocumentIds, acknowledged_requirement_ids: draft.acknowledgedRequirementIds,
+          requested_recurring_addon_ids: draft.requestedRecurringAddonIds,
         }),
       });
       const body = await response.json();
@@ -152,7 +157,7 @@ export default function ParentReenrolmentPage() {
     const draft = drafts[record.id];
     setSavingId(record.id); setError(""); setMessage("");
     try {
-      const response = await fetch("/api/parent-reenrolments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_draft", reenrolment_id: record.id, parent_portal_phone: draft.parentPortalPhone, parent_notes: draft.parentNotes, learner_details: draft.learnerDetails, guardian_details: draft.guardianDetails, medical_details: draft.medicalDetails, uploaded_documents: draft.uploadedDocuments, acknowledged_requirement_ids: draft.acknowledgedRequirementIds }) });
+      const response = await fetch("/api/parent-reenrolments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_draft", reenrolment_id: record.id, parent_portal_phone: draft.parentPortalPhone, parent_notes: draft.parentNotes, learner_details: draft.learnerDetails, guardian_details: draft.guardianDetails, medical_details: draft.medicalDetails, uploaded_documents: draft.uploadedDocuments, acknowledged_requirement_ids: draft.acknowledgedRequirementIds, requested_recurring_addon_ids: draft.requestedRecurringAddonIds }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Your draft could not be saved.");
       setMessage(`Draft saved for ${record.learner_name}. You can safely continue later.`);
@@ -213,6 +218,7 @@ export default function ParentReenrolmentPage() {
           <details className="db-soft-card" style={{ padding: 16 }} open><summary><strong>Learner information</strong></summary><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 14 }}>{learnerFields.map(([key, label]) => <label key={key}><span className="db-label">{label}</span>{key === "home_address" ? <textarea className="db-input" rows={2} value={draft.learnerDetails[key] || ""} onChange={(event) => changeDetail(record.id, "learnerDetails", key, event.target.value)} /> : <input className="db-input" type={key === "date_of_birth" ? "date" : "text"} value={draft.learnerDetails[key] || ""} onChange={(event) => changeDetail(record.id, "learnerDetails", key, event.target.value)} />}</label>)}</div></details>
           <details className="db-soft-card" style={{ padding: 16 }} open><summary><strong>Parent / guardian information</strong></summary><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 14 }}>{guardianFields.map(([key, label]) => <label key={key}><span className="db-label">{label}</span><input className="db-input" type={key === "parent_email" ? "email" : "text"} value={draft.guardianDetails[key] || ""} onChange={(event) => changeDetail(record.id, "guardianDetails", key, event.target.value)} /></label>)}<label><span className="db-label">Parent Portal mobile number</span><input className="db-input" type="tel" value={draft.parentPortalPhone} onChange={(event) => setDrafts((current) => ({ ...current, [record.id]: { ...current[record.id], parentPortalPhone: event.target.value } }))} /><small className="db-helper">Choose one South African mobile number. The school approves the change.</small></label></div></details>
           <details className="db-soft-card" style={{ padding: 16 }}><summary><strong>Medical and immunisation information</strong></summary><p className="db-helper">Review medical aid, preferred doctor and immunisation details. Immunisation information should be supported by the latest clinic card where the school requires it.</p><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 14 }}>{medicalFields.map(([key, label]) => <label key={key}><span className="db-label">{label}</span>{key === "immunisation_status" ? <select className="db-input" value={draft.medicalDetails[key] || ""} onChange={(event) => changeDetail(record.id, "medicalDetails", key, event.target.value)}><option value="">Select</option><option value="up_to_date">Yes, up to date</option><option value="outstanding">Vaccines outstanding</option><option value="scheduled">Updates scheduled</option><option value="not_applicable">Not applicable / exempt</option></select> : ["allergies", "medical_conditions", "medical_instructions", "immunisation_notes"].includes(key) ? <textarea className="db-input" rows={2} value={draft.medicalDetails[key] || ""} onChange={(event) => changeDetail(record.id, "medicalDetails", key, event.target.value)} /> : <input className="db-input" type={key === "preferred_doctor_phone" ? "tel" : "text"} value={draft.medicalDetails[key] || ""} onChange={(event) => changeDetail(record.id, "medicalDetails", key, event.target.value)} />}</label>)}</div></details>
+          {(record.recurring_addons || []).length ? <div className="db-soft-card" style={{ padding: 16 }}><strong>Optional monthly services</strong><p className="db-helper">Request services for the new year. The school confirms them before billing starts.</p>{record.recurring_addons?.map((addon) => <label className="db-checkbox-row" key={addon.id}><input type="checkbox" checked={draft.requestedRecurringAddonIds.includes(addon.id)} onChange={(event) => setDrafts((current) => ({ ...current, [record.id]: { ...current[record.id], requestedRecurringAddonIds: event.target.checked ? [...new Set([...current[record.id].requestedRecurringAddonIds, addon.id])] : current[record.id].requestedRecurringAddonIds.filter((id) => id !== addon.id) } }))} /><span>{addon.fee_name} · {money(addon.amount)} per month</span></label>)}</div> : null}
           {(snapshot.missing_documents || []).length > 0 ? <div className="db-soft-card" style={{ padding: 16 }}><h3 style={{ marginTop: 0 }}>Documents to upload</h3><p className="db-helper">Existing valid learner documents are reused. Upload only the missing school-required documents listed below.</p>{snapshot.missing_documents?.map((item) => { const upload = draft.uploadedDocuments[item.name]; const uploadKey = `${record.id}:${item.name}`; return <label className="db-soft-card" key={item.id} style={{ padding: 12, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}><span><strong>{item.name}</strong><small className="db-helper" style={{ display: "block" }}>{upload?.name || "PDF, JPG, PNG or WEBP up to 10 MB"}</small></span><span className="db-button-secondary" style={{ cursor: "pointer" }}><input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden disabled={uploadingDocument === uploadKey} onChange={(event) => void uploadDocument(record, item.name, event.target.files?.[0])} />{uploadingDocument === uploadKey ? "Uploading…" : upload ? "Replace" : "Upload"}</span></label>; })}</div> : <div className="db-success-banner">All required learner documents already on file will be reused for this re-enrolment.</div>}
           {(snapshot.missing_requirements || []).length > 0 ? <div className="db-soft-card" style={{ padding: 16 }}><h3 style={{ marginTop: 0 }}>Outstanding learner requirements</h3><p className="db-helper">Ticking confirms that you have seen what is still needed. The school records items when received.</p>{snapshot.missing_requirements?.map((item) => <label className="db-checkbox-row" key={item.id}><input type="checkbox" checked={draft.acknowledgedRequirementIds.includes(item.id)} onChange={(event) => toggleAcknowledgement(record.id, "acknowledgedRequirementIds", item.id, event.target.checked)} /><span>{item.name}{item.quantity ? ` · ${item.quantity} required` : ""}</span></label>)}</div> : null}
           <label><span className="db-label">Notes for the school <em>(optional)</em></span><textarea className="db-input" rows={3} maxLength={800} value={draft.parentNotes} onChange={(event) => setDrafts((current) => ({ ...current, [record.id]: { ...current[record.id], parentNotes: event.target.value } }))} /></label>

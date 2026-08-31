@@ -148,6 +148,9 @@ function buildDraftData(body: Record<string, unknown>, enquiry: { school_id: num
     declaration_name: text(body.declaration_name || declaration.name, 180),
     declaration_relationship: text(body.declaration_relationship || declaration.relationship, 80),
     uploaded_documents: safeDraftDocuments(body.uploaded_documents, enquiry),
+    requested_recurring_addon_ids: Array.isArray(body.requested_recurring_addon_ids)
+      ? body.requested_recurring_addon_ids.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0).slice(0, 20)
+      : [],
     _draft_saved_at: savedAt,
   };
 }
@@ -222,7 +225,7 @@ function uploadedDocuments(value: unknown, requirements: unknown, enquiry: { sch
   return result;
 }
 
-type EnrolmentFee = { fee_code?: string | null; fee_name?: string | null; fee_category?: string | null; amount?: number | string | null };
+type EnrolmentFee = { id?: number | string | null; fee_code?: string | null; fee_name?: string | null; fee_category?: string | null; amount?: number | string | null };
 type EnrolmentTerm = { id: string; title: string; content: string; display_order?: number };
 type EnrolmentConfiguration = {
   form_title?: string | null;
@@ -287,7 +290,7 @@ export async function GET(request: Request) {
     supabaseAdmin.from("school_enrolment_requirement_templates").select("template_key, available_from_months, available_to_months, category, item_name, quantity, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("template_key").order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("id, title, wording, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_terms_sections").select("id, title, content, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
-    supabaseAdmin.from("school_fee_types").select("fee_code, fee_name, fee_category, amount").eq("school_id", enquiry.school_id).eq("is_active", true),
+    supabaseAdmin.from("school_fee_types").select("id, fee_code, fee_name, fee_category, amount").eq("school_id", enquiry.school_id).eq("is_active", true),
     supabaseAdmin.from("school_setup_settings").select("bank_account_name, bank_name, bank_account_number, bank_branch_code, bank_account_type").eq("school_id", enquiry.school_id).maybeSingle(),
     supabaseAdmin.from("dbe_registration").select("registration_number, email_address, physical_address, contact_number").eq("school_id", enquiry.school_id).maybeSingle(),
     supabaseAdmin.from("school_signup_requests").select("school_email, school_phone, school_address").eq("school_id", enquiry.school_id).order("created_at", { ascending: false }).limit(1),
@@ -313,6 +316,7 @@ export async function GET(request: Request) {
     initial_declaration_name: text(initialValues.declaration_name || declaration.name, 180),
     initial_declaration_relationship: text(initialValues.declaration_relationship || declaration.relationship, 80),
     initial_uploaded_documents: safeDraftDocuments(initialValues.uploaded_documents, enquiry),
+    initial_requested_recurring_addon_ids: Array.isArray(initialValues.requested_recurring_addon_ids) ? initialValues.requested_recurring_addon_ids.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0) : [],
     draft_saved_at: text(initialValues._draft_saved_at, 50) || null,
     status: enquiry.status,
     school_name: school?.school_name || "School",
@@ -487,6 +491,9 @@ export async function POST(request: Request) {
     terms_accepted: body.terms_accepted === true,
     declaration: { statement: configuration?.additional_declaration || DEFAULT_PARENT_DECLARATION, name: declarationName, relationship: declarationRelationship, acknowledged_at: new Date().toISOString() },
     uploaded_documents: documents,
+    requested_recurring_addon_ids: Array.isArray(body.requested_recurring_addon_ids)
+      ? body.requested_recurring_addon_ids.map((item: unknown) => Number(item)).filter((item: number) => Number.isInteger(item) && item > 0 && (fees || []).some((fee) => Number((fee as { id?: unknown }).id) === item && (fee as { fee_category?: unknown }).fee_category === "recurring_addon")).slice(0, 20)
+      : [],
     submitted_at: new Date().toISOString(),
   };
   const { error } = await supabaseAdmin

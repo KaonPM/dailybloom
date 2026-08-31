@@ -45,6 +45,7 @@ type Reenrolment = {
   uploaded_documents?: Record<string, { name?: string; path?: string }>;
   acknowledged_document_ids?: string[];
   acknowledged_requirement_ids?: string[];
+  requested_recurring_addon_ids?: number[];
   renewal_snapshot?: {
     learner_details?: Record<string, string | null>;
     guardian_details?: Record<string, string | null>;
@@ -66,6 +67,7 @@ type ReenrolmentData = {
   reenrolments: Reenrolment[];
   enrolment_forms: Array<{ id: string; form_name: string; form_type: string; instructions?: string | null }>;
   classrooms: Array<{ id: number; classroom_name: string }>;
+  recurring_addons: Array<{ id: number; fee_name: string; amount: number }>;
   approved_enrolments: Array<{id:string;learner_id:string;enquiry_reference:string;parent_name:string;academic_year:number;submitted_data?:Record<string,unknown>|null;learner?:{name?:string|null;legal_name?:string|null;guardian_name?:string|null;class?:string|null;classroom_id?:number|null}|null;placement?:{classroom_id:number|null;classrooms?:{classroom_name?:string}|Array<{classroom_name?:string}>}|null}>;
 };
 
@@ -406,6 +408,7 @@ export default function ReEnrolmentsPage() {
                 <ComparisonGroup title="Learner changes" current={selectedForReview.renewal_snapshot?.learner_details} proposed={selectedForReview.learner_details} />
                 <ComparisonGroup title="Parent / guardian changes" current={selectedForReview.renewal_snapshot?.guardian_details} proposed={selectedForReview.guardian_details} />
                 <ComparisonGroup title="Medical changes" current={selectedForReview.renewal_snapshot?.medical_details} proposed={selectedForReview.medical_details} />
+                {selectedForReview.requested_recurring_addon_ids?.length ? <div className="db-soft-card" style={{ padding: 12 }}><strong>Requested monthly services</strong><p className="db-helper" style={{ margin: "6px 0 0" }}>{selectedForReview.requested_recurring_addon_ids.map((id) => data?.recurring_addons.find((addon) => addon.id === Number(id))).filter(Boolean).map((addon) => `${addon?.fee_name} (${money(addon?.amount)}/month)`).join(" · ") || "Requested services are no longer active in School Fees."}</p><small className="db-helper">Approving confirms these services for the new year.</small></div> : null}
                 <div className="db-soft-card" style={{ padding: 14, marginTop: 16 }}>
                   <strong>Digital form details</strong>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 10 }}>

@@ -56,6 +56,7 @@ type Enquiry = {
   deliveries?: EnrolmentDelivery[];
   placement?: { academic_year: number; classroom_id: number | null; placement_status: "pending" | "future" | "current" | "completed"; classrooms?: { classroom_name?: string | null } | { classroom_name?: string | null }[] | null } | null;
 };
+type RecurringAddon = { id: number; fee_name: string; amount: number };
 
 
 type ShareDetails = {
@@ -112,6 +113,7 @@ export default function EnrolmentsPage() {
   const [schoolName, setSchoolName] = useState("Your school");
   const [forms, setForms] = useState<Form[]>([]);
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [recurringAddons, setRecurringAddons] = useState<RecurringAddon[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -163,6 +165,7 @@ export default function EnrolmentsPage() {
       const loadedForms = (body.forms || []) as Form[];
       setForms(loadedForms);
       setEnquiries((body.enquiries || []) as Enquiry[]);
+      setRecurringAddons((body.recurring_addons || []) as RecurringAddon[]);
       setSchoolName(body.school_name || "Your school");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Enrolments could not be loaded.");
@@ -451,7 +454,7 @@ export default function EnrolmentsPage() {
                       <label style={{ display: "grid", gap: 7 }}><strong>Reason for declining</strong><textarea className="db-input" rows={3} value={declineReason} onChange={(event) => setDeclineReason(event.target.value)} placeholder="Explain the next step for the parent" /></label>
                       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "review", { decision: "declined", decline_reason: declineReason })}>{isWorking ? "Saving..." : "Confirm Decline"}</button><button className="db-button-secondary" type="button" onClick={() => { setDecliningId(null); setDeclineReason(""); }}>Cancel</button></div>
                     </div>
-                  ) : <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "review", { decision: "approved" })}>{isWorking ? "Saving..." : "Approve Enrolment"}</button><button className="db-button-secondary" type="button" onClick={() => setDecliningId(enquiry.id)}>Decline with Reason</button><button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => { if (window.confirm(`Reopen ${enquiry.enquiry_reference} for parent editing? The previous link will remain closed and a new 72-hour link will be issued.`)) void runAction(enquiry, "reopen_form"); }}>Reopen &amp; Issue New Link</button></div>
+                  ) : <><>{Array.isArray(enquiry.submitted_data?.requested_recurring_addon_ids) && enquiry.submitted_data.requested_recurring_addon_ids.length ? <div className="db-soft-card" style={{ padding: 12 }}><strong>Requested monthly services</strong><p className="db-helper" style={{ margin: "5px 0 0" }}>{enquiry.submitted_data.requested_recurring_addon_ids.map((value) => recurringAddons.find((addon) => addon.id === Number(value))).filter(Boolean).map((addon) => `${addon?.fee_name} (${formatMoney(Number(addon?.amount || 0))}/month)`).join(" · ") || "Requested services are no longer active in School Fees."}</p><small className="db-helper">Approving confirms these services. They begin with the applicable monthly billing period.</small></div> : null}</><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "review", { decision: "approved" })}>{isWorking ? "Saving..." : "Approve Enrolment"}</button><button className="db-button-secondary" type="button" onClick={() => setDecliningId(enquiry.id)}>Decline with Reason</button><button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => { if (window.confirm(`Reopen ${enquiry.enquiry_reference} for parent editing? The previous link will remain closed and a new 72-hour link will be issued.`)) void runAction(enquiry, "reopen_form"); }}>Reopen &amp; Issue New Link</button></div></>
                 ) : null}
 
                 {enquiry.status === "approved" ? <div className="db-helper">Approved. The learner profile is linked to this reference and appears in the academic-year waiting list above{enquiry.placement?.classroom_id ? ", with its future classroom planned" : " until a classroom is selected"}.</div> : null}

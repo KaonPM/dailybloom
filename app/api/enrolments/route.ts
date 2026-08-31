@@ -66,7 +66,7 @@ export async function GET(request: Request) {
   const authorization = await requireStaffPermission(request, PERMISSIONS.LEARNERS_MANAGE, schoolId);
   if (!authorization.ok) return authorization.response;
 
-  const [{ data: enquiries, error: enquiryError }, { data: forms, error: formError }, { data: school, error: schoolError }, { data: classrooms, error: classroomError }] = await Promise.all([
+  const [{ data: enquiries, error: enquiryError }, { data: forms, error: formError }, { data: school, error: schoolError }, { data: classrooms, error: classroomError }, { data: recurringAddons, error: recurringAddonsError }] = await Promise.all([
     supabaseAdmin
       .from("school_enrolment_enquiries")
       .select("id, school_id, form_id, learner_id, enquiry_reference, parent_name, parent_phone, registration_fee_amount, registration_payment_status, registration_payment_reference, registration_payment_verified_at, status, enrolment_source, academic_year, printed_at, paper_received_at, submitted_data, submitted_at, reviewed_at, decline_reason, created_at, school_enrolment_forms(form_name, form_type)")
@@ -76,8 +76,9 @@ export async function GET(request: Request) {
     supabaseAdmin.from("school_enrolment_forms").select("id, form_name, form_type, is_active").eq("school_id", schoolId).eq("form_type", "general").eq("is_active", true).order("form_type"),
     supabaseAdmin.from("schools").select("school_name").eq("id", schoolId).maybeSingle(),
     supabaseAdmin.from("classrooms").select("id, classroom_name").eq("school_id", schoolId).order("classroom_name"),
+    supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("school_id", schoolId).eq("fee_category", "recurring_addon").eq("is_active", true).order("fee_name"),
   ]);
-  const error = enquiryError || formError || schoolError || classroomError;
+  const error = enquiryError || formError || schoolError || classroomError || recurringAddonsError;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const enquiryIds = (enquiries || []).map((enquiry) => enquiry.id).filter(Boolean);
@@ -106,7 +107,7 @@ export async function GET(request: Request) {
     deliveries: deliveriesByEnquiry.get(enquiry.id) || [],
     placement: enquiry.learner_id ? placementByLearner.get(`${enquiry.learner_id}:${enquiry.academic_year}`) || null : null,
   }));
-  return NextResponse.json({ enquiries: enrichedEnquiries, forms: forms || [], classrooms: classrooms || [], school_name: school?.school_name || "Your school" });
+  return NextResponse.json({ enquiries: enrichedEnquiries, forms: forms || [], classrooms: classrooms || [], recurring_addons: recurringAddons || [], school_name: school?.school_name || "Your school" });
 }
 
 export async function POST(request: Request) {
@@ -406,6 +407,26 @@ export async function POST(request: Request) {
       if (placementError) {
         await supabaseAdmin.from("learners").delete().eq("id", learnerId).eq("school_id", schoolId);
         return NextResponse.json({ error: placementError.message }, { status: 500 });
+      }
+    }
+    if (decision === "approved") {
+      const submitted = enquiry.submitted_data && typeof enquiry.submitted_data === "object" && !Array.isArray(enquiry.submitted_data)
+        ? enquiry.submitted_data as Record<string, unknown>
+        : {};
+      const requestedAddonIds = Array.isArray(submitted.requested_recurring_addon_ids)
+        ? submitted.requested_recurring_addon_ids.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0)
+        : [];
+      if (requestedAddonIds.length) {
+        const { data: addons, error: addonError } = await supabaseAdmin.from("school_fee_types").select("id, amount").eq("school_id", schoolId).eq("fee_category", "recurring_addon").eq("is_active", true).in("id", requestedAddonIds);
+        if (addonError) return NextResponse.json({ error: addonError.message }, { status: 500 });
+        const startDate = Number(enquiry.academic_year) > new Date().getFullYear()
+          ? `${enquiry.academic_year}-01-01`
+          : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString().slice(0, 10);
+        const assignments = (addons || []).map((addon) => ({ school_id: schoolId, learner_id: learnerId, fee_type_id: addon.id, assigned_amount: Number(addon.amount || 0), start_date: startDate, is_active: true, assigned_by: authorization.staff.userId }));
+        if (assignments.length) {
+          const { error: assignmentError } = await supabaseAdmin.from("learner_recurring_fee_assignments").upsert(assignments, { onConflict: "school_id,learner_id,fee_type_id" });
+          if (assignmentError) return NextResponse.json({ error: assignmentError.message }, { status: 500 });
+        }
       }
     }
     const { error } = await supabaseAdmin.from("school_enrolment_enquiries").update({

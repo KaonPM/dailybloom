@@ -2,6 +2,7 @@ import {
   DelegatedRole,
   isDelegatedRole,
   Permission,
+  PERMISSIONS,
   sanitizeDelegatedPermissions,
 } from "./permissions";
 
@@ -23,11 +24,24 @@ export function validateManagedPermissions(role: ManagedRole, requested: unknown
   const values = Array.isArray(requested)
     ? requested.filter((value): value is string => typeof value === "string")
     : [];
-  const permissions = sanitizeDelegatedPermissions(role as DelegatedRole, values);
+  const permissions = expandDelegatedPermissions(role as DelegatedRole, values);
   if (permissions.length === 0) {
     throw new Error(`Select at least one permission for the ${managedRoleLabel(role)}.`);
   }
   return permissions;
+}
+
+/**
+ * A delegated admin must receive the access needed to reach a function they
+ * have been granted. For example, practitioner management is only useful when
+ * the practitioner list is visible as well.
+ */
+export function expandDelegatedPermissions(role: DelegatedRole, requested: readonly string[]): Permission[] {
+  const permissions = new Set(sanitizeDelegatedPermissions(role, requested));
+  if (role === "admin" && (permissions.has(PERMISSIONS.STAFF_MANAGE) || permissions.has(PERMISSIONS.CLASSROOM_ASSIGN))) {
+    permissions.add(PERMISSIONS.STAFF_VIEW);
+  }
+  return [...permissions];
 }
 
 export function canManageRole(actorRole: string, role: ManagedRole) {

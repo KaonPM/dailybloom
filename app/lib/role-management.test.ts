@@ -32,3 +32,10 @@ test("delegated roles require a non-empty safe checklist", () => {
     /Select at least one permission/
   );
 });
+
+test("practitioner management also grants the practitioner list", () => {
+  assert.deepEqual(
+    validateManagedPermissions("admin", [PERMISSIONS.STAFF_MANAGE]),
+    [PERMISSIONS.STAFF_MANAGE, PERMISSIONS.STAFF_VIEW]
+  );
+});

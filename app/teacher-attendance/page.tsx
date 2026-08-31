@@ -37,12 +37,20 @@ const attendanceStatuses = [
   "Early Departure",
 ];
 
+function getLocalDateString() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function TeacherAttendancePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const schoolParam = searchParams.get("school");
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
 
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);

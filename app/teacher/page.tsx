@@ -62,6 +62,7 @@ type SummaryItem = {
 
 type AttendanceItem = {
   id: number;
+  learner_id?: string | null;
   learner_name?: string | null;
   attendance_date?: string | null;
   status?: string | null;
@@ -313,7 +314,7 @@ export default function TeacherDashboardPage() {
 
       supabase
         .from("attendance")
-        .select("id, learner_name, attendance_date, status")
+        .select("id, learner_id, learner_name, attendance_date, status")
         .eq("school_id", schoolId)
         .eq("attendance_date", todayDate),
     ]);
@@ -362,13 +363,18 @@ export default function TeacherDashboardPage() {
     const classroomLearnerNames = new Set(
       learners.map((learner) => normalizeText(learner.name)).filter(Boolean)
     );
+    const classroomLearnerIds = new Set(
+      learners.map((learner) => String(learner.id)).filter(Boolean)
+    );
 
     const filteredSummaries = summaries.filter((summary) =>
       classroomLearnerNames.has(normalizeText(summary.learner_name))
     );
 
-    const filteredAttendance = attendance.filter((item) =>
-      classroomLearnerNames.has(normalizeText(item.learner_name))
+    const filteredAttendance = attendance.filter(
+      (item) =>
+        classroomLearnerIds.has(String(item.learner_id || "")) ||
+        classroomLearnerNames.has(normalizeText(item.learner_name))
     );
 
     const todaysEvents = events.filter(

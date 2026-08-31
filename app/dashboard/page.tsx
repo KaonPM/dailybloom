@@ -124,6 +124,14 @@ export default function PrincipalDashboardPage() {
     loadDashboard();
   }, []);
 
+  function getLocalDateString() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
   async function loadDashboard() {
     const { profile, error } = await getCurrentProfile();
 
@@ -355,7 +363,7 @@ export default function PrincipalDashboardPage() {
 
   async function fetchConsolidatedOverview(currentSchoolId: number) {
     const today = new Date();
-    const todayDate = today.toISOString().slice(0, 10);
+    const todayDate = getLocalDateString();
     const currentMonth = today.getMonth() + 1;
     const currentYear = today.getFullYear();
 

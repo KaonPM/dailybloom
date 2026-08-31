@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type TeacherRow = {
   id: string;
@@ -173,25 +174,23 @@ export default function TeacherAttendancePage() {
 
     setSavingTeacherId(teacher.id);
 
-    const payload = {
-      school_id: schoolId,
-      teacher_id: teacher.id,
-      teacher_name: teacher.full_name || teacher.email || "Unnamed practitioner",
-      attendance_date: today,
-      status: record.status,
-      notes: record.notes?.trim() || null,
-      updated_at: new Date().toISOString(),
-    };
+    const response = await authenticatedFetch("/api/teacher-attendance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        school_id: schoolId,
+        records: [{
+          teacher_id: teacher.id,
+          attendance_date: today,
+          status: record.status,
+          notes: record.notes || "",
+        }],
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
 
-    const { error } = await supabase.from("teacher_attendance").upsert(
-      [payload],
-      {
-        onConflict: "school_id,teacher_id,attendance_date",
-      }
-    );
-
-    if (error) {
-      alert(error.message);
+    if (!response.ok) {
+      alert(result.error || "Could not save practitioner attendance.");
       setSavingTeacherId(null);
       return;
     }
@@ -219,25 +218,23 @@ export default function TeacherAttendancePage() {
 
     if (!confirmed) return;
 
-    const payload = teachers.map((teacher) => ({
-      school_id: schoolId,
-      teacher_id: teacher.id,
-      teacher_name: teacher.full_name || teacher.email || "Unnamed practitioner",
-      attendance_date: today,
-      status: "Present",
-      notes: null,
-      updated_at: new Date().toISOString(),
-    }));
+    const response = await authenticatedFetch("/api/teacher-attendance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        school_id: schoolId,
+        records: teachers.map((teacher) => ({
+          teacher_id: teacher.id,
+          attendance_date: today,
+          status: "Present",
+          notes: "",
+        })),
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
 
-    const { error } = await supabase.from("teacher_attendance").upsert(
-      payload,
-      {
-        onConflict: "school_id,teacher_id,attendance_date",
-      }
-    );
-
-    if (error) {
-      alert(error.message);
+    if (!response.ok) {
+      alert(result.error || "Could not mark all practitioners present.");
       return;
     }
 

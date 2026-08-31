@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type Learner = {
   id: string | number;
@@ -390,20 +391,24 @@ export default function ReportsPage() {
   }
 
   async function runTeacherAttendanceReport() {
-    const { data, error } = await supabase
-      .from("teacher_attendance")
-      .select("*")
-      .eq("school_id", schoolId)
-      .gte("attendance_date", fromDate)
-      .lte("attendance_date", toDate)
-      .order("attendance_date", { ascending: false });
+    const response = await authenticatedFetch("/api/teacher-attendance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "attendance_history",
+        school_id: schoolId,
+        from_date: fromDate,
+        to_date: toDate,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
 
-    if (error) {
-      alert(error.message);
+    if (!response.ok) {
+      alert(result.error || "Could not load practitioner attendance.");
       return;
     }
 
-    const rows: ReportRow[] = ((data || []) as ReportSourceRow[]).map((item) => ({
+    const rows: ReportRow[] = ((result.attendance || []) as ReportSourceRow[]).map((item) => ({
       date: item.attendance_date || "",
       learner: item.teacher_name || "Unnamed practitioner",
       classroom: "Staff",
@@ -732,12 +737,16 @@ export default function ReportsPage() {
         .gte("attendance_date", fromDate)
         .lte("attendance_date", toDate),
 
-      supabase
-        .from("teacher_attendance")
-        .select("*")
-        .eq("school_id", schoolId)
-        .gte("attendance_date", fromDate)
-        .lte("attendance_date", toDate),
+      authenticatedFetch("/api/teacher-attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "attendance_history",
+          school_id: schoolId,
+          from_date: fromDate,
+          to_date: toDate,
+        }),
+      }),
 
       supabase.from("payments").select("*").eq("school_id", schoolId),
 
@@ -778,8 +787,11 @@ export default function ReportsPage() {
       return;
     }
 
-    if (teacherAttendanceResult.error) {
-      alert(teacherAttendanceResult.error.message);
+    const teacherAttendancePayload = teacherAttendanceResult.ok
+      ? await teacherAttendanceResult.json()
+      : {};
+    if (!teacherAttendanceResult.ok) {
+      alert(teacherAttendancePayload.error || "Could not load practitioner attendance.");
       return;
     }
 
@@ -814,7 +826,7 @@ export default function ReportsPage() {
     }
 
     const attendance = (attendanceResult.data || []) as ReportSourceRow[];
-    const teacherAttendance = (teacherAttendanceResult.data || []) as ReportSourceRow[];
+    const teacherAttendance = (teacherAttendancePayload.attendance || []) as ReportSourceRow[];
     const payments = (paymentsResult.data || []) as ReportSourceRow[];
     const summaries = (summariesResult.data || []) as ReportSourceRow[];
     const broadcasts = (broadcastsResult.data || []) as ReportSourceRow[];

@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 import SubscriptionGuard from "../components/SubscriptionGuard";
 
 type PeriodFilter = "month" | "term" | "year" | "all";
@@ -165,10 +166,16 @@ export default function AnalyticsPage() {
           .select("id, learner_name, status, attendance_date")
           .eq("school_id", context.schoolId),
 
-        supabase
-          .from("teacher_attendance")
-          .select("id, teacher_id, attendance_date, status")
-          .eq("school_id", context.schoolId),
+        authenticatedFetch("/api/teacher-attendance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "attendance_history",
+            school_id: context.schoolId,
+            from_date: "2000-01-01",
+            to_date: "2100-12-31",
+          }),
+        }),
 
         supabase
           .from("payments")
@@ -204,7 +211,12 @@ export default function AnalyticsPage() {
       if (learnersResult.error) alert(learnersResult.error.message);
       if (teachersResult.error) alert(teachersResult.error.message);
       if (attendanceResult.error) alert(attendanceResult.error.message);
-      if (teacherAttendanceResult.error) alert(teacherAttendanceResult.error.message);
+      const teacherAttendancePayload = teacherAttendanceResult.ok
+        ? await teacherAttendanceResult.json()
+        : {};
+      if (!teacherAttendanceResult.ok) {
+        alert(teacherAttendancePayload.error || "Could not load practitioner attendance.");
+      }
       if (paymentsResult.error) alert(paymentsResult.error.message);
       if (summariesResult.error) alert(summariesResult.error.message);
       if (broadcastsResult.error) alert(broadcastsResult.error.message);
@@ -215,7 +227,7 @@ export default function AnalyticsPage() {
       setLearners((learnersResult.data || []) as LearnerRow[]);
       setTeachers((teachersResult.data || []) as TeacherRow[]);
       setAttendance((attendanceResult.data || []) as AttendanceRow[]);
-      setTeacherAttendance((teacherAttendanceResult.data || []) as TeacherAttendanceRow[]);
+      setTeacherAttendance((teacherAttendancePayload.attendance || []) as TeacherAttendanceRow[]);
       setPayments((paymentsResult.data || []) as PaymentRow[]);
       setSummaries((summariesResult.data || []) as SummaryRow[]);
       setBroadcasts((broadcastsResult.data || []) as BroadcastRow[]);

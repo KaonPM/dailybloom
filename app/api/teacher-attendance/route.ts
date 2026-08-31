@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const schoolId = Number(body.school_id);
     const requiredPermission =
-      body.action === "daily_summary"
+      ["daily_summary", "attendance_history"].includes(body.action)
         ? PERMISSIONS.STAFF_VIEW
         : PERMISSIONS.TEACHER_ATTENDANCE_MANAGE;
     const authorization = await requireStaffPermission(
@@ -86,6 +86,35 @@ export async function POST(request: Request) {
         .select("id, teacher_id, teacher_name, status, attendance_date")
         .eq("school_id", schoolId)
         .eq("attendance_date", attendanceDate);
+
+      if (attendanceError) {
+        return NextResponse.json(
+          { error: attendanceError.message },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({ attendance: attendance || [] });
+    }
+
+    if (body.action === "attendance_history") {
+      const fromDate = String(body.from_date || "").trim();
+      const toDate = String(body.to_date || "").trim();
+      if (!schoolId || !isDate(fromDate) || !isDate(toDate) || fromDate > toDate) {
+        return NextResponse.json(
+          { error: "School ID and a valid attendance date range are required." },
+          { status: 400 }
+        );
+      }
+
+      const { data: attendance, error: attendanceError } = await supabaseAdmin
+        .from("teacher_attendance")
+        .select("id, teacher_id, teacher_name, status, notes, attendance_date")
+        .eq("school_id", schoolId)
+        .gte("attendance_date", fromDate)
+        .lte("attendance_date", toDate)
+        .order("attendance_date", { ascending: false })
+        .order("teacher_name", { ascending: true });
 
       if (attendanceError) {
         return NextResponse.json(

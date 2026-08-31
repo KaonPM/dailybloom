@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
@@ -279,21 +278,24 @@ export default function TeacherAttendancePage() {
   async function viewAttendanceHistory() {
     if (!schoolId) return;
 
-    const { data, error } = await supabase
-      .from("teacher_attendance")
-      .select("*")
-      .eq("school_id", schoolId)
-      .gte("attendance_date", historyFromDate)
-      .lte("attendance_date", historyToDate)
-      .order("attendance_date", { ascending: false })
-      .order("teacher_name", { ascending: true });
+    const response = await authenticatedFetch("/api/teacher-attendance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "attendance_history",
+        school_id: schoolId,
+        from_date: historyFromDate,
+        to_date: historyToDate,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
 
-    if (error) {
-      alert(error.message);
+    if (!response.ok) {
+      alert(result.error || "Could not load practitioner attendance history.");
       return;
     }
 
-    setHistoryRows((data || []) as AttendanceRow[]);
+    setHistoryRows((result.attendance || []) as AttendanceRow[]);
   }
 
   function exportCsv(filename: string, rows: AttendanceRow[]) {

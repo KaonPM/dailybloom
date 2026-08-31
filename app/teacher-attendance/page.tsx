@@ -128,20 +128,25 @@ export default function TeacherAttendancePage() {
   }
 
   async function fetchAttendance(currentSchoolId: number, date: string) {
-    const { data, error } = await supabase
-      .from("teacher_attendance")
-      .select("*")
-      .eq("school_id", currentSchoolId)
-      .eq("attendance_date", date);
+    const response = await authenticatedFetch("/api/teacher-attendance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "daily_summary",
+        school_id: currentSchoolId,
+        attendance_date: date,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
 
-    if (error) {
-      alert(error.message);
+    if (!response.ok) {
+      alert(result.error || "Could not load practitioner attendance.");
       return;
     }
 
     const mapped: Record<string, AttendanceRow> = {};
 
-    (data || []).forEach((row: AttendanceRow) => {
+    ((result.attendance || []) as AttendanceRow[]).forEach((row) => {
       mapped[row.teacher_id] = row;
     });
 

@@ -106,6 +106,9 @@ export default function PrincipalDashboardPage() {
     UpcomingBirthdayItem[]
   >([]);
   const [activityClassrooms, setActivityClassrooms] = useState<string[]>([]);
+  const [teacherAttendanceToday, setTeacherAttendanceToday] = useState<
+    TeacherAttendanceItem[]
+  >([]);
   const [consolidated, setConsolidated] = useState<ConsolidatedOverview>({
     presentToday: 0,
     absentToday: 0,
@@ -445,6 +448,7 @@ export default function PrincipalDashboardPage() {
       ).length,
       unpaidThisMonth: Math.max(learnerNames.length - paidLearners.size, 0),
     });
+    setTeacherAttendanceToday(teacherAttendance);
   }
 
   if (loading) {
@@ -779,6 +783,37 @@ export default function PrincipalDashboardPage() {
             background="#EAF7FD"
             border="#CBEAF7"
           />
+        </div>
+
+        <div style={{ marginTop: "14px" }}>
+          <CompactHighlightCard
+            title="Practitioner Attendance Today"
+            subtitle="Attendance recorded for your school"
+            href="/teacher-attendance"
+            accentBackground="#EEF9EE"
+            accentBorder="#D3EDD4"
+            footerText="Open practitioner attendance"
+          >
+            <div style={{ display: "grid", gap: "7px" }}>
+              {teacherAttendanceToday.length > 0 ? (
+                teacherAttendanceToday.map((item) => (
+                  <div
+                    key={item.teacher_id || item.id}
+                    style={compactMiniCard}
+                  >
+                    <strong style={compactMiniTitle}>
+                      {item.teacher_name || "Unnamed practitioner"}
+                    </strong>
+                    <p style={compactMiniMeta}>
+                      {item.status || "Attendance status not recorded"}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <CompactEmptyText text="No practitioner attendance has been recorded today." />
+              )}
+            </div>
+          </CompactHighlightCard>
         </div>
       </CollapsibleSection>
 

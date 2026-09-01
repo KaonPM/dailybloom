@@ -11,9 +11,10 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             key: "Permissions-Policy",
-            // Staff recording tools need access to devices after the browser prompts
-            // the user. Keep this limited to DailyBloom's own origin.
-            value: "camera=(self), microphone=(self), geolocation=()",
+            // Screenity records from an extension-owned frame, so device access
+            // must also be available to that embedded origin. Browser prompts
+            // still require the user's permission.
+            value: "camera=*, microphone=*, geolocation=()",
           },
           {
             key: "Strict-Transport-Security",

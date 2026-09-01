@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentParent } from "@/app/lib/getCurrentParent";
 import { parentCanAccessLearnerAtSchool } from "@/app/lib/parent-authorization-policy";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { statementAccount } from "@/app/lib/learner-fee-statement";
 
 export const dynamic = "force-dynamic";
 
@@ -34,21 +35,19 @@ export async function GET(request: Request) {
   }
 
   const allCharges = chargeResult.data || [];
-  const allPayments = paymentResult.data || [];
-  const accountCharges = allCharges.filter((row) => !row.is_scheduled);
-  const charges = period ? accountCharges.filter((row) => String(row.billing_period || "").slice(0, 7) === period) : allCharges;
-  const payments = period ? allPayments.filter((row) => String(row.allocation_period || row.payment_date || "").slice(0, 7) === period) : allPayments;
-  const openingBalance = period ? accountCharges.filter((row) => String(row.billing_period || "") < `${period}-01`).reduce((sum, row) => sum + Number(row.amount || 0), 0) - allPayments.filter((row) => String(row.allocation_period || row.payment_date || "") < `${period}-01`).reduce((sum, row) => sum + Number(row.amount || 0), 0) : 0;
-  const totalCharged = charges.filter((row) => !row.is_scheduled).reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const totalPaid = payments.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const allocationResult = allCharges.length
+    ? await supabaseAdmin.from("learner_fee_allocations").select("charge_id, payment_id, amount").in("charge_id", allCharges.map((charge) => charge.id))
+    : { data: [], error: null };
+  if (allocationResult.error) return NextResponse.json({ error: allocationResult.error.message }, { status: 500 });
+  const account = statementAccount(allCharges, paymentResult.data || [], allocationResult.data || [], period || null);
   return NextResponse.json(
     {
-      charges,
-      payments,
-      total_charged: totalCharged,
-      total_paid: totalPaid,
-      balance: openingBalance + totalCharged - totalPaid,
-      opening_balance: openingBalance,
+      charges: account.charges,
+      payments: account.payments,
+      total_charged: account.totalCharged,
+      total_paid: account.totalPaid,
+      balance: account.balance,
+      opening_balance: account.openingBalance,
       statement_period: period || null,
       learner: learnerResult.data,
       school: {

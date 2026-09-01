@@ -14,7 +14,7 @@
     "test:achievement-awards": "tsx --test app/lib/award-types.test.ts",
     "test:learner-documents": "tsx --test app/lib/learner-documents.test.ts",
     "test:progress-reports": "tsx --test app/lib/progress-reports.test.ts",
-    "test:billing": "tsx --test app/lib/billing-calculations.test.ts",
+    "test:billing": "tsx --test app/lib/billing-calculations.test.ts app/lib/learner-fee-statement.test.ts",
     "test:authorization": "tsx --test app/lib/permissions.test.ts app/lib/authorization-policy.test.ts app/lib/parent-authorization-policy.test.ts app/lib/parent-session.test.ts app/lib/role-management.test.ts app/lib/platform-operation-policy.test.ts app/lib/navigation-permissions.test.ts",
     "test:monitoring": "tsx --test app/lib/error-monitoring.test.ts",
     "test:e2e": "playwright test",

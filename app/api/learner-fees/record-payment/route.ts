@@ -88,10 +88,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const [learnerResult, schoolResult, standardFeeResult] = await Promise.all([
+    const [learnerResult, schoolResult] = await Promise.all([
       supabaseAdmin
         .from("learners")
-        .select("id, name, parent_phone, monthly_fee, monthly_fee_type_id")
+        .select("id, name, parent_phone, monthly_fee, fee_billing_start_date, is_deleted")
         .eq("id", learnerId)
         .eq("school_id", schoolId)
         .maybeSingle(),
@@ -99,14 +99,6 @@ export async function POST(request: Request) {
         .from("schools")
         .select("school_name")
         .eq("id", schoolId)
-        .maybeSingle(),
-      supabaseAdmin
-        .from("school_fee_types")
-        .select("id, amount")
-        .eq("school_id", schoolId)
-        .eq("fee_code", "monthly_school_fee")
-        .eq("fee_category", "monthly")
-        .eq("is_active", true)
         .maybeSingle(),
     ]);
     const learner = learnerResult.data;
@@ -116,72 +108,52 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
-    if (standardFeeResult.error) throw standardFeeResult.error;
-    const selectedFeeTypeId = Number(learner.monthly_fee_type_id || 0);
-    const selectedFeeResult = selectedFeeTypeId
-      ? await supabaseAdmin
-          .from("school_fee_types")
-          .select("id, amount")
-          .eq("id", selectedFeeTypeId)
-          .eq("school_id", schoolId)
-          .eq("fee_category", "monthly")
-          .eq("is_active", true)
-          .maybeSingle()
-      : null;
-    if (selectedFeeResult?.error) throw selectedFeeResult.error;
-
-    // A learner-specific fee plan overrides the school default. Existing
-    // learner.monthly_fee values remain a fallback for legacy records.
-    const monthlyFee = Number(
-      selectedFeeResult?.data?.amount ??
-        standardFeeResult.data?.amount ??
-        learner.monthly_fee ??
-        0
-    );
-    if (monthlyFee <= 0) {
-      return NextResponse.json(
-        {
-          error:
-            "Set a monthly school fee in School Setup or assign a learner fee plan before recording a payment.",
-        },
-        { status: 400 }
-      );
+    const billingPeriod = `${year}-${String(month).padStart(2, "0")}-01`;
+    if (learner.is_deleted) {
+      return NextResponse.json({ error: "Payments cannot be recorded for a deleted learner." }, { status: 400 });
     }
 
-    const billingPeriod = `${year}-${String(month).padStart(2, "0")}-01`;
-    const periodLabel = new Date(Date.UTC(year, month - 1, 1)).toLocaleString(
-      "en-ZA",
-      { month: "long", year: "numeric", timeZone: "UTC" }
-    );
-
-    let chargeResult = await supabaseAdmin
-      .from("learner_fee_charges")
-      .select("id, amount")
+    const assignmentsResult = await supabaseAdmin
+      .from("learner_recurring_fee_assignments")
+      .select("fee_type_id, assigned_amount, start_date, end_date")
       .eq("school_id", schoolId)
       .eq("learner_id", learnerId)
-      .eq("charge_type", "monthly_fee")
-      .eq("billing_period", billingPeriod)
-      .maybeSingle();
-    if (chargeResult.error) throw chargeResult.error;
-
-    if (!chargeResult.data) {
-      chargeResult = await supabaseAdmin
-        .from("learner_fee_charges")
-        .insert({
-          school_id: schoolId,
-          learner_id: learnerId,
-          charge_type: "monthly_fee",
-          description: `School fees - ${periodLabel}`,
-          billing_period: billingPeriod,
-          due_date: billingPeriod,
-          amount: monthlyFee,
-          created_by: authorization.staff.userId,
-        })
-        .select("id, amount")
-        .single();
+      .eq("is_active", true)
+      .lte("start_date", billingPeriod)
+      .or(`end_date.is.null,end_date.gte.${billingPeriod}`);
+    if (assignmentsResult.error) throw assignmentsResult.error;
+    const assignmentFeeIds = (assignmentsResult.data || []).map((assignment) => Number(assignment.fee_type_id));
+    const addonFeesResult = assignmentFeeIds.length
+      ? await supabaseAdmin.from("school_fee_types").select("id, fee_name").eq("school_id", schoolId).eq("fee_category", "recurring_addon").in("id", assignmentFeeIds)
+      : { data: [], error: null };
+    if (addonFeesResult.error) throw addonFeesResult.error;
+    const addonNames = new Map((addonFeesResult.data || []).map((fee) => [Number(fee.id), String(fee.fee_name)]));
+    const chargeRows = [
+      Number(learner.monthly_fee || 0) > 0 && String(learner.fee_billing_start_date || "") <= billingPeriod
+        ? { school_id: schoolId, learner_id: learnerId, charge_type: "monthly_fee", description: `School fees - ${new Date(`${billingPeriod}T12:00:00`).toLocaleDateString("en-ZA", { month: "long", year: "numeric" })}`, billing_period: billingPeriod, due_date: billingPeriod, amount: Number(learner.monthly_fee), is_scheduled: false, created_by: authorization.staff.userId }
+        : null,
+      ...(assignmentsResult.data || []).flatMap((assignment) => {
+        const feeId = Number(assignment.fee_type_id);
+        const feeName = addonNames.get(feeId);
+        return feeName ? [{ school_id: schoolId, learner_id: learnerId, charge_type: `recurring_addon_${feeId}`, description: `${feeName} - ${new Date(`${billingPeriod}T12:00:00`).toLocaleDateString("en-ZA", { month: "long", year: "numeric" })}`, billing_period: billingPeriod, due_date: billingPeriod, amount: Number(assignment.assigned_amount || 0), is_scheduled: false, created_by: authorization.staff.userId }] : [];
+      }),
+    ].filter(Boolean);
+    if (chargeRows.length) {
+      const chargeGenerationResult = await supabaseAdmin.from("learner_fee_charges").upsert(chargeRows, { onConflict: "school_id,learner_id,charge_type,billing_period", ignoreDuplicates: true });
+      if (chargeGenerationResult.error) throw chargeGenerationResult.error;
     }
-    if (chargeResult.error || !chargeResult.data) {
-      throw chargeResult.error || new Error("Could not create fee charge.");
+
+    const outstandingResult = await supabaseAdmin
+      .from("learner_fee_charges")
+      .select("id, amount, billing_period")
+      .eq("school_id", schoolId)
+      .eq("learner_id", learnerId)
+      .eq("is_scheduled", false)
+      .order("billing_period", { ascending: true })
+      .order("id", { ascending: true });
+    if (outstandingResult.error) throw outstandingResult.error;
+    if (!(outstandingResult.data || []).length) {
+      return NextResponse.json({ error: "This learner has no fee charges to allocate a payment to." }, { status: 400 });
     }
 
     const receipt = createReceiptNumber(schoolId);
@@ -204,16 +176,6 @@ export async function POST(request: Request) {
     if (paymentResult.error || !paymentResult.data) {
       throw paymentResult.error || new Error("Could not record payment.");
     }
-
-    const outstandingResult = await supabaseAdmin
-      .from("learner_fee_charges")
-      .select("id, amount, billing_period")
-      .eq("school_id", schoolId)
-      .eq("learner_id", learnerId)
-      .eq("is_scheduled", false)
-      .order("billing_period", { ascending: true })
-      .order("id", { ascending: true });
-    if (outstandingResult.error) throw outstandingResult.error;
 
     const chargeIds = (outstandingResult.data || []).map((item) => item.id);
     const allocationResult = chargeIds.length
@@ -278,9 +240,7 @@ export async function POST(request: Request) {
       amount: paymentAmount,
       payment_date: paymentDate,
       status:
-        paymentAmount >= Number(chargeResult.data.amount || monthlyFee)
-          ? "paid"
-          : "partial",
+        remaining === 0 ? "paid" : "partial",
       school_id: schoolId,
       payment_month: month,
       payment_year: year,

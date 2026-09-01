@@ -294,11 +294,14 @@ export async function POST(request: Request) {
       if (feesResult.error) throw feesResult.error;
       const allowed = new Map((feesResult.data || []).map((fee) => [Number(fee.id), fee]));
       const safeIds = feeIds.filter((id: number) => allowed.has(id));
+      const existingResult = await supabaseAdmin.from("learner_recurring_fee_assignments").select("fee_type_id, start_date").eq("school_id", schoolId).eq("learner_id", learnerId);
+      if (existingResult.error) throw existingResult.error;
+      const existingStartDates = new Map((existingResult.data || []).map((assignment) => [Number(assignment.fee_type_id), String(assignment.start_date)]));
       const deactivate = await supabaseAdmin.from("learner_recurring_fee_assignments").update({ is_active: false, end_date: body.end_date || null, updated_at: new Date().toISOString() }).eq("school_id", schoolId).eq("learner_id", learnerId);
       if (deactivate.error) throw deactivate.error;
       if (safeIds.length) {
         const startDate = String(body.start_date || `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 2).padStart(2, "0")}-01`);
-        const upsert = await supabaseAdmin.from("learner_recurring_fee_assignments").upsert(safeIds.map((feeId: number) => ({ school_id: schoolId, learner_id: learnerId, fee_type_id: feeId, assigned_amount: Number(allowed.get(feeId)?.amount || 0), start_date: startDate, end_date: null, is_active: true, assigned_by: authorization.staff.userId, updated_at: new Date().toISOString() })), { onConflict: "school_id,learner_id,fee_type_id" });
+        const upsert = await supabaseAdmin.from("learner_recurring_fee_assignments").upsert(safeIds.map((feeId: number) => ({ school_id: schoolId, learner_id: learnerId, fee_type_id: feeId, assigned_amount: Number(allowed.get(feeId)?.amount || 0), start_date: existingStartDates.get(feeId) || startDate, end_date: null, is_active: true, assigned_by: authorization.staff.userId, updated_at: new Date().toISOString() })), { onConflict: "school_id,learner_id,fee_type_id" });
         if (upsert.error) throw upsert.error;
       }
     } else {

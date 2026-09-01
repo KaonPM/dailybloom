@@ -63,6 +63,7 @@ export default function TeacherAttendancePage() {
   const [historyRows, setHistoryRows] = useState<AttendanceRow[]>([]);
   const [historyFromDate, setHistoryFromDate] = useState(today);
   const [historyToDate, setHistoryToDate] = useState(today);
+  const [attendanceDate, setAttendanceDate] = useState(today);
 
   const [loading, setLoading] = useState(true);
   const [savingTeacherId, setSavingTeacherId] = useState<string | null>(null);
@@ -158,7 +159,7 @@ export default function TeacherAttendancePage() {
         school_id: Number(schoolId),
         teacher_id: teacher.id,
         teacher_name: teacher.full_name || teacher.email || "Unnamed practitioner",
-        attendance_date: today,
+        attendance_date: attendanceDate,
         status: "",
         notes: "",
       }
@@ -200,7 +201,7 @@ export default function TeacherAttendancePage() {
         school_id: schoolId,
         records: [{
           teacher_id: teacher.id,
-          attendance_date: today,
+          attendance_date: attendanceDate,
           status: record.status,
           notes: record.notes || "",
         }],
@@ -214,7 +215,7 @@ export default function TeacherAttendancePage() {
       return;
     }
 
-    await fetchAttendance(schoolId, today);
+    await fetchAttendance(schoolId, attendanceDate);
 
     setOpenTeacherIds((prev) => ({
       ...prev,
@@ -233,7 +234,7 @@ export default function TeacherAttendancePage() {
       return;
     }
 
-    const confirmed = confirm(`Mark all practitioners as Present for ${today}?`);
+    const confirmed = confirm(`Mark all practitioners as Present for ${attendanceDate}?`);
 
     if (!confirmed) return;
 
@@ -244,7 +245,7 @@ export default function TeacherAttendancePage() {
         school_id: schoolId,
         records: teachers.map((teacher) => ({
           teacher_id: teacher.id,
-          attendance_date: today,
+          attendance_date: attendanceDate,
           status: "Present",
           notes: "",
         })),
@@ -257,7 +258,7 @@ export default function TeacherAttendancePage() {
       return;
     }
 
-    await fetchAttendance(schoolId, today);
+    await fetchAttendance(schoolId, attendanceDate);
 
     const collapsedTeachers = teachers.reduce<Record<string, boolean>>(
       (acc, teacher) => {
@@ -362,7 +363,27 @@ export default function TeacherAttendancePage() {
     <div>
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
         <h2 className="db-page-title">Practitioner Attendance</h2>
-        <p className="db-page-subtitle">Today: {today}</p>
+        <p className="db-page-subtitle">Recording date: {attendanceDate}</p>
+      </div>
+
+      <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
+        <label style={labelText}>Attendance date</label>
+        <input
+          type="date"
+          className="db-input"
+          value={attendanceDate}
+          min={new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)}
+          max={today}
+          onChange={async (event) => {
+            const date = event.target.value;
+            setAttendanceDate(date);
+            setOpenTeacherIds({});
+            if (schoolId) await fetchAttendance(schoolId, date);
+          }}
+        />
+        <p className="db-helper" style={{ marginBottom: 0 }}>
+          You can capture practitioner attendance for the previous 7 days. Records remain attached to the selected date.
+        </p>
       </div>
 
       <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>

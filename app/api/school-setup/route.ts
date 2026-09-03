@@ -60,7 +60,6 @@ const STARTER_DOCUMENTS = [
   { title: "Birth Certificate", instructions: "Upload a clear copy of the learner's birth certificate or identity document.", is_required: true, display_order: 1 },
   { title: "Immunisation / Clinic Card", instructions: "Upload the learner's most recent immunisation or clinic card.", is_required: true, display_order: 2 },
   { title: "Parent/Guardian ID", instructions: "Upload an identity document for the responsible parent or guardian.", is_required: true, display_order: 3 },
-  { title: "Signed Parent/Guardian Enrolment Contract", instructions: "Upload the signed enrolment contract where applicable.", is_required: true, display_order: 4 },
 ];
 const HYGIENE_REQUIREMENTS = [
   ["Toilet Rolls", "10"], ["Tissue Box", "3"], ["Wipes (80 per pack)", "6"],

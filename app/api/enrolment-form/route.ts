@@ -40,6 +40,36 @@ function requirementItemKey(item: { template_key?: unknown; category?: unknown; 
   return `${text(item.template_key, 20)}|${text(item.category, 20)}|${text(item.item_name, 180)}`;
 }
 
+function southAfricanIdDetails(value: unknown) {
+  const id = text(value, 120).replace(/\D/g, "");
+  if (id.length !== 13) return null;
+  const currentYear = new Date().getFullYear();
+  const yearPart = Number(id.slice(0, 2));
+  const year = 2000 + yearPart > currentYear ? 1900 + yearPart : 2000 + yearPart;
+  const month = Number(id.slice(2, 4));
+  const day = Number(id.slice(4, 6));
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (month < 1 || month > 12 || day < 1 || date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return { date_of_birth: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`, gender: Number(id.slice(6, 10)) >= 5000 ? "Male" : "Female" };
+}
+
+function ageInMonths(dateOfBirth: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return null;
+  const birth = new Date(`${dateOfBirth}T00:00:00`);
+  const today = new Date();
+  if (Number.isNaN(birth.getTime()) || birth > today) return null;
+  return Math.max(0, (today.getFullYear() - birth.getFullYear()) * 12 + today.getMonth() - birth.getMonth() - (today.getDate() < birth.getDate() ? 1 : 0));
+}
+
+function matchingRequirementTemplateKey(requirements: Array<{ template_key?: unknown; available_from_months?: unknown; available_to_months?: unknown }>, dateOfBirth: string) {
+  const ageMonths = ageInMonths(dateOfBirth);
+  if (ageMonths === null) return null;
+  for (const key of ["babies", "toddlers", "grade_r", "0_2", "2_6"]) {
+    if (requirements.some((item) => String(item.template_key) === key && ageMonths >= Number(item.available_from_months ?? 0) && ageMonths <= Number(item.available_to_months ?? 84))) return key;
+  }
+  return null;
+}
+
 const DRAFT_TEXT_FIELDS = {
   learner_first_name: 120,
   learner_surname: 120,
@@ -151,8 +181,12 @@ function safeDraftDocuments(value: unknown, enquiry: { school_id: number; id: st
 
 function buildDraftData(body: Record<string, unknown>, enquiry: { school_id: number; id: string }, savedAt: string) {
   const declaration = record(body.declaration);
+  const draftFields = draftTextValues(body);
+  const learnerIdDetails = southAfricanIdDetails(draftFields.learner_id_or_birth_certificate);
   return {
-    ...draftTextValues(body),
+    ...draftFields,
+    date_of_birth: draftFields.date_of_birth || learnerIdDetails?.date_of_birth || "",
+    gender: draftFields.gender || learnerIdDetails?.gender || "",
     custom_answers: draftStringMap(body.custom_answers),
     consent_responses: draftBooleanMap(body.consent_responses),
     terms_accepted: body.terms_accepted === true,
@@ -388,7 +422,9 @@ export async function POST(request: Request) {
   );
   const learnerFirstName = text(body.learner_first_name, 120);
   const learnerSurname = text(body.learner_surname, 120);
-  const dateOfBirth = text(body.date_of_birth, 30);
+  const learnerIdentityNumber = text(body.learner_id_or_birth_certificate, 120);
+  const learnerIdDetails = southAfricanIdDetails(learnerIdentityNumber);
+  const dateOfBirth = text(body.date_of_birth, 30) || learnerIdDetails?.date_of_birth || "";
   const guardianName = text(body.guardian_name, 180);
   const guardianIdOrPassport = text(body.guardian_id_or_passport, 120);
   const guardianPhone = text(body.guardian_phone, 40);
@@ -406,7 +442,9 @@ export async function POST(request: Request) {
     supabaseAdmin.from("school_fee_types").select("id, fee_code, fee_name, fee_category, amount").eq("school_id", enquiry.school_id).eq("is_active", true),
   ]);
   const presentedTerms = termsWithConfiguredFees(terms as EnrolmentTerm[] | null, fees);
-  const selectedRequirements = (requirements || []).filter((item) => selectedRequirementTemplateKeys(configuration).includes(String(item.template_key)));
+  const configuredRequirements = (requirements || []).filter((item) => selectedRequirementTemplateKeys(configuration).includes(String(item.template_key)));
+  const matchingRequirementTemplate = matchingRequirementTemplateKey(configuredRequirements, dateOfBirth);
+  const selectedRequirements = matchingRequirementTemplate ? configuredRequirements.filter((item) => String(item.template_key) === matchingRequirementTemplate) : [];
   const monthlyFees = (fees || []).filter((fee) => fee.fee_category === "monthly");
   const selectedMonthlyFeeId = Number(body.selected_monthly_fee_id);
   if (monthlyFees.length > 1 && !monthlyFees.some((fee) => Number(fee.id) === selectedMonthlyFeeId)) {
@@ -491,8 +529,8 @@ export async function POST(request: Request) {
     learner_first_name: learnerFirstName,
     learner_surname: learnerSurname,
     date_of_birth: dateOfBirth,
-    gender: text(body.gender, 40),
-    learner_id_or_birth_certificate: text(body.learner_id_or_birth_certificate, 120),
+    gender: text(body.gender, 40) || learnerIdDetails?.gender || "",
+    learner_id_or_birth_certificate: learnerIdentityNumber,
     guardian_name: guardianName,
     guardian_relationship: text(body.guardian_relationship, 80),
     guardian_id_or_passport: guardianIdOrPassport,
@@ -512,6 +550,7 @@ export async function POST(request: Request) {
     terms_accepted: body.terms_accepted === true,
     declaration: { statement: configuration?.additional_declaration || DEFAULT_PARENT_DECLARATION, name: declarationName, relationship: declarationRelationship, acknowledged_at: new Date().toISOString() },
     uploaded_documents: documents,
+    selected_requirement_template_key: matchingRequirementTemplate,
     purchased_requirement_items: Object.fromEntries(Object.entries(draftBooleanMap(body.purchased_requirement_items)).filter(([key, purchased]) => purchased && selectedRequirements.some((item) => requirementItemKey(item) === key))),
     requested_recurring_addon_ids: Array.isArray(body.requested_recurring_addon_ids)
       ? body.requested_recurring_addon_ids.map((item: unknown) => Number(item)).filter((item: number) => Number.isInteger(item) && item > 0 && (fees || []).some((fee) => Number((fee as { id?: unknown }).id) === item && (fee as { fee_category?: unknown }).fee_category === "recurring_addon")).slice(0, 20)

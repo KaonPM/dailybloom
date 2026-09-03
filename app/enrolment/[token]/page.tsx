@@ -30,6 +30,36 @@ function getTextList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).slice(0, 40) : [];
 }
 
+type RequirementTemplateKey = "0_2" | "2_6" | "babies" | "toddlers" | "grade_r";
+
+function southAfricanIdDetails(value: string) {
+  const id = value.replace(/\D/g, "");
+  if (id.length !== 13) return null;
+  const currentYear = new Date().getFullYear();
+  const yearPart = Number(id.slice(0, 2));
+  const year = 2000 + yearPart > currentYear ? 1900 + yearPart : 2000 + yearPart;
+  const month = Number(id.slice(2, 4));
+  const day = Number(id.slice(4, 6));
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (month < 1 || month > 12 || day < 1 || date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return { dateOfBirth: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`, gender: Number(id.slice(6, 10)) >= 5000 ? "Male" : "Female" };
+}
+
+function ageInMonths(dateOfBirth: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return null;
+  const birth = new Date(`${dateOfBirth}T00:00:00`);
+  if (Number.isNaN(birth.getTime()) || birth > new Date()) return null;
+  const today = new Date();
+  return Math.max(0, (today.getFullYear() - birth.getFullYear()) * 12 + today.getMonth() - birth.getMonth() - (today.getDate() < birth.getDate() ? 1 : 0));
+}
+
+function matchingRequirementTemplateKey(templates: FormInfo["requirement_templates"], dateOfBirth: string) {
+  const ageMonths = ageInMonths(dateOfBirth);
+  if (ageMonths === null) return null;
+  const priority: RequirementTemplateKey[] = ["babies", "toddlers", "grade_r", "0_2", "2_6"];
+  return priority.find((key) => (templates || []).some((item) => item.template_key === key && ageMonths >= (item.available_from_months ?? 0) && ageMonths <= (item.available_to_months ?? 84))) || null;
+}
+
 function stepForValidationError(message: string): number {
   if (/upload|document|clinic card|immunisation record/i.test(message)) return 3;
   if (/guardian|parent portal|emergency contact|mobile number|email address/i.test(message)) return 2;
@@ -328,6 +358,15 @@ export default function SecureEnrolmentFormPage() {
     setFields((current) => ({ ...current, [name]: value }));
   }
 
+  function setLearnerIdentityNumber(value: string) {
+    const details = southAfricanIdDetails(value);
+    setFields((current) => ({
+      ...current,
+      learner_id_or_birth_certificate: value,
+      ...(details ? { date_of_birth: details.dateOfBirth, gender: details.gender } : {}),
+    }));
+  }
+
   const customFields = getCustomFields(info?.form?.custom_fields);
   const configuration = info?.enrolment_configuration;
   const responsibleGuardianDocument = "Responsible parent/guardian identification document";
@@ -338,7 +377,9 @@ export default function SecureEnrolmentFormPage() {
   const guardianDocuments = hasResponsibleId ? configuredDocumentNames : [...configuredDocumentNames, responsibleGuardianDocument];
   const requiredDocuments = (configuration?.second_guardian_mode === "required" || secondGuardianProvided) && !guardianDocuments.includes(secondGuardianDocument) ? [...guardianDocuments, secondGuardianDocument] : guardianDocuments;
   const requirementTemplateKeys = configuration?.requirement_template_keys || ["0_2", "2_6"];
-  const requirementTemplates = (info?.requirement_templates || []).filter((item) => requirementTemplateKeys.includes(item.template_key || "2_6"));
+  const configuredRequirementTemplates = (info?.requirement_templates || []).filter((item) => requirementTemplateKeys.includes(item.template_key || "2_6"));
+  const matchingRequirementTemplate = matchingRequirementTemplateKey(configuredRequirementTemplates, fields.date_of_birth);
+  const requirementTemplates = matchingRequirementTemplate ? configuredRequirementTemplates.filter((item) => item.template_key === matchingRequirementTemplate) : [];
   const legacyStationeryList = requirementTemplates.length ? [] : getTextList(info?.form?.stationery_list);
   const consents = info?.consents || [];
   const terms = info?.terms || [];
@@ -457,7 +498,7 @@ export default function SecureEnrolmentFormPage() {
                 <label style={{ display: "grid", gap: 7 }}><strong>Surname</strong><input className="db-input" value={fields.learner_surname} onChange={(event) => setField("learner_surname", event.target.value)} disabled={isPreview} required /></label>
                 <label style={{ display: "grid", gap: 7 }}><strong>Date of birth</strong><input className="db-input" type="date" value={fields.date_of_birth} onChange={(event) => setField("date_of_birth", event.target.value)} disabled={isPreview} required /></label>
                 <label style={{ display: "grid", gap: 7 }}><strong>Gender</strong><select className="db-input" value={fields.gender} onChange={(event) => setField("gender", event.target.value)} disabled={isPreview}><option value="">Select</option><option>Female</option><option>Male</option><option>Prefer not to say</option></select></label>
-                <label style={{ display: "grid", gap: 7, gridColumn: "1 / -1" }}><strong>Birth certificate, ID or passport number</strong><input className="db-input" value={fields.learner_id_or_birth_certificate} onChange={(event) => setField("learner_id_or_birth_certificate", event.target.value)} disabled={isPreview} /></label>
+                <label style={{ display: "grid", gap: 7, gridColumn: "1 / -1" }}><strong>Birth certificate, ID or passport number</strong><input className="db-input" value={fields.learner_id_or_birth_certificate} onChange={(event) => setLearnerIdentityNumber(event.target.value)} disabled={isPreview} /><small className="db-helper">A valid 13-digit South African ID automatically fills in date of birth and gender. Otherwise, enter the date of birth above.</small></label>
                 {configuration?.previous_school_enabled ? <label style={{ display: "grid", gap: 7, gridColumn: "1 / -1" }}><strong>Previous school or ECD programme <span className="db-helper">(if applicable)</span></strong><input className="db-input" value={fields.previous_school} onChange={(event) => setField("previous_school", event.target.value)} disabled={isPreview} /></label> : null}
               </div>
             </div> : null}
@@ -486,7 +527,7 @@ export default function SecureEnrolmentFormPage() {
               </div>
               <div>
                 <h3 style={{ margin: "0 0 10px" }}>Stationery and items to bring</h3>
-                {requirementTemplates.length ? <div style={{ display: "grid", gap: 10 }}>{(["0_2", "2_6", "babies", "toddlers", "grade_r"] as const).map((templateKey) => { const items = requirementTemplates.filter((item) => (item.template_key || "2_6") === templateKey); if (!items.length) return null; const label = templateKey === "0_2" ? "0–2 Years" : templateKey === "2_6" ? "2–6 Years" : templateKey === "babies" ? "Babies" : templateKey === "toddlers" ? "Toddlers" : "Grade R"; return <div key={templateKey} className="db-soft-card" style={{ padding: 10 }}><strong>{label} requirements</strong><div className="db-requirement-categories">{(["stationery", "hygiene"] as const).map((category) => { const categoryItems = items.filter((item) => item.category === category); if (!categoryItems.length) return null; const fromMonths = Math.min(...categoryItems.map((item) => item.available_from_months ?? (templateKey === "0_2" && category === "hygiene" ? 0 : templateKey === "0_2" ? 6 : templateKey === "babies" ? 0 : templateKey === "toddlers" ? 24 : templateKey === "grade_r" ? 60 : 24))); const toMonths = Math.max(...categoryItems.map((item) => item.available_to_months ?? (templateKey === "0_2" ? 24 : templateKey === "babies" ? 24 : templateKey === "toddlers" ? 48 : templateKey === "grade_r" ? 84 : 72))); return <div key={category} style={{ marginTop: 8 }}><strong style={{ textTransform: "capitalize" }}>{category}</strong><small className="db-helper" style={{ display: "block", marginTop: 2 }}>Age requirement: {fromMonths}–{toMonths} months</small><ul className="db-compact-list">{categoryItems.map((item) => { const itemKey = `${templateKey}|${category}|${item.item_name}`; return <li key={itemKey}><label style={{ display: "flex", gap: 8, alignItems: "center", cursor: isPreview ? "default" : "pointer" }}><input type="checkbox" checked={Boolean(purchasedRequirementItems[itemKey])} disabled={isPreview} onChange={(event) => setPurchasedRequirementItems((current) => ({ ...current, [itemKey]: event.target.checked }))} /><span>{item.item_name}{item.quantity ? ` (${item.quantity})` : ""}</span></label></li>; })}</ul></div>; })}</div></div>; })}</div> : legacyStationeryList.length ? <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>{legacyStationeryList.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="db-helper">The school has not added a stationery list yet.</p>}
+                {requirementTemplates.length ? <div style={{ display: "grid", gap: 10 }}>{(["0_2", "2_6", "babies", "toddlers", "grade_r"] as const).map((templateKey) => { const items = requirementTemplates.filter((item) => (item.template_key || "2_6") === templateKey); if (!items.length) return null; const label = templateKey === "0_2" ? "0–2 Years" : templateKey === "2_6" ? "2–6 Years" : templateKey === "babies" ? "Babies" : templateKey === "toddlers" ? "Toddlers" : "Grade R"; return <div key={templateKey} className="db-soft-card" style={{ padding: 10 }}><strong>{label} requirements</strong><div className="db-requirement-categories">{(["stationery", "hygiene"] as const).map((category) => { const categoryItems = items.filter((item) => item.category === category); if (!categoryItems.length) return null; const fromMonths = Math.min(...categoryItems.map((item) => item.available_from_months ?? (templateKey === "0_2" && category === "hygiene" ? 0 : templateKey === "0_2" ? 6 : templateKey === "babies" ? 0 : templateKey === "toddlers" ? 24 : templateKey === "grade_r" ? 60 : 24))); const toMonths = Math.max(...categoryItems.map((item) => item.available_to_months ?? (templateKey === "0_2" ? 24 : templateKey === "babies" ? 24 : templateKey === "toddlers" ? 48 : templateKey === "grade_r" ? 84 : 72))); return <div key={category} style={{ marginTop: 8 }}><strong style={{ textTransform: "capitalize" }}>{category}</strong><small className="db-helper" style={{ display: "block", marginTop: 2 }}>Age requirement: {fromMonths}–{toMonths} months</small><ul className="db-compact-list">{categoryItems.map((item) => { const itemKey = `${templateKey}|${category}|${item.item_name}`; return <li key={itemKey}><label style={{ display: "flex", gap: 8, alignItems: "center", cursor: isPreview ? "default" : "pointer" }}><input type="checkbox" checked={Boolean(purchasedRequirementItems[itemKey])} disabled={isPreview} onChange={(event) => setPurchasedRequirementItems((current) => ({ ...current, [itemKey]: event.target.checked }))} /><span>{item.item_name}{item.quantity ? ` (${item.quantity})` : ""}</span></label></li>; })}</ul></div>; })}</div></div>; })}</div> : legacyStationeryList.length ? <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>{legacyStationeryList.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="db-helper">{fields.date_of_birth ? "The school has no learner-requirement list for this age range yet." : "Enter the learner’s date of birth or a valid South African ID to see the applicable requirements."}</p>}
               </div>
             </div> : null}
             {step === 4 ? <div style={{ display: "grid", gap: 16 }}>

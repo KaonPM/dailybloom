@@ -4,12 +4,18 @@ import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-aut
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
 const FORM_TYPES = new Set(["general", "babies", "grade_r"]);
+const REQUIREMENT_TEMPLATE_KEYS = new Set(["0_2", "2_6", "babies", "toddlers", "grade_r"]);
 const MAX_TEMPLATE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_TEMPLATE_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
 const CUSTOM_FIELD_TYPES = new Set(["text", "textarea", "select"]);
 
 function text(value: unknown, max = 250) {
   return String(value || "").trim().slice(0, max);
+}
+
+function requirementTemplateKeys(value: unknown) {
+  if (!Array.isArray(value)) return ["0_2", "2_6"];
+  return [...new Set(value.map((item) => text(item, 10)).filter((item) => REQUIREMENT_TEMPLATE_KEYS.has(item)))];
 }
 
 function fileName(value: unknown) {
@@ -190,6 +196,7 @@ export async function POST(request: Request) {
       is_open: body.is_open !== false, second_guardian_mode: secondGuardianMode,
       emergency_contact_mode: emergencyContactMode, previous_school_enabled: body.previous_school_enabled !== false,
       additional_declaration: text(body.additional_declaration, 3000) || null,
+      requirement_template_keys: requirementTemplateKeys(body.requirement_template_keys),
       custom_fields: customFields(body.custom_fields),
       updated_by: authorization.staff.userId, updated_at: new Date().toISOString(),
     }, { onConflict: "school_id" }).select().single();
@@ -236,7 +243,7 @@ export async function POST(request: Request) {
     const values = kind === "document"
       ? { ...base, title: text(body.title, 180), instructions: text(body.instructions, 1000) || null, is_required: body.is_required === true }
       : kind === "requirement"
-        ? { ...base, template_key: text(body.template_key, 10) === "0_2" ? "0_2" : "2_6", available_from_months: Math.max(0, Math.min(84, Number(body.available_from_months) || 0)), available_to_months: Math.max(0, Math.min(84, Number(body.available_to_months) || 0)), category: ["stationery", "hygiene"].includes(text(body.category, 20)) ? text(body.category, 20) : "stationery", item_name: text(body.item_name, 180), quantity: text(body.quantity, 80) || null, instructions: text(body.instructions, 1000) || null, is_required: body.is_required === true }
+        ? { ...base, template_key: REQUIREMENT_TEMPLATE_KEYS.has(text(body.template_key, 10)) ? text(body.template_key, 10) : "2_6", available_from_months: Math.max(0, Math.min(84, Number(body.available_from_months) || 0)), available_to_months: Math.max(0, Math.min(84, Number(body.available_to_months) || 0)), category: ["stationery", "hygiene"].includes(text(body.category, 20)) ? text(body.category, 20) : "stationery", item_name: text(body.item_name, 180), quantity: text(body.quantity, 80) || null, instructions: text(body.instructions, 1000) || null, is_required: body.is_required === true }
         : kind === "consent"
           ? { ...base, title: text(body.title, 180), wording: text(body.wording, 3000), is_required: body.is_required !== false }
           : { ...base, title: text(body.title, 180), content: text(body.content, 5000) };
@@ -253,7 +260,7 @@ export async function POST(request: Request) {
   }
 
   if (action === "save_requirement_template_months") {
-    const templateKey = text(body.template_key, 10) === "0_2" ? "0_2" : "2_6";
+    const templateKey = REQUIREMENT_TEMPLATE_KEYS.has(text(body.template_key, 10)) ? text(body.template_key, 10) : "2_6";
     const category = text(body.category, 20) === "hygiene" ? "hygiene" : "stationery";
     const months = Math.max(0, Math.min(84, Number(body.available_from_months) || 0));
     const toMonths = Math.max(months, Math.min(84, Number(body.available_to_months) || months));

@@ -372,6 +372,11 @@ export async function POST(request: Request) {
       if (!firstName || !surname || !text(submitted.date_of_birth, 10) || !guardianName || !parentPhone) {
         return NextResponse.json({ error: "The captured form is missing required learner or guardian information." }, { status: 400 });
       }
+      const selectedMonthlyFeeId = Number(submitted.selected_monthly_fee_id);
+      const { data: selectedMonthlyFee, error: selectedMonthlyFeeError } = Number.isInteger(selectedMonthlyFeeId) && selectedMonthlyFeeId > 0
+        ? await supabaseAdmin.from("school_fee_types").select("id, amount").eq("id", selectedMonthlyFeeId).eq("school_id", schoolId).eq("fee_category", "monthly").eq("is_active", true).maybeSingle()
+        : { data: null, error: null };
+      if (selectedMonthlyFeeError) return NextResponse.json({ error: selectedMonthlyFeeError.message }, { status: 500 });
       learnerId = randomUUID();
       const { error: learnerError } = await supabaseAdmin.from("learners").insert({
         id: learnerId,
@@ -401,6 +406,8 @@ export async function POST(request: Request) {
         registration_fee_amount: Number(enquiry.registration_fee_amount || 0),
         registration_fee_paid_at: enquiry.registration_payment_status === "verified" ? new Date(enquiry.registration_payment_verified_at || Date.now()).toISOString().slice(0, 10) : null,
         registration_fee_reference: text(enquiry.registration_payment_reference, 180) || null,
+        monthly_fee_type_id: selectedMonthlyFee?.id || null,
+        monthly_fee: selectedMonthlyFee ? Number(selectedMonthlyFee.amount || 0) : 0,
       });
       if (learnerError) return NextResponse.json({ error: learnerError.message }, { status: learnerError.code === "23505" ? 409 : 500 });
       const { error: placementError } = await supabaseAdmin.from("learner_placements").insert({ learner_id: learnerId, school_id: schoolId, academic_year: Number(enquiry.academic_year), classroom_id: null, placement_status: "pending" });

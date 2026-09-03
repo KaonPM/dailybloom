@@ -32,14 +32,14 @@ type SchoolSettings = {
 
 type SchoolBrand = { school_name?: string | null; logo_url?: string | null; primary_color?: string | null };
 type SchoolRegistration = { registration_number?: string | null; physical_address?: string | null; contact_number?: string | null; email_address?: string | null };
-type UniversalEnrolmentConfiguration = { form_title: string; introduction?: string | null; is_open: boolean; second_guardian_mode: "hidden" | "optional" | "required"; emergency_contact_mode: "hidden" | "optional" | "required"; previous_school_enabled: boolean; additional_declaration?: string | null; custom_fields?: CustomFormField[] };
+type UniversalEnrolmentConfiguration = { form_title: string; introduction?: string | null; is_open: boolean; second_guardian_mode: "hidden" | "optional" | "required"; emergency_contact_mode: "hidden" | "optional" | "required"; previous_school_enabled: boolean; additional_declaration?: string | null; custom_fields?: CustomFormField[]; requirement_template_keys?: RequirementTemplateKey[] };
 type DocumentRequirement = { id: string; title: string; instructions?: string | null; is_required: boolean; is_active: boolean; display_order: number };
-type RequirementTemplateKey = "0_2" | "2_6";
+type RequirementTemplateKey = "0_2" | "2_6" | "babies" | "toddlers" | "grade_r";
 type RequirementCategory = "stationery" | "hygiene";
 type RequirementTemplate = { id: string; template_key: RequirementTemplateKey; available_from_months: number; available_to_months: number; category: RequirementCategory; item_name: string; quantity?: string | null; instructions?: string | null; is_required: boolean; is_active: boolean; display_order: number };
 type ConsentItem = { id: string; title: string; wording: string; is_required: boolean; is_active: boolean; display_order: number };
 type TermItem = { id: string; title: string; content: string; is_active: boolean; display_order: number };
-const emptyUniversalConfiguration: UniversalEnrolmentConfiguration = { form_title: "Enrolment Form", introduction: "", is_open: true, second_guardian_mode: "optional", emergency_contact_mode: "required", previous_school_enabled: true, additional_declaration: "", custom_fields: [] };
+const emptyUniversalConfiguration: UniversalEnrolmentConfiguration = { form_title: "Enrolment Form", introduction: "", is_open: true, second_guardian_mode: "optional", emergency_contact_mode: "required", previous_school_enabled: true, additional_declaration: "", custom_fields: [], requirement_template_keys: ["0_2", "2_6"] };
 
 type SchoolFeeType = {
   id: number;
@@ -81,7 +81,7 @@ export default function SchoolSetupPage() {
   const [savingConsent, setSavingConsent] = useState(false); const [savingTerm, setSavingTerm] = useState(false);
   const [consentsOpen, setConsentsOpen] = useState(false); const [termsOpen, setTermsOpen] = useState(false);
   const [newRequirementTemplate, setNewRequirementTemplate] = useState<{ category: "stationery" | "hygiene"; item_name: string; quantity: string; instructions: string; is_required: boolean }>({ category: "stationery", item_name: "", quantity: "", instructions: "", is_required: false });
-  const [requirementAgeRanges, setRequirementAgeRanges] = useState<Record<string, { from: number; to: number }>>({ "0_2:stationery": { from: 6, to: 24 }, "0_2:hygiene": { from: 0, to: 24 }, "2_6:stationery": { from: 24, to: 72 }, "2_6:hygiene": { from: 24, to: 72 } });
+  const [requirementAgeRanges, setRequirementAgeRanges] = useState<Record<string, { from: number; to: number }>>({ "0_2:stationery": { from: 6, to: 24 }, "0_2:hygiene": { from: 0, to: 24 }, "2_6:stationery": { from: 24, to: 72 }, "2_6:hygiene": { from: 24, to: 72 }, "babies:stationery": { from: 0, to: 24 }, "babies:hygiene": { from: 0, to: 24 }, "toddlers:stationery": { from: 24, to: 48 }, "toddlers:hygiene": { from: 24, to: 48 }, "grade_r:stationery": { from: 60, to: 84 }, "grade_r:hygiene": { from: 60, to: 84 } });
   const [savingRequirementTemplate, setSavingRequirementTemplate] = useState(false);
   const [learnerRequirementsOpen, setLearnerRequirementsOpen] = useState(false);
   const [newDocumentRequirement, setNewDocumentRequirement] = useState({ title: "", instructions: "", is_required: false });
@@ -165,7 +165,7 @@ export default function SchoolSetupPage() {
       setSchoolRegistration(body.registration || null);
       setUniversalConfiguration({ ...emptyUniversalConfiguration, ...(body.enrolment_configuration || {}) });
       setDocumentRequirements(body.document_requirements || []);
-      const loadedRequirements = ((body.requirement_templates || []) as Array<Partial<RequirementTemplate> & Pick<RequirementTemplate, "id" | "category" | "item_name" | "is_required" | "is_active" | "display_order">>).map((item) => ({ ...item, template_key: item.template_key === "0_2" ? "0_2" : "2_6", available_from_months: item.available_from_months ?? (item.template_key === "0_2" ? (item.category === "hygiene" ? 0 : 6) : 24), available_to_months: item.available_to_months ?? (item.template_key === "0_2" ? 24 : 72) })) as RequirementTemplate[];
+      const loadedRequirements = ((body.requirement_templates || []) as Array<Partial<RequirementTemplate> & Pick<RequirementTemplate, "id" | "category" | "item_name" | "is_required" | "is_active" | "display_order">>).map((item) => ({ ...item, template_key: ["0_2", "2_6", "babies", "toddlers", "grade_r"].includes(String(item.template_key)) ? item.template_key as RequirementTemplateKey : "2_6", available_from_months: item.available_from_months ?? (item.template_key === "0_2" ? (item.category === "hygiene" ? 0 : 6) : item.template_key === "babies" ? 0 : item.template_key === "toddlers" ? 24 : item.template_key === "grade_r" ? 60 : 24), available_to_months: item.available_to_months ?? (item.template_key === "0_2" ? 24 : item.template_key === "babies" ? 24 : item.template_key === "toddlers" ? 48 : item.template_key === "grade_r" ? 84 : 72) })) as RequirementTemplate[];
       setRequirementTemplates(loadedRequirements);
       setRequirementAgeRanges((current) => Object.fromEntries(Object.entries(current).map(([key, fallback]) => { const [templateKey, category] = key.split(":"); const item = loadedRequirements.find((row) => row.template_key === templateKey && row.category === category); return [key, item ? { from: item.available_from_months, to: item.available_to_months } : fallback]; })));
       setConsents(body.consents || []);
@@ -575,9 +575,10 @@ export default function SchoolSetupPage() {
         onToggle={() => setLearnerRequirementsOpen((current) => !current)}
         tone="yellow"
       >
-        {(["0_2", "2_6"] as RequirementTemplateKey[]).map((templateKey) => {
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+        {(["0_2", "2_6", "babies", "toddlers", "grade_r"] as RequirementTemplateKey[]).map((templateKey) => {
           const templateItems = requirementTemplates.filter((item) => item.template_key === templateKey);
-          const templateLabel = templateKey === "0_2" ? "0–2 Years Template" : "2–6 Years Template";
+          const templateLabel = templateKey === "0_2" ? "0–2 Years Template" : templateKey === "2_6" ? "2–6 Years Template" : templateKey === "babies" ? "Babies Template" : templateKey === "toddlers" ? "Toddlers Template" : "Grade R Template";
           return <details key={templateKey} className="db-soft-card" style={{ padding: 12 }}>
             <summary style={{ cursor: "pointer", fontWeight: 800 }}>{templateLabel} ({templateItems.filter((item) => item.is_active).length} active items)</summary>
             <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
@@ -586,6 +587,7 @@ export default function SchoolSetupPage() {
             </div>
           </details>;
         })}
+        </div>
       </CollapsibleSetupSection>
 
       <CollapsibleSetupSection
@@ -613,6 +615,11 @@ export default function SchoolSetupPage() {
         </div>
         <label style={{ display: "grid", gap: 7 }}><strong>Parent introduction</strong><textarea className="db-input" rows={3} value={universalConfiguration.introduction || ""} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, introduction: event.target.value })} /></label>
         <label style={{ display: "grid", gap: 7 }}><strong>Additional declaration <span className="db-helper">(optional)</span></strong><textarea className="db-input" rows={3} value={universalConfiguration.additional_declaration || ""} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, additional_declaration: event.target.value })} /></label>
+        <div className="db-soft-card" style={{ padding: 12, display: "grid", gap: 8 }}>
+          <strong>Learner requirement lists on this form</strong>
+          <p className="db-helper" style={{ margin: 0 }}>Choose the editable lists parents should receive. Untick a list to leave it out of this form; its items remain available to customise in Default Learner Requirements.</p>
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{(["0_2", "2_6", "babies", "toddlers", "grade_r"] as RequirementTemplateKey[]).map((key) => { const label = key === "0_2" ? "0–2 Years" : key === "2_6" ? "2–6 Years" : key === "babies" ? "Babies" : key === "toddlers" ? "Toddlers" : "Grade R"; const selected = universalConfiguration.requirement_template_keys || ["0_2", "2_6"]; return <label key={key}><input type="checkbox" checked={selected.includes(key)} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, requirement_template_keys: event.target.checked ? [...new Set([...selected, key])] : selected.filter((item) => item !== key) })} /> {label}</label>; })}</div>
+        </div>
         <details style={{ display: "grid", gap: 10 }}>
           <summary style={{ cursor: "pointer", fontWeight: 700 }}>Custom parent questions ({universalConfiguration.custom_fields?.length || 0})</summary>
           <p className="db-helper" style={{ margin: 0 }}>Add only the school-specific questions that are not already collected in the main enrolment form.</p>

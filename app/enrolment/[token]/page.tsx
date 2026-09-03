@@ -48,6 +48,7 @@ type FormInfo = {
   initial_declaration_relationship?: string;
   initial_uploaded_documents?: Record<string, { name: string; path: string }>;
   initial_requested_recurring_addon_ids?: number[];
+  initial_selected_monthly_fee_id?: number | null;
   draft_saved_at?: string | null;
   status: string;
   school_name: string;
@@ -59,12 +60,12 @@ type FormInfo = {
   school_registration_number?: string | null;
   form: PublicForm | null;
   document_requirements?: Array<{ title: string; instructions?: string | null; is_required: boolean }>;
-  requirement_templates?: Array<{ template_key?: "0_2" | "2_6"; available_from_months?: number; available_to_months?: number; category: string; item_name: string; quantity?: string | null; instructions?: string | null }>;
+  requirement_templates?: Array<{ template_key?: "0_2" | "2_6" | "babies" | "toddlers" | "grade_r"; available_from_months?: number; available_to_months?: number; category: string; item_name: string; quantity?: string | null; instructions?: string | null }>;
   consents?: Array<{ id: string; title: string; wording: string; is_required: boolean }>;
   terms?: Array<{ id: string; title: string; content: string }>;
-  fees?: Array<{ fee_code?: string | null; fee_name?: string | null; fee_category?: string | null; amount?: number | string | null }>;
+  fees?: Array<{ id?: number; fee_code?: string | null; fee_name?: string | null; fee_category?: string | null; amount?: number | string | null }>;
   banking_details?: { bank_account_name?: string | null; bank_name?: string | null; bank_account_number?: string | null; bank_branch_code?: string | null; bank_account_type?: string | null } | null;
-  enrolment_configuration?: { additional_declaration?: string | null; second_guardian_mode?: "hidden" | "optional" | "required"; emergency_contact_mode?: "hidden" | "optional" | "required"; previous_school_enabled?: boolean } | null;
+  enrolment_configuration?: { additional_declaration?: string | null; second_guardian_mode?: "hidden" | "optional" | "required"; emergency_contact_mode?: "hidden" | "optional" | "required"; previous_school_enabled?: boolean; requirement_template_keys?: Array<"0_2" | "2_6" | "babies" | "toddlers" | "grade_r"> } | null;
   staff_capture?: boolean;
 };
 
@@ -119,6 +120,7 @@ export default function SecureEnrolmentFormPage() {
   const [declarationRelationship, setDeclarationRelationship] = useState("");
   const [documentUploads, setDocumentUploads] = useState<Record<string, { name: string; path: string }>>({});
   const [requestedRecurringAddonIds, setRequestedRecurringAddonIds] = useState<number[]>([]);
+  const [selectedMonthlyFeeId, setSelectedMonthlyFeeId] = useState<number | null>(null);
   const [uploadingDocument, setUploadingDocument] = useState("");
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -205,6 +207,7 @@ export default function SecureEnrolmentFormPage() {
       setDeclarationRelationship(body.initial_declaration_relationship || "");
       setDocumentUploads(body.initial_uploaded_documents || {});
       setRequestedRecurringAddonIds(Array.isArray(body.initial_requested_recurring_addon_ids) ? body.initial_requested_recurring_addon_ids.map(Number).filter(Number.isInteger) : []);
+      setSelectedMonthlyFeeId(Number.isInteger(Number(body.initial_selected_monthly_fee_id)) ? Number(body.initial_selected_monthly_fee_id) : null);
       setDraftSavedAt(body.draft_saved_at || "");
       if (body.draft_saved_at) setDraftMessage("Your saved draft has been restored.");
     } catch (loadError) {
@@ -236,6 +239,7 @@ export default function SecureEnrolmentFormPage() {
       declaration_name: declarationName,
       declaration_relationship: declarationRelationship,
       requested_recurring_addon_ids: requestedRecurringAddonIds,
+      selected_monthly_fee_id: selectedMonthlyFeeId,
     };
   }
 
@@ -329,11 +333,13 @@ export default function SecureEnrolmentFormPage() {
   const secondGuardianProvided = Boolean(fields.second_guardian_name.trim() || fields.second_guardian_id_or_passport.trim() || fields.second_guardian_phone.trim());
   const guardianDocuments = hasResponsibleId ? configuredDocumentNames : [...configuredDocumentNames, responsibleGuardianDocument];
   const requiredDocuments = (configuration?.second_guardian_mode === "required" || secondGuardianProvided) && !guardianDocuments.includes(secondGuardianDocument) ? [...guardianDocuments, secondGuardianDocument] : guardianDocuments;
-  const requirementTemplates = info?.requirement_templates || [];
+  const requirementTemplateKeys = configuration?.requirement_template_keys || ["0_2", "2_6"];
+  const requirementTemplates = (info?.requirement_templates || []).filter((item) => requirementTemplateKeys.includes(item.template_key || "2_6"));
   const legacyStationeryList = requirementTemplates.length ? [] : getTextList(info?.form?.stationery_list);
   const consents = info?.consents || [];
   const terms = info?.terms || [];
   const recurringAddons = (info?.fees || []).filter((fee) => fee.fee_category === "recurring_addon");
+  const monthlyFees = (info?.fees || []).filter((fee) => fee.fee_category === "monthly");
 
   async function uploadDocument(documentName: string, file?: File) {
     if (!file || isPreview) return;
@@ -476,7 +482,7 @@ export default function SecureEnrolmentFormPage() {
               </div>
               <div>
                 <h3 style={{ margin: "0 0 10px" }}>Stationery and items to bring</h3>
-                {requirementTemplates.length ? <div style={{ display: "grid", gap: 10 }}>{(["0_2", "2_6"] as const).map((templateKey) => { const items = requirementTemplates.filter((item) => (item.template_key || "2_6") === templateKey); if (!items.length) return null; return <div key={templateKey} className="db-soft-card" style={{ padding: 10 }}><strong>{templateKey === "0_2" ? "0–2 Years Template" : "2–6 Years Template"}</strong><div className="db-requirement-categories">{(["stationery", "hygiene"] as const).map((category) => { const categoryItems = items.filter((item) => item.category === category); if (!categoryItems.length) return null; const fromMonths = Math.min(...categoryItems.map((item) => item.available_from_months ?? (templateKey === "0_2" && category === "hygiene" ? 0 : templateKey === "0_2" ? 6 : 24))); const toMonths = Math.max(...categoryItems.map((item) => item.available_to_months ?? (templateKey === "0_2" ? 24 : 72))); return <div key={category} style={{ marginTop: 8 }}><strong style={{ textTransform: "capitalize" }}>{category}</strong><small className="db-helper" style={{ display: "block", marginTop: 2 }}>Age requirement: {fromMonths}–{toMonths} months</small><ul className="db-compact-list">{categoryItems.map((item) => <li key={`${templateKey}-${category}-${item.item_name}`}>{item.item_name}{item.quantity ? ` (${item.quantity})` : ""}</li>)}</ul></div>; })}</div></div>; })}</div> : legacyStationeryList.length ? <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>{legacyStationeryList.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="db-helper">The school has not added a stationery list yet.</p>}
+                {requirementTemplates.length ? <div style={{ display: "grid", gap: 10 }}>{(["0_2", "2_6", "babies", "toddlers", "grade_r"] as const).map((templateKey) => { const items = requirementTemplates.filter((item) => (item.template_key || "2_6") === templateKey); if (!items.length) return null; const label = templateKey === "0_2" ? "0–2 Years" : templateKey === "2_6" ? "2–6 Years" : templateKey === "babies" ? "Babies" : templateKey === "toddlers" ? "Toddlers" : "Grade R"; return <div key={templateKey} className="db-soft-card" style={{ padding: 10 }}><strong>{label} requirements</strong><div className="db-requirement-categories">{(["stationery", "hygiene"] as const).map((category) => { const categoryItems = items.filter((item) => item.category === category); if (!categoryItems.length) return null; const fromMonths = Math.min(...categoryItems.map((item) => item.available_from_months ?? (templateKey === "0_2" && category === "hygiene" ? 0 : templateKey === "0_2" ? 6 : templateKey === "babies" ? 0 : templateKey === "toddlers" ? 24 : templateKey === "grade_r" ? 60 : 24))); const toMonths = Math.max(...categoryItems.map((item) => item.available_to_months ?? (templateKey === "0_2" ? 24 : templateKey === "babies" ? 24 : templateKey === "toddlers" ? 48 : templateKey === "grade_r" ? 84 : 72))); return <div key={category} style={{ marginTop: 8 }}><strong style={{ textTransform: "capitalize" }}>{category}</strong><small className="db-helper" style={{ display: "block", marginTop: 2 }}>Age requirement: {fromMonths}–{toMonths} months</small><ul className="db-compact-list">{categoryItems.map((item) => <li key={`${templateKey}-${category}-${item.item_name}`}>{item.item_name}{item.quantity ? ` (${item.quantity})` : ""}</li>)}</ul></div>; })}</div></div>; })}</div> : legacyStationeryList.length ? <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>{legacyStationeryList.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="db-helper">The school has not added a stationery list yet.</p>}
               </div>
             </div> : null}
             {step === 4 ? <div style={{ display: "grid", gap: 16 }}>
@@ -491,7 +497,7 @@ export default function SecureEnrolmentFormPage() {
               </div>
               </div> : null}
               {consents.length ? <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>Consent & permissions</h3><p className="db-helper" style={{ margin: 0 }}>Detailed consent requests for specific outings, activities, treatment or other situations will be sent through the Parent Portal when required by the school.</p>{consents.map((consent) => <label key={consent.id} className="db-soft-card" style={{ padding: 12, display: "flex", gap: 10, alignItems: "flex-start" }}><input type="checkbox" checked={Boolean(consentResponses[consent.id])} onChange={(event) => setConsentResponses((current) => ({ ...current, [consent.id]: event.target.checked }))} disabled={isPreview} /><span><strong>{consent.title}{consent.is_required ? " *" : ""}</strong><br /><small className="db-helper">{consent.wording}</small></span></label>)}</div> : null}
-              <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>School fees</h3>{info?.fees?.length ? <div className="blank-fee-grid">{info.fees.filter((fee) => fee.fee_category !== "recurring_addon").map((fee, index) => <p key={`${fee.fee_code || fee.fee_name}-${index}`}><strong>{fee.fee_name || "School fee"}</strong><span>R{Number(fee.amount || 0).toFixed(2)}</span>{fee.fee_category ? <small>{fee.fee_category}</small> : null}</p>)}</div> : <p className="db-helper" style={{ margin: 0 }}>No active fee amounts have been configured in School Fee Setup.</p>}</div>
+              <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>School fees</h3>{info?.fees?.length ? <><div className="blank-fee-grid">{info.fees.filter((fee) => fee.fee_category !== "recurring_addon").map((fee, index) => <p key={`${fee.fee_code || fee.fee_name}-${index}`}><strong>{fee.fee_name || "School fee"}</strong><span>R{Number(fee.amount || 0).toFixed(2)}</span>{fee.fee_category ? <small>{fee.fee_category}</small> : null}</p>)}</div>{monthlyFees.length > 1 ? <div className="db-soft-card" style={{ padding: 12, display: "grid", gap: 8 }}><strong>Choose the monthly school-fee option *</strong><p className="db-helper" style={{ margin: 0 }}>The school will confirm this choice before billing begins.</p>{monthlyFees.map((fee) => <label key={fee.id} className="db-checkbox-row"><input type="radio" name="monthly-fee" disabled={isPreview} checked={selectedMonthlyFeeId === Number(fee.id)} onChange={() => setSelectedMonthlyFeeId(Number(fee.id))} /><span>{fee.fee_name || "Monthly school fee"} · R{Number(fee.amount || 0).toFixed(2)} per month</span></label>)}</div> : null}</> : <p className="db-helper" style={{ margin: 0 }}>No active fee amounts have been configured in School Fee Setup.</p>}</div>
               {recurringAddons.length ? <div className="db-soft-card" style={{ padding: 12, display: "grid", gap: 8 }}><div><strong>Optional monthly services</strong><p className="db-helper" style={{ margin: "3px 0 0" }}>Select services you would like to request. The school confirms them before any monthly charge starts.</p></div>{recurringAddons.map((fee, index) => { const id = Number(fee.fee_code?.replace(/^recurring_addon_/, "")); return <label key={`${fee.fee_code || fee.fee_name}-${index}`} className="db-checkbox-row"><input type="checkbox" disabled={isPreview || !Number.isInteger(id)} checked={Number.isInteger(id) && requestedRecurringAddonIds.includes(id)} onChange={(event) => { if (!Number.isInteger(id)) return; setRequestedRecurringAddonIds((current) => event.target.checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)); }} /><span>{fee.fee_name || "Monthly service"} · R{Number(fee.amount || 0).toFixed(2)} per month</span></label>; })}</div> : null}
               <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>Banking details</h3><div className="db-soft-card" style={{ padding: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}><p style={{ margin: 0 }}><strong>Account name:</strong> {info?.banking_details?.bank_account_name || "Not configured"}</p><p style={{ margin: 0 }}><strong>Bank:</strong> {info?.banking_details?.bank_name || "Not configured"}</p><p style={{ margin: 0 }}><strong>Account number:</strong> {info?.banking_details?.bank_account_number || "Not configured"}</p><p style={{ margin: 0 }}><strong>Branch code:</strong> {info?.banking_details?.bank_branch_code || "Not configured"}</p><p style={{ margin: 0 }}><strong>Account type:</strong> {info?.banking_details?.bank_account_type || "Not configured"}</p></div></div>
               {terms.length ? <div style={{ display: "grid", gap: 10 }}><h3 style={{ margin: "0 0 2px" }}>Terms & conditions</h3><p className="db-helper" style={{ margin: 0 }}>Additional policy details, material updates and any request for fresh acceptance will be sent through the Parent Portal when required.</p>{terms.map((term) => <div key={term.id} className="db-soft-card" style={{ padding: 12 }}><strong>{term.title}</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>{term.content}</p></div>)}<label><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} disabled={isPreview} /> I accept the terms and conditions.</label></div> : null}

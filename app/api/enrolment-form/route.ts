@@ -29,6 +29,13 @@ function record(value: unknown) {
     : {};
 }
 
+function selectedRequirementTemplateKeys(configuration: Record<string, unknown> | null | undefined) {
+  const keys = Array.isArray(configuration?.requirement_template_keys)
+    ? configuration.requirement_template_keys.filter((key): key is string => ["0_2", "2_6", "babies", "toddlers", "grade_r"].includes(String(key)))
+    : ["0_2", "2_6"];
+  return keys;
+}
+
 const DRAFT_TEXT_FIELDS = {
   learner_first_name: 120,
   learner_surname: 120,
@@ -151,6 +158,7 @@ function buildDraftData(body: Record<string, unknown>, enquiry: { school_id: num
     requested_recurring_addon_ids: Array.isArray(body.requested_recurring_addon_ids)
       ? body.requested_recurring_addon_ids.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0).slice(0, 20)
       : [],
+    selected_monthly_fee_id: Number.isInteger(Number(body.selected_monthly_fee_id)) ? Number(body.selected_monthly_fee_id) : null,
     _draft_saved_at: savedAt,
   };
 }
@@ -317,6 +325,7 @@ export async function GET(request: Request) {
     initial_declaration_relationship: text(initialValues.declaration_relationship || declaration.relationship, 80),
     initial_uploaded_documents: safeDraftDocuments(initialValues.uploaded_documents, enquiry),
     initial_requested_recurring_addon_ids: Array.isArray(initialValues.requested_recurring_addon_ids) ? initialValues.requested_recurring_addon_ids.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0) : [],
+    initial_selected_monthly_fee_id: Number.isInteger(Number(initialValues.selected_monthly_fee_id)) ? Number(initialValues.selected_monthly_fee_id) : null,
     draft_saved_at: text(initialValues._draft_saved_at, 50) || null,
     status: enquiry.status,
     school_name: school?.school_name || "School",
@@ -328,7 +337,7 @@ export async function GET(request: Request) {
     school_physical_address: registration?.physical_address || signup?.school_address || null,
     form: { ...form, form_name: configuration?.form_title || form?.form_name, instructions: configuration?.introduction || form?.instructions, custom_fields: configuration?.custom_fields || form?.custom_fields },
     enrolment_configuration: configuration ? { ...configuration, additional_declaration: configuration.additional_declaration || DEFAULT_PARENT_DECLARATION } : { additional_declaration: DEFAULT_PARENT_DECLARATION },
-    document_requirements: documents || [], requirement_templates: requirements || [], consents: consents || [], terms: presentedTerms,
+    document_requirements: documents || [], requirement_templates: (requirements || []).filter((item) => selectedRequirementTemplateKeys(configuration).includes(String(item.template_key))), consents: consents || [], terms: presentedTerms,
     fees: fees || [], banking_details: settings || null,
     staff_capture: Boolean(staffCaptureId),
   });
@@ -388,9 +397,14 @@ export async function POST(request: Request) {
     supabaseAdmin.from("school_enrolment_requirement_templates").select("template_key, available_from_months, available_to_months, category, item_name, quantity, instructions, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("template_key").order("display_order"),
     supabaseAdmin.from("school_enrolment_consents").select("id, title, wording, is_required, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
     supabaseAdmin.from("school_enrolment_terms_sections").select("id, title, content, display_order").eq("school_id", enquiry.school_id).eq("is_active", true).order("display_order"),
-    supabaseAdmin.from("school_fee_types").select("fee_code, fee_name, fee_category, amount").eq("school_id", enquiry.school_id).eq("is_active", true),
+    supabaseAdmin.from("school_fee_types").select("id, fee_code, fee_name, fee_category, amount").eq("school_id", enquiry.school_id).eq("is_active", true),
   ]);
   const presentedTerms = termsWithConfiguredFees(terms as EnrolmentTerm[] | null, fees);
+  const monthlyFees = (fees || []).filter((fee) => fee.fee_category === "monthly");
+  const selectedMonthlyFeeId = Number(body.selected_monthly_fee_id);
+  if (monthlyFees.length > 1 && !monthlyFees.some((fee) => Number(fee.id) === selectedMonthlyFeeId)) {
+    return draftValidationError("Choose one of the available monthly school-fee options before submitting.");
+  }
   if (!staffCaptureId && configuration?.is_open === false) return draftValidationError("Enrolments are currently closed by the school.", 403);
   const consentResponses = body.consent_responses && typeof body.consent_responses === "object" && !Array.isArray(body.consent_responses) ? body.consent_responses as Record<string, unknown> : {};
   const missingConsent = (consents || []).find((consent) => consent.is_required && consentResponses[String(consent.id)] !== true);
@@ -494,6 +508,7 @@ export async function POST(request: Request) {
     requested_recurring_addon_ids: Array.isArray(body.requested_recurring_addon_ids)
       ? body.requested_recurring_addon_ids.map((item: unknown) => Number(item)).filter((item: number) => Number.isInteger(item) && item > 0 && (fees || []).some((fee) => Number((fee as { id?: unknown }).id) === item && (fee as { fee_category?: unknown }).fee_category === "recurring_addon")).slice(0, 20)
       : [],
+    selected_monthly_fee_id: monthlyFees.some((fee) => Number(fee.id) === selectedMonthlyFeeId) ? selectedMonthlyFeeId : (monthlyFees.length === 1 ? Number(monthlyFees[0].id) : null),
     submitted_at: new Date().toISOString(),
   };
   const { error } = await supabaseAdmin
@@ -501,7 +516,7 @@ export async function POST(request: Request) {
     .update({
       status: "submitted",
       submitted_data: submittedData,
-      configuration_snapshot: { configuration: configuration || {}, documents: configuredDocuments || [], requirements: requirements || [], consents: consents || [], terms: presentedTerms },
+      configuration_snapshot: { configuration: configuration || {}, documents: configuredDocuments || [], requirements: (requirements || []).filter((item) => selectedRequirementTemplateKeys(configuration).includes(String(item.template_key))), consents: consents || [], terms: presentedTerms },
       submitted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       form_access_session_hash: null,

@@ -272,7 +272,7 @@ export async function sendEnrolmentWhatsApp(input: {
     // The Meta header identifies the school. Its body greets the parent first,
     // then names the school; keeping these named avoids swapping them.
     headerParameters: usesSchoolHeader ? [schoolName] : undefined,
-    // Registration templates always greet the parent first, then name the school.
+    // Meta uses school first and parent second for both approved enrolment templates.
     bodyParameters: enrolmentWhatsAppBodyParameters(input.kind, input.bodyParameters),
     // Meta dynamic URL buttons append this value to the fixed URL configured in the template.
     buttonUrl: input.kind === "form" && input.bodyParameters[3]

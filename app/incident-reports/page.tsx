@@ -611,12 +611,11 @@ export default function IncidentReportsPage() {
               </select>
             </Field>
 
-            <Field label="Incident Type">
+            <Field label={<span>Incident Type <span className="db-tooltip"><button type="button" className="db-tooltip-trigger" aria-label="Incident type guidance" aria-describedby="incident-type-guidance">i</button><span id="incident-type-guidance" className="db-tooltip-content" role="tooltip">Choose “Accident or injury” for falls, bruises or other physical injuries. Choose a behaviour type only when the main concern is the learner&apos;s behaviour.</span></span></span>}>
               <select className="db-input" value={incidentType} onChange={(event) => setIncidentType(event.target.value)}>
                 <option value="">Select incident type</option>
                 {incidentTypes.map((type) => <option key={type} value={type}>{type}</option>)}
               </select>
-              <p style={smallText}>Choose “Accident or injury” for falls, bruises or other physical injuries. Choose a behaviour type only when the main concern is the learner&apos;s behaviour.</p>
             </Field>
 
             <Field label="Incident Date">
@@ -768,7 +767,7 @@ export default function IncidentReportsPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div style={{ marginTop: 10 }}>
       <p style={labelText}>{label}</p>

@@ -26,6 +26,7 @@ type SchoolSettings = {
   bank_branch_code: string;
   bank_account_type: string;
   payment_reminder_day: number;
+  payment_reminders_enabled: boolean;
   grade_r_home_language: string;
   grade_r_first_additional_language: string;
 };
@@ -67,6 +68,7 @@ const emptySettings: SchoolSettings = {
   bank_branch_code: "",
   bank_account_type: "",
   payment_reminder_day: 1,
+  payment_reminders_enabled: true,
   grade_r_home_language: "English",
   grade_r_first_additional_language: "Afrikaans",
 };
@@ -764,8 +766,9 @@ export default function SchoolSetupPage() {
           <label style={{ display: "grid", gap: 7 }}><strong>Account number</strong><input className="db-input" inputMode="numeric" value={settings.bank_account_number} onChange={(event) => setSettings({ ...settings, bank_account_number: event.target.value })} placeholder="Account number" /></label>
           <label style={{ display: "grid", gap: 7 }}><strong>Branch code</strong><input className="db-input" inputMode="numeric" value={settings.bank_branch_code} onChange={(event) => setSettings({ ...settings, bank_branch_code: event.target.value })} placeholder="Branch code" /></label>
           <label style={{ display: "grid", gap: 7 }}><strong>Account type</strong><input className="db-input" value={settings.bank_account_type} onChange={(event) => setSettings({ ...settings, bank_account_type: event.target.value })} placeholder="e.g. Cheque account" /></label>
-          <label style={{ display: "grid", gap: 7 }}><strong>Reminder send date</strong><select className="db-input" value={settings.payment_reminder_day} onChange={(event) => setSettings({ ...settings, payment_reminder_day: Number(event.target.value) })}>{Array.from({ length: 28 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}{index === 0 ? "st" : index === 1 ? "nd" : index === 2 ? "rd" : "th"} of every month</option>)}</select></label>
+          <label style={{ display: "grid", gap: 7 }}><strong>Reminder send date</strong><select className="db-input" value={settings.payment_reminder_day} disabled={!settings.payment_reminders_enabled} onChange={(event) => setSettings({ ...settings, payment_reminder_day: Number(event.target.value) })}>{Array.from({ length: 28 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}{index === 0 ? "st" : index === 1 ? "nd" : index === 2 ? "rd" : "th"} of every month</option>)}</select></label>
         </div>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 700 }}><input type="checkbox" checked={settings.payment_reminders_enabled} onChange={(event) => setSettings({ ...settings, payment_reminders_enabled: event.target.checked })} /> Send payment reminders to unpaid learners</label>
         <div><button className="db-button-primary" type="button" disabled={savingSettings} onClick={() => void saveSettings()}>{savingSettings ? "Saving..." : "Save School Setup"}</button></div>
       </CollapsibleSetupSection>
 

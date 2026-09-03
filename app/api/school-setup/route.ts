@@ -143,6 +143,7 @@ export async function POST(request: Request) {
   const action = text(body.action, 50);
 
   if (action === "save_settings") {
+    const paymentRemindersEnabled = body.payment_reminders_enabled !== false;
     const reminderDay = Number(body.payment_reminder_day || 1);
     if (!Number.isInteger(reminderDay) || reminderDay < 1 || reminderDay > 28) {
       return NextResponse.json({ error: "Choose a payment reminder day from 1 to 28." }, { status: 400 });
@@ -160,6 +161,7 @@ export async function POST(request: Request) {
       bank_branch_code: text(body.bank_branch_code, 60),
       bank_account_type: text(body.bank_account_type, 80),
       payment_reminder_day: reminderDay,
+      payment_reminders_enabled: paymentRemindersEnabled,
       grade_r_home_language: gradeRHomeLanguage,
       grade_r_first_additional_language: gradeRFirstAdditionalLanguage,
       updated_by: authorization.staff.userId,

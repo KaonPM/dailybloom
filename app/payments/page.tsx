@@ -66,6 +66,7 @@ export default function PaymentsPage() {
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [school, setSchool] = useState<SchoolItem | null>(null);
   const [paymentReminderDay, setPaymentReminderDay] = useState<number | null>(null);
+  const [paymentRemindersEnabled, setPaymentRemindersEnabled] = useState(true);
 
   const [learnerName, setLearnerName] = useState("");
   const [amount, setAmount] = useState("");
@@ -274,9 +275,10 @@ export default function PaymentsPage() {
   async function fetchPaymentReminderSettings(currentSchoolId: number) {
     const { data } = await supabase
       .from("school_setup_settings")
-      .select("payment_reminder_day")
+      .select("payment_reminder_day, payment_reminders_enabled")
       .eq("school_id", currentSchoolId)
       .maybeSingle();
+    setPaymentRemindersEnabled(data?.payment_reminders_enabled !== false);
     const day = Number(data?.payment_reminder_day || 0);
     if (!Number.isInteger(day) || day < 1 || day > 28) return;
     setPaymentReminderDay(day);
@@ -582,6 +584,11 @@ export default function PaymentsPage() {
 
   async function scheduleReminderMessages() {
     if (!schoolId) return;
+
+    if (!paymentRemindersEnabled) {
+      alert("Payment reminders are turned off in School Setup.");
+      return;
+    }
 
     if (unpaidLearners.length === 0) {
       alert("No unpaid learners found for the selected month.");
@@ -915,25 +922,13 @@ export default function PaymentsPage() {
         <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
           <div style={sectionHeader}>
             <div>
-              <h3 style={sectionTitle}>Monthly Payment Reminders</h3>
+              <h3 style={sectionTitle}>Unpaid Learner Payment Reminders</h3>
               <p style={smallText}>
                 Schedule SMS reminders to parents of unpaid learners for the selected month. Learners with an active payment arrangement are excluded.
               </p>
             </div>
 
-            <div style={{ marginTop: 12, marginBottom: 12 }}>
-              <p style={labelText}>Reminder Send Date</p>
-              {paymentReminderDay ? <p style={{ ...smallText, marginTop: 0 }}>Pre-filled from School Setup: day {paymentReminderDay} of the month.</p> : null}
-
-              <input
-                className="db-input"
-                type="date"
-                value={scheduledReminderDate}
-                min={todayDate}
-                onChange={(e) => setScheduledReminderDate(e.target.value)}
-                style={{ maxWidth: 240 }}
-              />
-            </div>
+            <p style={{ ...smallText, marginTop: 12, marginBottom: 12 }}>{paymentRemindersEnabled ? (paymentReminderDay ? `Reminder date is managed in School Setup (day ${paymentReminderDay} of each month).` : "Set a reminder date in School Setup.") : "Payment reminders are turned off in School Setup."}</p>
 
             <button
               type="button"
@@ -948,7 +943,7 @@ export default function PaymentsPage() {
             <button
               className="db-button-primary"
               onClick={scheduleReminderMessages}
-              disabled={scheduling}
+              disabled={scheduling || !paymentRemindersEnabled || !paymentReminderDay}
             >
               {scheduling
                 ? "Scheduling..."

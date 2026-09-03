@@ -429,7 +429,7 @@ export default function SecureEnrolmentFormPage() {
     <main className="db-public-page db-enrolment-page">
       <section className="db-card db-card-blue" style={{ display: "grid", gap: 12 }}>
         <div className="db-eyebrow">DAILYBLOOM · {isStaffCapture ? "STAFF DIGITAL CAPTURE" : "SECURE ENROLMENT"}</div>
-        {info?.school_logo_url ? <img src={info.school_logo_url} alt={`${info.school_name} logo`} style={{ width: 76, height: 76, borderRadius: 14, objectFit: "contain" }} /> : null}
+        {info?.school_logo_url ? <img src={info.school_logo_url} alt={`${info.school_name} logo`} style={{ width: 92, height: 92, borderRadius: 14, objectFit: "contain" }} /> : null}
         <h1 className="db-page-title" style={{ margin: 0 }}>
           {info?.school_name || "Secure Enrolment"}
         </h1>

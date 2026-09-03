@@ -1002,10 +1002,10 @@ export default function Sidebar() {
                   src={school.logo_url}
                   alt={`${school.school_name} logo`}
                   style={{
-                    width: "52px",
-                    height: "52px",
-                    objectFit: "cover",
-                    borderRadius: "16px",
+                    width: "64px",
+                    height: "64px",
+                    objectFit: "contain",
+                    borderRadius: "14px",
                     border: "1px solid #F0E3D8",
                     background: "#FFFFFF",
                     flexShrink: 0,
@@ -1014,9 +1014,9 @@ export default function Sidebar() {
               ) : (
                 <div
                   style={{
-                    width: "52px",
-                    height: "52px",
-                    borderRadius: "16px",
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "14px",
                     border: "1px solid #F0E3D8",
                     background: "#F8E8F0",
                     display: "flex",
@@ -1024,7 +1024,7 @@ export default function Sidebar() {
                     justifyContent: "center",
                     color: "#2D2A3E",
                     fontWeight: 700,
-                    fontSize: "22px",
+                    fontSize: "24px",
                     flexShrink: 0,
                   }}
                 >
@@ -1036,7 +1036,7 @@ export default function Sidebar() {
                 <p
                   style={{
                     margin: 0,
-                    fontSize: "12px",
+                    fontSize: "11px",
                     color: "#8A84A3",
                     fontWeight: 700,
                   }}
@@ -1047,7 +1047,7 @@ export default function Sidebar() {
                 <p
                   style={{
                     margin: "3px 0 0 0",
-                    fontSize: "16px",
+                    fontSize: "14px",
                     color: "#2D2A3E",
                     fontWeight: 700,
                     lineHeight: 1.3,
@@ -1060,7 +1060,7 @@ export default function Sidebar() {
                 <p
                   style={{
                     margin: "3px 0 0 0",
-                    fontSize: "12px",
+                    fontSize: "11px",
                     color: "#6D6888",
                   }}
                 >

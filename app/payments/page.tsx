@@ -89,9 +89,10 @@ export default function PaymentsPage() {
   const [historyToDate, setHistoryToDate] = useState(todayDate);
   const [paymentHistoryPage, setPaymentHistoryPage] = useState(1);
   const paymentHistoryPageSize = 10;
+  const [unpaidLearnerPage, setUnpaidLearnerPage] = useState(1);
+  const unpaidLearnerPageSize = 10;
 
   const [showRecordForm, setShowRecordForm] = useState(false);
-  const [showUnpaidLearners, setShowUnpaidLearners] = useState(false);
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
   const [statementLearnerId, setStatementLearnerId] = useState("");
   const [statementMode, setStatementMode] = useState<"ytd" | "monthly">("ytd");
@@ -142,6 +143,10 @@ export default function PaymentsPage() {
   useEffect(() => {
     setPaymentHistoryPage(1);
   }, [historyFromDate, historyToDate]);
+
+  useEffect(() => {
+    setUnpaidLearnerPage(1);
+  }, [selectedReminderMonth, selectedReminderYear]);
 
   useEffect(() => {
     setStatementMessage("");
@@ -565,6 +570,12 @@ export default function PaymentsPage() {
     [unpaidLearners]
   );
 
+  const totalUnpaidLearnerPages = Math.max(1, Math.ceil(unpaidLearners.length / unpaidLearnerPageSize));
+  const paginatedUnpaidLearners = unpaidLearners.slice(
+    (unpaidLearnerPage - 1) * unpaidLearnerPageSize,
+    unpaidLearnerPage * unpaidLearnerPageSize,
+  );
+
   const filteredPaymentHistory = useMemo(() => {
     return payments.filter((payment) => {
       const date = payment.payment_date || "";
@@ -922,7 +933,7 @@ export default function PaymentsPage() {
         <div className="db-card db-card-yellow" style={{ padding: 16, marginBottom: 18 }}>
           <div style={sectionHeader}>
             <div>
-              <h3 style={sectionTitle}>Unpaid Learner Payment Reminders</h3>
+              <h3 style={sectionTitle}>Unpaid Fee Learners</h3>
               <p style={smallText}>
                 Schedule SMS reminders to parents of unpaid learners for the selected month. Learners with an active payment arrangement are excluded.
               </p>
@@ -930,52 +941,34 @@ export default function PaymentsPage() {
 
             <p style={{ ...smallText, marginTop: 12, marginBottom: 12 }}>{paymentRemindersEnabled ? (paymentReminderDay ? `Reminder date is managed in School Setup (day ${paymentReminderDay} of each month).` : "Set a reminder date in School Setup.") : "Payment reminders are turned off in School Setup."}</p>
 
-            <button
-              type="button"
-              className="db-collapse-action db-section-toggle"
-              onClick={() => setShowUnpaidLearners((prev) => !prev)}
-            >
-              {showUnpaidLearners ? "Close" : `Open unpaid (${unpaidLearners.length})`}
-            </button>
           </div>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-            <button
-              className="db-button-primary"
-              onClick={scheduleReminderMessages}
-              disabled={scheduling || !paymentRemindersEnabled || !paymentReminderDay}
-            >
-              {scheduling
-                ? "Scheduling..."
-                : `Schedule Reminder Messages (${unpaidLearnersWithPhones.length})`}
-            </button>
+          <div style={{ marginTop: 14 }}>
+            {unpaidLearners.length === 0 ? (
+              <p className="db-helper">Everyone appears paid for the selected month.</p>
+            ) : <>
+              <div style={{ display: "grid", gap: 8 }}>
+                {paginatedUnpaidLearners.map((learner) => (
+                  <div key={learner.id} style={compactCard}>
+                    <div>
+                      <strong>{learner.name || "Unnamed learner"}</strong>
+                      <p style={smallText}>Parent Phone: {learner.parent_phone || "Not added"}</p>
+                      {learner.payment_arrangement_active ? <p style={{ ...smallText, color: "#7a5a00", fontWeight: 700 }}>Payment arrangement active — no reminder will be sent.</p> : null}
+                    </div>
+                    <button type="button" className="db-button-secondary" disabled={arrangementSavingId === learner.id} onClick={() => void setPaymentArrangement(learner, !learner.payment_arrangement_active)}>
+                      {arrangementSavingId === learner.id ? "Saving..." : learner.payment_arrangement_active ? "Clear arrangement" : "Flag arrangement"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {totalUnpaidLearnerPages > 1 ? <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 14 }}><button type="button" className="db-button-secondary" disabled={unpaidLearnerPage === 1} onClick={() => setUnpaidLearnerPage((current) => Math.max(1, current - 1))}>Previous</button><p style={smallText}>Page {unpaidLearnerPage} of {totalUnpaidLearnerPages}</p><button type="button" className="db-button-secondary" disabled={unpaidLearnerPage === totalUnpaidLearnerPages} onClick={() => setUnpaidLearnerPage((current) => Math.min(totalUnpaidLearnerPages, current + 1))}>Next</button></div> : null}
+            </>}
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+            <button className="db-button-primary" onClick={scheduleReminderMessages} disabled={scheduling || !paymentRemindersEnabled || !paymentReminderDay}>{scheduling ? "Scheduling..." : `Schedule Reminder Messages (${unpaidLearnersWithPhones.length})`}</button>
             {learnersWithPaymentArrangements.length > 0 ? <span className="db-helper" style={{ alignSelf: "center" }}>{learnersWithPaymentArrangements.length} unpaid learner(s) excluded by arrangement</span> : null}
           </div>
-
-          {showUnpaidLearners ? (
-            <div style={{ marginTop: 14 }}>
-              {unpaidLearners.length === 0 ? (
-                <p className="db-helper">Everyone appears paid for the selected month.</p>
-              ) : (
-                <div style={{ display: "grid", gap: 8 }}>
-                  {unpaidLearners.map((learner) => (
-                    <div key={learner.id} style={compactCard}>
-                      <div>
-                        <strong>{learner.name || "Unnamed learner"}</strong>
-                        <p style={smallText}>
-                          Parent Phone: {learner.parent_phone || "Not added"}
-                        </p>
-                        {learner.payment_arrangement_active ? <p style={{ ...smallText, color: "#7a5a00", fontWeight: 700 }}>Payment arrangement active — no reminder will be sent.</p> : null}
-                      </div>
-                      <button type="button" className="db-button-secondary" disabled={arrangementSavingId === learner.id} onClick={() => void setPaymentArrangement(learner, !learner.payment_arrangement_active)}>
-                        {arrangementSavingId === learner.id ? "Saving..." : learner.payment_arrangement_active ? "Clear arrangement" : "Flag arrangement"}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : null}
         </div>
 
         <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { toSouthAfricanSmsNumber } from "@/app/lib/sms-portal";
+import { enrolmentWhatsAppBodyParameters, type EnrolmentWhatsAppKind } from "@/app/lib/whatsapp-template-parameters";
 
 type WhatsAppTemplateInput = {
   templateName: string;
@@ -16,7 +17,7 @@ type WhatsAppAuthenticationCodeInput = {
   code: string;
 };
 
-export type EnrolmentWhatsAppKind = "registration" | "form" | "access_code";
+export type { EnrolmentWhatsAppKind } from "@/app/lib/whatsapp-template-parameters";
 
 export type WhatsAppSendResult = {
   providerMessageId: string | null;
@@ -251,7 +252,6 @@ export async function sendEnrolmentWhatsApp(input: {
 }) {
   const templateName = getEnrolmentWhatsAppTemplateDetails(input.kind).templateName;
   const usesSchoolHeader = input.kind === "registration" || input.kind === "form";
-  const parentName = input.bodyParameters[0] || "";
   const schoolName = input.bodyParameters[1] || "";
 
   if (input.kind === "access_code") {
@@ -272,13 +272,8 @@ export async function sendEnrolmentWhatsApp(input: {
     // The Meta header identifies the school. Its body greets the parent first,
     // then names the school; keeping these named avoids swapping them.
     headerParameters: usesSchoolHeader ? [schoolName] : undefined,
-    bodyParameters: input.kind === "form"
-      // Meta Utility template body: school, parent, reference, full secure link, expiry.
-      ? [schoolName, parentName, input.bodyParameters[2] || "", input.bodyParameters[3] || "", input.bodyParameters[4] || "72 hours"]
-      : input.kind === "registration"
-        // Meta Utility template body: parent, school, fee, payment reference, banking details.
-        ? [parentName, schoolName, input.bodyParameters[2] || "", input.bodyParameters[3] || "", input.bodyParameters[4] || ""]
-        : input.bodyParameters,
+    // Registration templates always greet the parent first, then name the school.
+    bodyParameters: enrolmentWhatsAppBodyParameters(input.kind, input.bodyParameters),
     // Meta dynamic URL buttons append this value to the fixed URL configured in the template.
     buttonUrl: input.kind === "form" && input.bodyParameters[3]
       ? formUrlToken(input.bodyParameters[3])

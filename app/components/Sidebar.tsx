@@ -578,6 +578,7 @@ export default function Sidebar() {
   const canViewMessages =
     !isAdmin || delegatedPermissions.has(PERMISSIONS.MESSAGE_VIEW);
   const showSchoolActions = !isMasterAdmin && (Boolean(school) || !isMaster);
+  const isSidebarReady = !loading && Boolean(profile);
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -1137,7 +1138,7 @@ export default function Sidebar() {
           ) : null}
         </div>
 
-        {isMaster ? (
+        {isSidebarReady && isMaster ? (
           <NavSection
             title="Platform"
             items={masterNav}
@@ -1146,7 +1147,7 @@ export default function Sidebar() {
           />
         ) : null}
 
-        {isMasterAdmin ? (
+        {isSidebarReady && isMasterAdmin ? (
           <NavSection
             title="Assigned Platform Tools"
             items={masterAdminNav}
@@ -1155,7 +1156,21 @@ export default function Sidebar() {
           />
         ) : null}
 
-        {showSchoolActions ? (
+        {loading ? (
+          <div
+            aria-busy="true"
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid #F0E3D8",
+              borderRadius: "22px",
+              padding: "14px",
+            }}
+          >
+            <p style={{ margin: 0, color: "#8A84A3", fontSize: "12px", fontWeight: 700 }}>
+              Loading navigation...
+            </p>
+          </div>
+        ) : isSidebarReady && showSchoolActions ? (
           <div
             style={{
               background: "#FFFFFF",

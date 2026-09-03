@@ -283,14 +283,32 @@ textarea {
 
 .blank-form-header {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, auto) minmax(0, 1fr);
+  gap: 18px;
   align-items: center;
 }
 
-.blank-form-header img { width: 70px; height: 70px; object-fit: contain; }
-.blank-logo-placeholder { width: 70px; height: 70px; display: grid; place-items: center; border: 1px dashed var(--db-border); border-radius: 10px; color: var(--db-muted); font-size: 10px; text-align: center; }
+.blank-form-brand { display: grid; justify-items: center; gap: 4px; text-align: center; }
+.blank-form-header img { width: 112px; height: 112px; object-fit: contain; padding: 5px; border: 1px solid var(--db-border); border-radius: 18px; background: #fff; box-shadow: 0 5px 14px rgba(86, 118, 158, 0.1); }
+.blank-logo-placeholder { width: 112px; height: 112px; display: grid; place-items: center; border: 1px dashed var(--db-border); border-radius: 18px; color: var(--db-muted); font-size: 10px; text-align: center; }
+.blank-form-contacts { justify-self: end; display: grid; gap: 4px; text-align: right; color: var(--db-muted); font-size: 12px; }
+.blank-form-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .blank-form-header p, .blank-form-note { color: var(--db-muted); }
+.enrolment-form-brand-header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, auto) minmax(0, 1fr); gap: 18px; align-items: center; }
+.enrolment-form-brand { display: grid; justify-items: center; gap: 7px; text-align: center; }
+.enrolment-form-brand-logo { width: 132px; height: 132px; object-fit: contain; padding: 6px; border: 1px solid #cbeaf7; border-radius: 22px; background: #fff; box-shadow: 0 7px 16px rgba(86, 118, 158, 0.12); }
+.enrolment-form-contacts { justify-self: end; display: grid; gap: 4px; text-align: right; }
+.enrolment-form-contacts p, .enrolment-form-school-details p { margin: 0; }
+.enrolment-form-school-details { display: grid; gap: 2px; justify-items: center; text-align: center; }
+
+@media (max-width: 680px) {
+  .blank-form-header,
+  .enrolment-form-brand-header { grid-template-columns: 1fr; gap: 12px; }
+  .blank-form-header > div:first-child,
+  .enrolment-form-brand-spacer { display: none; }
+  .blank-form-contacts,
+  .enrolment-form-contacts { justify-self: center; text-align: center; }
+}
 .blank-form-reference { display: flex; gap: 8px 16px; flex-wrap: wrap; padding: 8px 10px; background: #fffaf3; border: 1px solid var(--db-border); border-radius: 10px; }
 .blank-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 18px; }
 .blank-form-field { display: grid; gap: 9px; font-size: 12px; }

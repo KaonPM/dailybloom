@@ -428,16 +428,23 @@ export default function SecureEnrolmentFormPage() {
   return (
     <main className="db-public-page db-enrolment-page">
       <section className="db-card db-card-blue" style={{ display: "grid", gap: 12 }}>
-        <div className="db-eyebrow">DAILYBLOOM · {isStaffCapture ? "STAFF DIGITAL CAPTURE" : "SECURE ENROLMENT"}</div>
-        {info?.school_logo_url ? <img src={info.school_logo_url} alt={`${info.school_name} logo`} style={{ width: 92, height: 92, borderRadius: 14, objectFit: "contain" }} /> : null}
-        <h1 className="db-page-title" style={{ margin: 0 }}>
-          {info?.school_name || "Secure Enrolment"}
-        </h1>
-        <p className="db-page-subtitle" style={{ margin: 0 }}>
-          {info?.form?.form_name || "Enrolment Form"}
-          {info?.reference ? ` · Reference ${info.reference}` : ""}
-        </p>
-        <div className="db-helper" style={{ display: "grid", gap: 2 }}><p style={{ margin: 0 }}><strong>Registration / EMIS / NPO number:</strong> {info?.school_registration_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Registered address:</strong> {info?.school_physical_address || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Contact number:</strong> {info?.school_contact_number || "Not provided by the school"}</p><p style={{ margin: 0 }}><strong>Email:</strong> {info?.school_email_address || "Not provided by the school"}</p></div>
+        <div className="enrolment-form-brand-header">
+          <div className="enrolment-form-brand-spacer" aria-hidden="true" />
+          <div className="enrolment-form-brand">
+            <div className="db-eyebrow">DAILYBLOOM · {isStaffCapture ? "STAFF DIGITAL CAPTURE" : "SECURE ENROLMENT"}</div>
+            {info?.school_logo_url ? <img className="enrolment-form-brand-logo" src={info.school_logo_url} alt={`${info.school_name} logo`} /> : null}
+            <h1 className="db-page-title" style={{ margin: 0 }}>{info?.school_name || "Secure Enrolment"}</h1>
+            <p className="db-page-subtitle" style={{ margin: 0 }}>
+              {info?.form?.form_name || "Enrolment Form"}
+              {info?.reference ? ` · Reference ${info.reference}` : ""}
+            </p>
+          </div>
+          <div className="enrolment-form-contacts db-helper">
+            <p><strong>Contact number:</strong> {info?.school_contact_number || "Not provided by the school"}</p>
+            <p><strong>Email:</strong> {info?.school_email_address || "Not provided by the school"}</p>
+          </div>
+        </div>
+        <div className="enrolment-form-school-details db-helper"><p><strong>Registration / EMIS / NPO number:</strong> {info?.school_registration_number || "Not provided by the school"}</p><p><strong>Registered address:</strong> {info?.school_physical_address || "Not provided by the school"}</p></div>
         <div className="db-soft-card" style={{ padding: 10, borderLeft: `4px solid ${info?.school_primary_color || "#5ab8de"}` }}><strong>{isStaffCapture ? "Capture learner enrolment" : "Private digital school enrolment form"}</strong><span className="db-helper" style={{ display: "block", marginTop: 3 }}>{isStaffCapture ? "Complete the universal enrolment form below. The learner information remains attached to this enrolment reference." : "This private link is tied to one learner and expires after 72 hours. Please do not forward or share it. Your school details and enrolment reference are already included."}</span></div>
       </section>
 

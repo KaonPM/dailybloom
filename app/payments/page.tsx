@@ -93,6 +93,7 @@ export default function PaymentsPage() {
   const unpaidLearnerPageSize = 10;
 
   const [showRecordForm, setShowRecordForm] = useState(false);
+  const [showUnpaidFeeLearners, setShowUnpaidFeeLearners] = useState(false);
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
   const [statementLearnerId, setStatementLearnerId] = useState("");
   const [statementMode, setStatementMode] = useState<"ytd" | "monthly">("ytd");
@@ -940,10 +941,10 @@ export default function PaymentsPage() {
             </div>
 
             <p style={{ ...smallText, marginTop: 12, marginBottom: 12 }}>{paymentRemindersEnabled ? (paymentReminderDay ? `Reminder date is managed in School Setup (day ${paymentReminderDay} of each month).` : "Set a reminder date in School Setup.") : "Payment reminders are turned off in School Setup."}</p>
-
+            <button type="button" className="db-collapse-action db-section-toggle" aria-expanded={showUnpaidFeeLearners} onClick={() => setShowUnpaidFeeLearners((current) => !current)}>{showUnpaidFeeLearners ? "Close unpaid fee learners" : "Open unpaid fee learners"}</button>
           </div>
 
-          <div style={{ marginTop: 14 }}>
+          {showUnpaidFeeLearners ? <><div style={{ marginTop: 14 }}>
             {unpaidLearners.length === 0 ? (
               <p className="db-helper">Everyone appears paid for the selected month.</p>
             ) : <>
@@ -969,6 +970,7 @@ export default function PaymentsPage() {
             <button className="db-button-primary" onClick={scheduleReminderMessages} disabled={scheduling || !paymentRemindersEnabled || !paymentReminderDay}>{scheduling ? "Scheduling..." : `Schedule Reminder Messages (${unpaidLearnersWithPhones.length})`}</button>
             {learnersWithPaymentArrangements.length > 0 ? <span className="db-helper" style={{ alignSelf: "center" }}>{learnersWithPaymentArrangements.length} unpaid learner(s) excluded by arrangement</span> : null}
           </div>
+          </> : null}
         </div>
 
         <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>

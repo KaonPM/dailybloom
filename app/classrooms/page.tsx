@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 
-type TemplateKey = "0_2" | "2_6";
+type TemplateKey = "0_2" | "2_6" | "babies" | "toddlers" | "grade_r";
 
 type ClassroomRow = {
   id: number;
@@ -45,6 +45,9 @@ const ageGroupOptions = [
 const templateOptions: { key: TemplateKey; label: string }[] = [
   { key: "0_2", label: "0-2 Years Template" },
   { key: "2_6", label: "2-6 Years Template" },
+  { key: "babies", label: "Babies Template" },
+  { key: "toddlers", label: "Toddlers Template" },
+  { key: "grade_r", label: "Grade R Template" },
 ];
 
 export default function ClassroomsPage() {
@@ -66,6 +69,7 @@ export default function ClassroomsPage() {
   const [classroomName, setClassroomName] = useState("");
   const [selectedAgeGroups, setSelectedAgeGroups] = useState<string[]>([]);
   const [selectedTemplateKeys, setSelectedTemplateKeys] = useState<TemplateKey[]>([]);
+  const [schoolTemplateKeys, setSchoolTemplateKeys] = useState<TemplateKey[]>(["0_2", "2_6"]);
 
   const [teacherToAssign, setTeacherToAssign] = useState("");
   const [selectedLearnerId, setSelectedLearnerId] = useState<string | null>(null);
@@ -105,7 +109,22 @@ export default function ClassroomsPage() {
       fetchClassrooms(currentSchoolId),
       fetchLearners(currentSchoolId),
       fetchTeachers(currentSchoolId),
+      fetchSchoolTemplateKeys(currentSchoolId),
     ]);
+  }
+
+  async function fetchSchoolTemplateKeys(currentSchoolId: number) {
+    const response = await authenticatedFetch(`/api/learner-requirements/defaults?school_id=${currentSchoolId}`);
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      alert(result.error || "Could not load the School Setup templates.");
+      return;
+    }
+    const allowed = ["0_2", "2_6", "babies", "toddlers", "grade_r"] as const;
+    const selected = Array.isArray(result.selected_template_keys)
+      ? result.selected_template_keys.filter((key: unknown): key is TemplateKey => allowed.includes(key as TemplateKey))
+      : ["0_2", "2_6"];
+    setSchoolTemplateKeys(selected);
   }
 
   async function fetchClassrooms(currentSchoolId: number) {
@@ -170,6 +189,7 @@ export default function ClassroomsPage() {
   }
 
   function getRecommendedTemplates(ageGroups: string[]): TemplateKey[] {
+    if (schoolTemplateKeys.length) return schoolTemplateKeys;
     const hasZeroToTwo = ageGroups.some(
       (group) => group === "0-1 Years" || group === "1-2 Years"
     );
@@ -193,9 +213,7 @@ export default function ClassroomsPage() {
     if (keys.length === 0) return "No template assigned";
 
     return keys
-      .map((key) =>
-        key === "0_2" ? "0-2 Years Template" : "2-6 Years Template"
-      )
+      .map((key) => templateOptions.find((option) => option.key === key)?.label || key)
       .join(" + ");
   }
 
@@ -223,7 +241,7 @@ export default function ClassroomsPage() {
     const currentAgeGroups = room.age_groups || [];
     const currentTemplates =
       room.stationery_templates && room.stationery_templates.length > 0
-        ? room.stationery_templates
+        ? room.stationery_templates.filter((key) => schoolTemplateKeys.includes(key))
         : getRecommendedTemplates(currentAgeGroups);
 
     setEditingId(room.id);
@@ -696,7 +714,7 @@ export default function ClassroomsPage() {
                     <strong>Manual Template Selection</strong>
 
                     <div style={templateCheckboxGrid}>
-                      {templateOptions.map((template) => (
+                      {templateOptions.filter((template) => schoolTemplateKeys.includes(template.key)).map((template) => (
                         <label key={template.key} style={checkboxLabel}>
                           <input
                             type="checkbox"

@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const authorization = await requireStaffPermission(request, PERMISSIONS.REQUIREMENTS_VIEW, schoolId);
   if (!authorization.ok) return authorization.response;
 
-  const [{ data: requirementTemplates, error: requirementsError }, { data: documentRequirements, error: documentsError }] = await Promise.all([
+  const [{ data: requirementTemplates, error: requirementsError }, { data: documentRequirements, error: documentsError }, { data: configuration, error: configurationError }] = await Promise.all([
     supabaseAdmin
       .from("school_enrolment_requirement_templates")
       .select("id, template_key, item_name, quantity, category, is_active")
@@ -23,11 +23,20 @@ export async function GET(request: Request) {
       .eq("school_id", schoolId)
       .eq("is_active", true)
       .order("display_order", { ascending: true }),
+    supabaseAdmin
+      .from("school_enrolment_configurations")
+      .select("requirement_template_keys")
+      .eq("school_id", schoolId)
+      .maybeSingle(),
   ]);
 
-  if (requirementsError || documentsError) {
-    return NextResponse.json({ error: requirementsError?.message || documentsError?.message || "Requirements could not be loaded." }, { status: 400 });
+  if (requirementsError || documentsError || configurationError) {
+    return NextResponse.json({ error: requirementsError?.message || documentsError?.message || configurationError?.message || "Requirements could not be loaded." }, { status: 400 });
   }
 
-  return NextResponse.json({ requirement_templates: requirementTemplates || [], document_requirements: documentRequirements || [] });
+  const validKeys = new Set(["0_2", "2_6", "babies", "toddlers", "grade_r"]);
+  const selectedTemplateKeys = Array.isArray(configuration?.requirement_template_keys)
+    ? configuration.requirement_template_keys.filter((key): key is string => validKeys.has(String(key)))
+    : ["0_2", "2_6"];
+  return NextResponse.json({ requirement_templates: (requirementTemplates || []).filter((item) => selectedTemplateKeys.includes(item.template_key)), document_requirements: documentRequirements || [], selected_template_keys: selectedTemplateKeys });
 }

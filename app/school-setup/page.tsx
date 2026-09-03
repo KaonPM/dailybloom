@@ -41,6 +41,17 @@ type ConsentItem = { id: string; title: string; wording: string; is_required: bo
 type TermItem = { id: string; title: string; content: string; is_active: boolean; display_order: number };
 const emptyUniversalConfiguration: UniversalEnrolmentConfiguration = { form_title: "Enrolment Form", introduction: "", is_open: true, second_guardian_mode: "optional", emergency_contact_mode: "required", previous_school_enabled: true, additional_declaration: "", custom_fields: [], requirement_template_keys: ["0_2", "2_6"] };
 
+function templateAgeGuidance(templateKey: RequirementTemplateKey, category: RequirementCategory) {
+  if (templateKey === "0_2" || templateKey === "babies") {
+    return category === "stationery"
+      ? "Babies do not normally need stationery. Choose the age, in months, from which this school requests stationery."
+      : "Choose the age range, in months, for which these hygiene items apply.";
+  }
+  if (templateKey === "toddlers") return "Choose the age range, in months, for which this toddlers list applies.";
+  if (templateKey === "grade_r") return "Choose the age range, in months, for which this Grade R list applies.";
+  return "Choose the age range, in months, for which this 2–6 years list applies.";
+}
+
 type SchoolFeeType = {
   id: number;
   fee_code: string;
@@ -83,6 +94,7 @@ export default function SchoolSetupPage() {
   const [newRequirementTemplate, setNewRequirementTemplate] = useState<{ category: "stationery" | "hygiene"; item_name: string; quantity: string; instructions: string; is_required: boolean }>({ category: "stationery", item_name: "", quantity: "", instructions: "", is_required: false });
   const [requirementAgeRanges, setRequirementAgeRanges] = useState<Record<string, { from: number; to: number }>>({ "0_2:stationery": { from: 6, to: 24 }, "0_2:hygiene": { from: 0, to: 24 }, "2_6:stationery": { from: 24, to: 72 }, "2_6:hygiene": { from: 24, to: 72 }, "babies:stationery": { from: 0, to: 24 }, "babies:hygiene": { from: 0, to: 24 }, "toddlers:stationery": { from: 24, to: 48 }, "toddlers:hygiene": { from: 24, to: 48 }, "grade_r:stationery": { from: 60, to: 84 }, "grade_r:hygiene": { from: 60, to: 84 } });
   const [savingRequirementTemplate, setSavingRequirementTemplate] = useState(false);
+  const [savingRequirementTemplateSelection, setSavingRequirementTemplateSelection] = useState(false);
   const [learnerRequirementsOpen, setLearnerRequirementsOpen] = useState(false);
   const [newDocumentRequirement, setNewDocumentRequirement] = useState({ title: "", instructions: "", is_required: false });
   const [savingDocumentRequirement, setSavingDocumentRequirement] = useState(false);
@@ -317,6 +329,29 @@ export default function SchoolSetupPage() {
     finally { setSavingUniversalConfiguration(false); }
   }
 
+  async function setRequirementTemplateApplied(templateKey: RequirementTemplateKey, applies: boolean) {
+    if (!schoolId || savingRequirementTemplateSelection) return;
+    const selected = universalConfiguration.requirement_template_keys || ["0_2", "2_6"];
+    const requirement_template_keys = applies
+      ? [...new Set([...selected, templateKey])]
+      : selected.filter((item) => item !== templateKey);
+    const nextConfiguration = { ...universalConfiguration, requirement_template_keys };
+    setUniversalConfiguration(nextConfiguration);
+    setSavingRequirementTemplateSelection(true); setError(""); setMessage("");
+    try {
+      const response = await authenticatedFetch("/api/school-setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_universal_enrolment_configuration", school_id: schoolId, ...nextConfiguration }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "The template selection could not be saved.");
+      setUniversalConfiguration({ ...emptyUniversalConfiguration, ...body.enrolment_configuration });
+      setMessage(`${applies ? "Applied" : "Removed"} learner-requirement template for this school.`);
+    } catch (saveError) {
+      setUniversalConfiguration(universalConfiguration);
+      setError(saveError instanceof Error ? saveError.message : "The template selection could not be saved.");
+    } finally {
+      setSavingRequirementTemplateSelection(false);
+    }
+  }
+
   async function saveDocumentRequirement(requirement: typeof newDocumentRequirement | DocumentRequirement = newDocumentRequirement) {
     if (!schoolId || !requirement.title.trim()) { setError("Enter a learner document name."); return; }
     setSavingDocumentRequirement(true); setError("");
@@ -360,7 +395,8 @@ export default function SchoolSetupPage() {
     const body = await response.json();
     if (!response.ok) { setError(body.error || "The starting age could not be saved."); return; }
     setRequirementTemplates((current) => current.map((item) => item.template_key === templateKey && item.category === category ? { ...item, available_from_months: body.available_from_months, available_to_months: body.available_to_months } : item));
-    setMessage(`${templateKey === "0_2" ? "0–2" : "2–6"} ${category} age range saved.`);
+    const label = templateKey === "0_2" ? "0–2" : templateKey === "2_6" ? "2–6" : templateKey === "babies" ? "Babies" : templateKey === "toddlers" ? "Toddlers" : "Grade R";
+    setMessage(`${label} ${category} age range saved.`);
   }
 
   async function deleteSetupItem(kind: "document" | "requirement", id: string) {
@@ -570,22 +606,29 @@ export default function SchoolSetupPage() {
       </CollapsibleSetupSection>
       <CollapsibleSetupSection
         title="Default Learner Requirements"
-        description="The school-wide stationery and hygiene list used for enrolment. Add, edit, deactivate or delete items here; track received items on Learner Requirements Tracking."
+        description="Choose the learner-requirement lists that apply to this school, then add, edit, deactivate or delete their items. The selected lists are used for enrolment, classrooms and learner-requirements tracking."
         isOpen={learnerRequirementsOpen}
         onToggle={() => setLearnerRequirementsOpen((current) => !current)}
         tone="yellow"
       >
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+        <div style={{ display: "grid", gap: 12 }}>
         {(["0_2", "2_6", "babies", "toddlers", "grade_r"] as RequirementTemplateKey[]).map((templateKey) => {
           const templateItems = requirementTemplates.filter((item) => item.template_key === templateKey);
           const templateLabel = templateKey === "0_2" ? "0–2 Years Template" : templateKey === "2_6" ? "2–6 Years Template" : templateKey === "babies" ? "Babies Template" : templateKey === "toddlers" ? "Toddlers Template" : "Grade R Template";
-          return <details key={templateKey} className="db-soft-card" style={{ padding: 12 }}>
-            <summary style={{ cursor: "pointer", fontWeight: 800 }}>{templateLabel} ({templateItems.filter((item) => item.is_active).length} active items)</summary>
+          const appliesToSchool = (universalConfiguration.requirement_template_keys || ["0_2", "2_6"]).includes(templateKey);
+          return <section key={templateKey} className="db-soft-card" style={{ padding: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <strong>{templateLabel} <span className="db-helper">({templateItems.filter((item) => item.is_active).length} active items)</span></strong>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontWeight: 700 }}><input type="checkbox" checked={appliesToSchool} disabled={savingRequirementTemplateSelection} onChange={(event) => void setRequirementTemplateApplied(templateKey, event.target.checked)} /> Apply to school</label>
+            </div>
+            <details style={{ marginTop: 10 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 700 }}>Manage template items</summary>
             <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-              {(["stationery", "hygiene"] as const).map((category) => { const categoryItems = templateItems.filter((item) => item.category === category); const rangeKey = `${templateKey}:${category}`; const range = requirementAgeRanges[rangeKey]; return <section key={category} style={{ display: "grid", gap: 8 }}><h4 style={{ margin: "6px 0 0", textTransform: "capitalize" }}>{category} ({categoryItems.length})</h4>{templateKey === "0_2" ? <div className="db-soft-card" style={{ padding: 10 }}><strong style={{ textTransform: "capitalize" }}>{category} age disclaimer</strong><p className="db-helper" style={{ margin: "4px 0 8px" }}>{category === "stationery" ? "Babies do not normally need stationery. The school can request it from 6 months or another selected age." : "Choose the 0–2 age range for which hygiene items apply."}</p><span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><label>From <input className="db-input" style={{ width: 90 }} type="number" min={0} max={24} value={range.from} onChange={(event) => setRequirementAgeRanges((current) => ({ ...current, [rangeKey]: { ...range, from: Number(event.target.value) } }))} /> months</label><label>To <input className="db-input" style={{ width: 90 }} type="number" min={0} max={24} value={range.to} onChange={(event) => setRequirementAgeRanges((current) => ({ ...current, [rangeKey]: { ...range, to: Number(event.target.value) } }))} /> months</label><button className="db-button-secondary" type="button" onClick={() => void saveRequirementAgeRange(templateKey, category)}>Save age range</button></span></div> : null}{categoryItems.length ? categoryItems.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.item_name}</strong><br /><small className="db-helper">{item.quantity ? `Required quantity: ${item.quantity}` : "No quantity"} {item.is_required ? "· Required" : ""} {!item.is_active ? "· Inactive" : ""}</small></span><span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="db-collapse-action" type="button" onClick={() => void editRequirementTemplate(item)}>Edit</button>{item.is_active ? <button className="db-collapse-action" type="button" onClick={() => void archiveRequirementTemplate(item.id)}>Deactivate</button> : <button className="db-collapse-action" type="button" onClick={() => void saveRequirementTemplate({ ...item, is_active: true })}>Activate</button>}<button className="db-collapse-action" type="button" onClick={() => void deleteSetupItem("requirement", item.id)}>Delete</button></span></div>) : <p className="db-helper" style={{ margin: 0 }}>No {category} items in this template yet.</p>}</section>; })}
+              {(["stationery", "hygiene"] as const).map((category) => { const categoryItems = templateItems.filter((item) => item.category === category); const rangeKey = `${templateKey}:${category}`; const range = requirementAgeRanges[rangeKey]; return <section key={category} style={{ display: "grid", gap: 8 }}><h4 style={{ margin: "6px 0 0", textTransform: "capitalize" }}>{category} ({categoryItems.length})</h4><div className="db-soft-card" style={{ padding: 10 }}><strong style={{ textTransform: "capitalize" }}>{category} age range</strong><p className="db-helper" style={{ margin: "4px 0 8px" }}>{templateAgeGuidance(templateKey, category)}</p><span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><label>From <input className="db-input" style={{ width: 90 }} type="number" min={0} max={84} value={range.from} onChange={(event) => setRequirementAgeRanges((current) => ({ ...current, [rangeKey]: { ...range, from: Number(event.target.value) } }))} /> months</label><label>To <input className="db-input" style={{ width: 90 }} type="number" min={0} max={84} value={range.to} onChange={(event) => setRequirementAgeRanges((current) => ({ ...current, [rangeKey]: { ...range, to: Number(event.target.value) } }))} /> months</label><button className="db-button-secondary" type="button" onClick={() => void saveRequirementAgeRange(templateKey, category)}>Save age range</button></span></div>{categoryItems.length ? categoryItems.map((item) => <div className="db-soft-card" key={item.id} style={{ padding: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><span><strong>{item.item_name}</strong><br /><small className="db-helper">{item.quantity ? `Required quantity: ${item.quantity}` : "No quantity"} {item.is_required ? "· Required" : ""} {!item.is_active ? "· Inactive" : ""}</small></span><span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="db-collapse-action" type="button" onClick={() => void editRequirementTemplate(item)}>Edit</button>{item.is_active ? <button className="db-collapse-action" type="button" onClick={() => void archiveRequirementTemplate(item.id)}>Deactivate</button> : <button className="db-collapse-action" type="button" onClick={() => void saveRequirementTemplate({ ...item, is_active: true })}>Activate</button>}<button className="db-collapse-action" type="button" onClick={() => void deleteSetupItem("requirement", item.id)}>Delete</button></span></div>) : <p className="db-helper" style={{ margin: 0 }}>No {category} items in this template yet.</p>}</section>; })}
               <div style={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr) 110px auto", gap: 10, alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Category</span><select className="db-input" value={newRequirementTemplate.category} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, category: event.target.value as "stationery" | "hygiene" })}><option value="stationery">Stationery</option><option value="hygiene">Hygiene</option></select></label><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Item</span><input className="db-input" value={newRequirementTemplate.item_name} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, item_name: event.target.value })} /></label><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Quantity</span><input className="db-input" value={newRequirementTemplate.quantity} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, quantity: event.target.value })} /></label><div style={{ display: "grid", gap: 7 }}><label><input type="checkbox" checked={newRequirementTemplate.is_required} onChange={(event) => setNewRequirementTemplate({ ...newRequirementTemplate, is_required: event.target.checked })} /> Required</label><button className="db-button-primary" type="button" disabled={savingRequirementTemplate} onClick={() => void saveRequirementTemplate(newRequirementTemplate, templateKey)}>{savingRequirementTemplate ? "Saving..." : `Add to ${templateLabel}`}</button></div></div>
             </div>
-          </details>;
+            </details>
+          </section>;
         })}
         </div>
       </CollapsibleSetupSection>
@@ -615,11 +658,7 @@ export default function SchoolSetupPage() {
         </div>
         <label style={{ display: "grid", gap: 7 }}><strong>Parent introduction</strong><textarea className="db-input" rows={3} value={universalConfiguration.introduction || ""} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, introduction: event.target.value })} /></label>
         <label style={{ display: "grid", gap: 7 }}><strong>Additional declaration <span className="db-helper">(optional)</span></strong><textarea className="db-input" rows={3} value={universalConfiguration.additional_declaration || ""} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, additional_declaration: event.target.value })} /></label>
-        <div className="db-soft-card" style={{ padding: 12, display: "grid", gap: 8 }}>
-          <strong>Learner requirement lists on this form</strong>
-          <p className="db-helper" style={{ margin: 0 }}>Choose the editable lists parents should receive. Untick a list to leave it out of this form; its items remain available to customise in Default Learner Requirements.</p>
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{(["0_2", "2_6", "babies", "toddlers", "grade_r"] as RequirementTemplateKey[]).map((key) => { const label = key === "0_2" ? "0–2 Years" : key === "2_6" ? "2–6 Years" : key === "babies" ? "Babies" : key === "toddlers" ? "Toddlers" : "Grade R"; const selected = universalConfiguration.requirement_template_keys || ["0_2", "2_6"]; return <label key={key}><input type="checkbox" checked={selected.includes(key)} onChange={(event) => setUniversalConfiguration({ ...universalConfiguration, requirement_template_keys: event.target.checked ? [...new Set([...selected, key])] : selected.filter((item) => item !== key) })} /> {label}</label>; })}</div>
-        </div>
+        <p className="db-helper" style={{ margin: 0 }}>Learner-requirement lists are selected under Default Learner Requirements.</p>
         <details style={{ display: "grid", gap: 10 }}>
           <summary style={{ cursor: "pointer", fontWeight: 700 }}>Custom parent questions ({universalConfiguration.custom_fields?.length || 0})</summary>
           <p className="db-helper" style={{ margin: 0 }}>Add only the school-specific questions that are not already collected in the main enrolment form.</p>

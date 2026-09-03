@@ -14,7 +14,7 @@ import {
   STANDARD_LEARNER_DOCUMENTS,
 } from "../lib/learner-documents";
 
-type TemplateKey = "0_2" | "2_6";
+type TemplateKey = "0_2" | "2_6" | "babies" | "toddlers" | "grade_r";
 
 type LearnerRow = {
   id: string;
@@ -626,9 +626,7 @@ export default function LearnerRequirementsPage() {
     assignedTemplateKeys.length === 0
       ? "No template assigned"
       : assignedTemplateKeys
-          .map((key) =>
-            key === "0_2" ? "0-2 Years Template" : "2-6 Years Template"
-          )
+          .map((key) => key === "0_2" ? "0-2 Years Template" : key === "2_6" ? "2-6 Years Template" : key === "babies" ? "Babies Template" : key === "toddlers" ? "Toddlers Template" : "Grade R Template")
           .join(" + ");
 
   const stationeryRequirements = selectedClassRequirements.filter(

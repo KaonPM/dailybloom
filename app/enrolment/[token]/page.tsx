@@ -47,6 +47,7 @@ type FormInfo = {
   initial_declaration_name?: string;
   initial_declaration_relationship?: string;
   initial_uploaded_documents?: Record<string, { name: string; path: string }>;
+  initial_purchased_requirement_items?: Record<string, boolean>;
   initial_requested_recurring_addon_ids?: number[];
   initial_selected_monthly_fee_id?: number | null;
   draft_saved_at?: string | null;
@@ -119,6 +120,7 @@ export default function SecureEnrolmentFormPage() {
   const [declarationName, setDeclarationName] = useState("");
   const [declarationRelationship, setDeclarationRelationship] = useState("");
   const [documentUploads, setDocumentUploads] = useState<Record<string, { name: string; path: string }>>({});
+  const [purchasedRequirementItems, setPurchasedRequirementItems] = useState<Record<string, boolean>>({});
   const [requestedRecurringAddonIds, setRequestedRecurringAddonIds] = useState<number[]>([]);
   const [selectedMonthlyFeeId, setSelectedMonthlyFeeId] = useState<number | null>(null);
   const [uploadingDocument, setUploadingDocument] = useState("");
@@ -206,6 +208,7 @@ export default function SecureEnrolmentFormPage() {
       setDeclarationName(body.initial_declaration_name || "");
       setDeclarationRelationship(body.initial_declaration_relationship || "");
       setDocumentUploads(body.initial_uploaded_documents || {});
+      setPurchasedRequirementItems(body.initial_purchased_requirement_items || {});
       setRequestedRecurringAddonIds(Array.isArray(body.initial_requested_recurring_addon_ids) ? body.initial_requested_recurring_addon_ids.map(Number).filter(Number.isInteger) : []);
       setSelectedMonthlyFeeId(Number.isInteger(Number(body.initial_selected_monthly_fee_id)) ? Number(body.initial_selected_monthly_fee_id) : null);
       setDraftSavedAt(body.draft_saved_at || "");
@@ -234,6 +237,7 @@ export default function SecureEnrolmentFormPage() {
       ...fields,
       custom_answers: customAnswers,
       uploaded_documents: documentUploads,
+      purchased_requirement_items: purchasedRequirementItems,
       consent_responses: consentResponses,
       terms_accepted: termsAccepted,
       declaration_name: declarationName,
@@ -482,7 +486,7 @@ export default function SecureEnrolmentFormPage() {
               </div>
               <div>
                 <h3 style={{ margin: "0 0 10px" }}>Stationery and items to bring</h3>
-                {requirementTemplates.length ? <div style={{ display: "grid", gap: 10 }}>{(["0_2", "2_6", "babies", "toddlers", "grade_r"] as const).map((templateKey) => { const items = requirementTemplates.filter((item) => (item.template_key || "2_6") === templateKey); if (!items.length) return null; const label = templateKey === "0_2" ? "0–2 Years" : templateKey === "2_6" ? "2–6 Years" : templateKey === "babies" ? "Babies" : templateKey === "toddlers" ? "Toddlers" : "Grade R"; return <div key={templateKey} className="db-soft-card" style={{ padding: 10 }}><strong>{label} requirements</strong><div className="db-requirement-categories">{(["stationery", "hygiene"] as const).map((category) => { const categoryItems = items.filter((item) => item.category === category); if (!categoryItems.length) return null; const fromMonths = Math.min(...categoryItems.map((item) => item.available_from_months ?? (templateKey === "0_2" && category === "hygiene" ? 0 : templateKey === "0_2" ? 6 : templateKey === "babies" ? 0 : templateKey === "toddlers" ? 24 : templateKey === "grade_r" ? 60 : 24))); const toMonths = Math.max(...categoryItems.map((item) => item.available_to_months ?? (templateKey === "0_2" ? 24 : templateKey === "babies" ? 24 : templateKey === "toddlers" ? 48 : templateKey === "grade_r" ? 84 : 72))); return <div key={category} style={{ marginTop: 8 }}><strong style={{ textTransform: "capitalize" }}>{category}</strong><small className="db-helper" style={{ display: "block", marginTop: 2 }}>Age requirement: {fromMonths}–{toMonths} months</small><ul className="db-compact-list">{categoryItems.map((item) => <li key={`${templateKey}-${category}-${item.item_name}`}>{item.item_name}{item.quantity ? ` (${item.quantity})` : ""}</li>)}</ul></div>; })}</div></div>; })}</div> : legacyStationeryList.length ? <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>{legacyStationeryList.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="db-helper">The school has not added a stationery list yet.</p>}
+                {requirementTemplates.length ? <div style={{ display: "grid", gap: 10 }}>{(["0_2", "2_6", "babies", "toddlers", "grade_r"] as const).map((templateKey) => { const items = requirementTemplates.filter((item) => (item.template_key || "2_6") === templateKey); if (!items.length) return null; const label = templateKey === "0_2" ? "0–2 Years" : templateKey === "2_6" ? "2–6 Years" : templateKey === "babies" ? "Babies" : templateKey === "toddlers" ? "Toddlers" : "Grade R"; return <div key={templateKey} className="db-soft-card" style={{ padding: 10 }}><strong>{label} requirements</strong><div className="db-requirement-categories">{(["stationery", "hygiene"] as const).map((category) => { const categoryItems = items.filter((item) => item.category === category); if (!categoryItems.length) return null; const fromMonths = Math.min(...categoryItems.map((item) => item.available_from_months ?? (templateKey === "0_2" && category === "hygiene" ? 0 : templateKey === "0_2" ? 6 : templateKey === "babies" ? 0 : templateKey === "toddlers" ? 24 : templateKey === "grade_r" ? 60 : 24))); const toMonths = Math.max(...categoryItems.map((item) => item.available_to_months ?? (templateKey === "0_2" ? 24 : templateKey === "babies" ? 24 : templateKey === "toddlers" ? 48 : templateKey === "grade_r" ? 84 : 72))); return <div key={category} style={{ marginTop: 8 }}><strong style={{ textTransform: "capitalize" }}>{category}</strong><small className="db-helper" style={{ display: "block", marginTop: 2 }}>Age requirement: {fromMonths}–{toMonths} months</small><ul className="db-compact-list">{categoryItems.map((item) => { const itemKey = `${templateKey}|${category}|${item.item_name}`; return <li key={itemKey}><label style={{ display: "flex", gap: 8, alignItems: "center", cursor: isPreview ? "default" : "pointer" }}><input type="checkbox" checked={Boolean(purchasedRequirementItems[itemKey])} disabled={isPreview} onChange={(event) => setPurchasedRequirementItems((current) => ({ ...current, [itemKey]: event.target.checked }))} /><span>{item.item_name}{item.quantity ? ` (${item.quantity})` : ""}</span></label></li>; })}</ul></div>; })}</div></div>; })}</div> : legacyStationeryList.length ? <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>{legacyStationeryList.map((item) => <li key={item}>{item}</li>)}</ul> : <p className="db-helper">The school has not added a stationery list yet.</p>}
               </div>
             </div> : null}
             {step === 4 ? <div style={{ display: "grid", gap: 16 }}>

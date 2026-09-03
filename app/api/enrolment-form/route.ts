@@ -36,6 +36,10 @@ function selectedRequirementTemplateKeys(configuration: Record<string, unknown> 
   return keys;
 }
 
+function requirementItemKey(item: { template_key?: unknown; category?: unknown; item_name?: unknown }) {
+  return `${text(item.template_key, 20)}|${text(item.category, 20)}|${text(item.item_name, 180)}`;
+}
+
 const DRAFT_TEXT_FIELDS = {
   learner_first_name: 120,
   learner_surname: 120,
@@ -155,6 +159,7 @@ function buildDraftData(body: Record<string, unknown>, enquiry: { school_id: num
     declaration_name: text(body.declaration_name || declaration.name, 180),
     declaration_relationship: text(body.declaration_relationship || declaration.relationship, 80),
     uploaded_documents: safeDraftDocuments(body.uploaded_documents, enquiry),
+    purchased_requirement_items: draftBooleanMap(body.purchased_requirement_items),
     requested_recurring_addon_ids: Array.isArray(body.requested_recurring_addon_ids)
       ? body.requested_recurring_addon_ids.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0).slice(0, 20)
       : [],
@@ -324,6 +329,7 @@ export async function GET(request: Request) {
     initial_declaration_name: text(initialValues.declaration_name || declaration.name, 180),
     initial_declaration_relationship: text(initialValues.declaration_relationship || declaration.relationship, 80),
     initial_uploaded_documents: safeDraftDocuments(initialValues.uploaded_documents, enquiry),
+    initial_purchased_requirement_items: draftBooleanMap(initialValues.purchased_requirement_items),
     initial_requested_recurring_addon_ids: Array.isArray(initialValues.requested_recurring_addon_ids) ? initialValues.requested_recurring_addon_ids.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0) : [],
     initial_selected_monthly_fee_id: Number.isInteger(Number(initialValues.selected_monthly_fee_id)) ? Number(initialValues.selected_monthly_fee_id) : null,
     draft_saved_at: text(initialValues._draft_saved_at, 50) || null,
@@ -400,6 +406,7 @@ export async function POST(request: Request) {
     supabaseAdmin.from("school_fee_types").select("id, fee_code, fee_name, fee_category, amount").eq("school_id", enquiry.school_id).eq("is_active", true),
   ]);
   const presentedTerms = termsWithConfiguredFees(terms as EnrolmentTerm[] | null, fees);
+  const selectedRequirements = (requirements || []).filter((item) => selectedRequirementTemplateKeys(configuration).includes(String(item.template_key)));
   const monthlyFees = (fees || []).filter((fee) => fee.fee_category === "monthly");
   const selectedMonthlyFeeId = Number(body.selected_monthly_fee_id);
   if (monthlyFees.length > 1 && !monthlyFees.some((fee) => Number(fee.id) === selectedMonthlyFeeId)) {
@@ -505,6 +512,7 @@ export async function POST(request: Request) {
     terms_accepted: body.terms_accepted === true,
     declaration: { statement: configuration?.additional_declaration || DEFAULT_PARENT_DECLARATION, name: declarationName, relationship: declarationRelationship, acknowledged_at: new Date().toISOString() },
     uploaded_documents: documents,
+    purchased_requirement_items: Object.fromEntries(Object.entries(draftBooleanMap(body.purchased_requirement_items)).filter(([key, purchased]) => purchased && selectedRequirements.some((item) => requirementItemKey(item) === key))),
     requested_recurring_addon_ids: Array.isArray(body.requested_recurring_addon_ids)
       ? body.requested_recurring_addon_ids.map((item: unknown) => Number(item)).filter((item: number) => Number.isInteger(item) && item > 0 && (fees || []).some((fee) => Number((fee as { id?: unknown }).id) === item && (fee as { fee_category?: unknown }).fee_category === "recurring_addon")).slice(0, 20)
       : [],
@@ -516,7 +524,7 @@ export async function POST(request: Request) {
     .update({
       status: "submitted",
       submitted_data: submittedData,
-      configuration_snapshot: { configuration: configuration || {}, documents: configuredDocuments || [], requirements: (requirements || []).filter((item) => selectedRequirementTemplateKeys(configuration).includes(String(item.template_key))), consents: consents || [], terms: presentedTerms },
+      configuration_snapshot: { configuration: configuration || {}, documents: configuredDocuments || [], requirements: selectedRequirements, consents: consents || [], terms: presentedTerms },
       submitted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       form_access_session_hash: null,

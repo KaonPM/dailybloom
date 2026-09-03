@@ -50,6 +50,9 @@ export default function TeacherAttendancePage() {
   const schoolParam = searchParams.get("school");
 
   const today = getLocalDateString();
+  const earliestCaptureDate = new Date(Date.now() - 13 * 86400000)
+    .toISOString()
+    .split("T")[0];
 
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
@@ -372,7 +375,7 @@ export default function TeacherAttendancePage() {
           type="date"
           className="db-input"
           value={attendanceDate}
-          min={new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)}
+          min={earliestCaptureDate}
           max={today}
           onChange={async (event) => {
             const date = event.target.value;
@@ -382,7 +385,7 @@ export default function TeacherAttendancePage() {
           }}
         />
         <p className="db-helper" style={{ marginBottom: 0 }}>
-          You can capture practitioner attendance for the previous 7 days. Records remain attached to the selected date.
+          You can capture practitioner attendance for the latest 14 calendar days. Records remain attached to the selected date, so as many historical registers as needed can be completed one date after another.
         </p>
       </div>
 

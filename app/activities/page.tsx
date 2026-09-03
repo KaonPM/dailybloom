@@ -60,6 +60,9 @@ export default function ActivitiesPage() {
   const hasFocusedActivityDayView = Boolean(requestedDate);
 
   const today = new Date().toISOString().split("T")[0];
+  const earliestCaptureDate = new Date(Date.now() - 13 * 86400000)
+    .toISOString()
+    .split("T")[0];
 
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [role, setRole] = useState("");
@@ -237,7 +240,8 @@ export default function ActivitiesPage() {
   async function fetchActivities(
     currentSchoolId: number,
     currentRole = role,
-    teacherClass = classroomName
+    teacherClass = classroomName,
+    captureDate = requestedDate
   ) {
     const roleLower = currentRole.toLowerCase();
 
@@ -248,8 +252,8 @@ export default function ActivitiesPage() {
       .order("activity_date", { ascending: true })
       .order("created_at", { ascending: true });
 
-    if (requestedDate) {
-      query = query.eq("activity_date", requestedDate);
+    if (captureDate) {
+      query = query.eq("activity_date", captureDate);
     } else {
       query = query.gte("activity_date", today);
     }
@@ -459,7 +463,6 @@ export default function ActivitiesPage() {
       return;
     }
 
-    setActivityDate(today);
     setDevelopmentalArea("");
     setSelectedLibraryId("");
     setDescription("");
@@ -467,7 +470,7 @@ export default function ActivitiesPage() {
     setSupportLearnerIds([]);
     setSupportNotes("");
 
-    await fetchActivities(schoolId);
+    await fetchActivities(schoolId, role, classroomName, activityDate);
 
     setSavingActivity(false);
     alert(repeatCount > 1 ? "Weekly activities saved." : "Activity saved.");
@@ -642,8 +645,12 @@ export default function ActivitiesPage() {
 
       <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
         <h3 style={sectionTitle}>
-          {isTeacher ? "Capture Daily Activity" : "Capture Activity for a Class"}
+          {isTeacher ? "Capture Classroom Activity" : "Capture Activity for a Class"}
         </h3>
+
+        <p className="db-helper" style={{ marginTop: 0 }}>
+          Select a date from the latest 14 calendar days to complete historical activities. After saving, the selected date stays in place so you can capture the next activity for that day.
+        </p>
 
         <div style={grid2}>
           <div>
@@ -652,6 +659,8 @@ export default function ActivitiesPage() {
               type="date"
               className="db-input"
               value={activityDate}
+              min={earliestCaptureDate}
+              max={today}
               onChange={(e) => setActivityDate(e.target.value)}
             />
           </div>

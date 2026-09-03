@@ -31,6 +31,9 @@ type AttendanceRow = {
 
 export default function AttendancePage() {
   const today = new Date().toISOString().split("T")[0];
+  const earliestCaptureDate = new Date(Date.now() - 13 * 86400000)
+    .toISOString()
+    .split("T")[0];
 
   const [allLearners, setAllLearners] = useState<Learner[]>([]);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
@@ -498,7 +501,7 @@ export default function AttendancePage() {
             type="date"
             className="db-input"
             value={attendanceDate}
-            min={new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)}
+            min={earliestCaptureDate}
             max={today}
             onChange={(event) => {
               setAttendanceDate(event.target.value);
@@ -519,7 +522,7 @@ export default function AttendancePage() {
           ) : null}
         </div>
         <p className="db-helper" style={{ marginBottom: 0 }}>
-          You can capture the previous 7 days. This keeps the selected attendance date on reports; it is never treated as an absence while it is still unrecorded.
+          You can capture attendance for the latest 14 calendar days. The selected date stays attached to reports and is never treated as an absence while it is still unrecorded, so as many historical registers as needed can be completed one date after another.
         </p>
       </div>
 

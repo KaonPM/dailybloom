@@ -11,6 +11,23 @@ function text(value: unknown, max = 300) {
   return String(value || "").trim().slice(0, max);
 }
 
+function learnerAgeOnDate(dateOfBirth: string, onDate: Date) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOfBirth);
+  if (!match) return null;
+  const birthYear = Number(match[1]);
+  const birthMonth = Number(match[2]);
+  const birthDay = Number(match[3]);
+  if (!Number.isInteger(birthYear) || birthMonth < 1 || birthMonth > 12 || birthDay < 1 || birthDay > 31) return null;
+  return onDate.getFullYear() - birthYear - (onDate.getMonth() + 1 < birthMonth || (onDate.getMonth() + 1 === birthMonth && onDate.getDate() < birthDay) ? 1 : 0);
+}
+
+function classroomAcceptsLearnerAge(ageGroups: unknown, age: number) {
+  return Array.isArray(ageGroups) && ageGroups.some((group) => {
+    const match = /^(\d+)\s*-\s*(\d+)\s*years?$/i.exec(String(group || "").trim());
+    return Boolean(match && age >= Number(match[1]) && age <= Number(match[2]));
+  });
+}
+
 function publicAppOrigin(request: Request) {
   const configured = text(process.env.NEXT_PUBLIC_APP_URL, 500).replace(/\/+$/, "");
   if (configured) {
@@ -278,7 +295,7 @@ export async function POST(request: Request) {
   if (!enquiryId) return NextResponse.json({ error: "Choose an enrolment enquiry." }, { status: 400 });
   const { data: enquiry, error: enquiryError } = await supabaseAdmin
     .from("school_enrolment_enquiries")
-    .select("id, parent_name, parent_phone, enquiry_reference, registration_fee_amount, registration_payment_status, registration_payment_reference, registration_payment_verified_at, status, academic_year, learner_id, submitted_data, school_enrolment_forms(form_name), schools(school_name)")
+    .select("id, parent_name, parent_phone, enquiry_reference, registration_fee_amount, registration_payment_status, registration_payment_reference, registration_payment_verified_at, status, enrolment_source, academic_year, learner_id, submitted_data, school_enrolment_forms(form_name), schools(school_name)")
     .eq("id", enquiryId)
     .eq("school_id", schoolId)
     .maybeSingle();
@@ -377,14 +394,41 @@ export async function POST(request: Request) {
         ? await supabaseAdmin.from("school_fee_types").select("id, amount").eq("id", selectedMonthlyFeeId).eq("school_id", schoolId).eq("fee_category", "monthly").eq("is_active", true).maybeSingle()
         : { data: null, error: null };
       if (selectedMonthlyFeeError) return NextResponse.json({ error: selectedMonthlyFeeError.message }, { status: 500 });
+      const academicYear = Number(enquiry.academic_year);
+      const isCurrentYearManualCapture = academicYear === new Date().getFullYear()
+        && ["printed_blank_form", "paper_manual_capture"].includes(String(enquiry.enrolment_source));
+      let ageMatchedClassroom: { id: number; classroom_name: string } | null = null;
+
+      if (isCurrentYearManualCapture) {
+        const learnerAge = learnerAgeOnDate(text(submitted.date_of_birth, 10), new Date());
+        if (learnerAge !== null) {
+          const [classroomResult, placementResult] = await Promise.all([
+            supabaseAdmin.from("classrooms").select("id, classroom_name, age_groups").eq("school_id", schoolId).order("id"),
+            supabaseAdmin.from("learner_placements").select("classroom_id").eq("school_id", schoolId).eq("academic_year", academicYear).not("classroom_id", "is", null),
+          ]);
+          const allocationError = classroomResult.error || placementResult.error;
+          if (allocationError) return NextResponse.json({ error: allocationError.message }, { status: 500 });
+          const classroomLoad = new Map<number, number>();
+          for (const placement of placementResult.data || []) {
+            const classroomId = Number(placement.classroom_id);
+            if (Number.isInteger(classroomId)) classroomLoad.set(classroomId, (classroomLoad.get(classroomId) || 0) + 1);
+          }
+          const matchingClassrooms = (classroomResult.data || []).filter((classroom) =>
+            classroomAcceptsLearnerAge(classroom.age_groups, learnerAge)
+          );
+          ageMatchedClassroom = matchingClassrooms.sort((left, right) =>
+            (classroomLoad.get(left.id) || 0) - (classroomLoad.get(right.id) || 0) || left.id - right.id
+          )[0] || null;
+        }
+      }
       learnerId = randomUUID();
       const { error: learnerError } = await supabaseAdmin.from("learners").insert({
         id: learnerId,
         school_id: schoolId,
         name: firstName,
         legal_name: `${firstName} ${surname}`.trim(),
-        class: "Waiting list",
-        classroom_id: null,
+        class: ageMatchedClassroom?.classroom_name || "Waiting list",
+        classroom_id: ageMatchedClassroom?.id || null,
         date_of_birth: text(submitted.date_of_birth, 10),
         gender: text(submitted.gender, 40) || null,
         birth_certificate_number: text(submitted.learner_id_or_birth_certificate, 120) || null,
@@ -410,7 +454,7 @@ export async function POST(request: Request) {
         monthly_fee: selectedMonthlyFee ? Number(selectedMonthlyFee.amount || 0) : 0,
       });
       if (learnerError) return NextResponse.json({ error: learnerError.message }, { status: learnerError.code === "23505" ? 409 : 500 });
-      const { error: placementError } = await supabaseAdmin.from("learner_placements").insert({ learner_id: learnerId, school_id: schoolId, academic_year: Number(enquiry.academic_year), classroom_id: null, placement_status: "pending" });
+      const { error: placementError } = await supabaseAdmin.from("learner_placements").insert({ learner_id: learnerId, school_id: schoolId, academic_year: academicYear, classroom_id: ageMatchedClassroom?.id || null, placement_status: ageMatchedClassroom ? "current" : "pending" });
       if (placementError) {
         await supabaseAdmin.from("learners").delete().eq("id", learnerId).eq("school_id", schoolId);
         return NextResponse.json({ error: placementError.message }, { status: 500 });
@@ -448,7 +492,7 @@ export async function POST(request: Request) {
       if (decision === "approved" && !enquiry.learner_id && learnerId) await supabaseAdmin.from("learners").delete().eq("id", learnerId).eq("school_id", schoolId);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    await writeSecurityAudit(authorization.staff, `enrolment.${decision}`, { school_id: schoolId, enquiry_id: enquiryId });
+    await writeSecurityAudit(authorization.staff, `enrolment.${decision}`, { school_id: schoolId, enquiry_id: enquiryId, learner_id: learnerId || null, classroom_allocation: decision === "approved" ? "age_matched_for_current_year_manual_capture" : null });
     return NextResponse.json({ success: true, learner_id: decision === "approved" ? learnerId : null });
   }
 

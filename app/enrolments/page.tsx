@@ -57,6 +57,7 @@ type Enquiry = {
   placement?: { academic_year: number; classroom_id: number | null; placement_status: "pending" | "future" | "current" | "completed"; classrooms?: { classroom_name?: string | null } | { classroom_name?: string | null }[] | null } | null;
 };
 type RecurringAddon = { id: number; fee_name: string; amount: number };
+type PlacementClassroom = { classroom_name?: string | null } | { classroom_name?: string | null }[] | null | undefined;
 
 
 type ShareDetails = {
@@ -68,6 +69,10 @@ type ShareDetails = {
 
 function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] || null : value || null;
+}
+
+function classroomName(value: PlacementClassroom) {
+  return first(value)?.classroom_name || "";
 }
 
 function formatMoney(value: number) {
@@ -256,7 +261,7 @@ export default function EnrolmentsPage() {
             ? `Secure form issued for ${enquiry.enquiry_reference}. DailyBloom will retry the WhatsApp delivery automatically.`
             : `Secure form issued for ${enquiry.enquiry_reference}, but WhatsApp could not be sent.`);
       } else if (action === "review") {
-        setMessage(extras.decision === "approved" ? "Enrolment approved. The learner profile was created and added to the academic-year waiting list." : "Enrolment declined and the reason was recorded.");
+        setMessage(extras.decision === "approved" ? "Enrolment approved. View any outstanding classroom placement in Awaiting Classroom Allocation." : "Enrolment declined and the reason was recorded.");
       } else if (action === "mark_paper_received") {
         setMessage(`Paper form received for ${enquiry.enquiry_reference}. You can now capture it into DailyBloom.`);
       } else if (action === "withdraw") {
@@ -318,7 +323,8 @@ export default function EnrolmentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schoolId, searchParams]);
 
-  const filteredEnquiries = enquiries.filter((enquiry) => `${enquiry.enquiry_reference} ${enquiry.parent_name} ${enquiry.parent_phone}`.toLowerCase().includes(pipelineSearch.trim().toLowerCase()));
+  const activeEnquiries = enquiries.filter((enquiry) => enquiry.status !== "approved");
+  const filteredEnquiries = activeEnquiries.filter((enquiry) => `${enquiry.enquiry_reference} ${enquiry.parent_name} ${enquiry.parent_phone}`.toLowerCase().includes(pipelineSearch.trim().toLowerCase()));
   const pipelinePageCount = Math.max(1, Math.ceil(filteredEnquiries.length / 10));
   const displayedEnquiries = filteredEnquiries.slice(pipelinePage * 10, pipelinePage * 10 + 10);
   return (
@@ -380,7 +386,7 @@ export default function EnrolmentsPage() {
 
       <section className="db-card db-card-lavender enrolment-pipeline-card" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", justifyContent: "stretch", gap: 14 }}>
         <div className="enrolment-pipeline-header" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
-          <div><h2 style={{ margin: 0 }}>Enrolment Pipeline</h2><p className="db-helper" style={{ marginBottom: 0 }}>{schoolName} · {enquiries.length} total enquiries</p></div>
+          <div><h2 style={{ margin: 0 }}>Enrolment Pipeline</h2><p className="db-helper" style={{ marginBottom: 0 }}>{schoolName} · {activeEnquiries.length} active enquiries</p></div>
           <button className="db-collapse-action db-section-toggle" style={{ width: 96 }} type="button" onClick={() => setPipelineOpen((current) => !current)} aria-expanded={pipelineOpen}>{pipelineOpen ? "Close" : "Open"} list</button>
         </div>
 
@@ -390,7 +396,7 @@ export default function EnrolmentsPage() {
             <button className="db-button-secondary" type="button" onClick={() => void loadPage()} disabled={loading}>{loading ? "Loading..." : "Refresh"}</button>
           </div>
         {loading ? <p className="db-helper">Loading enrolments...</p> : null}
-        {!loading && enquiries.length === 0 ? <div className="db-soft-card" style={{ padding: 16 }}>No enrolment enquiries have been created yet.</div> : null}
+        {!loading && activeEnquiries.length === 0 ? <div className="db-soft-card" style={{ padding: 16 }}>No active enrolment enquiries. Approved learners are managed in Awaiting Classroom Allocation.</div> : null}
         {!loading ? <div style={{ display: "grid", gap: 12 }}>
           {displayedEnquiries.map((enquiry) => {
             const form = first(enquiry.school_enrolment_forms);
@@ -457,7 +463,7 @@ export default function EnrolmentsPage() {
                   ) : <><>{Array.isArray(enquiry.submitted_data?.requested_recurring_addon_ids) && enquiry.submitted_data.requested_recurring_addon_ids.length ? <div className="db-soft-card" style={{ padding: 12 }}><strong>Requested monthly services</strong><p className="db-helper" style={{ margin: "5px 0 0" }}>{enquiry.submitted_data.requested_recurring_addon_ids.map((value) => recurringAddons.find((addon) => addon.id === Number(value))).filter(Boolean).map((addon) => `${addon?.fee_name} (${formatMoney(Number(addon?.amount || 0))}/month)`).join(" · ") || "Requested services are no longer active in School Fees."}</p><small className="db-helper">Approving confirms these services. They begin with the applicable monthly billing period.</small></div> : null}</><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button className="db-button-primary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "review", { decision: "approved" })}>{isWorking ? "Saving..." : "Approve Enrolment"}</button><button className="db-button-secondary" type="button" onClick={() => setDecliningId(enquiry.id)}>Decline with Reason</button><button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => { if (window.confirm(`Reopen ${enquiry.enquiry_reference} for parent editing? The previous link will remain closed and a new 72-hour link will be issued.`)) void runAction(enquiry, "reopen_form"); }}>Reopen &amp; Issue New Link</button></div></>
                 ) : null}
 
-                {enquiry.status === "approved" ? <div className="db-helper">Approved. The learner profile is linked to this reference and appears in the academic-year waiting list above{enquiry.placement?.classroom_id ? ", with its future classroom planned" : " until a classroom is selected"}.</div> : null}
+                {enquiry.status === "approved" ? <div className="db-helper">Approved. The learner profile is linked to this reference{enquiry.placement?.classroom_id ? ` and is allocated to ${classroomName(enquiry.placement.classrooms) || "the age-matched classroom"}` : ", and remains in the academic-year waiting list until a classroom is selected"}.</div> : null}
                 {enquiry.enrolment_source === "printed_blank_form" ? <Link className="db-button-secondary" href={`/enrolments/print/${enquiry.id}${schoolQuery}`}>Print / Reprint Blank Form</Link> : null}
                 {["printed_blank_form", "paper_manual_capture"].includes(enquiry.enrolment_source || "") && !enquiry.paper_received_at ? <button className="db-button-secondary" type="button" disabled={isWorking} onClick={() => void runAction(enquiry, "mark_paper_received")}>Mark Paper Form Received</button> : null}
                 {enquiry.paper_received_at && enquiry.status !== "submitted" ? <div className="db-helper" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}><span>Paper received {formatDate(enquiry.paper_received_at)}. Capture it against this existing reference before approval.</span><Link className="db-button-primary" href={`/enrolment/staff?staff_capture_id=${encodeURIComponent(enquiry.id)}&school_id=${schoolId}`}>Capture Returned Form</Link></div> : null}

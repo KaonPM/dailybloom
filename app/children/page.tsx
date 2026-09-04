@@ -1007,7 +1007,7 @@ export default function LearnersPage() {
               <button type="button" className="db-button-secondary" onClick={() => setReferenceCaptureOpen((current) => !current)}>
                 Capture Form by Reference
               </button>
-              {showForm ? <button type="button" className="db-button-primary" onClick={() => { resetForm(); setShowForm(false); }}>Close</button> : <Link className="db-button-primary" href={`/enrolments${schoolId ? `?school=${schoolId}&action=add` : "?action=add"}`} target="_blank" rel="noopener noreferrer">+ Add Learner</Link>}
+              {showForm ? <button type="button" className="db-button-primary" onClick={() => { resetForm(); setShowForm(false); }}>Close</button> : <Link className="db-button-primary" href={`/enrolments${schoolId ? `?school=${schoolId}&action=add` : "?action=add"}`}>+ Add Learner</Link>}
             </div>
           ) : null}
         </div>

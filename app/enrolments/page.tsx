@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 import { resolveSchoolContext } from "@/app/lib/school-context";
@@ -141,7 +141,6 @@ export default function EnrolmentsPage() {
   const [manualSource, setManualSource] = useState<"paper_manual_capture" | "printed_blank_form" | null>(() => searchParams.get("action") === "add" ? "paper_manual_capture" : null);
   const [manualYear, setManualYear] = useState(new Date().getFullYear());
   const [startingManual, setStartingManual] = useState(false);
-  const directAddStarted = useRef(false);
 
   const schoolQuery = useMemo(() => {
     const school = searchParams.get("school");
@@ -295,10 +294,8 @@ export default function EnrolmentsPage() {
     }
   }
 
-  async function startManualApplication(openInNewTab = false) {
+  async function startManualApplication() {
     if (!schoolId || !manualSource) return;
-    const captureWindow = openInNewTab && manualSource !== "printed_blank_form" ? window.open("", "_blank") : null;
-    if (captureWindow) captureWindow.opener = null;
     setStartingManual(true); setError(""); setMessage("");
     try {
       const response = await authenticatedFetch("/api/enrolments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start_manual_application", school_id: schoolId, enrolment_source: manualSource, academic_year: manualYear }) });
@@ -309,19 +306,10 @@ export default function EnrolmentsPage() {
         return;
       }
       const captureUrl = `/enrolment/staff?staff_capture_id=${encodeURIComponent(body.enquiry.id)}&school_id=${schoolId}`;
-      if (captureWindow) captureWindow.location.href = captureUrl;
-      else router.push(captureUrl);
+      router.push(captureUrl);
       return;
-    } catch (startError) { captureWindow?.close(); setError(startError instanceof Error ? startError.message : "Could not start the enrolment."); } finally { setStartingManual(false); }
+    } catch (startError) { setError(startError instanceof Error ? startError.message : "Could not start the enrolment."); } finally { setStartingManual(false); }
   }
-
-  useEffect(() => {
-    if (searchParams.get("action") !== "add" || !schoolId || directAddStarted.current) return;
-    directAddStarted.current = true;
-    void startManualApplication();
-    // The direct Add Learner action should run once after the school context is available.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolId, searchParams]);
 
   const activeEnquiries = enquiries.filter((enquiry) => enquiry.status !== "approved");
   const filteredEnquiries = activeEnquiries.filter((enquiry) => `${enquiry.enquiry_reference} ${enquiry.parent_name} ${enquiry.parent_phone}`.toLowerCase().includes(pipelineSearch.trim().toLowerCase()));
@@ -380,7 +368,7 @@ export default function EnrolmentsPage() {
           </div>
         )}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>{forms.length > 0 ? <button className="db-button-primary" type="button" disabled={creating} onClick={() => void createEnquiry()}>{creating ? "Creating..." : "Create Registration Fee Request"}</button> : null}<button className="db-button-secondary" type="button" onClick={() => setManualSource("printed_blank_form")}>Print Blank Enrolment Form</button><button className="db-button-secondary" type="button" onClick={() => setManualSource("paper_manual_capture")}>Start Digital Enrolment</button></div>
-        {manualSource ? <div className="db-soft-card" style={{ padding: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Academic year</span><select className="db-input" value={manualYear} onChange={(event) => setManualYear(Number(event.target.value))}><option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option><option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option></select></label><button className="db-button-primary" type="button" disabled={startingManual} onClick={() => void startManualApplication(true)}>{startingManual ? "Creating..." : manualSource === "printed_blank_form" ? "Create and open printable form" : "Start capture"}</button><button className="db-button-secondary" type="button" onClick={() => setManualSource(null)}>Cancel</button></div> : null}
+        {manualSource ? <div className="db-soft-card" style={{ padding: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}><label style={{ display: "grid", gap: 5 }}><span className="db-helper">Academic year</span><select className="db-input" value={manualYear} onChange={(event) => setManualYear(Number(event.target.value))}><option value={new Date().getFullYear()}>{new Date().getFullYear()} Current year</option><option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1} Next year</option></select></label><button className="db-button-primary" type="button" disabled={startingManual} onClick={() => void startManualApplication()}>{startingManual ? "Creating..." : manualSource === "printed_blank_form" ? "Create and open printable form" : "Start capture"}</button><button className="db-button-secondary" type="button" onClick={() => setManualSource(null)}>Cancel</button></div> : null}
         </> : null}
       </section>
 

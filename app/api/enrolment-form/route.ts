@@ -282,13 +282,14 @@ type EnrolmentConfiguration = {
   emergency_contact_mode?: "hidden" | "optional" | "required" | null;
   previous_school_enabled?: boolean | null;
   additional_declaration?: string | null;
+  requirement_template_keys?: string[] | null;
   custom_fields?: unknown;
 };
 
 async function loadEnrolmentConfiguration(schoolId: number) {
   const fullResult = await supabaseAdmin
     .from("school_enrolment_configurations")
-    .select("form_title, introduction, is_open, second_guardian_mode, emergency_contact_mode, previous_school_enabled, additional_declaration, custom_fields")
+    .select("form_title, introduction, is_open, second_guardian_mode, emergency_contact_mode, previous_school_enabled, additional_declaration, requirement_template_keys, custom_fields")
     .eq("school_id", schoolId)
     .maybeSingle();
   if (!fullResult.error || !fullResult.error.message.includes("custom_fields")) {
@@ -296,7 +297,7 @@ async function loadEnrolmentConfiguration(schoolId: number) {
   }
   const compatibleResult = await supabaseAdmin
     .from("school_enrolment_configurations")
-    .select("form_title, introduction, is_open, second_guardian_mode, emergency_contact_mode, previous_school_enabled, additional_declaration")
+    .select("form_title, introduction, is_open, second_guardian_mode, emergency_contact_mode, previous_school_enabled, additional_declaration, requirement_template_keys")
     .eq("school_id", schoolId)
     .maybeSingle();
   return { data: compatibleResult.data as EnrolmentConfiguration | null, error: compatibleResult.error };

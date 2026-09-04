@@ -343,8 +343,20 @@ export default function SecureEnrolmentFormPage() {
         setStep(stepForValidationError(responseError));
         throw new Error(responseError);
       }
+      const autoApproveCurrentManualCapture = isStaffCapture && Number(info?.academic_year) === new Date().getFullYear();
+      if (autoApproveCurrentManualCapture) {
+        const approvalResponse = await authenticatedFetch("/api/enrolments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "review", decision: "approved", school_id: Number(staffSchoolId), enquiry_id: staffCaptureId }),
+        });
+        const approvalBody = await approvalResponse.json().catch(() => ({}));
+        if (!approvalResponse.ok) throw new Error(approvalBody.error || "The form was captured, but automatic approval could not be completed.");
+      }
       setSuccess(isStaffCapture
-        ? "The returned paper form has been captured against this enrolment reference and is ready for review."
+        ? autoApproveCurrentManualCapture
+          ? "The manual enrolment has been captured and approved. The learner has been allocated to an age-matched classroom, or is shown under Awaiting Classroom Allocation if no matching classroom is available. Registration-fee payment can be recorded later from the learner record."
+          : "The returned paper form has been captured against this enrolment reference and is ready for review."
         : "Thank you. Your form has been submitted securely. The school will review it and contact you about the next step.");
     } catch (submitError) {
       setError(

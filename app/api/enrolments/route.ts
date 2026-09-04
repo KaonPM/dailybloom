@@ -28,6 +28,16 @@ function classroomAcceptsLearnerAge(ageGroups: unknown, age: number) {
   });
 }
 
+function classroomMatchesSelectedMonthlyFee(classroom: { classroom_name?: string | null; age_groups?: unknown }, feeName?: string | null) {
+  const fee = String(feeName || "").trim().toLowerCase();
+  const classroomName = String(classroom.classroom_name || "").trim().toLowerCase();
+  const ageGroups = Array.isArray(classroom.age_groups) ? classroom.age_groups.map((group) => String(group || "").toLowerCase()) : [];
+  if (/\bgrade\s*r\b/.test(fee)) return /\bgrade\s*r\b/.test(classroomName) || ageGroups.some((group) => /\b5\s*-\s*6\s*years?\b/.test(group));
+  if (/\bbab(?:y|ies)\b/.test(fee)) return /\bbab(?:y|ies)\b/.test(classroomName) || ageGroups.some((group) => /\b0\s*-\s*[12]\s*years?\b/.test(group));
+  if (/\btoddler/.test(fee)) return /\btoddler/.test(classroomName) || ageGroups.some((group) => /\b2\s*-\s*[34]\s*years?\b/.test(group));
+  return false;
+}
+
 function publicAppOrigin(request: Request) {
   const configured = text(process.env.NEXT_PUBLIC_APP_URL, 500).replace(/\/+$/, "");
   if (configured) {
@@ -373,7 +383,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Approve the enrolment or add a reason for declining it." }, { status: 400 });
     }
     if (enquiry.status !== "submitted") return NextResponse.json({ error: "Only submitted enrolment forms can be reviewed." }, { status: 400 });
-    if (decision === "approved" && !["verified", "waived"].includes(String(enquiry.registration_payment_status))) {
+    const isCurrentYearManualCapture = Number(enquiry.academic_year) === new Date().getFullYear()
+      && ["printed_blank_form", "paper_manual_capture"].includes(String(enquiry.enrolment_source));
+    if (decision === "approved" && !isCurrentYearManualCapture && !["verified", "waived"].includes(String(enquiry.registration_payment_status))) {
       return NextResponse.json({ error: "Confirm the Registration Fee reference before approving this enrolment." }, { status: 400 });
     }
     let learnerId = enquiry.learner_id ? String(enquiry.learner_id) : "";
@@ -391,12 +403,10 @@ export async function POST(request: Request) {
       }
       const selectedMonthlyFeeId = Number(submitted.selected_monthly_fee_id);
       const { data: selectedMonthlyFee, error: selectedMonthlyFeeError } = Number.isInteger(selectedMonthlyFeeId) && selectedMonthlyFeeId > 0
-        ? await supabaseAdmin.from("school_fee_types").select("id, amount").eq("id", selectedMonthlyFeeId).eq("school_id", schoolId).eq("fee_category", "monthly").eq("is_active", true).maybeSingle()
+        ? await supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("id", selectedMonthlyFeeId).eq("school_id", schoolId).eq("fee_category", "monthly").eq("is_active", true).maybeSingle()
         : { data: null, error: null };
       if (selectedMonthlyFeeError) return NextResponse.json({ error: selectedMonthlyFeeError.message }, { status: 500 });
       const academicYear = Number(enquiry.academic_year);
-      const isCurrentYearManualCapture = academicYear === new Date().getFullYear()
-        && ["printed_blank_form", "paper_manual_capture"].includes(String(enquiry.enrolment_source));
       let ageMatchedClassroom: { id: number; classroom_name: string } | null = null;
 
       if (isCurrentYearManualCapture) {
@@ -416,7 +426,9 @@ export async function POST(request: Request) {
           const matchingClassrooms = (classroomResult.data || []).filter((classroom) =>
             classroomAcceptsLearnerAge(classroom.age_groups, learnerAge)
           );
-          ageMatchedClassroom = matchingClassrooms.sort((left, right) =>
+          const feeMatchedClassrooms = matchingClassrooms.filter((classroom) => classroomMatchesSelectedMonthlyFee(classroom, selectedMonthlyFee?.fee_name));
+          const allocationCandidates = feeMatchedClassrooms.length ? feeMatchedClassrooms : matchingClassrooms;
+          ageMatchedClassroom = allocationCandidates.sort((left, right) =>
             (classroomLoad.get(left.id) || 0) - (classroomLoad.get(right.id) || 0) || left.id - right.id
           )[0] || null;
         }

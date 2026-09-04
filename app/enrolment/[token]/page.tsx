@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 
 type PublicForm = {
@@ -69,6 +69,7 @@ function stepForValidationError(message: string): number {
 
 type FormInfo = {
   reference: string;
+  academic_year?: number;
   parent_name: string;
   initial_values?: Record<string, string>;
   initial_custom_answers?: Record<string, string>;
@@ -136,6 +137,7 @@ const emptyFields = {
 
 export default function SecureEnrolmentFormPage() {
   const params = useParams<{ token: string }>();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const token = typeof params.token === "string" ? params.token : "";
   const isPreview = token === "preview";
@@ -157,6 +159,7 @@ export default function SecureEnrolmentFormPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [startingAnother, setStartingAnother] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState("");
   const [draftMessage, setDraftMessage] = useState("");
@@ -354,6 +357,31 @@ export default function SecureEnrolmentFormPage() {
     }
   }
 
+  async function startAnotherLearner() {
+    if (!isStaffCapture) return;
+    setStartingAnother(true);
+    setError("");
+    try {
+      const response = await authenticatedFetch("/api/enrolments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "start_manual_application",
+          school_id: Number(staffSchoolId),
+          academic_year: info?.academic_year || new Date().getFullYear(),
+          enrolment_source: "paper_manual_capture",
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.enquiry?.id) throw new Error(body.error || "Could not start another manual enrolment.");
+      router.push(`/enrolment/staff?staff_capture_id=${encodeURIComponent(String(body.enquiry.id))}&school_id=${encodeURIComponent(staffSchoolId)}`);
+    } catch (startError) {
+      setError(startError instanceof Error ? startError.message : "Could not start another manual enrolment.");
+    } finally {
+      setStartingAnother(false);
+    }
+  }
+
   function setField(name: keyof typeof emptyFields, value: string) {
     setFields((current) => ({ ...current, [name]: value }));
   }
@@ -475,7 +503,8 @@ export default function SecureEnrolmentFormPage() {
         <section className="db-card db-card-green" role="status">
           <h2 style={{ marginTop: 0 }}>Form submitted</h2>
           <p style={{ marginBottom: 0 }}>{success}</p>
-          {isStaffCapture ? <p style={{ marginBottom: 0 }}><a className="db-button-secondary" href={`/enrolments?school=${encodeURIComponent(staffSchoolId)}`}>Back to Enrolments</a></p> : null}
+          {isStaffCapture ? <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}><button className="db-button-primary" type="button" disabled={startingAnother} onClick={() => void startAnotherLearner()}>{startingAnother ? "Opening..." : "Add Another Learner"}</button><a className="db-button-secondary" href={`/enrolments?school=${encodeURIComponent(staffSchoolId)}`}>Back to Enrolments</a></div> : null}
+          {error ? <p role="alert" style={{ color: "#a33d45", marginBottom: 0 }}>{error}</p> : null}
         </section>
       ) : null}
 

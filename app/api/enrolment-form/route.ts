@@ -206,7 +206,7 @@ async function findEnquiry(token: string) {
   if (!token || token.length < 30) return null;
   const { data } = await supabaseAdmin
     .from("school_enrolment_enquiries")
-    .select("id, school_id, enquiry_reference, parent_name, parent_phone, submitted_data, status, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name, logo_url, primary_color, contact_number, emis_number)")
+    .select("id, school_id, enquiry_reference, parent_name, parent_phone, academic_year, submitted_data, status, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name, logo_url, primary_color, contact_number, emis_number)")
     .eq("form_token_hash", hashEnrolmentSecret(token))
     .maybeSingle();
   if (!data || !data.form_token_expires_at || new Date(data.form_token_expires_at).getTime() < Date.now()) return null;
@@ -219,7 +219,7 @@ async function findStaffCaptureEnquiry(request: Request, enquiryId: string, scho
   if (!authorization.ok) return { enquiry: null, response: authorization.response };
   const { data, error } = await supabaseAdmin
     .from("school_enrolment_enquiries")
-    .select("id, school_id, enquiry_reference, parent_name, parent_phone, submitted_data, status, enrolment_source, paper_received_at, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name, logo_url, primary_color, contact_number, emis_number)")
+    .select("id, school_id, enquiry_reference, parent_name, parent_phone, academic_year, submitted_data, status, enrolment_source, paper_received_at, form_token_expires_at, form_access_session_hash, form_access_session_expires_at, school_enrolment_forms(form_name, form_type, instructions, custom_fields, required_documents, stationery_list), schools(school_name, logo_url, primary_color, contact_number, emis_number)")
     .eq("id", enquiryId)
     .eq("school_id", schoolId)
     .maybeSingle();
@@ -350,6 +350,7 @@ export async function GET(request: Request) {
   const declaration = record(initialValues.declaration);
   return NextResponse.json({
     reference: enquiry.enquiry_reference,
+    academic_year: enquiry.academic_year,
     parent_name: enquiry.parent_name,
     initial_values: {
       ...draftTextValues(initialValues),

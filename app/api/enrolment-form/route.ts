@@ -250,7 +250,7 @@ function savedCustomAnswers(value: unknown, fields: unknown) {
   return result;
 }
 
-function uploadedDocuments(value: unknown, requirements: unknown, enquiry: { school_id: number; id: string }) {
+function uploadedDocuments(value: unknown, requirements: unknown, enquiry: { school_id: number; id: string }, allowMissingRequiredDocuments = false) {
   const uploads = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
   const configured = Array.isArray(requirements) ? requirements.slice(0, 10).flatMap((item) => {
     if (typeof item === "string") return [{ title: text(item, 180), is_required: true }];
@@ -264,7 +264,7 @@ function uploadedDocuments(value: unknown, requirements: unknown, enquiry: { sch
     const upload = uploads[documentName];
     const item = upload && typeof upload === "object" ? upload as Record<string, unknown> : null;
     const path = text(item?.path, 500);
-    if (is_required && !path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) {
+    if (is_required && !allowMissingRequiredDocuments && !path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) {
       throw new Error(`Upload “${documentName}” before submitting.`);
     }
     if (path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) result[documentName] = { name: text(item?.name, 180) || documentName, path };
@@ -483,24 +483,27 @@ export async function POST(request: Request) {
   }
   let documents: Record<string, { name: string; path: string }>;
   try {
-    documents = uploadedDocuments(body.uploaded_documents, configuredDocuments || form?.required_documents, enquiry);
+    documents = uploadedDocuments(
+      body.uploaded_documents,
+      configuredDocuments || form?.required_documents,
+      enquiry,
+      Boolean(staffCaptureId),
+    );
   } catch (validationError) {
     return draftValidationError(validationError instanceof Error ? validationError.message : "Upload the required documents before submitting.");
   }
-  if (configuration?.second_guardian_mode === "required") {
+  if (!staffCaptureId && configuration?.second_guardian_mode === "required") {
     const documentName = "Second parent/guardian identification document";
     const uploads = body.uploaded_documents && typeof body.uploaded_documents === "object" && !Array.isArray(body.uploaded_documents) ? body.uploaded_documents as Record<string, unknown> : {};
     const upload = uploads[documentName] && typeof uploads[documentName] === "object" ? uploads[documentName] as Record<string, unknown> : null;
     const path = text(upload?.path, 500);
-    if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) {
-      return draftValidationError(`Upload “${documentName}” before submitting.`);
-    }
+    if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) return draftValidationError(`Upload “${documentName}” before submitting.`);
     documents[documentName] = { name: text(upload?.name, 180) || documentName, path };
   }
   const responsibleDocumentName = "Responsible parent/guardian identification document";
   const configuredResponsibleId = (configuredDocuments || []).find((item) => /(parent|guardian).*(id|identity|passport)|(id|identity|passport).*(parent|guardian)/i.test(String(item.title || "")) && String(item.title || "") !== "Second parent/guardian identification document");
   const configuredHasResponsibleId = Boolean(configuredResponsibleId);
-  if (configuredResponsibleId && !documents[String(configuredResponsibleId.title)]) {
+  if (!staffCaptureId && configuredResponsibleId && !documents[String(configuredResponsibleId.title)]) {
     const documentName = String(configuredResponsibleId.title);
     const uploads = body.uploaded_documents && typeof body.uploaded_documents === "object" && !Array.isArray(body.uploaded_documents) ? body.uploaded_documents as Record<string, unknown> : {};
     const upload = uploads[documentName] && typeof uploads[documentName] === "object" ? uploads[documentName] as Record<string, unknown> : null;
@@ -508,14 +511,14 @@ export async function POST(request: Request) {
     if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) return draftValidationError(`Upload “${documentName}” before submitting.`);
     documents[documentName] = { name: text(upload?.name, 180) || documentName, path };
   }
-  if (!configuredHasResponsibleId) {
+  if (!staffCaptureId && !configuredHasResponsibleId) {
     const uploads = body.uploaded_documents && typeof body.uploaded_documents === "object" && !Array.isArray(body.uploaded_documents) ? body.uploaded_documents as Record<string, unknown> : {};
     const upload = uploads[responsibleDocumentName] && typeof uploads[responsibleDocumentName] === "object" ? uploads[responsibleDocumentName] as Record<string, unknown> : null;
     const path = text(upload?.path, 500);
     if (!path.startsWith(`${enquiry.school_id}/enrolment-submissions/${enquiry.id}/`)) return draftValidationError(`Upload “${responsibleDocumentName}” before submitting.`);
     documents[responsibleDocumentName] = { name: text(upload?.name, 180) || responsibleDocumentName, path };
   }
-  if (configuration?.second_guardian_mode !== "hidden" && (secondGuardianName || secondGuardianPhone)) {
+  if (!staffCaptureId && configuration?.second_guardian_mode !== "hidden" && (secondGuardianName || secondGuardianPhone)) {
     const documentName = "Second parent/guardian identification document";
     if (!documents[documentName]) {
       const uploads = body.uploaded_documents && typeof body.uploaded_documents === "object" && !Array.isArray(body.uploaded_documents) ? body.uploaded_documents as Record<string, unknown> : {};

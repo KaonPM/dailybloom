@@ -81,6 +81,7 @@ const reportTypes = [
   "Learner Attendance",
   "Practitioner Attendance",
   "Learner Register",
+  "Learner Profile / Enrolment Pack",
   "Daily Summaries",
   "Classroom Activities",
   "Homework",
@@ -257,6 +258,9 @@ export default function ReportsPage() {
   }
 
   function reportTypeHelper() {
+    if (reportType === "Learner Profile / Enrolment Pack") {
+      return "Choose one learner, then open a print-ready profile and enrolment pack for authorised social-work or inspection review.";
+    }
     if (reportType === "School Analytics") {
       return "School Analytics produces a report output. Open the results only when you need to review, export or print that output.";
     }
@@ -274,6 +278,16 @@ export default function ReportsPage() {
 
   async function runReport() {
     if (!schoolId) return;
+
+    if (reportType === "Learner Profile / Enrolment Pack") {
+      const learner = learners.find((item) => item.name === selectedLearner);
+      if (!learner) {
+        alert("Please select one learner for the enrolment pack.");
+        return;
+      }
+      window.open(`/children/${encodeURIComponent(String(learner.id))}/print?school=${encodeURIComponent(String(schoolId))}`, "_blank", "noopener");
+      return;
+    }
 
     if (fromDate > toDate) {
       alert("From date cannot be after To date.");
@@ -1239,7 +1253,14 @@ export default function ReportsPage() {
             <select
               className="db-input"
               value={reportType}
-              onChange={(e) => setReportType(e.target.value)}
+              onChange={(e) => {
+                const nextReportType = e.target.value;
+                setReportType(nextReportType);
+                if (nextReportType === "Learner Profile / Enrolment Pack") {
+                  setScope("Learner");
+                  setSelectedClassroom("");
+                }
+              }}
             >
               {reportTypes.map((type) => (
                 <option key={type}>{type}</option>
@@ -1260,7 +1281,7 @@ export default function ReportsPage() {
               }}
               disabled={role === "teacher"}
             >
-              {scopeOptions.map((item) => (
+              {(reportType === "Learner Profile / Enrolment Pack" ? ["Learner"] : scopeOptions).map((item) => (
                 <option key={item}>{item}</option>
               ))}
             </select>
@@ -1331,7 +1352,7 @@ export default function ReportsPage() {
             onClick={runReport}
             disabled={running}
           >
-            {running ? "Running..." : "Run Report"}
+            {running ? "Running..." : reportType === "Learner Profile / Enrolment Pack" ? "Open Enrolment Pack" : "Run Report"}
           </button>
 
           <button type="button" className="db-button-secondary" onClick={exportCsv}>

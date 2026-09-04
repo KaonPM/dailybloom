@@ -1182,6 +1182,7 @@ export default function LearnerProfilePage() {
           {learner.class || "Unassigned class"} ·{" "}
           {learner.legal_name || "Legal name not added"}
         </p>
+        {!isTeacherViewer ? <a className="db-button-primary" style={{ display: "inline-flex", marginTop: 10 }} href={`/children/${encodeURIComponent(learner.id)}/print${schoolId ? `?school=${encodeURIComponent(String(schoolId))}` : ""}`} target="_blank" rel="noopener noreferrer">Print Learner Profile / Enrolment Pack</a> : null}
       </div>
 
       <div

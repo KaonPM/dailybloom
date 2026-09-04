@@ -156,6 +156,7 @@ export default function LearnersPage() {
   const [referenceCaptureOpen, setReferenceCaptureOpen] = useState(false);
   const [captureReference, setCaptureReference] = useState("");
   const [findingReference, setFindingReference] = useState(false);
+  const [startingManualCapture, setStartingManualCapture] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -314,6 +315,29 @@ export default function LearnersPage() {
       alert(referenceError instanceof Error ? referenceError.message : "The enrolment form could not be found.");
     } finally {
       setFindingReference(false);
+    }
+  }
+
+  async function startManualCapture() {
+    if (!schoolId || startingManualCapture) return;
+    setStartingManualCapture(true);
+    try {
+      const response = await authenticatedFetch("/api/enrolments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "start_manual_application",
+          school_id: schoolId,
+          enrolment_source: "paper_manual_capture",
+          academic_year: new Date().getFullYear(),
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Could not start the manual enrolment.");
+      window.location.assign(`/enrolment/staff?staff_capture_id=${encodeURIComponent(body.enquiry.id)}&school_id=${schoolId}`);
+    } catch (captureError) {
+      alert(captureError instanceof Error ? captureError.message : "Could not start the manual enrolment.");
+      setStartingManualCapture(false);
     }
   }
 
@@ -1007,7 +1031,7 @@ export default function LearnersPage() {
               <button type="button" className="db-button-secondary" onClick={() => setReferenceCaptureOpen((current) => !current)}>
                 Capture Form by Reference
               </button>
-              {showForm ? <button type="button" className="db-button-primary" onClick={() => { resetForm(); setShowForm(false); }}>Close</button> : <Link className="db-button-primary" href={`/enrolments${schoolId ? `?school=${schoolId}&action=add` : "?action=add"}`}>+ Add Learner</Link>}
+              {showForm ? <button type="button" className="db-button-primary" onClick={() => { resetForm(); setShowForm(false); }}>Close</button> : <button type="button" className="db-button-primary" disabled={startingManualCapture} onClick={() => void startManualCapture()}>{startingManualCapture ? "Creating form..." : "+ Add Learner"}</button>}
             </div>
           ) : null}
         </div>

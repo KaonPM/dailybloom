@@ -386,7 +386,7 @@ export default function SecureEnrolmentFormPage() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.enquiry?.id) throw new Error(body.error || "Could not start another manual enrolment.");
-      router.push(`/enrolment/staff?staff_capture_id=${encodeURIComponent(String(body.enquiry.id))}&school_id=${encodeURIComponent(staffSchoolId)}`);
+      window.location.assign(`/enrolment/staff?staff_capture_id=${encodeURIComponent(String(body.enquiry.id))}&school_id=${encodeURIComponent(staffSchoolId)}`);
     } catch (startError) {
       setError(startError instanceof Error ? startError.message : "Could not start another manual enrolment.");
     } finally {

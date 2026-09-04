@@ -306,7 +306,9 @@ export default function EnrolmentsPage() {
         return;
       }
       const captureUrl = `/enrolment/staff?staff_capture_id=${encodeURIComponent(body.enquiry.id)}&school_id=${schoolId}`;
-      router.push(captureUrl);
+      // A manual capture is a freshly created, dynamic form. Use a direct same-tab
+      // navigation so it opens reliably once the creation request has completed.
+      window.location.assign(captureUrl);
       return;
     } catch (startError) { setError(startError instanceof Error ? startError.message : "Could not start the enrolment."); } finally { setStartingManual(false); }
   }

@@ -15,6 +15,7 @@ const tables = {
 } as const;
 type Resource = keyof typeof tables;
 const resources = new Set< string >(Object.keys(tables));
+const REQUIREMENT_STATUSES = new Set(["Not Started", "In Progress", "Ready", "Needs Review", "Missing", "Expired", "Not Applicable"]);
 
 function schoolId(value: string | null) {
   const id = Number(value);
@@ -50,6 +51,15 @@ export async function GET(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ items: data || [] });
   }
+  if (resource === "evidence") {
+    const { data, error } = await supabaseAdmin
+      .from("compliance_requirement_evidence")
+      .select("id, school_requirement_id, document_id, linked_at")
+      .eq("school_id", id)
+      .order("linked_at", { ascending: false });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ items: data || [] });
+  }
   if (!resources.has(resource)) return NextResponse.json({ error: "Unsupported compliance resource." }, { status: 400 });
   const { data, error } = await supabaseAdmin.from(tables[resource as Resource]).select("*").eq("school_id", id).order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -64,6 +74,21 @@ export async function POST(request: Request) {
   const authorization = await requireStaffPermission(request, PERMISSIONS.DBE_MANAGE, id);
   if (!authorization.ok) return authorization.response;
   const evidenceAction = clean(body.action, 40);
+  if (evidenceAction === "save_requirement") {
+    const requirementId = clean(body.requirement_id, 64);
+    const status = clean(body.status, 40) || "Not Started";
+    if (!requirementId || !REQUIREMENT_STATUSES.has(status)) return NextResponse.json({ error: "A configured requirement and valid status are required." }, { status: 400 });
+    const { data: requirement } = await supabaseAdmin.from("compliance_requirements").select("id, active, effective_from, effective_to").eq("id", requirementId).maybeSingle();
+    if (!requirement?.active) return NextResponse.json({ error: "This requirement is not active." }, { status: 400 });
+    const today = new Date().toISOString().slice(0, 10);
+    if ((requirement.effective_from && requirement.effective_from > today) || (requirement.effective_to && requirement.effective_to < today)) return NextResponse.json({ error: "This requirement is not currently effective." }, { status: 400 });
+    const verificationStatus = body.verify === true ? "Verified" : "Unverified";
+    const payload = { school_id: id, requirement_id: requirementId, status, notes: clean(body.notes), due_date: clean(body.due_date, 10) || null, expires_at: clean(body.expires_at, 10) || null, verification_status: verificationStatus, verified_at: body.verify === true ? new Date().toISOString() : null, verified_by: body.verify === true ? authorization.staff.userId : null, updated_at: new Date().toISOString() };
+    const { data, error } = await supabaseAdmin.from("school_compliance_requirements").upsert(payload, { onConflict: "school_id,requirement_id" }).select("id").single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    await writeRequiredSecurityAudit(authorization.staff, "compliance.requirement_status_changed", { requirement_id: requirementId, status, verification_status: verificationStatus }, { type: "school_compliance_requirements", id: data.id });
+    return NextResponse.json({ item: data });
+  }
   if (evidenceAction === "link_evidence" || evidenceAction === "unlink_evidence") {
     const schoolRequirementId = clean(body.school_requirement_id, 64);
     const documentId = clean(body.document_id, 64);
@@ -83,6 +108,15 @@ export async function POST(request: Request) {
       await writeRequiredSecurityAudit(authorization.staff, "compliance.evidence_linked", { requirement_id: schoolRequirementId, document_id: documentId }, { type: "compliance_requirement_evidence", id: documentId });
     }
     return NextResponse.json({ success: true });
+  }
+  if (evidenceAction === "create_action_from_finding") {
+    const findingId = clean(body.finding_id, 64);
+    const { data: finding } = await supabaseAdmin.from("compliance_inspection_findings").select("id, description, priority, inspection_id").eq("id", findingId).eq("school_id", id).maybeSingle();
+    if (!finding) return NextResponse.json({ error: "Inspection finding not found for this school." }, { status: 404 });
+    const { data, error } = await supabaseAdmin.from("compliance_corrective_actions").insert({ school_id: id, title: clean(body.title, 180) || `Resolve inspection finding`, description: clean(body.description) || finding.description, source_type: "inspection_finding", source_id: finding.id, due_date: clean(body.due_date, 10) || null, priority: clean(body.priority, 40) || finding.priority || "Normal", status: "Open", notes: clean(body.notes), created_by: authorization.staff.userId }).select("id").single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    await writeRequiredSecurityAudit(authorization.staff, "compliance.corrective_action_created", { source_type: "inspection_finding", finding_id: finding.id }, { type: "compliance_corrective_actions", id: data.id });
+    return NextResponse.json({ item: data });
   }
   const resource = clean(body.resource, 40) as Resource;
   if (!resources.has(resource)) return NextResponse.json({ error: "Unsupported compliance resource." }, { status: 400 });

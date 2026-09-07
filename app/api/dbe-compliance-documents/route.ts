@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { PERMISSIONS } from "@/app/lib/permissions";
 import {
   requireStaffPermission,
-  writeSecurityAudit,
+  writeRequiredSecurityAudit,
 } from "@/app/lib/server-authorization";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  await writeSecurityAudit(
+  await writeRequiredSecurityAudit(
     authorization.staff,
     "dbe.compliance_document_uploaded",
     { document_id: data.id, document_name: documentName }
@@ -170,6 +170,15 @@ export async function PATCH(request: Request) {
   for (const [field, maximum] of metadataFields) {
     if (body[field] !== undefined) metadata[field] = String(body[field] || "").trim().slice(0, maximum) || null;
   }
+  if (body.verify === true) {
+    metadata.verification_status = "Verified";
+    metadata.verified_at = new Date().toISOString();
+    metadata.verified_by = authorization.staff.userId;
+  } else if (body.verify === false) {
+    metadata.verification_status = "Unverified";
+    metadata.verified_at = null;
+    metadata.verified_by = null;
+  }
   const { data, error } = await supabaseAdmin
     .from("dbe_compliance_documents")
     .update(metadata)
@@ -182,10 +191,11 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Compliance document not found." }, { status: 404 });
   }
 
-  await writeSecurityAudit(
+  await writeRequiredSecurityAudit(
     authorization.staff,
     "compliance.document_metadata_updated",
-    { document_id: documentId, document_name: documentName }
+    { document_id: documentId, changed_metadata: Object.keys(metadata).filter((field) => field !== "document_name") },
+    { type: "dbe_compliance_documents", id: documentId }
   );
   return NextResponse.json({ success: true });
 }
@@ -222,7 +232,7 @@ export async function DELETE(request: Request) {
     await supabaseAdmin.storage.from(BUCKET).remove([document.file_path]);
   }
 
-  await writeSecurityAudit(
+  await writeRequiredSecurityAudit(
     authorization.staff,
     "dbe.compliance_document_deleted",
     { document_id: documentId, document_name: document.document_name }

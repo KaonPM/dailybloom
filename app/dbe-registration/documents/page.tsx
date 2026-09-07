@@ -15,6 +15,12 @@ type ComplianceDocument = {
   file_path: string;
   file_name?: string | null;
   uploaded_at?: string | null;
+  document_type?: string | null;
+  issue_date?: string | null;
+  expiry_date?: string | null;
+  issuing_authority?: string | null;
+  document_reference?: string | null;
+  verification_status?: string | null;
 };
 
 export default function DbeComplianceDocumentsPage() {
@@ -24,6 +30,7 @@ export default function DbeComplianceDocumentsPage() {
 
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [documents, setDocuments] = useState<ComplianceDocument[]>([]);
+  const [evidenceLinks, setEvidenceLinks] = useState<Array<{ document_id: string }>>([]);
   const [documentName, setDocumentName] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -32,6 +39,8 @@ export default function DbeComplianceDocumentsPage() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [showUploadForm, setShowUploadForm] = useState(true);
+  const [editingDetailsId, setEditingDetailsId] = useState<string | null>(null);
+  const [details, setDetails] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadPage();
@@ -79,6 +88,11 @@ export default function DbeComplianceDocumentsPage() {
     }
 
     setDocuments((result.documents || []) as ComplianceDocument[]);
+    const linksResponse = await authenticatedFetch(`/api/compliance?school_id=${currentSchoolId}&resource=evidence`);
+    if (linksResponse.ok) {
+      const links = await linksResponse.json();
+      setEvidenceLinks(links.items || []);
+    }
   }
 
   async function uploadDocument() {
@@ -182,6 +196,14 @@ export default function DbeComplianceDocumentsPage() {
     }
 
     window.open(result.url, "_blank", "noopener,noreferrer");
+  }
+
+  async function saveDetails(document: ComplianceDocument) {
+    if (!schoolId) return;
+    const response = await authenticatedFetch("/api/dbe-compliance-documents", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ school_id: schoolId, document_id: document.id, document_name: document.document_name, ...details, verify: details.verify === "true" }) });
+    const result = await response.json();
+    if (!response.ok) { alert(result.error || "Document details could not be saved."); return; }
+    setEditingDetailsId(null); setDetails({}); await fetchDocuments(schoolId);
   }
 
   function startRename(document: ComplianceDocument) {
@@ -341,6 +363,7 @@ export default function DbeComplianceDocumentsPage() {
       )}
 
       <div className="db-card db-card-lavender" style={{ padding: 16 }}>
+        <p className="db-helper">Unlinked Evidence: {documents.filter((document) => !evidenceLinks.some((link) => link.document_id === document.id)).length}. Link these from a requirement’s Manage view without duplicating the file.</p>
         <h3 style={sectionTitle}>
           Saved Compliance Documents ({documents.length})
         </h3>
@@ -390,6 +413,18 @@ export default function DbeComplianceDocumentsPage() {
                       File: {document.file_name || "Uploaded file"}
                     </p>
 
+                    {document.document_type || document.expiry_date || document.verification_status ? <p style={smallText}>Type: {document.document_type || "Not specified"} · {document.expiry_date ? `Expires: ${document.expiry_date}` : "No expiry"} · {document.verification_status || "Unverified"}</p> : null}
+
+                    {editingDetailsId === document.id ? <div style={{ ...grid2, marginTop: 10 }}>
+                      <input className="db-input" placeholder="Document type" value={details.document_type || ""} onChange={(e) => setDetails((v) => ({ ...v, document_type: e.target.value }))} />
+                      <input className="db-input" type="date" value={details.issue_date || ""} onChange={(e) => setDetails((v) => ({ ...v, issue_date: e.target.value }))} />
+                      <input className="db-input" type="date" value={details.expiry_date || ""} onChange={(e) => setDetails((v) => ({ ...v, expiry_date: e.target.value }))} />
+                      <input className="db-input" placeholder="Issuing authority" value={details.issuing_authority || ""} onChange={(e) => setDetails((v) => ({ ...v, issuing_authority: e.target.value }))} />
+                      <input className="db-input" placeholder="Reference" value={details.document_reference || ""} onChange={(e) => setDetails((v) => ({ ...v, document_reference: e.target.value }))} />
+                      <label><input type="checkbox" checked={details.verify === "true"} onChange={(e) => setDetails((v) => ({ ...v, verify: String(e.target.checked) }))} /> Verified</label>
+                      <button className="db-button-primary" onClick={() => void saveDetails(document)}>Save details</button>
+                    </div> : null}
+
                     <p style={smallText}>
                       Uploaded:{" "}
                       {document.uploaded_at
@@ -412,6 +447,8 @@ export default function DbeComplianceDocumentsPage() {
                       >
                         Download
                       </button>
+
+                      <button type="button" className="db-button-secondary" onClick={() => { setEditingDetailsId(document.id); setDetails({ document_type: document.document_type || "", issue_date: document.issue_date || "", expiry_date: document.expiry_date || "", issuing_authority: document.issuing_authority || "", document_reference: document.document_reference || "", verify: String(document.verification_status === "Verified") }); }}>Edit Details</button>
 
                       <button
                         type="button"

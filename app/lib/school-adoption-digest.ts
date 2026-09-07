@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHmac, timingSafeEqual } from "crypto";
 import { Resend } from "resend";
 import { getJohannesburgDate } from "@/app/lib/classroom-activity-dates";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
@@ -13,6 +14,8 @@ type HealthRow = {
   attendance_count?: number | null;
   summary_count?: number | null;
   broadcast_count?: number | null;
+  classroom_activity_count?: number | null;
+  homework_count?: number | null;
 };
 
 type Recipient = {
@@ -39,9 +42,26 @@ function digestStatus(row: HealthRow) {
   const classrooms = Number(row.classroom_count || 0);
   const learners = Number(row.learner_count || 0);
   const practitioners = Number(row.practitioner_count || 0);
-  const activity = Number(row.attendance_count || 0) + Number(row.summary_count || 0) + Number(row.broadcast_count || 0);
+  const activity = Number(row.attendance_count || 0) + Number(row.summary_count || 0) + Number(row.broadcast_count || 0) + Number(row.classroom_activity_count || 0) + Number(row.homework_count || 0);
   const nextStep = classrooms === 0 ? "Add a classroom" : learners === 0 ? "Add learners" : practitioners === 0 ? "Invite a practitioner" : activity === 0 ? "Record attendance or share an update this week" : "Keep your weekly routine going";
   return { classrooms, learners, practitioners, activity, nextStep, needsAttention: classrooms === 0 || learners === 0 || practitioners === 0 || activity === 0 };
+}
+
+function unsubscribeSecret() {
+  const secret = process.env.SCHOOL_ADOPTION_DIGEST_UNSUBSCRIBE_SECRET || process.env.CRON_SECRET;
+  if (!secret) throw new Error("Missing weekly digest unsubscribe secret.");
+  return secret;
+}
+
+export function weeklyDigestUnsubscribeToken(userId: string) {
+  return createHmac("sha256", unsubscribeSecret()).update(userId).digest("base64url");
+}
+
+export function isValidWeeklyDigestUnsubscribeToken(userId: string, token: string) {
+  const expected = weeklyDigestUnsubscribeToken(userId);
+  const expectedBuffer = Buffer.from(expected);
+  const tokenBuffer = Buffer.from(token);
+  return expectedBuffer.length === tokenBuffer.length && timingSafeEqual(expectedBuffer, tokenBuffer);
 }
 
 function appUrl() {
@@ -81,7 +101,7 @@ export async function sendSchoolAdoptionWeeklyDigests(options: { schoolId?: numb
   const weekStart = startOfWeek();
   const [{ data: health, error: healthError }, { data: recipients, error: recipientError }] = await Promise.all([
     supabaseAdmin.rpc("school_adoption_weekly_health", { p_week_start: weekStart }),
-    supabaseAdmin.from("profiles").select("id, school_id, full_name, email, role").in("role", ["principal", "admin", "owner"]).eq("is_active", true).not("email", "is", null),
+    supabaseAdmin.from("profiles").select("id, school_id, full_name, email, role").in("role", ["principal", "admin", "owner"]).eq("is_active", true).eq("school_adoption_weekly_digest_opt_out", false).not("email", "is", null),
   ]);
   if (healthError || recipientError) throw healthError || recipientError;
 
@@ -107,12 +127,13 @@ export async function sendSchoolAdoptionWeeklyDigests(options: { schoolId?: numb
       if (!sourceId) { skipped += 1; continue; }
       const schoolName = escapeHtml(row.school_name || "your school");
       const greeting = escapeHtml(recipient.full_name || "School leader");
+      const unsubscribeUrl = `${appUrl()}/api/school-adoption-digests/unsubscribe?user=${encodeURIComponent(recipient.id)}&token=${encodeURIComponent(weeklyDigestUnsubscribeToken(recipient.id))}`;
       const subject = `${options.test ? "[Test] " : ""}${summary.needsAttention ? "Action needed" : "Weekly summary"} — ${row.school_name || "DailyBloom"}`;
       const result = await resend.emails.send({
         from: process.env.DAILYBLOOM_FROM_EMAIL || "DailyBloom <onboarding@resend.dev>",
         to: recipient.email || "",
         subject,
-        html: `<div style="font-family:Arial,sans-serif;background:#FFF8F2;padding:24px;color:#2D2A3E"><div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #F0E3D8;border-radius:18px;padding:26px">${options.test ? '<p style="margin:0 0 12px;color:#8A5D00;font-weight:700">Test email — no action is required.</p>' : ""}<h1 style="margin:0 0 8px">Your weekly school summary</h1><p>Hello ${greeting},</p><p>Here is this week’s DailyBloom activity for <strong>${schoolName}</strong>.</p><div style="background:#EAF7FD;border:1px solid #CBEAF7;border-radius:14px;padding:16px;margin:20px 0"><p><strong>Classrooms:</strong> ${summary.classrooms}</p><p><strong>Learners:</strong> ${summary.learners}</p><p><strong>Practitioners:</strong> ${summary.practitioners}</p><p><strong>Attendance records:</strong> ${Number(row.attendance_count || 0)}</p><p><strong>Daily summaries:</strong> ${Number(row.summary_count || 0)}</p><p><strong>Parent broadcasts:</strong> ${Number(row.broadcast_count || 0)}</p></div><p><strong>Suggested next step:</strong> ${escapeHtml(summary.nextStep)}</p><p><a href="${url}" style="display:inline-block;background:#75C7EA;color:#fff;text-decoration:none;font-weight:700;padding:13px 18px;border-radius:12px">Open School Dashboard</a></p><p style="color:#6D6888">Thank you for keeping your school connected and up to date.</p></div></div>`,
+        html: `<div style="font-family:Arial,sans-serif;background:#FFF8F2;padding:24px;color:#2D2A3E"><div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #F0E3D8;border-radius:18px;padding:26px">${options.test ? '<p style="margin:0 0 12px;color:#8A5D00;font-weight:700">Test email — no action is required.</p>' : ""}<h1 style="margin:0 0 8px">Your weekly school summary</h1><p>Hello ${greeting},</p><p>Here is this week’s DailyBloom activity for <strong>${schoolName}</strong>.</p><div style="background:#EAF7FD;border:1px solid #CBEAF7;border-radius:14px;padding:16px;margin:20px 0"><p><strong>Classrooms:</strong> ${summary.classrooms}</p><p><strong>Learners:</strong> ${summary.learners}</p><p><strong>Practitioners:</strong> ${summary.practitioners}</p><p><strong>Attendance records:</strong> ${Number(row.attendance_count || 0)}</p><p><strong>Classroom activities:</strong> ${Number(row.classroom_activity_count || 0)}</p><p><strong>Homework assigned:</strong> ${Number(row.homework_count || 0)}</p><p><strong>Daily summaries:</strong> ${Number(row.summary_count || 0)}</p><p><strong>Parent broadcasts:</strong> ${Number(row.broadcast_count || 0)}</p></div><p><strong>Suggested next step:</strong> ${escapeHtml(summary.nextStep)}</p><p><a href="${url}" style="display:inline-block;background:#75C7EA;color:#fff;text-decoration:none;font-weight:700;padding:13px 18px;border-radius:12px">Open School Dashboard</a></p><p style="color:#6D6888">Thank you for keeping your school connected and up to date.</p><p style="margin:22px 0 0;font-size:11px;color:#8A879D">Prefer not to receive these weekly summaries? <a href="${unsubscribeUrl}" style="color:#6D6888">Opt out</a>.</p></div></div>`,
       });
       if (result.error) {
         failed += 1;

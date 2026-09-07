@@ -54,7 +54,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabaseAdmin
     .from("dbe_compliance_documents")
-    .select("id, school_id, document_name, file_path, file_name, uploaded_at")
+    .select("id, school_id, document_name, file_path, file_name, uploaded_at, document_type, issue_date, expiry_date, issuing_authority, document_reference, verification_status, verified_at")
     .eq("school_id", schoolId)
     .order("uploaded_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -160,9 +160,19 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Document and document name are required." }, { status: 400 });
   }
 
+  // Rename requests from the existing screen contain only document_name. Do not
+  // erase newly added metadata unless the caller explicitly supplies that field.
+  const metadata: Record<string, string | null> = { document_name: documentName };
+  const metadataFields: Array<[string, number]> = [
+    ["document_type", 100], ["issue_date", 10], ["expiry_date", 10],
+    ["issuing_authority", 160], ["document_reference", 160], ["notes", 2000],
+  ];
+  for (const [field, maximum] of metadataFields) {
+    if (body[field] !== undefined) metadata[field] = String(body[field] || "").trim().slice(0, maximum) || null;
+  }
   const { data, error } = await supabaseAdmin
     .from("dbe_compliance_documents")
-    .update({ document_name: documentName })
+    .update(metadata)
     .eq("id", documentId)
     .eq("school_id", schoolId)
     .select("id")
@@ -174,7 +184,7 @@ export async function PATCH(request: Request) {
 
   await writeSecurityAudit(
     authorization.staff,
-    "dbe.compliance_document_renamed",
+    "compliance.document_metadata_updated",
     { document_id: documentId, document_name: documentName }
   );
   return NextResponse.json({ success: true });

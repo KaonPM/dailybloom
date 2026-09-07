@@ -6,6 +6,7 @@ import { getCurrentProfile } from "../../lib/auth";
 import { resolveSchoolContext } from "../../lib/school-context";
 import { authenticatedFetch } from "../../lib/authenticated-fetch";
 import { supabase } from "../../lib/supabase";
+import { ComplianceNav } from "../components";
 
 type ComplianceDocument = {
   id: string;
@@ -259,8 +260,9 @@ export default function DbeComplianceDocumentsPage() {
 
   return (
     <div>
+      <ComplianceNav />
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
-        <h2 className="db-page-title">Compliance Documents</h2>
+        <h2 className="db-page-title">Compliance &amp; Registration: Documents &amp; Evidence</h2>
         <p className="db-page-subtitle">
           Store official registration and compliance documents for the school.
         </p>

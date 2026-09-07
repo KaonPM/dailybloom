@@ -204,13 +204,19 @@ export default function Sidebar() {
   const dbeNav = useMemo<NavItem[]>(
     () => [
       {
-        label: "Registration Details",
+        label: "Compliance & Registration",
+        href: "/dbe-registration/overview",
+        match: ["/dbe-registration/overview"],
+        permission: PERMISSIONS.DBE_MANAGE,
+      },
+      {
+        label: "Registration",
         href: "/dbe-registration",
         match: ["/dbe-registration"],
         permission: PERMISSIONS.DBE_MANAGE,
       },
       {
-        label: "Compliance Documents",
+        label: "Documents & Evidence",
         href: "/dbe-registration/documents",
         match: ["/dbe-registration/documents"],
         permission: PERMISSIONS.DBE_MANAGE,

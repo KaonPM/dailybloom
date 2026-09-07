@@ -16,6 +16,10 @@ const REGISTRATION_STATUSES = new Set([
   "Not Registered",
 ]);
 const COMPLIANCE_STATUSES = new Set(["Valid", "Expired", "Outstanding"]);
+const OFFICIAL_STATUSES = new Set([
+  "Not Started", "Application In Progress", "Bronze", "Silver", "Gold",
+  "Renewal In Progress", "Expired", "Other",
+]);
 
 function text(value: unknown, maximum = 250) {
   return String(value || "").trim().slice(0, maximum);
@@ -52,6 +56,7 @@ export async function PUT(request: Request) {
   const fireCertificateStatus = text(body.fire_certificate_status, 80);
   const municipalApprovalStatus = text(body.municipal_approval_status, 80);
   const policeClearanceStatus = text(body.police_clearance_status, 80);
+  const officialStatus = optionalText(body.official_status, 80);
 
   if (!schoolName || !registrationNumber) {
     return NextResponse.json(
@@ -68,11 +73,16 @@ export async function PUT(request: Request) {
   ) {
     return NextResponse.json({ error: "Choose valid compliance statuses." }, { status: 400 });
   }
+  if (officialStatus && !OFFICIAL_STATUSES.has(officialStatus)) {
+    return NextResponse.json({ error: "Choose a valid official registration status." }, { status: 400 });
+  }
 
   const registrationDate = optionalText(body.registration_date, 10);
   if (registrationDate && !/^\d{4}-\d{2}-\d{2}$/.test(registrationDate)) {
     return NextResponse.json({ error: "Use a valid registration date." }, { status: 400 });
   }
+  const renewalDate = optionalText(body.renewal_date, 10);
+  const lastVerifiedAt = optionalText(body.last_verified_at, 40);
 
   const { data, error } = await supabaseAdmin
     .from("dbe_registration")
@@ -83,6 +93,11 @@ export async function PUT(request: Request) {
         registration_number: registrationNumber,
         registration_status: registrationStatus,
         registration_date: registrationDate,
+        renewal_date: renewalDate,
+        official_status: officialStatus,
+        status_source: optionalText(body.status_source, 160),
+        last_verified_at: lastVerifiedAt,
+        registration_notes: optionalText(body.registration_notes, 2000),
         principal_name: optionalText(body.principal_name),
         contact_number: optionalText(body.contact_number, 80),
         email_address: optionalText(body.email_address),

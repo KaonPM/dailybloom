@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
+import { ComplianceNav } from "./components";
 
 type DbeRegistration = {
   id?: string;
@@ -14,6 +15,10 @@ type DbeRegistration = {
   registration_status?: string | null;
   registration_date?: string | null;
   renewal_date?: string | null;
+  official_status?: string | null;
+  status_source?: string | null;
+  last_verified_at?: string | null;
+  registration_notes?: string | null;
   principal_name?: string | null;
   contact_number?: string | null;
   email_address?: string | null;
@@ -31,6 +36,7 @@ const registrationStatuses = [
   "Unregistered",
   "Not Registered",
 ];
+const officialStatuses = ["Not Started", "Application In Progress", "Bronze", "Silver", "Gold", "Renewal In Progress", "Expired", "Other"];
 
 const complianceStatuses = ["Valid","Expired", "Outstanding"];
 
@@ -48,6 +54,10 @@ export default function DbeRegistrationPage() {
     "Registration In Progress"
   );
   const [registrationDate, setRegistrationDate] = useState("");
+  const [renewalDate, setRenewalDate] = useState("");
+  const [officialStatus, setOfficialStatus] = useState("");
+  const [statusSource, setStatusSource] = useState("");
+  const [registrationNotes, setRegistrationNotes] = useState("");
   const [principalName, setPrincipalName] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
@@ -85,6 +95,10 @@ export default function DbeRegistrationPage() {
         record.registration_status || "Registration In Progress"
       );
       setRegistrationDate(record.registration_date || "");
+      setRenewalDate(record.renewal_date || "");
+      setOfficialStatus(record.official_status || "");
+      setStatusSource(record.status_source || "");
+      setRegistrationNotes(record.registration_notes || "");
       setPrincipalName(record.principal_name || "");
       setContactNumber(record.contact_number || "");
       setEmailAddress(record.email_address || "");
@@ -160,6 +174,10 @@ export default function DbeRegistrationPage() {
       registration_number: registrationNumber.trim(),
       registration_status: registrationStatus,
       registration_date: registrationDate || null,
+      renewal_date: renewalDate || null,
+      official_status: officialStatus || null,
+      status_source: statusSource.trim() || null,
+      registration_notes: registrationNotes.trim() || null,
       principal_name: principalName.trim() || null,
       contact_number: contactNumber.trim() || null,
       email_address: emailAddress.trim() || null,
@@ -196,10 +214,11 @@ export default function DbeRegistrationPage() {
 
   return (
     <div>
+      <ComplianceNav />
       <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
-        <h2 className="db-page-title">DBE Registration Information</h2>
+        <h2 className="db-page-title">Compliance &amp; Registration: Registration</h2>
         <p className="db-page-subtitle">
-          Store the school’s registration details and compliance status in one place.
+          Store the school’s recorded official registration information. This is separate from DailyBloom readiness.
         </p>
       </div>
 
@@ -253,6 +272,17 @@ export default function DbeRegistrationPage() {
                   placeholder="Example: NPO-123456 or 2025/123456/08"
                 />
               </Field>
+            </div>
+
+            <div className="db-card db-card-lavender" style={{ padding: 14, marginTop: 14 }}>
+              <h3 style={sectionTitle}>Recorded Official Status</h3>
+              <p className="db-helper">This records information supplied or verified by the school. It is not calculated from DailyBloom readiness.</p>
+              <div style={grid2}>
+                <Field label="Official Status"><select className="db-input" value={officialStatus} onChange={(event) => setOfficialStatus(event.target.value)}><option value="">Not recorded</option>{officialStatuses.map((status) => <option key={status} value={status}>{status}</option>)}</select></Field>
+                <Field label="Status Source"><input className="db-input" value={statusSource} onChange={(event) => setStatusSource(event.target.value)} placeholder="Example: Official certificate" /></Field>
+                <Field label="Renewal / Expiry Date"><input className="db-input" type="date" value={renewalDate} onChange={(event) => setRenewalDate(event.target.value)} /></Field>
+              </div>
+              <Field label="Registration Notes"><textarea className="db-input" value={registrationNotes} onChange={(event) => setRegistrationNotes(event.target.value)} style={{ minHeight: 70, resize: "vertical" }} /></Field>
             </div>
 
             <div style={grid2}>

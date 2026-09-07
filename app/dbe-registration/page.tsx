@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
@@ -172,16 +171,15 @@ export default function DbeRegistrationPage() {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = recordId
-      ? await supabase
-          .from("dbe_registration")
-          .update(payload)
-          .eq("id", recordId)
-          .eq("school_id", schoolId)
-      : await supabase.from("dbe_registration").insert([payload]);
+    const response = await authenticatedFetch("/api/dbe-registration", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
 
-    if (error) {
-      alert(error.message);
+    if (!response.ok) {
+      alert(result.error || "DBE registration information could not be saved.");
       setSaving(false);
       return;
     }

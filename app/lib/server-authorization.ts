@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "./supabase-admin";
 import { Permission, ROLE_PERMISSIONS } from "./permissions";
 import { effectivePermissions, hasPermission, resolveSchoolAuthorization } from "./authorization-policy";
+import { persistSecurityAudit } from "./security-audit";
 
 type StaffProfile = {
   id: string;
@@ -60,6 +61,27 @@ export async function requireStaffPermission(request: Request, permission: Permi
 
 export async function writeSecurityAudit(staff: AuthorizedStaff, action: string, details: Record<string, unknown> = {}) {
   await supabaseAdmin.from("security_audit_log").insert({ actor_id: staff.userId, actor_name: staff.profile.full_name || staff.profile.email, actor_role: staff.role, school_id: staff.schoolId, action, details });
+}
+
+export async function writeRequiredSecurityAudit(
+  staff: AuthorizedStaff,
+  action: string,
+  details: Record<string, unknown> = {},
+  target?: { type: string; id: string }
+) {
+  await persistSecurityAudit(
+    {
+      actor_id: staff.userId,
+      actor_name: staff.profile.full_name || staff.profile.email || null,
+      actor_role: staff.role,
+      school_id: staff.schoolId,
+      action,
+      target_type: target?.type,
+      target_id: target?.id,
+      details,
+    },
+    (entry) => supabaseAdmin.from("security_audit_log").insert(entry)
+  );
 }
 
 export async function authenticatedRoleCanAccessLearner(staff: AuthorizedStaff, classroomId: number) {

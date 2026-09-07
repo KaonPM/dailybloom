@@ -23,6 +23,10 @@
     {
       "path": "/api/cron/check-dbe-grade-r-workbooks",
       "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/cron/school-adoption-digests",
+      "schedule": "0 7 * * 1"
     }
   ]
 }

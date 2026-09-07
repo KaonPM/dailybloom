@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { authenticatedFetch } from "../lib/authenticated-fetch";
 
 type School = { id: number; school_name?: string | null; status?: string | null };
 type Counts = Record<number, number>;
@@ -28,6 +29,8 @@ function countBySchool(rows: Array<{ school_id?: number | null }>): Counts {
 export default function PlatformAdoptionHealthPanel({ schools }: Props) {
   const [counts, setCounts] = useState({ classrooms: {} as Counts, learners: {} as Counts, practitioners: {} as Counts, weeklyActivity: {} as Counts });
   const [loading, setLoading] = useState(true);
+  const [testingSchoolId, setTestingSchoolId] = useState<number | null>(null);
+  const [selectedTestSchoolId, setSelectedTestSchoolId] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -68,6 +71,20 @@ export default function PlatformAdoptionHealthPanel({ schools }: Props) {
 
   const attention = health.filter((item) => item.status !== "Active");
 
+  async function sendTestSummary(school: School) {
+    if (!window.confirm(`Send a test weekly summary to the active Principal and Admin email addresses for ${school.school_name || "this school"}?`)) return;
+    setTestingSchoolId(school.id);
+    const response = await authenticatedFetch("/api/school-adoption-digests/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ school_id: school.id }),
+    });
+    const result = await response.json();
+    setTestingSchoolId(null);
+    if (!response.ok) return alert(result.error || "The test email could not be sent.");
+    alert(`Test summary sent to ${result.sent || 0} recipient${result.sent === 1 ? "" : "s"}.`);
+  }
+
   return (
     <section className="db-card db-card-green" style={{ padding: 18, marginTop: 18 }}>
       <div style={headerStyle}>
@@ -77,6 +94,16 @@ export default function PlatformAdoptionHealthPanel({ schools }: Props) {
         </div>
         {!loading ? <span style={summaryStyle}>{health.filter((item) => item.status === "Active").length} active · {attention.length} need attention</span> : null}
       </div>
+
+      {!loading && health.length ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+        <select className="db-input" aria-label="School for test summary" value={selectedTestSchoolId} onChange={(event) => setSelectedTestSchoolId(event.target.value)} style={{ minWidth: 230 }}>
+          <option value="">Select a school to test</option>
+          {health.map((item) => <option key={item.school.id} value={item.school.id}>{item.school.school_name || "Unnamed school"}</option>)}
+        </select>
+        <button type="button" className="db-button-secondary" disabled={!selectedTestSchoolId || testingSchoolId === Number(selectedTestSchoolId)} onClick={() => { const school = health.find((item) => item.school.id === Number(selectedTestSchoolId))?.school; if (school) void sendTestSummary(school); }}>
+          {testingSchoolId === Number(selectedTestSchoolId) ? "Sending…" : "Send test summary"}
+        </button>
+      </div> : null}
 
       {loading ? <p className="db-helper">Loading school engagement…</p> : attention.length === 0 ? <p className="db-helper">Every active school has completed setup and recorded activity this week.</p> : (
         <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
@@ -89,7 +116,10 @@ export default function PlatformAdoptionHealthPanel({ schools }: Props) {
               <p className="db-helper" style={{ margin: "5px 0 0" }}>{item.classroomCount} classrooms · {item.learnerCount} learners · {item.practitionerCount} practitioners · {item.weeklyActivity} actions this week</p>
               <p className="db-helper" style={{ margin: "3px 0 0" }}><strong>Next step:</strong> {item.nextAction}</p>
             </div>
-            <Link className="db-button-secondary" href={`/master/school/${item.school.id}`} style={{ textDecoration: "none" }}>Open school</Link>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Link className="db-button-secondary" href={`/master/school/${item.school.id}`} style={{ textDecoration: "none" }}>Open school</Link>
+              <button type="button" className="db-button-secondary" disabled={testingSchoolId === item.school.id} onClick={() => void sendTestSummary(item.school)}>{testingSchoolId === item.school.id ? "Sending…" : "Send test summary"}</button>
+            </div>
           </article>)}
         </div>
       )}

@@ -38,6 +38,7 @@ function startOfWeek() {
 export default function SchoolEngagementCard({ schoolId }: Props) {
   const [engagement, setEngagement] = useState<Engagement>(emptyEngagement);
   const [loading, setLoading] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -87,10 +88,15 @@ export default function SchoolEngagementCard({ schoolId }: Props) {
             {loading ? "Checking this week’s activity…" : `${completed} of ${steps.length} key setup and engagement actions complete.`}
           </p>
         </div>
-        {!loading ? <span style={scoreStyle}>{Math.round((completed / steps.length) * 100)}% ready</span> : null}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {!loading ? <span style={scoreStyle}>{Math.round((completed / steps.length) * 100)}% ready</span> : null}
+          <button type="button" className="db-collapse-action db-section-toggle" onClick={() => setIsOpen((current) => !current)}>
+            {isOpen ? "Close summary" : "Open summary"}
+          </button>
+        </div>
       </div>
 
-      {!loading ? <>
+      {!loading && isOpen ? <>
         <div style={stepGrid}>
           {steps.map((step) => (
             <Link key={step.label} href={step.href} style={{ ...stepStyle, borderColor: step.complete ? "#BFE4C1" : "#F3E4A3", background: step.complete ? "#F3FBF3" : "#FFFBEA" }}>

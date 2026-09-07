@@ -9,6 +9,7 @@ type School = { id: number; school_name?: string | null; status?: string | null 
 type Counts = Record<number, number>;
 
 type Props = { schools: School[] };
+const SCHOOLS_PER_PAGE = 5;
 
 function startOfWeek() {
   const date = new Date();
@@ -31,6 +32,7 @@ export default function PlatformAdoptionHealthPanel({ schools }: Props) {
   const [loading, setLoading] = useState(true);
   const [testingSchoolId, setTestingSchoolId] = useState<number | null>(null);
   const [selectedTestSchoolId, setSelectedTestSchoolId] = useState("");
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -70,6 +72,9 @@ export default function PlatformAdoptionHealthPanel({ schools }: Props) {
     .sort((a, b) => a.completed - b.completed || a.school.school_name?.localeCompare(b.school.school_name || "") || 0), [counts, schools]);
 
   const attention = health.filter((item) => item.status !== "Active");
+  const pageCount = Math.max(1, Math.ceil(health.length / SCHOOLS_PER_PAGE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const visibleHealth = health.slice(currentPage * SCHOOLS_PER_PAGE, (currentPage + 1) * SCHOOLS_PER_PAGE);
 
   async function sendTestSummary(school: School) {
     if (!window.confirm(`Send a test weekly summary to the active Principal and Admin email addresses for ${school.school_name || "this school"}?`)) return;
@@ -105,9 +110,9 @@ export default function PlatformAdoptionHealthPanel({ schools }: Props) {
         </button>
       </div> : null}
 
-      {loading ? <p className="db-helper">Loading school engagement…</p> : attention.length === 0 ? <p className="db-helper">Every active school has completed setup and recorded activity this week.</p> : (
+      {loading ? <p className="db-helper">Loading school engagement…</p> : health.length === 0 ? <p className="db-helper">No active schools are available to show.</p> : (
         <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-          {attention.map((item) => <article key={item.school.id} style={rowStyle}>
+          {visibleHealth.map((item) => <article key={item.school.id} style={rowStyle}>
             <div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <strong>{item.school.school_name || "Unnamed school"}</strong>
@@ -123,6 +128,16 @@ export default function PlatformAdoptionHealthPanel({ schools }: Props) {
           </article>)}
         </div>
       )}
+
+      {!loading && health.length > SCHOOLS_PER_PAGE ? (
+        <div style={paginationStyle}>
+          <span className="db-helper" style={{ margin: 0 }}>Showing {currentPage * SCHOOLS_PER_PAGE + 1}–{Math.min((currentPage + 1) * SCHOOLS_PER_PAGE, health.length)} of {health.length} schools</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" className="db-button-secondary" disabled={currentPage === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Previous</button>
+            <button type="button" className="db-button-secondary" disabled={currentPage === pageCount - 1} onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}>Next</button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -133,3 +148,4 @@ const summaryStyle = { background: "#EAF7FD", border: "1px solid #CBEAF7", borde
 const rowStyle = { background: "#FFFDFB", border: "1px solid #F0E3D8", borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const };
 const setupPill = { background: "#FFF7D9", border: "1px solid #F3E4A3", borderRadius: 999, padding: "3px 8px", fontSize: 11, fontWeight: 800, color: "#6D6888" };
 const riskPill = { background: "#FFF0F0", border: "1px solid #F3C2C2", borderRadius: 999, padding: "3px 8px", fontSize: 11, fontWeight: 800, color: "#A43838" };
+const paginationStyle = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const, marginTop: 14 };

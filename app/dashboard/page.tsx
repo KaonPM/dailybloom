@@ -11,6 +11,7 @@ import TodaysPriorities, {
   type PriorityItem,
 } from "../components/TodaysPriorities";
 import RouteStateCard from "../components/RouteStateCard";
+import SchoolEngagementCard from "../components/SchoolEngagementCard";
 
 type School = {
   id: number;
@@ -559,7 +560,7 @@ export default function PrincipalDashboardPage() {
           )}
 
           <div>
-            <p style={eyebrowText}>Principal Dashboard</p>
+            <p style={eyebrowText}>School Dashboard</p>
 
             <h1
               style={{
@@ -589,6 +590,8 @@ export default function PrincipalDashboardPage() {
       </div>
 
       <TodaysPriorities items={priorities} />
+
+      <SchoolEngagementCard schoolId={schoolId} />
 
       <div
         id="today-activities"

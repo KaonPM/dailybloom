@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { getCurrentProfile } from "../../lib/auth";
 import { PERMISSIONS } from "../../lib/permissions";
+import PlatformAdoptionHealthPanel from "../../components/PlatformAdoptionHealthPanel";
 
 type SchoolRow = {
   id: number;
@@ -258,6 +259,8 @@ export default function MasterAnalyticsPage() {
           <InsightCard title="WageFlow Enabled" value={analytics.wageflowEnabledSchools} helper="Schools with WageFlow active" />
         </div>
       </div>
+
+      <PlatformAdoptionHealthPanel schools={schools} />
 
       <div className="db-card db-card-yellow" style={{ padding: 18, marginTop: 18 }}>
         <h3 style={sectionTitle}>Schools Needing Attention</h3>

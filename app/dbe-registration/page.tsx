@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
-import { ComplianceHeader } from "./components";
+import { ComplianceHeader, formatComplianceDate } from "./components";
 
 type DbeRegistration = {
   id?: string;
@@ -231,7 +231,7 @@ export default function DbeRegistrationPage() {
             <SummaryItem label="School" value={schoolName} />
             <SummaryItem label="Registration Number" value={registrationNumber} />
             <SummaryItem label="Status" value={registrationStatus} />
-            <SummaryItem label="Registration Date" value={registrationDate || "Not added"} />
+            <SummaryItem label="Registration Date" value={formatComplianceDate(registrationDate, "Not added")} />
             <SummaryItem label="Principal" value={principalName || "Not added"} />
             <SummaryItem label="Contact" value={contactNumber || "Not added"} />
           </div>

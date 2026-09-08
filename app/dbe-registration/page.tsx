@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
@@ -26,7 +27,6 @@ type DbeRegistration = {
   health_certificate_status?: string | null;
   fire_certificate_status?: string | null;
   municipal_approval_status?: string | null;
-  police_clearance_status?: string | null;
 };
 
 const registrationStatuses = [
@@ -37,8 +37,6 @@ const registrationStatuses = [
   "Not Registered",
 ];
 const officialStatuses = ["Not Started", "Application In Progress", "Bronze", "Silver", "Gold", "Renewal In Progress", "Expired", "Other"];
-
-const complianceStatuses = ["Valid","Expired", "Outstanding"];
 
 export default function DbeRegistrationPage() {
   const router = useRouter();
@@ -62,13 +60,10 @@ export default function DbeRegistrationPage() {
   const [contactNumber, setContactNumber] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
   const [physicalAddress, setPhysicalAddress] = useState("");
-
-  const [healthCertificateStatus, setHealthCertificateStatus] =
-    useState("Valid");
-  const [fireCertificateStatus, setFireCertificateStatus] = useState("Valid");
-  const [municipalApprovalStatus, setMunicipalApprovalStatus] =
-    useState("Valid");
-  const [policeClearanceStatus, setPoliceClearanceStatus] = useState("Valid");
+  // Preserved on registration saves; detailed editing lives on Compliance Status.
+  const [healthCertificateStatus, setHealthCertificateStatus] = useState("Outstanding");
+  const [fireCertificateStatus, setFireCertificateStatus] = useState("Outstanding");
+  const [municipalApprovalStatus, setMunicipalApprovalStatus] = useState("Outstanding");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -103,10 +98,9 @@ export default function DbeRegistrationPage() {
       setContactNumber(record.contact_number || "");
       setEmailAddress(record.email_address || "");
       setPhysicalAddress(record.physical_address || "");
-      setHealthCertificateStatus(record.health_certificate_status || "Valid");
-      setFireCertificateStatus(record.fire_certificate_status || "Valid");
-      setMunicipalApprovalStatus(record.municipal_approval_status || "Valid");
-      setPoliceClearanceStatus(record.police_clearance_status || "Valid");
+      setHealthCertificateStatus(record.health_certificate_status || "Outstanding");
+      setFireCertificateStatus(record.fire_certificate_status || "Outstanding");
+      setMunicipalApprovalStatus(record.municipal_approval_status || "Outstanding");
       setEditingRegistration(!result.has_saved_registration);
     } catch (error) {
       alert(
@@ -185,7 +179,6 @@ export default function DbeRegistrationPage() {
       health_certificate_status: healthCertificateStatus,
       fire_certificate_status: fireCertificateStatus,
       municipal_approval_status: municipalApprovalStatus,
-      police_clearance_status: policeClearanceStatus,
       updated_at: new Date().toISOString(),
     };
 
@@ -344,52 +337,25 @@ export default function DbeRegistrationPage() {
             </Field>
           </div>
 
-          <div
-            className="db-card db-card-lavender"
-            style={{ padding: 16, marginTop: 18 }}
-          >
-            <h3 style={sectionTitle}>Compliance Status</h3>
-
-            <div style={grid2}>
-              <Field label="Health Certificate">
-                <StatusSelect
-                  value={healthCertificateStatus}
-                  onChange={setHealthCertificateStatus}
-                />
-              </Field>
-
-              <Field label="Fire Certificate">
-                <StatusSelect
-                  value={fireCertificateStatus}
-                  onChange={setFireCertificateStatus}
-                />
-              </Field>
-
-              <Field label="Municipal Approval">
-                <StatusSelect
-                  value={municipalApprovalStatus}
-                  onChange={setMunicipalApprovalStatus}
-                />
-              </Field>
-
-              <Field label="Police Clearance">
-                <StatusSelect
-                  value={policeClearanceStatus}
-                  onChange={setPoliceClearanceStatus}
-                />
-              </Field>
-            </div>
-
-            <button
-              type="button"
-              className="db-button-primary"
-              style={{ width: "100%", marginTop: 12 }}
-              onClick={saveRegistration}
-              disabled={saving}
-            >
-              {saving ? "Saving..." : "Save Registration Information"}
-            </button>
+          <div className="db-card db-card-lavender" style={{ padding: 16, marginTop: 18 }}>
+            <h3 style={sectionTitle}>School Compliance Status</h3>
+            <p className="db-helper" style={{ margin: "0 0 12px" }}>
+              Health, fire and municipal records are managed separately so that the registration record remains focused on official school information.
+            </p>
+            <Link className="db-button-secondary" style={{ textDecoration: "none" }} href={`/dbe-registration/compliance-status${schoolId ? `?school=${schoolId}` : ""}`}>
+              Manage School Compliance Status
+            </Link>
           </div>
+
+          <button
+            type="button"
+            className="db-button-primary"
+            style={{ width: "100%", marginTop: 18 }}
+            onClick={saveRegistration}
+            disabled={saving}
+          >
+            {saving ? "Saving..." : "Save Registration Information"}
+          </button>
         </>
       )}
     </div>
@@ -408,28 +374,6 @@ function Field({
       <p style={labelText}>{label}</p>
       {children}
     </div>
-  );
-}
-
-function StatusSelect({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <select
-      className="db-input"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      {complianceStatuses.map((status) => (
-        <option key={status} value={status}>
-          {status}
-        </option>
-      ))}
-    </select>
   );
 }
 

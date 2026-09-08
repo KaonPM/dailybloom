@@ -112,13 +112,13 @@ export async function GET(request: Request) {
       physical_address:
         registration?.physical_address || signup?.school_address || "",
       health_certificate_status:
-        registration?.health_certificate_status || "Valid",
+        registration?.health_certificate_status || "Outstanding",
       fire_certificate_status:
-        registration?.fire_certificate_status || "Valid",
+        registration?.fire_certificate_status || "Outstanding",
       municipal_approval_status:
-        registration?.municipal_approval_status || "Valid",
+        registration?.municipal_approval_status || "Outstanding",
       police_clearance_status:
-        registration?.police_clearance_status || "Valid",
+        registration?.police_clearance_status || "Outstanding",
     },
   });
 }

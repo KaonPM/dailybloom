@@ -55,7 +55,6 @@ export async function PUT(request: Request) {
   const healthCertificateStatus = text(body.health_certificate_status, 80);
   const fireCertificateStatus = text(body.fire_certificate_status, 80);
   const municipalApprovalStatus = text(body.municipal_approval_status, 80);
-  const policeClearanceStatus = text(body.police_clearance_status, 80);
   const officialStatus = optionalText(body.official_status, 80);
 
   if (!schoolName || !registrationNumber) {
@@ -68,7 +67,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Choose a valid registration status." }, { status: 400 });
   }
   if (
-    ![healthCertificateStatus, fireCertificateStatus, municipalApprovalStatus, policeClearanceStatus]
+    ![healthCertificateStatus, fireCertificateStatus, municipalApprovalStatus]
       .every((status) => COMPLIANCE_STATUSES.has(status))
   ) {
     return NextResponse.json({ error: "Choose valid compliance statuses." }, { status: 400 });
@@ -105,7 +104,8 @@ export async function PUT(request: Request) {
         health_certificate_status: healthCertificateStatus,
         fire_certificate_status: fireCertificateStatus,
         municipal_approval_status: municipalApprovalStatus,
-        police_clearance_status: policeClearanceStatus,
+        // Kept in the reconciled legacy schema for historic records only. New
+        // police-clearance evidence is recorded per person in Staff Compliance.
         updated_at: new Date().toISOString(),
       },
       { onConflict: "school_id" }
@@ -136,5 +136,77 @@ export async function PUT(request: Request) {
       { status: 500 }
     );
   }
+  return NextResponse.json({ success: true, registration_id: data.id });
+}
+
+/**
+ * Updates only the existing school-wide premises compliance summary. The detailed
+ * registration form remains the owner of registration data, which prevents a
+ * status-only screen from overwriting it with stale values.
+ */
+export async function PATCH(request: Request) {
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const schoolId = Number(body.school_id);
+  if (!Number.isInteger(schoolId) || schoolId <= 0) {
+    return NextResponse.json({ error: "A valid school is required." }, { status: 400 });
+  }
+
+  const authorization = await requireStaffPermission(
+    request,
+    PERMISSIONS.DBE_MANAGE,
+    schoolId
+  );
+  if (!authorization.ok) return authorization.response;
+
+  const statuses = {
+    health_certificate_status: text(body.health_certificate_status, 80),
+    fire_certificate_status: text(body.fire_certificate_status, 80),
+    municipal_approval_status: text(body.municipal_approval_status, 80),
+  };
+
+  if (!Object.values(statuses).every((status) => COMPLIANCE_STATUSES.has(status))) {
+    return NextResponse.json({ error: "Choose valid compliance statuses." }, { status: 400 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("dbe_registration")
+    .update({ ...statuses, updated_at: new Date().toISOString() })
+    .eq("school_id", schoolId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (!data) {
+    return NextResponse.json(
+      { error: "Save the registration record before recording compliance status." },
+      { status: 409 }
+    );
+  }
+
+  try {
+    await writeRequiredSecurityAudit(
+      authorization.staff,
+      "dbe.compliance_status_saved",
+      { registration_id: data.id, fields: Object.keys(statuses) },
+      { type: "dbe_registration", id: data.id }
+    );
+  } catch (auditError) {
+    console.error("DBE compliance status audit write failed", {
+      schoolId,
+      registrationId: data.id,
+      error: auditError instanceof Error ? auditError.message : String(auditError),
+    });
+    return NextResponse.json(
+      { error: "Compliance status was saved, but its required audit record could not be written." },
+      { status: 500 }
+    );
+  }
+
   return NextResponse.json({ success: true, registration_id: data.id });
 }

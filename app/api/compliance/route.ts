@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PERMISSIONS } from "@/app/lib/permissions";
 import { requireStaffPermission, writeRequiredSecurityAudit } from "@/app/lib/server-authorization";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
+import { getSchoolRenewals } from "@/app/lib/server-renewals";
 
 export const runtime = "nodejs";
 
@@ -49,7 +50,13 @@ export async function GET(request: Request) {
     if (errors) return NextResponse.json({ error: errors.message }, { status: 400 });
     const legacyStaff = new Map((staffProfiles.data || []).map((profile) => [profile.id, profile.is_active !== false]));
     for (const membership of memberships.data || []) if (membership.status === "active") legacyStaff.set(membership.user_id, true);
-    return NextResponse.json({ registration: registration.data, requirements: requirements.data || [], documents: documents.data || [], evidence: evidence.data || [], staff: staff.data || [], active_staff_count: [...legacyStaff.values()].filter(Boolean).length, inspections: inspections.data || [], findings: findings.data || [], actions: actions.data || [], certificates: certificates.data || [] });
+    let renewalSummary;
+    try {
+      renewalSummary = (await getSchoolRenewals(id)).summary;
+    } catch (renewalError) {
+      return NextResponse.json({ error: renewalError instanceof Error ? renewalError.message : "Renewals could not be loaded." }, { status: 400 });
+    }
+    return NextResponse.json({ registration: registration.data, requirements: requirements.data || [], documents: documents.data || [], evidence: evidence.data || [], staff: staff.data || [], active_staff_count: [...legacyStaff.values()].filter(Boolean).length, inspections: inspections.data || [], findings: findings.data || [], actions: actions.data || [], certificates: certificates.data || [], renewal_summary: renewalSummary });
   }
 
   if (resource === "catalogue") {
@@ -153,12 +160,12 @@ export async function PATCH(request: Request) {
   const authorization = await requireStaffPermission(request, PERMISSIONS.DBE_MANAGE, id);
   if (!authorization.ok) return authorization.response;
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  ["status", "notes", "due_date", "expiry_date", "expires_at", "renewal_status", "outcome", "follow_up_date", "priority"].forEach((key) => { if (body[key] !== undefined) updates[key] = typeof body[key] === "string" ? clean(body[key], key === "notes" ? 1000 : 160) || null : body[key]; });
+  ["status", "notes", "due_date", "expiry_date", "expires_at", "renewal_status", "outcome", "follow_up_date", "priority", "certificate_type", "holder_name", "issue_date", "issuing_authority", "certificate_reference"].forEach((key) => { if (body[key] !== undefined) updates[key] = typeof body[key] === "string" ? clean(body[key], key === "notes" ? 1000 : 160) || null : body[key]; });
   if (body.status === "Closed" && resource === "actions") updates.completed_at = new Date().toISOString();
   const { data, error } = await supabaseAdmin.from(tables[resource]).update(updates).eq("id", recordId).eq("school_id", id).select("id").maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   if (!data) return NextResponse.json({ error: "Compliance record not found." }, { status: 404 });
-  const action = resource === "actions" && body.status === "Closed" ? "compliance.corrective_action_closed" : resource === "actions" ? "compliance.corrective_action_updated" : resource === "inspections" ? "compliance.inspection_updated" : "compliance.requirement_status_changed";
+  const action = resource === "actions" && body.status === "Closed" ? "compliance.corrective_action_closed" : resource === "actions" ? "compliance.corrective_action_updated" : resource === "inspections" ? "compliance.inspection_updated" : resource === "certificates" && clean(body.renewal_status, 40) === "In Progress" ? "compliance.certificate_renewal_started" : resource === "certificates" && clean(body.renewal_status, 40) === "Renewed" ? "compliance.certificate_renewed" : resource === "certificates" ? "compliance.certificate_updated" : "compliance.requirement_status_changed";
   await writeRequiredSecurityAudit(authorization.staff, action, { resource, record_id: recordId }, { type: tables[resource], id: recordId });
   return NextResponse.json({ success: true });
 }

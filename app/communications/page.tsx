@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 import CommunicationSummary from "./components/CommunicationSummary";
@@ -134,6 +135,12 @@ export default function CommunicationsPage() {
     const next = defaultFilters();
     setDraftFilters(next);
     setAppliedFilters(next);
+  }
+
+  async function markRead() {
+    if (!schoolId || !selected || selected.status === "read") return;
+    const response = await authenticatedFetch("/api/communications/notification-centre", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ school_id: schoolId, notification_id: selected.id }) });
+    if (response.ok) { setSelected({ ...selected, status: "read" }); void load(pagination.page); }
   }
 
   function exportCsv() {
@@ -290,6 +297,12 @@ export default function CommunicationsPage() {
               <dd>{selected.sent_by_name || "DailyBloom"}</dd>
               <dt>Attempts</dt>
               <dd>{selected.attempt_count || 0}</dd>
+              {selected.metadata && typeof selected.metadata.action_url === "string" && (
+                <>
+                  <dt>Action</dt>
+                  <dd><Link className={styles.linkButton} href={selected.metadata.action_url}>{typeof selected.metadata.action_label === "string" ? selected.metadata.action_label : "Open item"}</Link></dd>
+                </>
+              )}
               {selected.error_message && (
                 <>
                   <dt>Failure reason</dt>
@@ -297,6 +310,7 @@ export default function CommunicationsPage() {
                 </>
               )}
             </dl>
+            {selected.status !== "read" ? <button className={styles.primary} type="button" onClick={() => void markRead()}>Mark as read</button> : null}
           </aside>
         </div>
       )}

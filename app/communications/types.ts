@@ -22,6 +22,7 @@ export type CommunicationRow = {
   error_message?: string | null;
   created_at?: string | null;
   sent_by_name?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type CommunicationSummaryData = { sentToday: number; delivered: number; read: number; failed: number; awaiting: number };

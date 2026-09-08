@@ -17,6 +17,7 @@
     "test:billing": "tsx --test app/lib/billing-calculations.test.ts app/lib/learner-fee-statement.test.ts",
     "test:whatsapp": "tsx --test app/lib/whatsapp.test.ts",
     "test:authorization": "tsx --test app/lib/permissions.test.ts app/lib/authorization-policy.test.ts app/lib/parent-authorization-policy.test.ts app/lib/parent-session.test.ts app/lib/role-management.test.ts app/lib/platform-operation-policy.test.ts app/lib/navigation-permissions.test.ts",
+    "test:compliance": "tsx --test app/lib/compliance.test.ts app/lib/staff-compliance.test.ts app/lib/renewal-aggregation.test.ts app/lib/corrective-actions.test.ts app/lib/compliance-attention.test.ts",
     "test:monitoring": "tsx --test app/lib/error-monitoring.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:authenticated": "playwright test tests/e2e/authenticated-workflows.spec.ts"

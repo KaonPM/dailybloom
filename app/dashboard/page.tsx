@@ -84,6 +84,7 @@ type ConsolidatedOverview = {
   paymentsThisMonth: number;
   unpaidThisMonth: number;
 };
+type ComplianceAttention = { key: string; severity: "critical" | "high" | "medium" | "low"; title: string; description: string; action_url: string; action_label: string };
 
 export default function PrincipalDashboardPage() {
   const router = useRouter();
@@ -118,6 +119,7 @@ export default function PrincipalDashboardPage() {
     paymentsThisMonth: 0,
     unpaidThisMonth: 0,
   });
+  const [complianceAttention, setComplianceAttention] = useState<ComplianceAttention[]>([]);
 
   const [dailyHighlightsOpen, setDailyHighlightsOpen] = useState(true);
   const [schoolRecordsOpen, setSchoolRecordsOpen] = useState(true);
@@ -179,9 +181,17 @@ export default function PrincipalDashboardPage() {
       fetchStats(currentSchoolId),
       fetchTopRowContent(currentSchoolId),
       fetchConsolidatedOverview(currentSchoolId),
+      fetchComplianceAttention(currentSchoolId),
     ]);
 
     setLoading(false);
+  }
+
+  async function fetchComplianceAttention(currentSchoolId: number) {
+    try {
+      const response = await authenticatedFetch(`/api/compliance/attention?school_id=${currentSchoolId}`);
+      if (response.ok) { const payload = await response.json(); setComplianceAttention(payload.items || []); }
+    } catch { setComplianceAttention([]); }
   }
 
   async function fetchStats(currentSchoolId: number) {
@@ -492,6 +502,7 @@ export default function PrincipalDashboardPage() {
       action: "Review activities",
     });
   }
+  complianceAttention.filter((item) => item.severity === "critical" || item.severity === "high" || item.title.includes("verification") || item.description.includes("in 0 days") || item.description.includes("in 1 days") || item.description.includes("in 2 days") || item.description.includes("in 3 days")).slice(0, 3).forEach((item) => priorities.push({ title: item.title, detail: item.description, href: item.action_url, action: item.action_label, tone: item.severity === "critical" || item.severity === "high" ? "pink" : "yellow" }));
   function openTodaysActivities(classroom: string) {
     const now = new Date();
     const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;

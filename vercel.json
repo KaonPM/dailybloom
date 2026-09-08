@@ -27,6 +27,10 @@
     {
       "path": "/api/cron/school-adoption-digests",
       "schedule": "0 7 * * 1"
+    },
+    {
+      "path": "/api/cron/compliance-attention",
+      "schedule": "0 6 * * *"
     }
   ]
 }

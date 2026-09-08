@@ -134,3 +134,16 @@ export async function GET(request: Request) {
     communicationTypes,
   });
 }
+
+export async function PATCH(request: Request) {
+  let body: { school_id?: unknown; notification_id?: unknown };
+  try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request body." }, { status: 400 }); }
+  const schoolId = Number(body.school_id || 0); const notificationId = String(body.notification_id || "").trim();
+  if (!Number.isInteger(schoolId) || schoolId <= 0 || !notificationId) return NextResponse.json({ error: "A notification and school are required." }, { status: 400 });
+  const authorization = await requireStaffPermission(request, PERMISSIONS.MESSAGE_VIEW, schoolId);
+  if (!authorization.ok) return authorization.response;
+  const { data, error } = await supabaseAdmin.from("communication_notifications").update({ status: "read", read_at: new Date().toISOString() }).eq("id", notificationId).eq("school_id", schoolId).select("id").maybeSingle();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: "Notification not found." }, { status: 404 });
+  return NextResponse.json({ success: true });
+}

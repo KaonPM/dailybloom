@@ -64,13 +64,13 @@ export async function getSchoolRenewals(schoolId: number) {
   for (const item of certificates) {
     const linkedDocumentId = clean(item.document_id);
     if (linkedDocumentId && (staffDocumentIds.has(linkedDocumentId) || documentById.has(linkedDocumentId))) continue;
-    const title = clean(item.certificate_type) || "Manual certificate";
+    const title = clean(item.certificate_type) || "Recorded certificate";
     const expiryDate = date(item.expiry_date);
     const matchesSource = items.some((source) => source.title.toLowerCase() === title.toLowerCase() && source.expiry_date === expiryDate && source.holder === (clean(item.holder_name) || "School"));
     items.push(renewalItem({
-      source_type: "manual", source_id: clean(item.id), school_id: schoolId, title, category: "Manual certificate", holder: clean(item.holder_name) || "School",
+      source_type: "manual", source_id: clean(item.id), school_id: schoolId, title, category: "Recorded certificate", holder: clean(item.holder_name) || "School",
       issue_date: date(item.issue_date), expiry_date: expiryDate, renewal_status: clean(item.renewal_status) || "Current",
-      verification_status: clean(item.verification_status) || null, linked_document_id: linkedDocumentId || null, source_route: "/dbe-registration/certificates", source_label: "Manual Certificate", is_manual: true,
+      verification_status: clean(item.verification_status) || null, linked_document_id: linkedDocumentId || null, source_route: "/dbe-registration/certificates", source_label: "Recorded Certificate", is_manual: true,
       possible_duplicate: matchesSource,
     }));
   }

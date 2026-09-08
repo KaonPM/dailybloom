@@ -52,8 +52,8 @@ export default function Topbar() {
       </div>
 
       <div className="db-topbar-actions">
-        <Link href="/" className="db-topbar-link db-topbar-link-home">
-          Homepage
+        <Link href={profile?.role === "master" ? "/" : "/dashboard"} className="db-topbar-link db-topbar-link-home">
+          {profile?.role === "master" ? "Homepage" : "Dashboard"}
         </Link>
 
         {profile?.role === "master" ? (

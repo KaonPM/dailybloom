@@ -63,6 +63,7 @@ export default function Sidebar() {
   const [subscriptionPlan, setSubscriptionPlan] = useState("");
   const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mobileLoggingOut, setMobileLoggingOut] = useState(false);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
   const [filteredQuickActionsNav, setFilteredQuickActionsNav] = useState<NavItem[]>([]);
@@ -435,6 +436,32 @@ export default function Sidebar() {
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname, searchParams]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsMobileMenuOpen(false);
+    };
+    document.body.classList.add("db-mobile-nav-open");
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.classList.remove("db-mobile-nav-open");
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isMobileMenuOpen]);
+
+  async function handleMobileLogout() {
+    setMobileLoggingOut(true);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      alert(error.message);
+      setMobileLoggingOut(false);
+      return;
+    }
+    setIsMobileMenuOpen(false);
+    router.push("/");
+    router.refresh();
+  }
 
   async function loadSidebarContext() {
     setLoading(true);
@@ -940,13 +967,22 @@ export default function Sidebar() {
           type="button"
           className="db-mobile-menu-button"
           onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="db-mobile-navigation"
         >
-          {isMobileMenuOpen ? "Close" : "Menu"}
+          Menu
         </button>
       </div>
 
-      <div className={`db-sidebar-content ${isMobileMenuOpen ? "open" : ""}`}>
+      {isMobileMenuOpen ? <button type="button" className="db-sidebar-backdrop" aria-label="Close navigation menu" onClick={() => setIsMobileMenuOpen(false)} /> : null}
+
+      <div id="db-mobile-navigation" className={`db-sidebar-content ${isMobileMenuOpen ? "open" : ""}`} role="navigation" aria-label="Main navigation" onClick={(event) => { if ((event.target as HTMLElement).closest("a")) setIsMobileMenuOpen(false); }}>
+        <div className="db-sidebar-drawer-header">
+          <div><strong>DailyBloom</strong>{profile?.role ? <span>{displayRole(profile.role)}</span> : null}</div>
+          <button type="button" aria-label="Close navigation menu" onClick={() => setIsMobileMenuOpen(false)}>×</button>
+        </div>
         <div
+          className="db-sidebar-identity"
           style={{
             background: "linear-gradient(135deg, #F8E8F0 0%, #FFF8F2 100%)",
             border: "1px solid #EBC9D8",
@@ -1333,6 +1369,12 @@ export default function Sidebar() {
             Manage learners, events, attendance, summaries, classrooms, practitioners,
             reports, and school activity without losing school context.
           </p>
+        </div>
+
+        <div className="db-sidebar-mobile-logout">
+          <button type="button" className="db-button-secondary" onClick={() => void handleMobileLogout()} disabled={mobileLoggingOut}>
+            {mobileLoggingOut ? "Logging out..." : "Logout"}
+          </button>
         </div>
       </div>
     </aside>

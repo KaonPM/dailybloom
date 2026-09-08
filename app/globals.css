@@ -812,6 +812,12 @@ textarea {
   z-index: 60;
 }
 
+.db-sidebar-backdrop,
+.db-sidebar-drawer-header,
+.db-sidebar-mobile-logout {
+  display: none;
+}
+
 .db-sidebar-brand-mini {
   margin: 0;
   font-size: 12px;
@@ -964,6 +970,10 @@ textarea {
 }
 
 @media (max-width: 820px) {
+  body.db-mobile-nav-open {
+    overflow: hidden;
+  }
+
   .db-app-shell {
     flex-direction: column;
   }
@@ -1000,25 +1010,66 @@ textarea {
 
   .db-sidebar-content {
     display: none !important;
-    overflow: visible !important;
+    overflow: hidden !important;
     padding-right: 0;
-    margin-top: 12px;
+    margin-top: 0;
   }
 
   .db-sidebar-content.open {
     display: flex !important;
     flex-direction: column;
     gap: 12px;
-    margin-top: 12px;
+    margin-top: 0;
     background: #fff8f2;
-    padding-bottom: 8px;
-    position: relative;
-    z-index: 50;
+    padding: 12px;
+    box-sizing: border-box;
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(88vw, 360px);
+    height: 100dvh;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    z-index: 100;
+    box-shadow: 14px 0 34px rgba(45, 42, 62, 0.22);
   }
 
+  .db-sidebar-content a,
+  .db-sidebar-content button {
+    z-index: auto;
+  }
+
+  .db-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    border: 0;
+    background: rgba(45, 42, 62, 0.32);
+    cursor: pointer;
+    z-index: 90;
+  }
+
+  .db-sidebar-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 2px 10px;
+    border-bottom: 1px solid #f0e3d8;
+    color: #2d2a3e;
+  }
+
+  .db-sidebar-drawer-header strong { display: block; font-size: 17px; }
+  .db-sidebar-drawer-header span { display: block; margin-top: 2px; color: #6d6888; font-size: 12px; text-transform: capitalize; }
+  .db-sidebar-drawer-header button { width: 40px; height: 40px; border: 1px solid #f0e3d8; border-radius: 12px; background: #ffffff; color: #2d2a3e; font-size: 24px; line-height: 1; cursor: pointer; }
+  .db-sidebar-identity { display: none; }
+  .db-sidebar-mobile-logout { display: block; margin-top: auto; padding-top: 4px; border-top: 1px solid #f0e3d8; }
+  .db-sidebar-mobile-logout .db-button-secondary { width: 100%; text-align: center; }
+
   .db-topbar {
-    min-height: auto;
-    padding: 12px 14px;
+    display: none;
   }
 
   .db-topbar-brand {
@@ -1028,6 +1079,38 @@ textarea {
   .db-topbar-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .db-dashboard-page {
+    padding-bottom: 14px !important;
+  }
+
+  .db-dashboard-hero {
+    padding: 14px !important;
+    margin-bottom: 12px !important;
+    border-radius: 18px !important;
+  }
+
+  .db-dashboard-hero-content {
+    gap: 12px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .db-dashboard-school-logo {
+    width: 52px !important;
+    height: 52px !important;
+    border-radius: 14px !important;
+    flex-shrink: 0;
+  }
+
+  .db-dashboard-hero-copy {
+    min-width: 0;
+  }
+
+  .db-dashboard-school-name {
+    font-size: clamp(21px, 7vw, 26px) !important;
+    line-height: 1.12 !important;
+    overflow-wrap: anywhere;
   }
 
   .db-page-title {
@@ -1072,11 +1155,6 @@ textarea {
 
   .db-page-subtitle {
     font-size: 13px !important;
-  }
-
-  .db-topbar-link {
-    width: 100%;
-    text-align: center;
   }
 
   .db-mobile-menu-button {

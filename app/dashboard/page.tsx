@@ -512,14 +512,14 @@ export default function PrincipalDashboardPage() {
   }
 
   return (
-    <div
+    <div className="db-dashboard-page"
       style={{
         minHeight: "100%",
         background: "#FFF8F2",
         paddingBottom: "24px",
       }}
     >
-      <div
+      <div className="db-dashboard-hero"
         style={{
           background: "linear-gradient(135deg, #F8E8F0 0%, #FFF8F2 100%)",
           border: "1px solid #EBC9D8",
@@ -529,7 +529,7 @@ export default function PrincipalDashboardPage() {
           boxShadow: "0 8px 18px rgba(45, 42, 62, 0.05)",
         }}
       >
-        <div
+        <div className="db-dashboard-hero-content"
           style={{
             display: "flex",
             alignItems: "center",
@@ -538,7 +538,7 @@ export default function PrincipalDashboardPage() {
           }}
         >
           {school.logo_url ? (
-            <img
+            <img className="db-dashboard-school-logo"
               src={school.logo_url}
               alt={`${school.school_name} logo`}
               style={{
@@ -551,7 +551,7 @@ export default function PrincipalDashboardPage() {
               }}
             />
           ) : (
-            <div
+            <div className="db-dashboard-school-logo"
               style={{
                 width: "68px",
                 height: "68px",
@@ -570,10 +570,10 @@ export default function PrincipalDashboardPage() {
             </div>
           )}
 
-          <div>
+          <div className="db-dashboard-hero-copy">
             <p style={eyebrowText}>School Dashboard</p>
 
-            <h1
+            <h1 className="db-dashboard-school-name"
               style={{
                 margin: "6px 0 0 0",
                 fontSize: "28px",

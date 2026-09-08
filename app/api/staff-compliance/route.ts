@@ -6,6 +6,13 @@ import { supabaseAdmin } from "@/app/lib/supabase-admin";
 export const runtime = "nodejs";
 
 const STATUSES = new Set(["Not Started", "In Progress", "Ready", "Needs Review", "Missing", "Expired", "Not Applicable"]);
+const DBE_DSD_STAFF_ITEM_TITLES: Record<string, string> = {
+  police_clearance: "Police Clearance",
+  child_protection_register_clearance: "National Child Protection Register Clearance",
+  sexual_offences_affidavit: "Affidavit: No Previous Sexual Offences",
+  certified_identity_document: "Certified Identity Document",
+  qualification_evidence: "ECD Qualification / Education Evidence",
+};
 const clean = (value: unknown, maximum = 1000) => String(value ?? "").trim().slice(0, maximum);
 const schoolId = (value: unknown) => { const id = Number(value); return Number.isInteger(id) && id > 0 ? id : null; };
 
@@ -88,7 +95,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   }
 
-  const requirementId = clean(body.requirement_id, 64) || null;
+  const selectedItemType = clean(body.item_type ?? body.requirement_id, 64);
+  const standardItemTitle = DBE_DSD_STAFF_ITEM_TITLES[selectedItemType] || null;
+  const requirementId = standardItemTitle ? null : selectedItemType || null;
   const recordId = clean(body.id, 64);
   let existingDocumentId: string | null = null;
   if (recordId) {
@@ -97,7 +106,7 @@ export async function POST(request: Request) {
     if (!existingRecord) return NextResponse.json({ error: "Staff compliance record not found." }, { status: 404 });
     existingDocumentId = existingRecord.document_id;
   }
-  let title = clean(body.title, 180);
+  let title = standardItemTitle || clean(body.title, 180);
   if (requirementId) {
     const { data: requirement } = await supabaseAdmin.from("compliance_requirements").select("id, title").eq("id", requirementId).eq("active", true).eq("applies_to_staff", true).maybeSingle();
     if (!requirement) return NextResponse.json({ error: "Choose a configured staff compliance item." }, { status: 400 });
@@ -117,6 +126,18 @@ export async function POST(request: Request) {
   if (recordId) ({ data, error } = await supabaseAdmin.from("staff_compliance_items").update(payload).eq("id", recordId).eq("school_id", id).eq("staff_user_id", staffUserId).select("id").maybeSingle());
   else if (requirementId) {
     const { data: existing, error: existingError } = await supabaseAdmin.from("staff_compliance_items").select("id").eq("school_id", id).eq("staff_user_id", staffUserId).eq("requirement_id", requirementId).maybeSingle();
+    if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 });
+    if (existing) ({ data, error } = await supabaseAdmin.from("staff_compliance_items").update(payload).eq("id", existing.id).eq("school_id", id).select("id").maybeSingle());
+    else ({ data, error } = await supabaseAdmin.from("staff_compliance_items").insert(payload).select("id").single());
+  }
+  else if (standardItemTitle) {
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("staff_compliance_items")
+      .select("id")
+      .eq("school_id", id)
+      .eq("staff_user_id", staffUserId)
+      .eq("title", standardItemTitle)
+      .maybeSingle();
     if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 });
     if (existing) ({ data, error } = await supabaseAdmin.from("staff_compliance_items").update(payload).eq("id", existing.id).eq("school_id", id).select("id").maybeSingle());
     else ({ data, error } = await supabaseAdmin.from("staff_compliance_items").insert(payload).select("id").single());

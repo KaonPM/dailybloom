@@ -92,6 +92,10 @@ export async function GET(request: Request) {
         "Registration In Progress",
       registration_date: registration?.registration_date || "",
       renewal_date: registration?.renewal_date || "",
+      official_status: registration?.official_status || "",
+      status_source: registration?.status_source || "",
+      last_verified_at: registration?.last_verified_at || "",
+      registration_notes: registration?.registration_notes || "",
       principal_name:
         registration?.principal_name ||
         principal?.full_name ||

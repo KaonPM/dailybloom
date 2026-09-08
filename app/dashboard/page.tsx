@@ -12,6 +12,7 @@ import TodaysPriorities, {
 } from "../components/TodaysPriorities";
 import RouteStateCard from "../components/RouteStateCard";
 import SchoolEngagementCard from "../components/SchoolEngagementCard";
+import { priorityComplianceAttention } from "../lib/compliance-attention";
 
 type School = {
   id: number;
@@ -84,7 +85,7 @@ type ConsolidatedOverview = {
   paymentsThisMonth: number;
   unpaidThisMonth: number;
 };
-type ComplianceAttention = { key: string; severity: "critical" | "high" | "medium" | "low"; title: string; description: string; action_url: string; action_label: string };
+type ComplianceAttention = { key: string; school_id: number; type: string; severity: "critical" | "high" | "medium" | "low"; title: string; description: string; source: string; source_record: string | null; due_date: string | null; days_until_due: number | null; days_overdue: number | null; action_url: string; action_label: string; recipient_roles: string[]; actionable: true };
 
 export default function PrincipalDashboardPage() {
   const router = useRouter();
@@ -502,7 +503,7 @@ export default function PrincipalDashboardPage() {
       action: "Review activities",
     });
   }
-  complianceAttention.filter((item) => item.severity === "critical" || item.severity === "high" || item.title.includes("verification") || item.description.includes("in 0 days") || item.description.includes("in 1 days") || item.description.includes("in 2 days") || item.description.includes("in 3 days")).slice(0, 3).forEach((item) => priorities.push({ title: item.title, detail: item.description, href: item.action_url, action: item.action_label, tone: item.severity === "critical" || item.severity === "high" ? "pink" : "yellow" }));
+  priorityComplianceAttention(complianceAttention).forEach((item) => priorities.push({ title: item.title, detail: item.description, href: item.action_url, action: item.action_label, tone: item.severity === "critical" || item.severity === "high" ? "pink" : "yellow" }));
   function openTodaysActivities(classroom: string) {
     const now = new Date();
     const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;

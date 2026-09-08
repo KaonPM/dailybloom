@@ -87,7 +87,7 @@ export async function POST(request: Request) {
   }
 
   if (operation !== "create") return NextResponse.json({ error: "Unsupported corrective action operation." }, { status: 400 });
-  const title = clean(body.title, 180); const description = clean(body.description, 2000); const dueDate = clean(body.due_date, 10); const responsibleUserId = clean(body.responsible_user_id, 64); const sourceType = clean(body.source_type, 40) || "manual"; const sourceId = clean(body.source_id, 64);
+  const title = clean(body.title, 180); const description = clean(body.description, 2000); const dueDate = clean(body.due_date, 10); const responsibleUserId = clean(body.responsible_user_id, 64); const sourceType = clean(body.source_type, 40) || "manual"; const sourceId = clean(body.source_id, 64); const category = clean(body.category, 120) || null;
   if (!title || !description || !dueDate || !responsibleUserId) return NextResponse.json({ error: "Title, description, responsible person and due date are required." }, { status: 400 });
   const [assignee, source] = await Promise.all([validateAssignee(id, responsibleUserId), validateSource(id, sourceType, sourceId)]);
   if (!assignee) return NextResponse.json({ error: "Choose an active staff member from this school." }, { status: 403 });
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
   }
   const priority = normalizeCorrectiveActionPriority(body.priority || source.priority);
   if (!ACTION_PRIORITIES.includes(priority)) return NextResponse.json({ error: "Choose a valid priority." }, { status: 400 });
-  const { data, error } = await supabaseAdmin.from("compliance_corrective_actions").insert({ school_id: id, title, description, source_type: sourceType, source_id: sourceType === "manual" ? null : sourceId, responsible_user_id: responsibleUserId, due_date: dueDate, priority, status: "Open", created_by: authorization.staff.userId, updated_by: authorization.staff.userId }).select("id").single();
+  const { data, error } = await supabaseAdmin.from("compliance_corrective_actions").insert({ school_id: id, title, description, category, source_type: sourceType, source_id: sourceType === "manual" ? null : sourceId, responsible_user_id: responsibleUserId, due_date: dueDate, priority, status: "Open", created_by: authorization.staff.userId, updated_by: authorization.staff.userId }).select("id").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   await writeRequiredSecurityAudit(authorization.staff, "compliance.corrective_action_created", { source_type: sourceType, priority, responsible_assigned: true }, { type: "compliance_corrective_actions", id: data.id });
   await writeRequiredSecurityAudit(authorization.staff, "compliance.corrective_action_assigned", { source_type: sourceType }, { type: "compliance_corrective_actions", id: data.id });

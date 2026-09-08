@@ -54,6 +54,7 @@ export default function DbeRegistrationPage() {
   const [renewalDate, setRenewalDate] = useState("");
   const [officialStatus, setOfficialStatus] = useState("");
   const [statusSource, setStatusSource] = useState("");
+  const [lastVerifiedAt, setLastVerifiedAt] = useState("");
   const [registrationNotes, setRegistrationNotes] = useState("");
   const [principalName, setPrincipalName] = useState("");
   const [contactNumber, setContactNumber] = useState("");
@@ -92,6 +93,7 @@ export default function DbeRegistrationPage() {
       setRenewalDate(record.renewal_date || "");
       setOfficialStatus(record.official_status || "");
       setStatusSource(record.status_source || "");
+      setLastVerifiedAt(record.last_verified_at || "");
       setRegistrationNotes(record.registration_notes || "");
       setPrincipalName(record.principal_name || "");
       setContactNumber(record.contact_number || "");
@@ -170,6 +172,7 @@ export default function DbeRegistrationPage() {
       renewal_date: renewalDate || null,
       official_status: officialStatus || null,
       status_source: statusSource.trim() || null,
+      last_verified_at: lastVerifiedAt || null,
       registration_notes: registrationNotes.trim() || null,
       principal_name: principalName.trim() || null,
       contact_number: contactNumber.trim() || null,
@@ -269,6 +272,7 @@ export default function DbeRegistrationPage() {
                 <Field label="Renewal / Expiry Date"><input className="db-input" type="date" value={renewalDate} onChange={(event) => setRenewalDate(event.target.value)} /></Field>
               </div>
               <Field label="Registration Notes"><textarea className="db-input" value={registrationNotes} onChange={(event) => setRegistrationNotes(event.target.value)} style={{ minHeight: 70, resize: "vertical" }} /></Field>
+              {lastVerifiedAt ? <p className="db-helper">Last verified: {formatComplianceDate(lastVerifiedAt)}</p> : null}
             </div>
 
             <div style={grid2}>

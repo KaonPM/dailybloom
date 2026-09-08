@@ -136,6 +136,16 @@ export default function Sidebar() {
         match: ["/master/resource-reviews"],
       },
       {
+        label: "Compliance Activity",
+        href: "/master/compliance-activity",
+        match: ["/master/compliance-activity"],
+      },
+      {
+        label: "Compliance Catalogue",
+        href: "/master/compliance-catalogue",
+        match: ["/master/compliance-catalogue"],
+      },
+      {
         label: "Impact & Sponsorship",
         href: "/master/impact",
         match: ["/master/impact"],

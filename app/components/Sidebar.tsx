@@ -217,12 +217,6 @@ export default function Sidebar() {
         match: ["/dbe-registration"],
         permission: PERMISSIONS.DBE_MANAGE,
       },
-      {
-        label: "School Compliance Status",
-        href: "/dbe-registration/compliance-status",
-        match: ["/dbe-registration/compliance-status"],
-        permission: PERMISSIONS.DBE_MANAGE,
-      },
       { label: "Requirements", href: "/dbe-registration/requirements", match: ["/dbe-registration/requirements"], permission: PERMISSIONS.DBE_MANAGE },
       {
         label: "Documents & Evidence",

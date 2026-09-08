@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
-import { ComplianceNav } from "./components";
+import { ComplianceHeader } from "./components";
 
 type DbeRegistration = {
   id?: string;
@@ -214,13 +214,7 @@ export default function DbeRegistrationPage() {
 
   return (
     <div>
-      <ComplianceNav />
-      <div className="db-soft-card" style={{ padding: 18, marginBottom: 18 }}>
-        <h2 className="db-page-title">Compliance &amp; Registration: Registration</h2>
-        <p className="db-page-subtitle">
-          Store the school’s recorded official registration information. This is separate from DailyBloom readiness.
-        </p>
-      </div>
+      <ComplianceHeader title="Registration" description="Store the school’s recorded official registration information. This is separate from DailyBloom readiness." />
 
       {!editingRegistration && recordId ? (
         <div className="db-card db-card-blue" style={{ padding: 16 }}>

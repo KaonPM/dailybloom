@@ -12,3 +12,9 @@ export function complianceAuditPresentation(action: string) {
   const found = definitions.find(([prefix]) => action.startsWith(prefix));
   return found ? { module: found[1], label: found[2] } : null;
 }
+
+export function complianceAuditPrefixesForModule(module: ComplianceAuditModule) {
+  return definitions
+    .filter(([, definitionModule]) => definitionModule === module)
+    .map(([prefix]) => prefix);
+}

@@ -141,7 +141,7 @@ export default function Sidebar() {
         match: ["/master/compliance-activity"],
       },
       {
-        label: "Compliance Catalogue",
+        label: "Requirement Catalogue & Sources",
         href: "/master/compliance-catalogue",
         match: ["/master/compliance-catalogue"],
       },

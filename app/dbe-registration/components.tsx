@@ -1,20 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
-const sections = [
-  ["Overview", "/dbe-registration/overview"], ["Registration", "/dbe-registration"],
-  ["Requirements", "/dbe-registration/requirements"], ["Documents & Evidence", "/dbe-registration/documents"],
-  ["Staff Compliance", "/dbe-registration/staff-compliance"], ["Inspections", "/dbe-registration/inspections"],
-  ["Corrective Actions", "/dbe-registration/corrective-actions"], ["Certificates & Renewals", "/dbe-registration/certificates"],
-] as const;
-
+// The sidebar is the single navigator for this module. Pages retain only a
+// compact return link so the content area is not a duplicate menu.
 export function ComplianceNav() {
-  const params = useSearchParams(); const pathname = usePathname(); const school = params.get("school");
-  return <nav aria-label="Compliance & Registration" style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 18px" }}>
-    {sections.map(([label, href]) => { const active = href === "/dbe-registration" ? pathname === href : pathname.startsWith(href); return <Link key={href} className={active ? "db-button-primary" : "db-button-secondary"} style={{ textDecoration: "none" }} href={`${href}${school ? `?school=${school}` : ""}`}>{label}</Link>; })}
-  </nav>;
+  const params = useSearchParams(); const school = params.get("school");
+  return <div style={{ margin: "0 0 14px" }}><Link className="db-button-secondary" style={{ textDecoration: "none" }} href={`/dbe-registration/overview${school ? `?school=${school}` : ""}`}>← Compliance Overview</Link></div>;
 }
 
 export function ComplianceHeader({ title, description }: { title: string; description: string }) {

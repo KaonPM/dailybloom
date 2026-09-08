@@ -18,6 +18,7 @@ const tables = {
 type Resource = keyof typeof tables;
 const resources = new Set< string >(Object.keys(tables));
 const REQUIREMENT_STATUSES = new Set(["Not Started", "In Progress", "Ready", "Needs Review", "Missing", "Expired", "Not Applicable"]);
+const CHECKLIST_STATUSES = new Set(["Not Yet", "Partly Ready", "Ready", "Not Applicable"]);
 
 function schoolId(value: string | null) {
   const id = Number(value);
@@ -91,6 +92,18 @@ export async function POST(request: Request) {
   const authorization = await requireStaffPermission(request, PERMISSIONS.DBE_MANAGE, id);
   if (!authorization.ok) return authorization.response;
   const evidenceAction = clean(body.action, 40);
+  if (evidenceAction === "save_checklist_item") {
+    const requirementId = clean(body.requirement_id, 64); const itemKey = clean(body.item_key, 100); const status = clean(body.status, 40);
+    if (!requirementId || !/^[a-z0-9-]{1,100}$/.test(itemKey) || !CHECKLIST_STATUSES.has(status)) return NextResponse.json({ error: "A configured checklist item and valid status are required." }, { status: 400 });
+    const { data: requirement } = await supabaseAdmin.from("compliance_requirements").select("id, active").eq("id", requirementId).maybeSingle();
+    if (!requirement?.active) return NextResponse.json({ error: "This requirement is not active." }, { status: 400 });
+    const { data: current } = await supabaseAdmin.from("school_compliance_requirements").select("checklist_state").eq("school_id", id).eq("requirement_id", requirementId).maybeSingle();
+    const checklistState = { ...((current?.checklist_state as Record<string, string> | null) || {}), [itemKey]: status };
+    const { data, error } = await supabaseAdmin.from("school_compliance_requirements").upsert({ school_id: id, requirement_id: requirementId, checklist_state: checklistState, updated_at: new Date().toISOString() }, { onConflict: "school_id,requirement_id" }).select("id").single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    await writeRequiredSecurityAudit(authorization.staff, "compliance.requirement_checklist_updated", { requirement_id: requirementId, item_key: itemKey, status }, { type: "school_compliance_requirements", id: data.id });
+    return NextResponse.json({ item: data });
+  }
   if (evidenceAction === "save_requirement") {
     const requirementId = clean(body.requirement_id, 64);
     const status = clean(body.status, 40) || "Not Started";

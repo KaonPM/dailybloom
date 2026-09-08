@@ -1,108 +1,21 @@
 "use client";
-
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getCurrentProfile } from "@/app/lib/auth";
 import { resolveSchoolContext } from "@/app/lib/school-context";
 import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 import { ComplianceHeader, formatComplianceDate } from "../components";
-import { hasRequirementGuidance, nextRequirementAction, READY_EXPLANATION } from "@/app/lib/compliance-guidance";
-
-type Item = Record<string, unknown>;
-const statuses = ["Not Started", "In Progress", "Ready", "Needs Review", "Missing", "Expired", "Not Applicable"];
-
-export default function RequirementsPage() {
-  const router = useRouter();
-  const params = useSearchParams();
-  const [school, setSchool] = useState<number>();
-  const [catalogue, setCatalogue] = useState<Item[]>([]);
-  const [states, setStates] = useState<Item[]>([]);
-  const [docs, setDocs] = useState<Item[]>([]);
-  const [links, setLinks] = useState<Item[]>([]);
-  const [open, setOpen] = useState<string>();
-  const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-
-  const load = async (id: number) => {
-    setLoadError(false);
-    try {
-      const [catalogueResponse, statesResponse, documentsResponse, linksResponse] = await Promise.all([
-        authenticatedFetch(`/api/compliance?school_id=${id}&resource=catalogue`),
-        authenticatedFetch(`/api/compliance?school_id=${id}&resource=requirements`),
-        authenticatedFetch(`/api/dbe-compliance-documents?school_id=${id}`),
-        authenticatedFetch(`/api/compliance?school_id=${id}&resource=evidence`),
-      ]);
-      if (![catalogueResponse, statesResponse, documentsResponse, linksResponse].every((response) => response.ok)) throw new Error();
-      const [catalogueBody, statesBody, documentsBody, linksBody] = await Promise.all([
-        catalogueResponse.json(), statesResponse.json(), documentsResponse.json(), linksResponse.json(),
-      ]);
-      setCatalogue(catalogueBody.items || []); setStates(statesBody.items || []);
-      setDocs(documentsBody.documents || []); setLinks(linksBody.items || []);
-    } catch { setLoadError(true); }
-  };
-
-  useEffect(() => { void (async () => {
-    const { profile } = await getCurrentProfile();
-    if (!profile || profile.role === "teacher") { router.replace(profile ? "/teacher" : "/login"); return; }
-    const context = await resolveSchoolContext(params.get("school"));
-    if (!context.schoolId) { router.replace("/login"); return; }
-    setSchool(context.schoolId); await load(context.schoolId);
-  })(); }, [params, router]);
-
-  const stateFor = (id: string) => states.find((item) => item.requirement_id === id);
-  const save = async (requirementId: string, form: HTMLFormElement) => {
-    if (!school) return; setSaving(true);
-    const data = new FormData(form);
-    try {
-      const response = await authenticatedFetch("/api/compliance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_requirement", school_id: school, requirement_id: requirementId, status: data.get("status"), notes: data.get("notes"), due_date: data.get("due_date"), expires_at: data.get("expires_at"), verify: data.get("verify") === "on" }) });
-      if (!response.ok) { alert((await response.json()).error || "Could not save this requirement."); return; }
-      await load(school);
-    } finally { setSaving(false); }
-  };
-  const link = async (requirementId: string, documentId: string, unlink = false) => {
-    if (!school || !documentId) return;
-    const response = await authenticatedFetch("/api/compliance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: unlink ? "unlink_evidence" : "link_evidence", school_id: school, school_requirement_id: requirementId, document_id: documentId }) });
-    if (!response.ok) { alert((await response.json()).error || "Could not update linked evidence."); return; }
-    await load(school);
-  };
-
-  if (!school) return <p>Loading compliance requirements...</p>;
-  if (loadError) return <div className="db-card" style={{ padding: 16 }}><p>We couldn’t load compliance requirements. Please try again.</p><button className="db-button-secondary" onClick={() => void load(school)}>Try again</button></div>;
-
-  return <div>
-    <ComplianceHeader title="Requirements" description="Track the compliance requirements your school needs to prepare and maintain." />
-    {!catalogue.length ? <section className="db-card db-card-lavender" style={{ padding: 16 }}><h3 style={{ marginTop: 0 }}>No requirements configured</h3><p className="db-helper">No compliance requirements have been configured for this school yet.</p></section> : <div style={{ display: "grid", gap: 12 }}>{catalogue.map((requirement) => {
-      const existing = stateFor(String(requirement.id));
-      const requirementLinks = existing ? links.filter((item) => item.school_requirement_id === existing.id) : [];
-      const actionEligible = existing && ["Missing", "Needs Review", "Expired"].includes(String(existing.status));
-      const expanded = open === requirement.id;
-      return <article className="db-card db-card-lavender" style={{ padding: 16 }} key={String(requirement.id)}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
-          <div><h3 style={{ margin: "0 0 4px" }}>{String(requirement.plain_language_title || requirement.title)}</h3><p className="db-helper" style={{ margin: 0 }}>{String(requirement.plain_language_description || requirement.what_this_is || requirement.description || "")}</p></div>
-          <button className="db-button-secondary" onClick={() => setOpen(expanded ? undefined : String(requirement.id))}>{expanded ? "Close" : "Manage requirement"}</button>
-        </div>
-        <div className="db-helper" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><Badge label="Stage" value={String(requirement.registration_stage)} /><Badge label="Category" value={String(requirement.requirement_category || requirement.requirement_group || "Other")} /><Badge label="Source" value={authorityLabel(requirement)} help={sourceHelp(requirement)} /><Badge label="Applies" value={applicabilityLabel(requirement)} help={String(requirement.applicability_notes || "Confirm applicability with the relevant authority where needed.")} /><Badge label="Status" value={String(existing?.status || "Not Started")} /><Badge label="Evidence" value={requirement.minimum_evidence_count ? `${requirementLinks.length}/${String(requirement.minimum_evidence_count)}` : String(requirementLinks.length)} /><Badge label="Verification" value={String(existing?.verification_status || "Not verified")} />{existing?.expires_at ? <Badge label="Expiry" value={formatComplianceDate(String(existing.expires_at))} /> : null}</div>
-        <p className="db-helper" style={{ margin: "10px 0 0" }}><strong>Next action:</strong> {nextRequirementAction(String(existing?.status || "Not Started"), existing?.verification_status === "Verified", String(requirement.next_action_guidance || "") || null)}</p>
-        {hasRequirementGuidance(requirement) ? <details style={{ marginTop: 10 }}><summary style={{ cursor: "pointer", fontWeight: 700 }}>View guidance</summary><div className="db-helper" style={{ display: "grid", gap: 8, marginTop: 10 }}>
-          {requirement.why_it_matters ? <Guidance label="Why it matters" value={String(requirement.why_it_matters)} /> : null}
-          {requirement.preparation_guidance || requirement.what_to_prepare ? <Guidance label="What the school should prepare" value={String(requirement.preparation_guidance || requirement.what_to_prepare)} /> : null}
-          {requirement.authority_review_guidance || requirement.what_authority_may_ask_to_see ? <Guidance label="What may be reviewed" value={String(requirement.authority_review_guidance || requirement.what_authority_may_ask_to_see)} /> : null}
-          {requirement.owner_guidance ? <Guidance label="Who normally owns the work" value={String(requirement.owner_guidance)} /> : null}
-          {requirement.applicability_guidance ? <Guidance label="When it applies" value={String(requirement.applicability_guidance)} /> : null}
-          <Guidance label="What Ready means" value={String(requirement.ready_definition || READY_EXPLANATION)} />
-          <Guidance label="Source" value={sourceHelp(requirement)} />
-          {requirement.source_url ? <a className="db-button-secondary" href={String(requirement.source_url)} target="_blank" rel="noreferrer">Open source</a> : null}
-        </div></details> : null}
-        {actionEligible ? <Link className="db-button-secondary" style={{ display: "inline-block", marginTop: 10, textDecoration: "none" }} href={`/dbe-registration/corrective-actions?school=${school}&source_type=requirement&source_id=${encodeURIComponent(String(existing.id))}`}>Create Corrective Action</Link> : null}
-        {expanded ? <div style={{ marginTop: 14 }}><form onSubmit={(event) => { event.preventDefault(); void save(String(requirement.id), event.currentTarget); }} style={{ display: "grid", gap: 8 }}><label>Status<select name="status" className="db-input" defaultValue={String(existing?.status || "Not Started")}>{statuses.map((value) => <option key={value}>{value}</option>)}</select></label><label>Due date<input name="due_date" className="db-input" type="date" defaultValue={String(existing?.due_date || "")} /></label><label>Expiry date<input name="expires_at" className="db-input" type="date" defaultValue={String(existing?.expires_at || "")} /></label><label>Notes<textarea name="notes" className="db-input" defaultValue={String(existing?.notes || "")} /></label><label><input type="checkbox" name="verify" defaultChecked={existing?.verification_status === "Verified"} /> Mark this recorded status as verified</label><button className="db-button-primary" disabled={saving}>{saving ? "Saving..." : "Save status"}</button></form>{existing ? <section style={{ marginTop: 16 }}><h4>Linked Evidence</h4>{requirementLinks.length === 0 ? <p className="db-helper">No evidence linked yet. Link an existing document to support this requirement.</p> : requirementLinks.map((linkRow) => { const document = docs.find((item) => item.id === linkRow.document_id); return <div key={String(linkRow.id)} className="db-list-card">{String(document?.document_name || "Document")} <button className="db-button-secondary" onClick={() => void link(String(existing.id), String(linkRow.document_id), true)}>Unlink</button></div>; })}<label>Link Evidence<select className="db-input" defaultValue="" onChange={(event) => void link(String(existing.id), event.target.value)}><option value="">Choose document</option>{docs.map((document) => <option key={String(document.id)} value={String(document.id)}>{String(document.document_name)}</option>)}</select></label></section> : null}</div> : null}
-      </article>;
-    })}</div>}
-  </div>;
-}
-
-function Guidance({ label, value }: { label: string; value: string }) { return <p style={{ margin: 0 }}><strong>{label}:</strong> {value}</p>; }
-function Badge({ label, value, help }: { label: string; value: string; help?: string }) { return <span title={help || `${label}: ${value}`} style={{ border: "1px solid #E2D9F3", borderRadius: 999, padding: "3px 8px", background: "#FFFDFB" }}><strong>{label}:</strong> {value}</span>; }
-function authorityLabel(item: Item) { const type = String(item.authority_type || "other"); if (type === "dailybloom_guidance") return "DailyBloom Guidance"; return String(item.authority_name || (type === "unclassified" || type === "other" ? "Source needs review" : type.replaceAll("_", " "))); }
-function applicabilityLabel(item: Item) { const scope = String(item.applicability_scope || "needs_review"); if (scope === "needs_review") return "Needs confirmation"; if (scope === "guidance_only") return "Guidance only"; return item.province ? String(item.province) : scope.replaceAll("_", " "); }
-function sourceHelp(item: Item) { const source = String(item.source_title || item.source_reference || "Source and applicability have not yet been verified. Confirm with the relevant authority."); return `${authorityLabel(item)} — ${source}`; }
+import { READY_EXPLANATION, nextRequirementAction } from "@/app/lib/compliance-guidance";
+type Item=Record<string,unknown>; const statuses=["Not Started","In Progress","Ready","Needs Review","Missing","Expired","Not Applicable"]; const urgent=new Set(["Missing","Needs Review","Expired"]);
+const category=(r:Item)=>String(r.requirement_category||r.requirement_group||"Other").replaceAll("_"," ");
+const statusLabel=(s:string)=>({"Not Started":"Not started","In Progress":"In progress",Ready:"Prepared in DailyBloom","Needs Review":"Needs review",Missing:"Needs attention",Expired:"Expired","Not Applicable":"Not applicable"}[s]||s);
+export default function RequirementsPage(){const router=useRouter(),params=useSearchParams();const[school,setSchool]=useState<number>();const[catalogue,setCatalogue]=useState<Item[]>([]),[states,setStates]=useState<Item[]>([]),[docs,setDocs]=useState<Item[]>([]),[links,setLinks]=useState<Item[]>([]);const[group,setGroup]=useState(""),[filter,setFilter]=useState("All"),[search,setSearch]=useState(""),[open,setOpen]=useState(""),[saving,setSaving]=useState(false);
+ const load=async(id:number)=>{const rs=await Promise.all([authenticatedFetch(`/api/compliance?school_id=${id}&resource=catalogue`),authenticatedFetch(`/api/compliance?school_id=${id}&resource=requirements`),authenticatedFetch(`/api/dbe-compliance-documents?school_id=${id}`),authenticatedFetch(`/api/compliance?school_id=${id}&resource=evidence`)]);if(!rs.every(r=>r.ok)){alert("Requirements could not be loaded.");return}const[a,b,c,d]=await Promise.all(rs.map(r=>r.json()));setCatalogue(a.items||[]);setStates(b.items||[]);setDocs(c.documents||[]);setLinks(d.items||[])};
+ useEffect(()=>{void(async()=>{const{profile}=await getCurrentProfile();if(!profile||profile.role==="teacher"){router.replace(profile?"/teacher":"/login");return}const context=await resolveSchoolContext(params.get("school"));if(!context.schoolId){router.replace("/login");return}setSchool(context.schoolId);await load(context.schoolId)})()},[params,router]);
+ const state=(id:string)=>states.find(x=>x.requirement_id===id), evidence=(s?:Item)=>s?links.filter(x=>x.school_requirement_id===s.id):[];const groups=useMemo(()=>[...new Set(catalogue.map(category))].sort(),[catalogue]);const selected=catalogue.filter(r=>{const s=String(state(String(r.id))?.status||"Not Started");return(!group||category(r)===group)&&(!search||String(r.plain_language_title||r.title||"").toLowerCase().includes(search.toLowerCase()))&&(filter==="All"||filter==="Needs Attention"&&urgent.has(s)||filter==="In Progress"&&s==="In Progress"||filter==="Prepared"&&s==="Ready"||filter==="Not Applicable"&&s==="Not Applicable")});
+ const save=async(id:string,form:HTMLFormElement)=>{if(!school)return;setSaving(true);const f=new FormData(form),r=await authenticatedFetch("/api/compliance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_requirement",school_id:school,requirement_id:id,status:f.get("status"),notes:f.get("notes"),expires_at:f.get("expires_at"),verify:f.get("verify")==="on"})});setSaving(false);if(!r.ok)alert((await r.json()).error||"Could not save.");else await load(school)};
+ const link=async(req:string,doc:string,remove=false)=>{if(!school)return;const r=await authenticatedFetch("/api/compliance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:remove?"unlink_evidence":"link_evidence",school_id:school,school_requirement_id:req,document_id:doc})});if(!r.ok)alert((await r.json()).error||"Could not update evidence.");else await load(school)};
+ if(!school)return <p>Loading requirements…</p>;const applicable=catalogue.filter(r=>String(state(String(r.id))?.status||"")!=="Not Applicable"),prepared=applicable.filter(r=>String(state(String(r.id))?.status||"")==="Ready").length,needs=applicable.filter(r=>urgent.has(String(state(String(r.id))?.status||""))).length;
+ return <div><ComplianceHeader title="Requirements" description="Choose an area, prepare supporting evidence, and keep school records current."/><section className="db-card db-card-blue" style={{padding:16,marginBottom:14}}><h3 style={{margin:0}}>Requirements at a glance</h3><p className="db-helper">{applicable.length} applicable items · {prepared} prepared · {needs} need attention</p><details><summary style={{cursor:"pointer",fontWeight:700}}>How requirements work</summary><p className="db-helper">Requirements help your school organise preparation information and evidence. A Ready or Reviewed status in DailyBloom does not mean an authority has officially approved the school.</p></details></section>{!group?<section><h3>Choose an area to work on</h3><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:12}}>{groups.map(g=>{const rows=catalogue.filter(r=>category(r)===g),n=rows.filter(r=>urgent.has(String(state(String(r.id))?.status||""))).length;return <article className="db-card" style={{padding:16}} key={g}><h3 style={{marginTop:0,textTransform:"capitalize"}}>{g}</h3><p className="db-helper">{rows.length} preparation items</p><p className="db-helper">{rows.filter(r=>String(state(String(r.id))?.status||"")==="Ready").length} prepared · {n?`${n} need attention`:"Nothing urgent"}</p><button className="db-button-secondary" onClick={()=>setGroup(g)}>View checklist</button></article>})}</div>{!groups.length?<p className="db-helper">No preparation items have been configured for this school yet.</p>:null}</section>:<section><button className="db-button-secondary" onClick={()=>setGroup("")}>All areas</button><h3 style={{textTransform:"capitalize"}}>{group} checklist</h3><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:8,marginBottom:12}}><input className="db-input" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search checklist" aria-label="Search requirements"/><select className="db-input" value={filter} onChange={e=>setFilter(e.target.value)} aria-label="Filter requirements"><option>All</option><option>Needs Attention</option><option>In Progress</option><option>Prepared</option><option>Not Applicable</option></select></div><div style={{display:"grid",gap:10}}>{selected.map(r=><Card key={String(r.id)} r={r} s={state(String(r.id))} evidence={evidence(state(String(r.id)))} docs={docs} open={open===r.id} toggle={()=>setOpen(open===r.id?"":String(r.id))} save={save} link={link} saving={saving} school={school}/>)}</div>{!selected.length?<p className="db-helper">No requirements currently match this filter.</p>:null}</section>}</div>}
+function Card({r,s,evidence,docs,open,toggle,save,link,saving,school}:{r:Item;s?:Item;evidence:Item[];docs:Item[];open:boolean;toggle:()=>void;save:(id:string,f:HTMLFormElement)=>Promise<void>;link:(a:string,b:string,c?:boolean)=>Promise<void>;saving:boolean;school:number}){const status=String(s?.status||"Not Started"),reviewed=s?.verification_status==="Verified",expiry=s?.expires_at?formatComplianceDate(String(s.expires_at)):null;return <article className="db-card" style={{padding:16}}><div style={{display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}><div><h3 style={{margin:0}}>{String(r.plain_language_title||r.title)}</h3><p className="db-helper">{String(r.plain_language_description||r.what_this_is||r.description||"Preparation item")}</p><strong title={`Recorded status: ${status}`}>{statusLabel(status)}</strong>{reviewed?" · Reviewed":""}{expiry?` · Expires ${expiry}`:""}</div><button className="db-button-secondary" onClick={toggle}>{open?"Close":"View item"}</button></div><section style={{padding:10,marginTop:10,background:"#FFFDFB",borderRadius:10}}><strong>What you need</strong><p className="db-helper">{String(r.preparation_guidance||r.what_to_prepare||"Prepare supporting information and evidence where it applies.")}</p><strong>Next action</strong><p className="db-helper">{nextRequirementAction(status,reviewed,String(r.next_action_guidance||r.school_action||"")||null)}</p></section><p className="db-helper"><strong>Evidence:</strong> {evidence.length?`${evidence.length} document${evidence.length===1?"":"s"} linked`:"No evidence linked yet"}</p>{open?<div style={{display:"grid",gap:12}}><details><summary style={{cursor:"pointer",fontWeight:700}}>Why am I being asked for this?</summary><p className="db-helper"><strong>Why it matters:</strong> {String(r.why_it_matters||"This helps keep the school’s preparation information organised.")}<br/><strong>When it applies:</strong> {String(r.applicability_guidance||r.applicability_notes||"Applicability needs confirmation. Confirm with the relevant authority where needed.")}<br/><strong>Ready means:</strong> {String(r.ready_definition||READY_EXPLANATION)}</p></details><details><summary style={{cursor:"pointer",fontWeight:700}}>Source & guidance</summary><p className="db-helper"><strong>Source:</strong> {r.authority_type==="dailybloom_guidance"?"DailyBloom Guidance":String(r.authority_name||"Source needs review")}<br/><strong>Applies to:</strong> {r.applicability_scope==="guidance_only"?"Guidance only":r.applicability_scope==="needs_review"||!r.applicability_scope?"Applicability needs confirmation":String(r.province||r.applicability_scope).replaceAll("_"," ")}<br/>{r.source_title?String(r.source_title):"Confirm source details with the relevant authority."}</p>{r.source_url?<a className="db-button-secondary" href={String(r.source_url)} target="_blank" rel="noreferrer">Open source</a>:null}</details>{s?<><label>Link existing evidence<select className="db-input" defaultValue="" onChange={e=>{if(e.target.value)void link(String(s.id),e.target.value)}}><option value="">Choose document</option>{docs.map(d=><option key={String(d.id)} value={String(d.id)}>{String(d.document_name)}</option>)}</select></label><Link className="db-button-secondary" href={`/dbe-registration/documents?school=${school}`}>Upload document</Link><form onSubmit={e=>{e.preventDefault();void save(String(r.id),e.currentTarget)}} style={{display:"grid",gap:8}}><label>Status<select className="db-input" name="status" defaultValue={status}>{statuses.map(x=><option key={x}>{x}</option>)}</select></label><label>Expiry date<input className="db-input" name="expires_at" type="date" defaultValue={String(s.expires_at||"")}/></label><label>Notes<textarea className="db-input" name="notes" defaultValue={String(s.notes||"")}/></label><label><input type="checkbox" name="verify" defaultChecked={reviewed}/> Mark recorded information as reviewed</label><button className="db-button-primary" disabled={saving}>{saving?"Saving…":"Save changes"}</button></form></>:<p className="db-helper">Save a recorded status before linking evidence.</p>}</div>:null}</article>}

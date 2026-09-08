@@ -355,6 +355,7 @@ export async function POST(request: Request) {
       const amount = Number(body.amount);
       const effectiveDate = dateOnly(body.effective_date);
       const reason = String(body.reason || "").trim();
+      const journalPurpose = String(body.journal_purpose || "general");
       if (
         !schoolId ||
         !subscriptionId ||
@@ -369,6 +370,12 @@ export async function POST(request: Request) {
           { error: "Journal type, amount, effective date and reason are required." },
           { status: 400 }
         );
+      }
+      if (!["general", "monthly_subscription"].includes(journalPurpose)) {
+        return NextResponse.json({ error: "A valid journal purpose is required." }, { status: 400 });
+      }
+      if (journalPurpose === "monthly_subscription" && journalType !== "debit") {
+        return NextResponse.json({ error: "A monthly subscription journal must be a debit." }, { status: 400 });
       }
       await assertDailyBloomBillableSchool(schoolId);
       const { data, error } = await supabaseAdmin.rpc("post_school_billing_journal", {
@@ -388,6 +395,7 @@ export async function POST(request: Request) {
         amount,
         effective_date: effectiveDate,
         reason,
+        journal_purpose: journalPurpose,
       });
       return NextResponse.json({ success: true, result: data });
     }

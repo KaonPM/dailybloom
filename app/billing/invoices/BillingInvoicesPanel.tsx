@@ -15,7 +15,7 @@ type Invoice = {
   id: string;
   school_id: number;
   invoice_number: string;
-  charge_type: "setup_fee" | "subscription";
+  charge_type: "setup_fee" | "subscription" | "debit_journal";
   description: string;
   plan_name: string | null;
   issue_date: string;
@@ -41,7 +41,7 @@ type Payment = {
   original_amount: number;
   unapplied_amount: number;
   payment_date: string;
-  charge_type: "setup_fee" | "subscription" | null;
+  charge_type: "setup_fee" | "subscription" | "credit_journal" | null;
   plan_name: string | null;
   payment_method: string | null;
   receipt_number: string | null;
@@ -66,6 +66,7 @@ type Journal = {
   entry_type: string;
   amount: number;
   reason: string;
+  effective_date: string;
   created_at: string;
   schools: SchoolRelation;
 };
@@ -795,7 +796,9 @@ function SchoolPaymentHistory({
                           {payment.payment_date} ·{" "}
                           {payment.charge_type === "setup_fee"
                             ? "Setup Fee"
-                            : "Subscription Fee"}{" "}
+                            : payment.charge_type === "credit_journal"
+                              ? "Account Credit"
+                              : "Subscription Fee"}{" "}
                           · {payment.plan_name || "Package not set"} ·{" "}
                           {payment.payment_method || "Method not set"}
                         </p>
@@ -1013,21 +1016,25 @@ function buildSchoolLedger(
       description: `Payment · ${
         payment.charge_type === "setup_fee"
           ? "Setup Fee"
-          : "Subscription Fee"
+          : payment.charge_type === "credit_journal"
+            ? "Account Credit Journal"
+            : "Subscription Fee"
       } · ${payment.payment_method || "Method not set"}`,
       invoiced: 0,
       payment: Number(payment.original_amount || payment.amount || 0),
       credit: 0,
     })),
-    ...journals.map((journal) => ({
+    ...journals
+      .filter((journal) => journal.entry_type === "setup_fee_exemption")
+      .map((journal) => ({
       key: `journal-${journal.id}`,
-      date: journal.created_at.slice(0, 10),
+      date: String(journal.effective_date || journal.created_at).slice(0, 10),
       order: 2,
       description: `Setup Fee Exemption Credit Journal · ${journal.reason}`,
       invoiced: 0,
       payment: 0,
       credit: Number(journal.amount || 0),
-    })),
+      })),
     ...adjustments.map((adjustment) => ({
       key: `adjustment-${adjustment.id}`,
       date: adjustment.created_at.slice(0, 10),

@@ -81,6 +81,9 @@ export default function BillingPage() {
   const [sendingReminder, setSendingReminder] = useState(false);
   const [journalSubscription, setJournalSubscription] =
     useState<Subscription | null>(null);
+  const [journalPurpose, setJournalPurpose] = useState<
+    "general" | "monthly_subscription"
+  >("general");
   const [journalType, setJournalType] = useState<"credit" | "debit">("credit");
   const [journalAmount, setJournalAmount] = useState("");
   const [journalDate, setJournalDate] = useState(
@@ -468,10 +471,38 @@ export default function BillingPage() {
 
   function openJournalPopup(subscription: Subscription) {
     setJournalSubscription(subscription);
+    setJournalPurpose("general");
     setJournalType("credit");
     setJournalAmount("");
     setJournalDate(new Date().toISOString().slice(0, 10));
     setJournalReason("");
+  }
+
+  function monthlySubscriptionJournalReason(
+    subscription: Subscription,
+    effectiveDate: string
+  ) {
+    const date = new Date(`${effectiveDate}T00:00:00Z`);
+    const period = Number.isNaN(date.getTime())
+      ? "selected billing period"
+      : new Intl.DateTimeFormat("en-ZA", {
+          month: "long",
+          year: "numeric",
+          timeZone: "UTC",
+        }).format(date);
+    return `${subscription.plan_name} monthly subscription charge for ${period}`;
+  }
+
+  function openMonthlySubscriptionJournal(subscription: Subscription) {
+    const effectiveDate = new Date().toISOString().slice(0, 10);
+    setJournalSubscription(subscription);
+    setJournalPurpose("monthly_subscription");
+    setJournalType("debit");
+    setJournalAmount(String(Number(subscription.monthly_price || 0)));
+    setJournalDate(effectiveDate);
+    setJournalReason(
+      monthlySubscriptionJournalReason(subscription, effectiveDate)
+    );
   }
 
   async function postBillingJournal() {
@@ -480,6 +511,7 @@ export default function BillingPage() {
       !journalSubscription ||
       !Number.isFinite(amount) ||
       amount <= 0 ||
+      !journalDate ||
       journalReason.trim().length < 3
     ) {
       alert("Enter a valid amount, date and reason for this journal.");
@@ -496,6 +528,7 @@ export default function BillingPage() {
         amount,
         effective_date: journalDate,
         reason: journalReason.trim(),
+        journal_purpose: journalPurpose,
       });
       await fetchAllSubscriptions();
       setInvoiceRefreshKey((current) => current + 1);
@@ -880,9 +913,17 @@ export default function BillingPage() {
                           <button
                             type="button"
                             style={secondaryButton}
+                            onClick={() => openMonthlySubscriptionJournal(subscription)}
+                          >
+                            Bill Monthly Subscription
+                          </button>
+
+                          <button
+                            type="button"
+                            style={secondaryButton}
                             onClick={() => openJournalPopup(subscription)}
                           >
-                            Pass Journal
+                            Other Journal
                           </button>
 
                           <button
@@ -1123,7 +1164,11 @@ export default function BillingPage() {
           <div style={modalCard}>
             <div style={modalHeader}>
               <div>
-                <h3 style={modalTitle}>Pass Billing Journal</h3>
+                <h3 style={modalTitle}>
+                  {journalPurpose === "monthly_subscription"
+                    ? "Bill Monthly Subscription"
+                    : "Pass Billing Journal"}
+                </h3>
                 <p style={modalSubtitle}>
                   {journalSubscription.schools?.school_name || "Selected school"}
                 </p>
@@ -1139,23 +1184,43 @@ export default function BillingPage() {
               </button>
             </div>
 
-            <p className="db-helper">
-              A credit reduces the amount due or creates account credit. A debit
-              posts an additional auditable charge. Journals do not send a
-              payment receipt email.
-            </p>
+            {journalPurpose === "monthly_subscription" ? (
+              <p className="db-helper">
+                Creates an additional auditable debit for this school&apos;s monthly
+                DailyBloom subscription. Confirm the amount and choose the date
+                the charge must appear on the account.
+              </p>
+            ) : (
+              <>
+                <p className="db-helper">
+                  A credit reduces the amount due or creates account credit. A
+                  debit posts an additional auditable charge. Journals do not
+                  send a payment receipt email.
+                </p>
+                <label style={labelStyle}>Journal Type</label>
+                <select
+                  className="db-input"
+                  value={journalType}
+                  onChange={(event) =>
+                    setJournalType(event.target.value as "credit" | "debit")
+                  }
+                >
+                  <option value="credit">Credit Journal</option>
+                  <option value="debit">Debit Journal</option>
+                </select>
+              </>
+            )}
 
-            <label style={labelStyle}>Journal Type</label>
-            <select
-              className="db-input"
-              value={journalType}
-              onChange={(event) =>
-                setJournalType(event.target.value as "credit" | "debit")
-              }
-            >
-              <option value="credit">Credit Journal</option>
-              <option value="debit">Debit Journal</option>
-            </select>
+            {journalPurpose === "monthly_subscription" ? (
+              <>
+                <label style={labelStyle}>Subscription Package</label>
+                <input
+                  className="db-input"
+                  value={`${journalSubscription.plan_name} Subscription Package`}
+                  readOnly
+                />
+              </>
+            ) : null}
 
             <label style={labelStyle}>Amount</label>
             <input
@@ -1167,13 +1232,28 @@ export default function BillingPage() {
               onChange={(event) => setJournalAmount(event.target.value)}
             />
 
-            <label style={labelStyle}>Effective Date</label>
+            <label style={labelStyle}>
+              {journalPurpose === "monthly_subscription"
+                ? "Billing Date"
+                : "Effective Date"}
+            </label>
             <input
               className="db-input"
               type="date"
               max={new Date().toISOString().slice(0, 10)}
               value={journalDate}
-              onChange={(event) => setJournalDate(event.target.value)}
+              onChange={(event) => {
+                const effectiveDate = event.target.value;
+                setJournalDate(effectiveDate);
+                if (journalPurpose === "monthly_subscription") {
+                  setJournalReason(
+                    monthlySubscriptionJournalReason(
+                      journalSubscription,
+                      effectiveDate
+                    )
+                  );
+                }
+              }}
             />
 
             <label style={labelStyle}>Reason</label>
@@ -1200,13 +1280,16 @@ export default function BillingPage() {
                 disabled={
                   savingJournal ||
                   !journalAmount ||
+                  !journalDate ||
                   journalReason.trim().length < 3
                 }
                 onClick={postBillingJournal}
               >
                 {savingJournal
                   ? "Posting..."
-                  : `Post ${journalType === "credit" ? "Credit" : "Debit"} Journal`}
+                  : journalPurpose === "monthly_subscription"
+                    ? "Post Monthly Subscription Debit"
+                    : `Post ${journalType === "credit" ? "Credit" : "Debit"} Journal`}
               </button>
             </div>
           </div>

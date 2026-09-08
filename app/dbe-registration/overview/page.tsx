@@ -9,14 +9,14 @@ import { resolveSchoolContext } from "@/app/lib/school-context";
 import { calculateReadiness } from "@/app/lib/compliance";
 import { summarizeStaffCompliance } from "@/app/lib/staff-compliance";
 import type { RenewalSummary } from "@/app/lib/renewal-aggregation";
-import { ComplianceHeader } from "../components";
+import { ComplianceHeader, formatComplianceDate } from "../components";
 
 type Row = Record<string, unknown>;
 type CorrectiveActionSummary = { open: number; inProgress: number; readyForVerification: number; overdue: number; dueSoon: number; active: number };
 type Overview = { registration: Row | null; requirements: Row[]; documents: Row[]; evidence: Row[]; staff: Row[]; active_staff_count: number; inspections: Row[]; findings: Row[]; actions: Row[]; certificates: Row[]; renewal_summary?: RenewalSummary; corrective_action_summary?: CorrectiveActionSummary };
 type Attention = { key: string; severity: string; title: string; description: string; due_date: string | null; action_url: string; action_label: string };
 const value = (input: unknown) => String(input || "").trim() || "Not recorded";
-const dateValue = (input: unknown) => input ? new Date(String(input)).toLocaleDateString() : "Not recorded";
+const dateValue = (input: unknown) => formatComplianceDate(input ? String(input) : null);
 
 function Metric({ label, value: metric, help }: { label: string; value: string | number; help?: string }) {
   return <div className="db-list-card"><strong>{label}</strong><p style={{ fontSize: 24, margin: "8px 0 0", color: "#2D2A3E" }}>{metric}</p>{help ? <p className="db-helper">{help}</p> : null}</div>;

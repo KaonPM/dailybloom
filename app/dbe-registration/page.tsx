@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getCurrentProfile } from "../lib/auth";
 import { resolveSchoolContext } from "../lib/school-context";
@@ -335,16 +334,6 @@ export default function DbeRegistrationPage() {
                 style={{ minHeight: 80, resize: "vertical" }}
               />
             </Field>
-          </div>
-
-          <div className="db-card db-card-lavender" style={{ padding: 16, marginTop: 18 }}>
-            <h3 style={sectionTitle}>School Compliance Status</h3>
-            <p className="db-helper" style={{ margin: "0 0 12px" }}>
-              Health, fire and municipal records are managed separately so that the registration record remains focused on official school information.
-            </p>
-            <Link className="db-button-secondary" style={{ textDecoration: "none" }} href={`/dbe-registration/compliance-status${schoolId ? `?school=${schoolId}` : ""}`}>
-              Manage School Compliance Status
-            </Link>
           </div>
 
           <button

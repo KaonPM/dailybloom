@@ -7,7 +7,7 @@ import { getCurrentProfile } from "../../lib/auth";
 import { resolveSchoolContext } from "../../lib/school-context";
 import { authenticatedFetch } from "../../lib/authenticated-fetch";
 import { supabase } from "../../lib/supabase";
-import { ComplianceHeader } from "../components";
+import { ComplianceHeader, formatComplianceDate } from "../components";
 
 type ComplianceDocument = {
   id: string;
@@ -283,7 +283,7 @@ export default function DbeComplianceDocumentsPage() {
 
   return (
     <div>
-      <ComplianceHeader title="Documents & Evidence" description="Store official registration and compliance documents for the school." />
+      <ComplianceHeader title="Documents & Evidence" description="Store and manage evidence that supports your school’s compliance requirements." />
 
       {showUploadForm ? (
         <div className="db-card db-card-blue" style={{ padding: 16, marginBottom: 18 }}>
@@ -408,14 +408,14 @@ export default function DbeComplianceDocumentsPage() {
                       File: {document.file_name || "Uploaded file"}
                     </p>
 
-                    {document.document_type || document.expiry_date || document.verification_status ? <p style={smallText}>Type: {document.document_type || "Not specified"} · {document.expiry_date ? `Expires: ${document.expiry_date}` : "No expiry"} · {document.verification_status || "Unverified"}</p> : null}
+                    {document.document_type || document.expiry_date || document.verification_status ? <p style={smallText}>Type: {document.document_type || "Not specified"} · {document.expiry_date ? `Expires: ${formatComplianceDate(document.expiry_date)}` : "No expiry"} · {document.verification_status || "Unverified"}</p> : null}
 
                     {editingDetailsId === document.id ? <div style={{ ...grid2, marginTop: 10 }}>
-                      <input className="db-input" placeholder="Document type" value={details.document_type || ""} onChange={(e) => setDetails((v) => ({ ...v, document_type: e.target.value }))} />
-                      <input className="db-input" type="date" value={details.issue_date || ""} onChange={(e) => setDetails((v) => ({ ...v, issue_date: e.target.value }))} />
-                      <input className="db-input" type="date" value={details.expiry_date || ""} onChange={(e) => setDetails((v) => ({ ...v, expiry_date: e.target.value }))} />
-                      <input className="db-input" placeholder="Issuing authority" value={details.issuing_authority || ""} onChange={(e) => setDetails((v) => ({ ...v, issuing_authority: e.target.value }))} />
-                      <input className="db-input" placeholder="Reference" value={details.document_reference || ""} onChange={(e) => setDetails((v) => ({ ...v, document_reference: e.target.value }))} />
+                      <label>Document type<input className="db-input" value={details.document_type || ""} onChange={(e) => setDetails((v) => ({ ...v, document_type: e.target.value }))} /></label>
+                      <label>Issue date<input className="db-input" type="date" value={details.issue_date || ""} onChange={(e) => setDetails((v) => ({ ...v, issue_date: e.target.value }))} /></label>
+                      <label>Expiry date<input className="db-input" type="date" value={details.expiry_date || ""} onChange={(e) => setDetails((v) => ({ ...v, expiry_date: e.target.value }))} /></label>
+                      <label>Issuing authority<input className="db-input" value={details.issuing_authority || ""} onChange={(e) => setDetails((v) => ({ ...v, issuing_authority: e.target.value }))} /></label>
+                      <label>Reference number<input className="db-input" value={details.document_reference || ""} onChange={(e) => setDetails((v) => ({ ...v, document_reference: e.target.value }))} /></label>
                       <label><input type="checkbox" checked={details.verify === "true"} onChange={(e) => setDetails((v) => ({ ...v, verify: String(e.target.checked) }))} /> Verified</label>
                       <button className="db-button-primary" onClick={() => void saveDetails(document)}>Save details</button>
                     </div> : null}
@@ -423,7 +423,7 @@ export default function DbeComplianceDocumentsPage() {
                     <p style={smallText}>
                       Uploaded:{" "}
                       {document.uploaded_at
-                        ? new Date(document.uploaded_at).toLocaleDateString()
+                        ? formatComplianceDate(document.uploaded_at)
                         : "Not available"}
                     </p>
 

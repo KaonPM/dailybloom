@@ -6,18 +6,85 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getCurrentProfile } from "@/app/lib/auth";
 import { resolveSchoolContext } from "@/app/lib/school-context";
 import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
-import { ComplianceHeader } from "../components";
+import { ComplianceHeader, formatComplianceDate } from "../components";
 
 type Item = Record<string, unknown>;
 const statuses = ["Not Started", "In Progress", "Ready", "Needs Review", "Missing", "Expired", "Not Applicable"];
 
 export default function RequirementsPage() {
-  const router = useRouter(); const params = useSearchParams(); const [school, setSchool] = useState<number>(); const [catalogue, setCatalogue] = useState<Item[]>([]); const [states, setStates] = useState<Item[]>([]); const [docs, setDocs] = useState<Item[]>([]); const [links, setLinks] = useState<Item[]>([]); const [open, setOpen] = useState<string>(); const [saving, setSaving] = useState(false);
-  const load = async (id: number) => { const [c, s, d, l] = await Promise.all([authenticatedFetch(`/api/compliance?school_id=${id}&resource=catalogue`).then((r) => r.json()), authenticatedFetch(`/api/compliance?school_id=${id}&resource=requirements`).then((r) => r.json()), authenticatedFetch(`/api/dbe-compliance-documents?school_id=${id}`).then((r) => r.json()), authenticatedFetch(`/api/compliance?school_id=${id}&resource=evidence`).then((r) => r.json())]); setCatalogue(c.items || []); setStates(s.items || []); setDocs(d.documents || []); setLinks(l.items || []); };
-  useEffect(() => { void (async () => { const { profile } = await getCurrentProfile(); if (!profile || profile.role === "teacher") { router.replace(profile ? "/teacher" : "/login"); return; } const context = await resolveSchoolContext(params.get("school")); if (!context.schoolId) { router.replace("/login"); return; } setSchool(context.schoolId); await load(context.schoolId); })(); }, [params, router]);
+  const router = useRouter();
+  const params = useSearchParams();
+  const [school, setSchool] = useState<number>();
+  const [catalogue, setCatalogue] = useState<Item[]>([]);
+  const [states, setStates] = useState<Item[]>([]);
+  const [docs, setDocs] = useState<Item[]>([]);
+  const [links, setLinks] = useState<Item[]>([]);
+  const [open, setOpen] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  const load = async (id: number) => {
+    setLoadError(false);
+    try {
+      const [catalogueResponse, statesResponse, documentsResponse, linksResponse] = await Promise.all([
+        authenticatedFetch(`/api/compliance?school_id=${id}&resource=catalogue`),
+        authenticatedFetch(`/api/compliance?school_id=${id}&resource=requirements`),
+        authenticatedFetch(`/api/dbe-compliance-documents?school_id=${id}`),
+        authenticatedFetch(`/api/compliance?school_id=${id}&resource=evidence`),
+      ]);
+      if (![catalogueResponse, statesResponse, documentsResponse, linksResponse].every((response) => response.ok)) throw new Error();
+      const [catalogueBody, statesBody, documentsBody, linksBody] = await Promise.all([
+        catalogueResponse.json(), statesResponse.json(), documentsResponse.json(), linksResponse.json(),
+      ]);
+      setCatalogue(catalogueBody.items || []); setStates(statesBody.items || []);
+      setDocs(documentsBody.documents || []); setLinks(linksBody.items || []);
+    } catch { setLoadError(true); }
+  };
+
+  useEffect(() => { void (async () => {
+    const { profile } = await getCurrentProfile();
+    if (!profile || profile.role === "teacher") { router.replace(profile ? "/teacher" : "/login"); return; }
+    const context = await resolveSchoolContext(params.get("school"));
+    if (!context.schoolId) { router.replace("/login"); return; }
+    setSchool(context.schoolId); await load(context.schoolId);
+  })(); }, [params, router]);
+
   const stateFor = (id: string) => states.find((item) => item.requirement_id === id);
-  const save = async (requirementId: string, form: HTMLFormElement) => { if (!school) return; setSaving(true); const data = new FormData(form); const response = await authenticatedFetch("/api/compliance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_requirement", school_id: school, requirement_id: requirementId, status: data.get("status"), notes: data.get("notes"), due_date: data.get("due_date"), expires_at: data.get("expires_at"), verify: data.get("verify") === "on" }) }); const body = await response.json(); if (!response.ok) alert(body.error || "Could not save requirement."); else await load(school); setSaving(false); };
-  const link = async (requirementId: string, documentId: string, unlink = false) => { if (!school || !documentId) return; const response = await authenticatedFetch("/api/compliance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: unlink ? "unlink_evidence" : "link_evidence", school_id: school, school_requirement_id: requirementId, document_id: documentId }) }); if (!response.ok) { alert((await response.json()).error || "Could not update evidence."); return; } await load(school); };
-  if (!school) return <p>Loading requirements...</p>;
-  return <div><ComplianceHeader title="Requirements" description="Set the school’s status explicitly. Evidence supports a requirement but never marks it Ready automatically." /><div style={{ display: "grid", gap: 12 }}>{catalogue.map((req) => { const existing = stateFor(String(req.id)); const requirementLinks = existing ? links.filter((item) => item.school_requirement_id === existing.id) : []; const actionEligible = existing && ["Missing", "Needs Review", "Expired"].includes(String(existing.status)); return <div className="db-card db-card-lavender" style={{ padding: 16 }} key={String(req.id)}><button className="db-button-secondary" onClick={() => setOpen(open === req.id ? undefined : String(req.id))}>{open === req.id ? "Close" : "Manage"}</button><h3 style={{ margin: "10px 0 4px" }}>{String(req.title)}</h3><p className="db-helper">{String(req.description || "")}</p><p className="db-helper">Stage: {String(req.registration_stage)} · Source: {String(req.source_type)}</p><strong>{String(existing?.status || "Not Started")}</strong>{actionEligible ? <Link className="db-button-secondary" style={{ marginLeft: 10, textDecoration: "none" }} href={`/dbe-registration/corrective-actions?school=${school}&source_type=requirement&source_id=${encodeURIComponent(String(existing?.id))}`}>Create corrective action</Link> : null}{open === req.id ? <><form onSubmit={(event) => { event.preventDefault(); void save(String(req.id), event.currentTarget); }} style={{ display: "grid", gap: 8, marginTop: 12 }}><label>Status<select name="status" className="db-input" defaultValue={String(existing?.status || "Not Started")}>{statuses.map((value) => <option key={value}>{value}</option>)}</select></label><label>Due date<input name="due_date" className="db-input" type="date" defaultValue={String(existing?.due_date || "")} /></label><label>Expiry date<input name="expires_at" className="db-input" type="date" defaultValue={String(existing?.expires_at || "")} /></label><label>Notes<textarea name="notes" className="db-input" defaultValue={String(existing?.notes || "")} /></label><label><input type="checkbox" name="verify" defaultChecked={existing?.verification_status === "Verified"} /> Mark this status verified</label><button className="db-button-primary" disabled={saving}>Save status</button></form>{existing ? <div style={{ marginTop: 14 }}><strong>Linked evidence</strong>{requirementLinks.length === 0 ? <p className="db-helper">No evidence linked yet.</p> : requirementLinks.map((linkRow) => { const document = docs.find((item) => item.id === linkRow.document_id); return <div key={String(linkRow.id)} className="db-list-card">{String(document?.document_name || "Document")} <button className="db-button-secondary" onClick={() => void link(String(existing.id), String(linkRow.document_id), true)}>Unlink</button></div>; })}<label>Link an existing document<select className="db-input" defaultValue="" onChange={(event) => void link(String(existing.id), event.target.value)}><option value="">Choose document</option>{docs.map((document) => <option key={String(document.id)} value={String(document.id)}>{String(document.document_name)}</option>)}</select></label></div> : null}</> : null}</div>; })}</div></div>;
+  const save = async (requirementId: string, form: HTMLFormElement) => {
+    if (!school) return; setSaving(true);
+    const data = new FormData(form);
+    try {
+      const response = await authenticatedFetch("/api/compliance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save_requirement", school_id: school, requirement_id: requirementId, status: data.get("status"), notes: data.get("notes"), due_date: data.get("due_date"), expires_at: data.get("expires_at"), verify: data.get("verify") === "on" }) });
+      if (!response.ok) { alert((await response.json()).error || "Could not save this requirement."); return; }
+      await load(school);
+    } finally { setSaving(false); }
+  };
+  const link = async (requirementId: string, documentId: string, unlink = false) => {
+    if (!school || !documentId) return;
+    const response = await authenticatedFetch("/api/compliance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: unlink ? "unlink_evidence" : "link_evidence", school_id: school, school_requirement_id: requirementId, document_id: documentId }) });
+    if (!response.ok) { alert((await response.json()).error || "Could not update linked evidence."); return; }
+    await load(school);
+  };
+
+  if (!school) return <p>Loading compliance requirements...</p>;
+  if (loadError) return <div className="db-card" style={{ padding: 16 }}><p>We couldn’t load compliance requirements. Please try again.</p><button className="db-button-secondary" onClick={() => void load(school)}>Try again</button></div>;
+
+  return <div>
+    <ComplianceHeader title="Requirements" description="Track the compliance requirements your school needs to prepare and maintain." />
+    {!catalogue.length ? <section className="db-card db-card-lavender" style={{ padding: 16 }}><h3 style={{ marginTop: 0 }}>No requirements configured</h3><p className="db-helper">No compliance requirements have been configured for this school yet.</p></section> : <div style={{ display: "grid", gap: 12 }}>{catalogue.map((requirement) => {
+      const existing = stateFor(String(requirement.id));
+      const requirementLinks = existing ? links.filter((item) => item.school_requirement_id === existing.id) : [];
+      const actionEligible = existing && ["Missing", "Needs Review", "Expired"].includes(String(existing.status));
+      const expanded = open === requirement.id;
+      return <article className="db-card db-card-lavender" style={{ padding: 16 }} key={String(requirement.id)}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+          <div><h3 style={{ margin: "0 0 4px" }}>{String(requirement.title)}</h3><p className="db-helper" style={{ margin: 0 }}>{String(requirement.description || "")}</p></div>
+          <button className="db-button-secondary" onClick={() => setOpen(expanded ? undefined : String(requirement.id))}>{expanded ? "Close" : "Manage requirement"}</button>
+        </div>
+        <div className="db-helper" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}><span>Stage: {String(requirement.registration_stage)}</span><span>Status: <strong>{String(existing?.status || "Not Started")}</strong></span><span>Evidence: {requirementLinks.length}</span><span>Verification: {String(existing?.verification_status || "Not verified")}</span>{existing?.expires_at ? <span>Expiry: {formatComplianceDate(String(existing.expires_at))}</span> : null}</div>
+        {actionEligible ? <Link className="db-button-secondary" style={{ display: "inline-block", marginTop: 10, textDecoration: "none" }} href={`/dbe-registration/corrective-actions?school=${school}&source_type=requirement&source_id=${encodeURIComponent(String(existing.id))}`}>Create Corrective Action</Link> : null}
+        {expanded ? <div style={{ marginTop: 14 }}><form onSubmit={(event) => { event.preventDefault(); void save(String(requirement.id), event.currentTarget); }} style={{ display: "grid", gap: 8 }}><label>Status<select name="status" className="db-input" defaultValue={String(existing?.status || "Not Started")}>{statuses.map((value) => <option key={value}>{value}</option>)}</select></label><label>Due date<input name="due_date" className="db-input" type="date" defaultValue={String(existing?.due_date || "")} /></label><label>Expiry date<input name="expires_at" className="db-input" type="date" defaultValue={String(existing?.expires_at || "")} /></label><label>Notes<textarea name="notes" className="db-input" defaultValue={String(existing?.notes || "")} /></label><label><input type="checkbox" name="verify" defaultChecked={existing?.verification_status === "Verified"} /> Mark this recorded status as verified</label><button className="db-button-primary" disabled={saving}>{saving ? "Saving..." : "Save status"}</button></form>{existing ? <section style={{ marginTop: 16 }}><h4>Linked Evidence</h4>{requirementLinks.length === 0 ? <p className="db-helper">No evidence linked yet. Link an existing document to support this requirement.</p> : requirementLinks.map((linkRow) => { const document = docs.find((item) => item.id === linkRow.document_id); return <div key={String(linkRow.id)} className="db-list-card">{String(document?.document_name || "Document")} <button className="db-button-secondary" onClick={() => void link(String(existing.id), String(linkRow.document_id), true)}>Unlink</button></div>; })}<label>Link Evidence<select className="db-input" defaultValue="" onChange={(event) => void link(String(existing.id), event.target.value)}><option value="">Choose document</option>{docs.map((document) => <option key={String(document.id)} value={String(document.id)}>{String(document.document_name)}</option>)}</select></label></section> : null}</div> : null}
+      </article>;
+    })}</div>}
+  </div>;
 }

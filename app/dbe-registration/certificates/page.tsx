@@ -7,12 +7,12 @@ import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
 import { getCurrentProfile } from "@/app/lib/auth";
 import { resolveSchoolContext } from "@/app/lib/school-context";
 import { isRenewalInProgress, renewalDisplayStatus, type RenewalItem, type RenewalSource, type RenewalSummary } from "@/app/lib/renewal-aggregation";
-import { ComplianceHeader } from "../components";
+import { ComplianceHeader, formatComplianceDate } from "../components";
 
 type Response = { items: RenewalItem[]; summary: RenewalSummary };
 const sources: Array<["All" | RenewalSource, string]> = [["All", "All sources"], ["registration", "Registration"], ["document", "Documents & Evidence"], ["staff", "Staff Compliance"], ["manual", "Manual Certificate"]];
 const statuses = ["All", "Expiring Soon", "Expired", "Renewal In Progress", "Current", "No Expiry"] as const;
-const formatDate = (value?: string | null) => value ? new Date(`${value}T00:00:00`).toLocaleDateString() : "No expiry";
+const formatDate = (value?: string | null) => formatComplianceDate(value, "No expiry");
 
 export default function CertificatesPage() {
   const router = useRouter(); const params = useSearchParams();

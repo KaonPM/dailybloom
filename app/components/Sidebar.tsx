@@ -32,6 +32,7 @@ type NavItem = {
   label: string;
   href: string;
   match?: string[];
+  exact?: boolean;
   view?: string;
   featureKey?: string;
   permission?: Permission;
@@ -204,7 +205,7 @@ export default function Sidebar() {
   const dbeNav = useMemo<NavItem[]>(
     () => [
       {
-        label: "Compliance & Registration",
+        label: "Overview",
         href: "/dbe-registration/overview",
         match: ["/dbe-registration/overview"],
         permission: PERMISSIONS.DBE_MANAGE,
@@ -212,15 +213,21 @@ export default function Sidebar() {
       {
         label: "Registration",
         href: "/dbe-registration",
+        exact: true,
         match: ["/dbe-registration"],
         permission: PERMISSIONS.DBE_MANAGE,
       },
+      { label: "Requirements", href: "/dbe-registration/requirements", match: ["/dbe-registration/requirements"], permission: PERMISSIONS.DBE_MANAGE },
       {
         label: "Documents & Evidence",
         href: "/dbe-registration/documents",
         match: ["/dbe-registration/documents"],
         permission: PERMISSIONS.DBE_MANAGE,
       },
+      { label: "Staff Compliance", href: "/dbe-registration/staff-compliance", match: ["/dbe-registration/staff-compliance"], permission: PERMISSIONS.DBE_MANAGE },
+      { label: "Inspections", href: "/dbe-registration/inspections", match: ["/dbe-registration/inspections"], permission: PERMISSIONS.DBE_MANAGE },
+      { label: "Corrective Actions", href: "/dbe-registration/corrective-actions", match: ["/dbe-registration/corrective-actions"], permission: PERMISSIONS.DBE_MANAGE },
+      { label: "Certificates & Renewals", href: "/dbe-registration/certificates", match: ["/dbe-registration/certificates"], permission: PERMISSIONS.DBE_MANAGE },
     ],
     []
   );
@@ -660,6 +667,7 @@ export default function Sidebar() {
       return pathname.startsWith("/master") && searchParams.get("view") === item.view;
     }
 
+    if (item.exact) return pathname === item.href;
     return (
       item.match?.some((segment) => pathname.startsWith(segment)) ||
       pathname === item.href
@@ -833,9 +841,16 @@ export default function Sidebar() {
               "Data Migration",
               "Trust & Security"
             ),
-            ...(canViewDbe ? dbeNav : []),
           ],
         },
+        ...(canViewDbe
+          ? [{
+              key: "compliance-registration",
+              label: "Compliance & Registration",
+              color: "#38BDF8",
+              items: dbeNav,
+            }]
+          : []),
         {
           key: "reports-insights",
           label: "Reports & Insights",
@@ -1223,7 +1238,11 @@ export default function Sidebar() {
                 const groupIsActive = group.items.some((item) => isActiveNav(item));
                 const groupOverride = openWorkflowGroups[group.key];
                 const groupIsOpen =
-                  groupOverride?.pathname === pathname ? groupOverride.open : groupIsActive;
+                  group.key === "compliance-registration" && groupIsActive
+                    ? true
+                    : groupOverride?.pathname === pathname
+                      ? groupOverride.open
+                      : groupIsActive;
 
                 return (
                   <div key={group.key} style={{ display: "grid", gap: "8px" }}>

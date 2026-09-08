@@ -32,18 +32,24 @@ export async function GET(request: Request) {
   const resource = params.get("resource") || "overview";
 
   if (resource === "overview") {
-    const [registration, requirements, documents, staff, inspections, actions, certificates] = await Promise.all([
-      supabaseAdmin.from("dbe_registration").select("*").eq("school_id", id).maybeSingle(),
+    const [registration, requirements, documents, evidence, staff, staffProfiles, memberships, inspections, findings, actions, certificates] = await Promise.all([
+      supabaseAdmin.from("dbe_registration").select("official_status, registration_status, registration_number, registration_date, renewal_date, last_verified_at, verified_by").eq("school_id", id).maybeSingle(),
       supabaseAdmin.from("school_compliance_requirements").select("status, expires_at, compliance_requirements(registration_stage, required, active, effective_from, effective_to)").eq("school_id", id),
       supabaseAdmin.from("dbe_compliance_documents").select("id, expiry_date, verification_status").eq("school_id", id),
+      supabaseAdmin.from("compliance_requirement_evidence").select("document_id").eq("school_id", id),
       supabaseAdmin.from("staff_compliance_items").select("status, expiry_date").eq("school_id", id),
+      supabaseAdmin.from("profiles").select("id, is_active").eq("school_id", id),
+      supabaseAdmin.from("school_memberships").select("user_id, status").eq("school_id", id),
       supabaseAdmin.from("compliance_inspections").select("id, status, scheduled_date").eq("school_id", id),
+      supabaseAdmin.from("compliance_inspection_findings").select("id, status").eq("school_id", id),
       supabaseAdmin.from("compliance_corrective_actions").select("id, status, due_date").eq("school_id", id),
       supabaseAdmin.from("compliance_certificates").select("id, expiry_date, renewal_status").eq("school_id", id),
     ]);
-    const errors = [registration, requirements, documents, staff, inspections, actions, certificates].find((result) => result.error)?.error;
+    const errors = [registration, requirements, documents, evidence, staff, staffProfiles, memberships, inspections, findings, actions, certificates].find((result) => result.error)?.error;
     if (errors) return NextResponse.json({ error: errors.message }, { status: 400 });
-    return NextResponse.json({ registration: registration.data, requirements: requirements.data || [], documents: documents.data || [], staff: staff.data || [], inspections: inspections.data || [], actions: actions.data || [], certificates: certificates.data || [] });
+    const legacyStaff = new Map((staffProfiles.data || []).map((profile) => [profile.id, profile.is_active !== false]));
+    for (const membership of memberships.data || []) if (membership.status === "active") legacyStaff.set(membership.user_id, true);
+    return NextResponse.json({ registration: registration.data, requirements: requirements.data || [], documents: documents.data || [], evidence: evidence.data || [], staff: staff.data || [], active_staff_count: [...legacyStaff.values()].filter(Boolean).length, inspections: inspections.data || [], findings: findings.data || [], actions: actions.data || [], certificates: certificates.data || [] });
   }
 
   if (resource === "catalogue") {

@@ -1,20 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const sections = [
   ["Overview", "/dbe-registration/overview"], ["Registration", "/dbe-registration"],
   ["Requirements", "/dbe-registration/requirements"], ["Documents & Evidence", "/dbe-registration/documents"],
-  ["Staff Compliance", "/dbe-registration/staff-compliance"], ["Health & Safety", "/dbe-registration/health-safety"],
-  ["Premises", "/dbe-registration/premises"], ["Inspections", "/dbe-registration/inspections"],
+  ["Staff Compliance", "/dbe-registration/staff-compliance"], ["Inspections", "/dbe-registration/inspections"],
   ["Corrective Actions", "/dbe-registration/corrective-actions"], ["Certificates & Renewals", "/dbe-registration/certificates"],
 ] as const;
 
 export function ComplianceNav() {
-  const params = useSearchParams(); const school = params.get("school");
+  const params = useSearchParams(); const pathname = usePathname(); const school = params.get("school");
   return <nav aria-label="Compliance & Registration" style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 18px" }}>
-    {sections.map(([label, href]) => <Link key={href} className="db-button-secondary" style={{ textDecoration: "none" }} href={`${href}${school ? `?school=${school}` : ""}`}>{label}</Link>)}
+    {sections.map(([label, href]) => { const active = href === "/dbe-registration" ? pathname === href : pathname.startsWith(href); return <Link key={href} className={active ? "db-button-primary" : "db-button-secondary"} style={{ textDecoration: "none" }} href={`${href}${school ? `?school=${school}` : ""}`}>{label}</Link>; })}
   </nav>;
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getCurrentProfile } from "../../lib/auth";
 import { resolveSchoolContext } from "../../lib/school-context";
@@ -363,7 +364,7 @@ export default function DbeComplianceDocumentsPage() {
       )}
 
       <div className="db-card db-card-lavender" style={{ padding: 16 }}>
-        <p className="db-helper">Unlinked Evidence: {documents.filter((document) => !evidenceLinks.some((link) => link.document_id === document.id)).length}. Link these from a requirement’s Manage view without duplicating the file.</p>
+        {documents.filter((document) => !evidenceLinks.some((link) => link.document_id === document.id)).length > 0 ? <div className="db-list-card" style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}><span><strong>{documents.filter((document) => !evidenceLinks.some((link) => link.document_id === document.id)).length} document{documents.filter((document) => !evidenceLinks.some((link) => link.document_id === document.id)).length === 1 ? "" : "s"} need{documents.filter((document) => !evidenceLinks.some((link) => link.document_id === document.id)).length === 1 ? "s" : ""} to be linked to a requirement</strong><p className="db-helper" style={{ margin: "4px 0 0" }}>Link existing evidence without uploading or duplicating the file.</p></span><Link className="db-button-secondary" href={`/dbe-registration/requirements${schoolParam ? `?school=${schoolParam}` : ""}`}>Link Evidence</Link></div> : null}
         <h3 style={sectionTitle}>
           Saved Compliance Documents ({documents.length})
         </h3>

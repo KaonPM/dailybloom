@@ -3,6 +3,7 @@ import { PERMISSIONS } from "@/app/lib/permissions";
 import { requireStaffPermission, writeRequiredSecurityAudit } from "@/app/lib/server-authorization";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 import { getSchoolRenewals } from "@/app/lib/server-renewals";
+import { getSchoolCorrectiveActions } from "@/app/lib/server-corrective-actions";
 
 export const runtime = "nodejs";
 
@@ -50,13 +51,16 @@ export async function GET(request: Request) {
     if (errors) return NextResponse.json({ error: errors.message }, { status: 400 });
     const legacyStaff = new Map((staffProfiles.data || []).map((profile) => [profile.id, profile.is_active !== false]));
     for (const membership of memberships.data || []) if (membership.status === "active") legacyStaff.set(membership.user_id, true);
-    let renewalSummary;
+    let renewalSummary; let correctiveActionSummary;
     try {
-      renewalSummary = (await getSchoolRenewals(id)).summary;
+      [renewalSummary, correctiveActionSummary] = await Promise.all([
+        getSchoolRenewals(id).then((result) => result.summary),
+        getSchoolCorrectiveActions(id).then((result) => result.summary),
+      ]);
     } catch (renewalError) {
       return NextResponse.json({ error: renewalError instanceof Error ? renewalError.message : "Renewals could not be loaded." }, { status: 400 });
     }
-    return NextResponse.json({ registration: registration.data, requirements: requirements.data || [], documents: documents.data || [], evidence: evidence.data || [], staff: staff.data || [], active_staff_count: [...legacyStaff.values()].filter(Boolean).length, inspections: inspections.data || [], findings: findings.data || [], actions: actions.data || [], certificates: certificates.data || [], renewal_summary: renewalSummary });
+    return NextResponse.json({ registration: registration.data, requirements: requirements.data || [], documents: documents.data || [], evidence: evidence.data || [], staff: staff.data || [], active_staff_count: [...legacyStaff.values()].filter(Boolean).length, inspections: inspections.data || [], findings: findings.data || [], actions: actions.data || [], certificates: certificates.data || [], renewal_summary: renewalSummary, corrective_action_summary: correctiveActionSummary });
   }
 
   if (resource === "catalogue") {
@@ -123,16 +127,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   }
   if (evidenceAction === "create_action_from_finding") {
-    const findingId = clean(body.finding_id, 64);
-    const { data: finding } = await supabaseAdmin.from("compliance_inspection_findings").select("id, description, priority, inspection_id").eq("id", findingId).eq("school_id", id).maybeSingle();
-    if (!finding) return NextResponse.json({ error: "Inspection finding not found for this school." }, { status: 404 });
-    const { data, error } = await supabaseAdmin.from("compliance_corrective_actions").insert({ school_id: id, title: clean(body.title, 180) || `Resolve inspection finding`, description: clean(body.description) || finding.description, source_type: "inspection_finding", source_id: finding.id, due_date: clean(body.due_date, 10) || null, priority: clean(body.priority, 40) || finding.priority || "Normal", status: "Open", notes: clean(body.notes), created_by: authorization.staff.userId }).select("id").single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    await writeRequiredSecurityAudit(authorization.staff, "compliance.corrective_action_created", { source_type: "inspection_finding", finding_id: finding.id }, { type: "compliance_corrective_actions", id: data.id });
-    return NextResponse.json({ item: data });
+    return NextResponse.json({ error: "Create corrective actions through the controlled corrective-action workflow." }, { status: 409 });
   }
   const resource = clean(body.resource, 40) as Resource;
   if (!resources.has(resource)) return NextResponse.json({ error: "Unsupported compliance resource." }, { status: 400 });
+  if (resource === "actions") return NextResponse.json({ error: "Create corrective actions through the controlled corrective-action workflow." }, { status: 409 });
 
   const payloads: Record<Resource, Record<string, unknown>> = {
     requirements: { school_id: id, requirement_id: clean(body.requirement_id, 64), status: clean(body.status, 40) || "Not Started", notes: clean(body.notes), due_date: clean(body.due_date, 10) || null, expires_at: clean(body.expires_at, 10) || null },
@@ -143,11 +142,11 @@ export async function POST(request: Request) {
     certificates: { school_id: id, certificate_type: clean(body.certificate_type, 160), holder_name: clean(body.holder_name, 160) || null, issue_date: clean(body.issue_date, 10) || null, expiry_date: clean(body.expiry_date, 10) || null, issuing_authority: clean(body.issuing_authority, 160) || null, certificate_reference: clean(body.certificate_reference, 160) || null, renewal_status: clean(body.renewal_status, 40) || "Current", notes: clean(body.notes) },
   };
   const payload = payloads[resource];
-  const required = resource === "requirements" ? payload.requirement_id : resource === "staff" || resource === "actions" ? payload.title : resource === "inspections" ? payload.inspection_type : resource === "findings" ? payload.description : payload.certificate_type;
+  const required = resource === "requirements" ? payload.requirement_id : resource === "staff" ? payload.title : resource === "inspections" ? payload.inspection_type : resource === "findings" ? payload.description : payload.certificate_type;
   if (!required) return NextResponse.json({ error: "Complete the required fields." }, { status: 400 });
   const { data, error } = await supabaseAdmin.from(tables[resource]).insert(payload).select("id").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  const action = resource === "actions" ? "compliance.corrective_action_created" : resource === "inspections" ? "compliance.inspection_created" : resource === "findings" ? "compliance.finding_created" : resource === "staff" ? "compliance.staff_status_changed" : resource === "certificates" ? "compliance.certificate_updated" : "compliance.requirement_status_changed";
+  const action = resource === "inspections" ? "compliance.inspection_created" : resource === "findings" ? "compliance.finding_created" : resource === "staff" ? "compliance.staff_status_changed" : resource === "certificates" ? "compliance.certificate_updated" : "compliance.requirement_status_changed";
   await writeRequiredSecurityAudit(authorization.staff, action, { resource, record_id: data.id }, { type: tables[resource], id: data.id });
   return NextResponse.json({ item: data }, { status: 201 });
 }
@@ -159,13 +158,13 @@ export async function PATCH(request: Request) {
   if (!id || !recordId || !resources.has(resource)) return NextResponse.json({ error: "Valid school, record and resource are required." }, { status: 400 });
   const authorization = await requireStaffPermission(request, PERMISSIONS.DBE_MANAGE, id);
   if (!authorization.ok) return authorization.response;
+  if (resource === "actions") return NextResponse.json({ error: "Corrective action status changes must use the controlled workflow." }, { status: 409 });
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   ["status", "notes", "due_date", "expiry_date", "expires_at", "renewal_status", "outcome", "follow_up_date", "priority", "certificate_type", "holder_name", "issue_date", "issuing_authority", "certificate_reference"].forEach((key) => { if (body[key] !== undefined) updates[key] = typeof body[key] === "string" ? clean(body[key], key === "notes" ? 1000 : 160) || null : body[key]; });
-  if (body.status === "Closed" && resource === "actions") updates.completed_at = new Date().toISOString();
   const { data, error } = await supabaseAdmin.from(tables[resource]).update(updates).eq("id", recordId).eq("school_id", id).select("id").maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   if (!data) return NextResponse.json({ error: "Compliance record not found." }, { status: 404 });
-  const action = resource === "actions" && body.status === "Closed" ? "compliance.corrective_action_closed" : resource === "actions" ? "compliance.corrective_action_updated" : resource === "inspections" ? "compliance.inspection_updated" : resource === "certificates" && clean(body.renewal_status, 40) === "In Progress" ? "compliance.certificate_renewal_started" : resource === "certificates" && clean(body.renewal_status, 40) === "Renewed" ? "compliance.certificate_renewed" : resource === "certificates" ? "compliance.certificate_updated" : "compliance.requirement_status_changed";
+  const action = resource === "inspections" ? "compliance.inspection_updated" : resource === "certificates" && clean(body.renewal_status, 40) === "In Progress" ? "compliance.certificate_renewal_started" : resource === "certificates" && clean(body.renewal_status, 40) === "Renewed" ? "compliance.certificate_renewed" : resource === "certificates" ? "compliance.certificate_updated" : "compliance.requirement_status_changed";
   await writeRequiredSecurityAudit(authorization.staff, action, { resource, record_id: recordId }, { type: tables[resource], id: recordId });
   return NextResponse.json({ success: true });
 }

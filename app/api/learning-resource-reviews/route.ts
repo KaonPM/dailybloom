@@ -22,13 +22,9 @@ export async function PATCH(request: Request) {
   const id = Number(body.id);
   const status = String(body.status);
   if (!id || !["approved", "rejected"].includes(status)) return NextResponse.json({ error: "A review decision is required." }, { status: 400 });
-  const { data: review, error: reviewError } = await supabaseAdmin.from("learning_resource_update_reviews").update({ status, reviewed_by: authorization.staff.userId, reviewed_at: new Date().toISOString() }).eq("id", id).eq("status", "pending").select("*").maybeSingle();
-  if (reviewError || !review) return NextResponse.json({ error: reviewError?.message || "This review is no longer pending." }, { status: 400 });
-  if (status === "approved") {
-    const proposed = review.proposed_resource && typeof review.proposed_resource === "object" ? review.proposed_resource : {};
-    const { error } = await supabaseAdmin.from("learning_resources").insert({ ...proposed, title: review.title, grade: review.grade, source_name: review.source_name, source_url: review.source_url, academic_year: review.academic_year, status: "published" });
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  }
+  if (authorization.staff.role !== "master") return NextResponse.json({ error: "Master access is required." }, { status: 403 });
+  const { error } = await supabaseAdmin.rpc("review_learning_resource_update", { review_id: id, decision: status, actor: authorization.staff.userId });
+  if (error) return NextResponse.json({ error: "This review could not be saved. Refresh the catalogue and try again." }, { status: 400 });
   await writeSecurityAudit(authorization.staff, `learning_resource.review_${status}`, { review_id: id });
   return NextResponse.json({ success: true });
 }

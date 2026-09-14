@@ -2,14 +2,99 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
+import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
+import { normalizeSelectedPages, selectedPagesLabel, workbookPagesFromQuery } from "@/app/lib/grade-r-workbooks";
+
+type Resource = { id: number; title: string; academic_year?: number | null; grade?: string | null; term?: number | null; book_number?: string | null; language?: string | null; source_name?: string | null; page_count?: number | null };
+type LoadedPdf = PDFDocumentProxy & { destroy: () => void | Promise<void> };
 
 export default function GradeRWorkbookReaderPage() {
   const params = useSearchParams();
-  const sourceUrl = params.get("url") || "";
-  const title = params.get("title") || "Grade R Workbook";
-  const pageFrom = params.get("page_from");
-  return <div>
-    <div className="db-soft-card" style={{ padding: 18, marginBottom: 14 }}><Link href="/grade-r-learning" className="db-button-secondary">Back to Learning Hub</Link><h1 className="db-page-title">{title}</h1>{pageFrom ? <p className="db-page-subtitle">Open at assigned page {pageFrom}. Use the PDF viewer page controls to navigate.</p> : null}</div>
-    {sourceUrl ? <iframe title={title} src={`${sourceUrl}${pageFrom ? `#page=${encodeURIComponent(pageFrom)}` : ""}`} style={{ width: "100%", minHeight: "78vh", border: "1px solid #d8d2e5", borderRadius: 12 }} /> : <p className="db-helper">Workbook link is unavailable.</p>}
+  const resourceId = Number(params.get("resource_id"));
+  const schoolId = Number(params.get("school_id"));
+  const assignmentId = Number(params.get("assignment_id"));
+  const learnerId = params.get("learner_id") || "";
+  const initialPages = useMemo(() => workbookPagesFromQuery(params.get("pages"), params.get("page_from"), params.get("page_to")), [params]);
+  const [resource, setResource] = useState<Resource | null>(null);
+  const [pdf, setPdf] = useState<LoadedPdf | null>(null);
+  const [page, setPage] = useState(initialPages[0] || 1);
+  const [selectedPages, setSelectedPages] = useState<number[]>(initialPages);
+  const [scale, setScale] = useState(1.15);
+  const [message, setMessage] = useState("Loading workbook...");
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!resourceId || !schoolId) { setMessage("This workbook link is invalid."); return; }
+    let active = true;
+    let loadedDocument: LoadedPdf | undefined;
+    void (async () => {
+      try {
+        if (!assignmentId) {
+          const metadata = await authenticatedFetch(`/api/learning-resources?school_id=${schoolId}&resource_id=${resourceId}`);
+          const body = await metadata.json();
+          if (!metadata.ok || !body.resources?.[0]) throw new Error(body.error || "Workbook information is unavailable.");
+          if (active) setResource(body.resources[0]);
+        } else {
+          setResource({ id: resourceId, title: params.get("title") || "DBE Grade R Workbook", academic_year: Number(params.get("year")) || null, grade: "Grade R", language: params.get("language") });
+        }
+        const pdfjs = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+        const access = assignmentId ? `&assignment_id=${assignmentId}&learner_id=${encodeURIComponent(learnerId)}` : "";
+        const contentUrl = `/api/learning-resources/${resourceId}/content?school_id=${schoolId}${access}`;
+        const response = await (assignmentId ? fetch(contentUrl) : authenticatedFetch(contentUrl));
+        if (!response.ok) throw new Error("This workbook is temporarily unavailable. Please contact your DailyBloom administrator.");
+        const content = await response.json();
+        if (active) setResource(content.resource);
+        const document = await pdfjs.getDocument({ url: content.url, disableAutoFetch: true, disableStream: true }).promise as LoadedPdf;
+        loadedDocument = document;
+        if (active) { setPdf(document); setPage((current) => Math.min(current, document.numPages)); setSelectedPages((current) => normalizeSelectedPages(current, document.numPages)); setMessage(""); }
+        else void document.destroy();
+      } catch {
+        if (active) setMessage("This workbook is temporarily unavailable. Please try again later or contact your DailyBloom administrator.");
+      }
+    })();
+    return () => { active = false; void loadedDocument?.destroy(); };
+  }, [assignmentId, learnerId, params, resourceId, schoolId]);
+
+  useEffect(() => {
+    if (!pdf || !canvasRef.current) return;
+    let cancelled = false;
+    let task: RenderTask | undefined;
+    void (async () => {
+      try {
+        const pdfPage = await pdf.getPage(page);
+        if (cancelled || !canvasRef.current) return;
+        const viewport = pdfPage.getViewport({ scale });
+        const ratio = window.devicePixelRatio || 1;
+        const canvas = canvasRef.current;
+        canvas.width = Math.floor(viewport.width * ratio);
+        canvas.height = Math.floor(viewport.height * ratio);
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.maxWidth = "100%";
+        canvas.style.height = "auto";
+        const context = canvas.getContext("2d");
+        if (!context) return;
+        task = pdfPage.render({ canvas, canvasContext: context, viewport, transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0] });
+        await task.promise;
+        if (!cancelled) setMessage("");
+      } catch { if (!cancelled) setMessage("This workbook page could not be displayed. Please try another page."); }
+    })();
+    return () => { cancelled = true; task?.cancel(); };
+  }, [page, pdf, scale]);
+
+  const togglePage = () => setSelectedPages((current) => current.includes(page) ? current.filter((item) => item !== page) : normalizeSelectedPages([...current, page], pdf?.numPages));
+  const resourceQuery = new URLSearchParams({ school: String(schoolId), resource_id: String(resourceId), page_from: String(selectedPages[0] || page), page_to: String(selectedPages.at(-1) || page), selected_pages: (selectedPages.length ? selectedPages : [page]).join(",") });
+  const isParent = Boolean(assignmentId);
+
+  return <div className="db-page-shell">
+    <section className="db-page-header db-card-blue"><Link href={isParent ? "/parent/homework" : "/grade-r-learning"} className="db-main-pill">{isParent ? "Back to Homework" : "Back to DBE Workbooks"}</Link><p className="db-eyebrow" style={{ marginTop: 14 }}>Department of Basic Education</p><h1>{resource?.title || "Grade R Workbook"}</h1><p className="db-page-subtitle">{resource?.academic_year || ""} {resource?.grade || "Grade R"}{resource?.book_number ? ` · ${resource.book_number}` : ""}{resource?.term ? ` · Term ${resource.term}` : ""}{resource?.language ? ` · ${resource.language}` : ""}</p></section>
+    {message ? <div className="db-card db-card-yellow" style={{ padding: 18 }}><strong>{message}</strong>{!pdf ? <p className="db-helper">The original DBE workbook has not been changed. Try again later or ask the platform administrator to verify its source file.</p> : null}</div> : null}
+    {pdf ? <>
+      <section className="db-card" style={{ padding: 12, position: "sticky", top: 0, zIndex: 3 }}><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}><button className="db-button-secondary" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button><label>Page <input className="db-input" style={{ width: 82 }} type="number" min="1" max={pdf.numPages} value={page} onChange={(event) => setPage(Math.min(pdf.numPages, Math.max(1, Number(event.target.value) || 1)))} /> of {pdf.numPages}</label><button className="db-button-secondary" disabled={page >= pdf.numPages} onClick={() => setPage((current) => Math.min(pdf.numPages, current + 1))}>Next</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.max(.65, current - .15))}>Zoom out</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.min(2.2, current + .15))}>Zoom in</button><button className={selectedPages.includes(page) ? "db-button-primary" : "db-button-secondary"} onClick={togglePage}>{selectedPages.includes(page) ? `Page ${page} selected` : `Select page ${page}`}</button></div></section>
+      <section className="db-card" style={{ marginTop: 10, padding: 10, overflow: "auto", textAlign: "center", background: "#EEEAE5" }}><canvas ref={canvasRef} aria-label={`Workbook page ${page}`} /></section>
+      <section className="db-card db-card-lavender" style={{ padding: 14, position: "sticky", bottom: 8, zIndex: 3 }}><strong>{selectedPagesLabel(selectedPages)}</strong>{!isParent ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><Link className="db-button-primary" href={`/classroom-activities?${resourceQuery}`}>Add to Classroom Activity</Link><Link className="db-button-primary" href={`/classroom-activities?${resourceQuery}&homework=1`}>Add to Homework</Link></div> : null}</section>
+    </> : null}
   </div>;
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import ParentPageActions from "../components/ParentPageActions";
+import { selectedPagesLabel } from "@/app/lib/grade-r-workbooks";
 
 type Learner = { id: string | number; name?: string | null; school_id?: number | null };
 type Assignment = {
@@ -12,7 +13,7 @@ type Assignment = {
   homework_id: number | null;
   instruction_note?: string | null;
   homework_library: { title?: string; file_name?: string | null } | null;
-  workbook_resources?: Array<{ resource_id: number; page_from?: number | null; page_to?: number | null; title: string }>;
+  workbook_resources?: Array<{ resource_id: number; page_from?: number | null; page_to?: number | null; selected_pages?: number[]; title: string }>;
 };
 
 export default function ParentHomeworkPage() {
@@ -68,7 +69,7 @@ export default function ParentHomeworkPage() {
     const response = await fetch(`/api/parent-homework?${params}`, { cache: "no-store" });
     const body = await response.json();
     if (!response.ok) return setMessage(body.error || "Workbook could not be opened.");
-    window.open(body.url, "_blank", "noopener,noreferrer");
+    window.location.assign(body.url);
   }
 
   return (
@@ -101,8 +102,8 @@ export default function ParentHomeworkPage() {
             <p className="db-helper">No attachment — follow the instructions above.</p>
           )}
           {(assignment.workbook_resources || []).map((resource) => {
-            const pages = resource.page_from ? `pages ${resource.page_from}${resource.page_to ? `–${resource.page_to}` : ""}` : "selected pages";
-            return <div key={resource.resource_id} className="db-list-card" style={{ marginTop: 10 }}><strong>{resource.title}</strong><p className="db-helper" style={{ margin: "4px 0 10px" }}>Workbook {pages}</p><button type="button" className="db-button-secondary" onClick={() => void openWorkbook(assignment.id, resource.resource_id)}>Open / Print workbook {pages}</button></div>;
+            const pages = resource.selected_pages?.length ? selectedPagesLabel(resource.selected_pages) : resource.page_from ? `Pages ${resource.page_from}${resource.page_to ? `–${resource.page_to}` : ""}` : "Selected pages";
+            return <div key={resource.resource_id} className="db-list-card" style={{ marginTop: 10 }}><strong>{resource.title}</strong><p className="db-helper" style={{ margin: "4px 0 10px" }}>{pages} · Department of Basic Education</p><button type="button" className="db-button-secondary" onClick={() => void openWorkbook(assignment.id, resource.resource_id)}>Open selected workbook pages</button></div>;
           })}
         </div>
       ))}

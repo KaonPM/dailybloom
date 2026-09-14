@@ -30,18 +30,24 @@ export async function GET(request: Request) {
     if (!assignment) return NextResponse.json({ error: "Workbook is unavailable." }, { status: 404 });
     const { data: link } = await supabaseAdmin
       .from("homework_learning_resources")
-      .select("page_from, page_to, learning_resources!inner(title, source_url, is_printable, is_parent_shareable, status)")
+      .select("page_from, page_to, selected_pages, learning_resources!inner(title, academic_year, language, is_printable, is_parent_shareable, status)")
       .eq("homework_assignment_id", assignmentId)
       .eq("resource_id", resourceId)
+      .limit(1)
       .maybeSingle();
-    const resource = link?.learning_resources as unknown as { title?: string; source_url?: string; is_printable?: boolean; is_parent_shareable?: boolean; status?: string } | null;
-    if (!resource?.source_url || resource.status !== "published" || !resource.is_parent_shareable || !resource.is_printable) {
+    const resource = link?.learning_resources as unknown as { title?: string; academic_year?: number; language?: string; is_printable?: boolean; is_parent_shareable?: boolean; status?: string } | null;
+    if (resource?.status !== "published" || !resource.is_parent_shareable) {
       return NextResponse.json({ error: "Workbook is unavailable." }, { status: 404 });
     }
-    const workbookUrl = new URL(resource.source_url);
-    if (link?.page_from) workbookUrl.hash = `page=${link.page_from}`;
+    const legacyPageCount = link?.page_from ? (link.page_to || link.page_from) - link.page_from + 1 : 0;
+    const selectedPages = Array.isArray(link?.selected_pages) && link.selected_pages.length
+      ? link.selected_pages
+      : link?.page_from && legacyPageCount > 0 && legacyPageCount <= 2000
+        ? Array.from({ length: legacyPageCount }, (_, index) => link.page_from! + index)
+        : [];
+    const readerParams = new URLSearchParams({ resource_id: String(resourceId), school_id: String(schoolId), assignment_id: String(assignmentId), learner_id: learnerId, title: resource.title || "Grade R workbook", year: String(resource.academic_year || ""), language: resource.language || "", pages: selectedPages.join(",") });
     return NextResponse.json({
-      url: workbookUrl.toString(),
+      url: `/parent/workbook?${readerParams}`,
       title: resource.title || "Grade R workbook",
       page_from: link?.page_from || null,
       page_to: link?.page_to || null,
@@ -65,7 +71,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabaseAdmin
     .from("homework_assignments")
-    .select("id, week_start, activity_date, due_date, homework_id, instruction_note, position, homework_library(title, file_name), homework_learning_resources(resource_id, page_from, page_to, learning_resources(title, source_url, is_printable, is_parent_shareable, status))")
+    .select("id, week_start, activity_date, due_date, homework_id, instruction_note, position, homework_library(title, file_name), homework_learning_resources(resource_id, page_from, page_to, selected_pages, learning_resources(title, academic_year, language, is_parent_shareable, status))")
     .eq("school_id", schoolId)
     .eq("classroom_id", learner.classroom_id)
     .order("activity_date", { ascending: false })
@@ -77,13 +83,14 @@ export async function GET(request: Request) {
         resource_id: number;
         page_from?: number | null;
         page_to?: number | null;
-        learning_resources?: { title?: string | null; source_url?: string | null; is_printable?: boolean | null; is_parent_shareable?: boolean | null; status?: string | null } | null;
+        selected_pages?: number[] | null;
+        learning_resources?: { title?: string | null; academic_year?: number | null; language?: string | null; is_parent_shareable?: boolean | null; status?: string | null } | null;
       }>;
     };
     const workbook_resources = (assignmentWithResources.homework_learning_resources || [])
-      .filter((link) => link.learning_resources?.status === "published" && link.learning_resources.is_parent_shareable && link.learning_resources.is_printable && link.learning_resources.source_url)
-      .map((link) => ({ resource_id: link.resource_id, page_from: link.page_from || null, page_to: link.page_to || null, title: link.learning_resources?.title || "Grade R workbook" }));
-    const { homework_learning_resources: _hiddenLinks, ...safeAssignment } = assignment as { homework_learning_resources?: unknown };
+      .filter((link) => link.learning_resources?.status === "published" && link.learning_resources.is_parent_shareable)
+      .map((link) => ({ resource_id: link.resource_id, page_from: link.page_from || null, page_to: link.page_to || null, selected_pages: link.selected_pages || [], title: link.learning_resources?.title || "Grade R workbook", academic_year: link.learning_resources?.academic_year || null, language: link.learning_resources?.language || null }));
+    const safeAssignment = Object.fromEntries(Object.entries(assignment).filter(([key]) => key !== "homework_learning_resources"));
     return { ...safeAssignment, workbook_resources };
   });
   return NextResponse.json({ homework }, { headers: { "Cache-Control": "no-store, max-age=0" } });

@@ -8,6 +8,8 @@ import { resolveSchoolContext } from "../lib/school-context";
 import SubscriptionGuard from "../components/SubscriptionGuard";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 import RouteStateCard from "../components/RouteStateCard";
+import { getJohannesburgDate } from "../lib/classroom-activity-dates";
+import { selectedPagesLabel } from "../lib/grade-r-workbooks";
 
 type Learner = {
   id: string;
@@ -34,6 +36,18 @@ type PendingSummary = {
   teacher_notes?: string | null;
   status?: string | null;
   created_at?: string | null;
+};
+
+type DailyWorkbookUse = {
+  id: number;
+  classroom_id: number;
+  activity_date: string;
+  activity_name?: string | null;
+  activity_learning_resources?: Array<{
+    id: number;
+    selected_pages?: number[] | null;
+    learning_resources?: { title?: string | null; book_number?: string | null } | null;
+  }>;
 };
 
 const healthSafetyOptions = [
@@ -106,6 +120,7 @@ export default function SummariesPage() {
 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [dailyWorkbookUses, setDailyWorkbookUses] = useState<DailyWorkbookUse[]>([]);
 
   useEffect(() => {
     loadPage();
@@ -221,6 +236,27 @@ export default function SummariesPage() {
       (room) => String(room.id) === String(selectedClassroomId)
     );
   }, [classrooms, role, teacherClassroom, selectedClassroomId]);
+
+  useEffect(() => {
+    if (!schoolId || !selectedClassroom?.id) {
+      setDailyWorkbookUses([]);
+      return;
+    }
+    let active = true;
+    void authenticatedFetch(`/api/learning-resource-links?school_id=${schoolId}`)
+      .then(async (response) => response.ok ? response.json() : { plans: [] })
+      .then((body) => {
+        if (!active) return;
+        const today = getJohannesburgDate();
+        setDailyWorkbookUses((body.plans || []).filter((plan: DailyWorkbookUse) =>
+          Number(plan.classroom_id) === Number(selectedClassroom.id)
+          && plan.activity_date === today
+          && Boolean(plan.activity_learning_resources?.length)
+        ));
+      })
+      .catch(() => { if (active) setDailyWorkbookUses([]); });
+    return () => { active = false; };
+  }, [schoolId, selectedClassroom?.id]);
 
   const visibleLearners = useMemo(() => {
     if (!selectedClassroom) return [];
@@ -580,6 +616,19 @@ export default function SummariesPage() {
                 {selectedLearner.name} • {selectedLearner.class || "Unassigned"}
               </p>
             </div>
+
+            {dailyWorkbookUses.length ? (
+              <div className="db-card db-card-blue" style={{ padding: 14, marginBottom: 18 }}>
+                <strong>Today’s DBE workbook activities</strong>
+                <p style={smallText}>These references come from the classroom plan and are available while preparing the daily summary.</p>
+                {dailyWorkbookUses.flatMap((plan) => (plan.activity_learning_resources || []).map((link) => (
+                  <p key={link.id} style={{ margin: "6px 0 0" }}>
+                    {plan.activity_name || "Classroom activity"}: {link.learning_resources?.title || "Grade R workbook"}
+                    {link.learning_resources?.book_number ? ` · ${link.learning_resources.book_number}` : ""} · {selectedPagesLabel(link.selected_pages || [])}
+                  </p>
+                )))}
+              </div>
+            ) : null}
 
             <OptionGroup
               label="Health and Safety"

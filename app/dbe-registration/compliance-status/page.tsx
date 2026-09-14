@@ -15,27 +15,37 @@ type StatusField =
   | "fire_certificate_status"
   | "municipal_approval_status";
 
-type RegistrationSummary = Record<StatusField, string | null>;
+type DocumentField =
+  | "health_certificate_document_id"
+  | "fire_certificate_document_id"
+  | "municipal_approval_document_id";
+
+type RegistrationSummary = Record<StatusField | DocumentField, string | null>;
+type DocumentOption = { id: string; document_name: string; document_type?: string | null };
 
 const statusCards: Array<{
   field: StatusField;
+  documentField: DocumentField;
   title: string;
   description: string;
 }> = [
   {
     field: "health_certificate_status",
+    documentField: "health_certificate_document_id",
     title: "Environmental health clearance",
     description:
       "Record the school’s latest health or environmental-health clearance where it applies to the premises and local authority requirements.",
   },
   {
     field: "fire_certificate_status",
+    documentField: "fire_certificate_document_id",
     title: "Fire and safety evidence",
     description:
       "Record the school’s fire-safety certificate, report or other evidence requested by its municipality or registration authority.",
   },
   {
     field: "municipal_approval_status",
+    documentField: "municipal_approval_document_id",
     title: "Municipal and land-use approval",
     description:
       "Record applicable municipal evidence, such as land-use, zoning, occupancy or approved-building documentation.",
@@ -53,6 +63,12 @@ export default function ComplianceStatusPage() {
     fire_certificate_status: "Outstanding",
     municipal_approval_status: "Outstanding",
   });
+  const [evidence, setEvidence] = useState<Record<DocumentField, string>>({
+    health_certificate_document_id: "",
+    fire_certificate_document_id: "",
+    municipal_approval_document_id: "",
+  });
+  const [documents, setDocuments] = useState<DocumentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -64,11 +80,17 @@ export default function ComplianceStatusPage() {
     if (!response.ok) throw new Error(result.error || "Compliance status could not be loaded.");
 
     const registration = result.registration as RegistrationSummary;
+    setDocuments((result.documents || []) as DocumentOption[]);
     setHasRegistration(Boolean(result.has_saved_registration));
     setStatuses({
       health_certificate_status: registration.health_certificate_status || "Outstanding",
       fire_certificate_status: registration.fire_certificate_status || "Outstanding",
       municipal_approval_status: registration.municipal_approval_status || "Outstanding",
+    });
+    setEvidence({
+      health_certificate_document_id: registration.health_certificate_document_id || "",
+      fire_certificate_document_id: registration.fire_certificate_document_id || "",
+      municipal_approval_document_id: registration.municipal_approval_document_id || "",
     });
   }, []);
 
@@ -103,7 +125,7 @@ export default function ComplianceStatusPage() {
       const response = await authenticatedFetch("/api/dbe-registration", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ school_id: schoolId, ...statuses }),
+        body: JSON.stringify({ school_id: schoolId, ...statuses, ...evidence }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Compliance status could not be saved.");
@@ -161,6 +183,17 @@ export default function ComplianceStatusPage() {
               onChange={(event) => setStatuses((current) => ({ ...current, [card.field]: event.target.value }))}
             >
               {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+            <label style={{ ...labelStyle, marginTop: 12 }} htmlFor={card.documentField}>Linked evidence</label>
+            <select
+              id={card.documentField}
+              className="db-input"
+              value={evidence[card.documentField]}
+              disabled={!hasRegistration || saving}
+              onChange={(event) => setEvidence((current) => ({ ...current, [card.documentField]: event.target.value }))}
+            >
+              <option value="">No document linked</option>
+              {documents.map((document) => <option key={document.id} value={document.id}>{document.document_name}{document.document_type ? ` · ${document.document_type}` : ""}</option>)}
             </select>
           </section>
         ))}

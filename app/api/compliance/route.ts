@@ -149,16 +149,26 @@ export async function POST(request: Request) {
   const payloads: Record<Resource, Record<string, unknown>> = {
     requirements: { school_id: id, requirement_id: clean(body.requirement_id, 64), status: clean(body.status, 40) || "Not Started", notes: clean(body.notes), due_date: clean(body.due_date, 10) || null, expires_at: clean(body.expires_at, 10) || null },
     staff: { school_id: id, staff_user_id: clean(body.staff_user_id, 64), requirement_id: clean(body.requirement_id, 64) || null, title: clean(body.title, 180), status: clean(body.status, 40) || "Not Started", issue_date: clean(body.issue_date, 10) || null, expiry_date: clean(body.expiry_date, 10) || null, notes: clean(body.notes) },
-    inspections: { school_id: id, inspection_type: clean(body.inspection_type, 160), inspection_scope: clean(body.inspection_scope, 40) || "Internal", inspecting_authority: clean(body.inspecting_authority, 160) || null, scheduled_date: clean(body.scheduled_date, 10) || null, inspection_date: clean(body.inspection_date, 10) || null, status: clean(body.status, 40) || "Scheduled", outcome: clean(body.outcome, 120) || null, inspector_reference: clean(body.inspector_reference, 160) || null, notes: clean(body.notes), follow_up_date: clean(body.follow_up_date, 10) || null, created_by: authorization.staff.userId },
-    findings: { school_id: id, inspection_id: clean(body.inspection_id, 64), requirement_id: clean(body.requirement_id, 64) || null, category: clean(body.category, 100) || null, description: clean(body.description), priority: clean(body.priority, 40) || "Normal", status: clean(body.status, 40) || "Open", corrective_action_required: Boolean(body.corrective_action_required) },
+    inspections: { school_id: id, inspection_type: clean(body.inspection_type, 160), inspection_scope: clean(body.inspection_scope, 40) || "Internal", inspecting_authority: clean(body.inspecting_authority, 160) || null, scheduled_date: clean(body.scheduled_date, 10) || null, inspection_date: clean(body.inspection_date, 10) || null, status: clean(body.status, 40) || "Scheduled", outcome: clean(body.outcome, 120) || null, inspector_reference: clean(body.inspector_reference, 160) || null, notes: clean(body.notes), follow_up_date: clean(body.follow_up_date, 10) || null, evidence_document_id: clean(body.evidence_document_id, 64) || null, created_by: authorization.staff.userId },
+    findings: { school_id: id, inspection_id: clean(body.inspection_id, 64), requirement_id: clean(body.requirement_id, 64) || null, category: clean(body.category, 100) || null, description: clean(body.description), priority: clean(body.priority, 40) || "Normal", status: clean(body.status, 40) || "Open", corrective_action_required: Boolean(body.corrective_action_required), evidence_document_id: clean(body.evidence_document_id, 64) || null },
     actions: { school_id: id, title: clean(body.title, 180), description: clean(body.description), source_type: clean(body.source_type, 80) || null, source_id: clean(body.source_id, 64) || null, responsible_user_id: clean(body.responsible_user_id, 64) || null, due_date: clean(body.due_date, 10) || null, priority: clean(body.priority, 40) || "Normal", status: clean(body.status, 40) || "Open", notes: clean(body.notes), created_by: authorization.staff.userId },
     certificates: { school_id: id, certificate_type: clean(body.certificate_type, 160), holder_name: clean(body.holder_name, 160) || null, issue_date: clean(body.issue_date, 10) || null, expiry_date: clean(body.expiry_date, 10) || null, issuing_authority: clean(body.issuing_authority, 160) || null, certificate_reference: clean(body.certificate_reference, 160) || null, document_id: clean(body.document_id, 64) || null, renewal_status: clean(body.renewal_status, 40) || "Current", notes: clean(body.notes) },
   };
   const payload = payloads[resource];
   const required = resource === "requirements" ? payload.requirement_id : resource === "staff" ? payload.title : resource === "inspections" ? payload.inspection_type : resource === "findings" ? payload.description : payload.certificate_type;
   if (!required) return NextResponse.json({ error: "Complete the required fields." }, { status: 400 });
-  if (resource === "certificates" && payload.document_id) {
-    const { data: document } = await supabaseAdmin.from("dbe_compliance_documents").select("id").eq("id", payload.document_id).eq("school_id", id).maybeSingle();
+  if (resource === "findings") {
+    const { data: inspection } = await supabaseAdmin
+      .from("compliance_inspections")
+      .select("id")
+      .eq("id", payload.inspection_id)
+      .eq("school_id", id)
+      .maybeSingle();
+    if (!inspection) return NextResponse.json({ error: "The selected inspection does not belong to this school." }, { status: 400 });
+  }
+  const selectedDocumentId = resource === "certificates" ? payload.document_id : resource === "inspections" || resource === "findings" ? payload.evidence_document_id : null;
+  if (selectedDocumentId) {
+    const { data: document } = await supabaseAdmin.from("dbe_compliance_documents").select("id").eq("id", selectedDocumentId).eq("school_id", id).maybeSingle();
     if (!document) return NextResponse.json({ error: "The selected document does not belong to this school." }, { status: 400 });
   }
   const { data, error } = await supabaseAdmin.from(tables[resource]).insert(payload).select("id").single();

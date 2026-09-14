@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getCurrentProfile } from "../lib/auth";
@@ -16,6 +17,7 @@ type DbeRegistration = {
   registration_date?: string | null;
   renewal_date?: string | null;
   official_status?: string | null;
+  official_status_document_id?: string | null;
   status_source?: string | null;
   last_verified_at?: string | null;
   registration_notes?: string | null;
@@ -26,6 +28,15 @@ type DbeRegistration = {
   health_certificate_status?: string | null;
   fire_certificate_status?: string | null;
   municipal_approval_status?: string | null;
+  health_certificate_document_id?: string | null;
+  fire_certificate_document_id?: string | null;
+  municipal_approval_document_id?: string | null;
+};
+
+type DocumentOption = {
+  id: string;
+  document_name: string;
+  document_type?: string | null;
 };
 
 const registrationStatuses = [
@@ -35,7 +46,7 @@ const registrationStatuses = [
   "Unregistered",
   "Not Registered",
 ];
-const officialStatuses = ["Not Started", "Application In Progress", "Bronze", "Silver", "Gold", "Renewal In Progress", "Expired", "Other"];
+const officialStatuses = ["Not Started", "Application In Progress", "Registered — Level Not Confirmed", "Bronze", "Silver", "Gold", "Renewal In Progress", "Expired", "Other"];
 
 export default function DbeRegistrationPage() {
   const router = useRouter();
@@ -53,6 +64,7 @@ export default function DbeRegistrationPage() {
   const [registrationDate, setRegistrationDate] = useState("");
   const [renewalDate, setRenewalDate] = useState("");
   const [officialStatus, setOfficialStatus] = useState("");
+  const [officialStatusDocumentId, setOfficialStatusDocumentId] = useState("");
   const [statusSource, setStatusSource] = useState("");
   const [lastVerifiedAt, setLastVerifiedAt] = useState("");
   const [registrationNotes, setRegistrationNotes] = useState("");
@@ -64,6 +76,10 @@ export default function DbeRegistrationPage() {
   const [healthCertificateStatus, setHealthCertificateStatus] = useState("Outstanding");
   const [fireCertificateStatus, setFireCertificateStatus] = useState("Outstanding");
   const [municipalApprovalStatus, setMunicipalApprovalStatus] = useState("Outstanding");
+  const [healthCertificateDocumentId, setHealthCertificateDocumentId] = useState("");
+  const [fireCertificateDocumentId, setFireCertificateDocumentId] = useState("");
+  const [municipalApprovalDocumentId, setMunicipalApprovalDocumentId] = useState("");
+  const [documents, setDocuments] = useState<DocumentOption[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,6 +98,7 @@ export default function DbeRegistrationPage() {
       }
 
       const record = result.registration as DbeRegistration;
+      setDocuments((result.documents || []) as DocumentOption[]);
 
       setRecordId(record.id || null);
       setSchoolName(record.school_name || "");
@@ -92,6 +109,7 @@ export default function DbeRegistrationPage() {
       setRegistrationDate(record.registration_date || "");
       setRenewalDate(record.renewal_date || "");
       setOfficialStatus(record.official_status || "");
+      setOfficialStatusDocumentId(record.official_status_document_id || "");
       setStatusSource(record.status_source || "");
       setLastVerifiedAt(record.last_verified_at || "");
       setRegistrationNotes(record.registration_notes || "");
@@ -102,6 +120,9 @@ export default function DbeRegistrationPage() {
       setHealthCertificateStatus(record.health_certificate_status || "Outstanding");
       setFireCertificateStatus(record.fire_certificate_status || "Outstanding");
       setMunicipalApprovalStatus(record.municipal_approval_status || "Outstanding");
+      setHealthCertificateDocumentId(record.health_certificate_document_id || "");
+      setFireCertificateDocumentId(record.fire_certificate_document_id || "");
+      setMunicipalApprovalDocumentId(record.municipal_approval_document_id || "");
       setEditingRegistration(!result.has_saved_registration);
     } catch (error) {
       alert(
@@ -171,6 +192,7 @@ export default function DbeRegistrationPage() {
       registration_date: registrationDate || null,
       renewal_date: renewalDate || null,
       official_status: officialStatus || null,
+      official_status_document_id: officialStatusDocumentId || null,
       status_source: statusSource.trim() || null,
       last_verified_at: lastVerifiedAt || null,
       registration_notes: registrationNotes.trim() || null,
@@ -181,6 +203,9 @@ export default function DbeRegistrationPage() {
       health_certificate_status: healthCertificateStatus,
       fire_certificate_status: fireCertificateStatus,
       municipal_approval_status: municipalApprovalStatus,
+      health_certificate_document_id: healthCertificateDocumentId || null,
+      fire_certificate_document_id: fireCertificateDocumentId || null,
+      municipal_approval_document_id: municipalApprovalDocumentId || null,
       updated_at: new Date().toISOString(),
     };
 
@@ -234,6 +259,8 @@ export default function DbeRegistrationPage() {
             <SummaryItem label="School" value={schoolName} />
             <SummaryItem label="Registration Number" value={registrationNumber} />
             <SummaryItem label="Status" value={registrationStatus} />
+            <SummaryItem label="Official status" value={officialStatus || "Not recorded"} />
+            <SummaryItem label="Linked evidence" value={documents.find((document) => document.id === officialStatusDocumentId)?.document_name || "Not linked"} />
             <SummaryItem label="Registration Date" value={formatComplianceDate(registrationDate, "Not added")} />
             <SummaryItem label="Principal" value={principalName || "Not added"} />
             <SummaryItem label="Contact" value={contactNumber || "Not added"} />
@@ -266,11 +293,21 @@ export default function DbeRegistrationPage() {
             <div className="db-card db-card-lavender" style={{ padding: 14, marginTop: 14 }}>
               <h3 style={sectionTitle}>Recorded Official Status</h3>
               <p className="db-helper">This records information supplied or verified by the school. It is not calculated from DailyBloom readiness.</p>
+              <p className="db-helper"><strong>Unsure of the level?</strong> Choose “Registered — Level Not Confirmed” when registration is confirmed but the Bronze, Silver or Gold level is not shown clearly on the source record.</p>
               <div style={grid2}>
                 <Field label="Official Status"><select className="db-input" value={officialStatus} onChange={(event) => setOfficialStatus(event.target.value)}><option value="">Not recorded</option>{officialStatuses.map((status) => <option key={status} value={status}>{status}</option>)}</select></Field>
                 <Field label="Status Source"><input className="db-input" value={statusSource} onChange={(event) => setStatusSource(event.target.value)} placeholder="Example: Official certificate" /></Field>
                 <Field label="Renewal / Expiry Date"><input className="db-input" type="date" value={renewalDate} onChange={(event) => setRenewalDate(event.target.value)} /></Field>
+                <Field label="Linked evidence">
+                  <select className="db-input" value={officialStatusDocumentId} onChange={(event) => setOfficialStatusDocumentId(event.target.value)}>
+                    <option value="">No document linked</option>
+                    {documents.map((document) => <option key={document.id} value={document.id}>{document.document_name}{document.document_type ? ` · ${document.document_type}` : ""}</option>)}
+                  </select>
+                </Field>
               </div>
+              <p className="db-helper" style={{ margin: "8px 0 0" }}>
+                Choose any existing file from Documents &amp; Evidence. The file stays private and is linked without being copied. {documents.length ? null : <Link href={`/dbe-registration/documents?school=${schoolId}`}>Upload evidence first</Link>}
+              </p>
               <Field label="Registration Notes"><textarea className="db-input" value={registrationNotes} onChange={(event) => setRegistrationNotes(event.target.value)} style={{ minHeight: 70, resize: "vertical" }} /></Field>
               {lastVerifiedAt ? <p className="db-helper">Last verified: {formatComplianceDate(lastVerifiedAt)}</p> : null}
             </div>

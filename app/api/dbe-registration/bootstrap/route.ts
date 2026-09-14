@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     schoolResult,
     principalResult,
     signupResult,
+    documentsResult,
   ] = await Promise.all([
     supabaseAdmin
       .from("dbe_registration")
@@ -54,6 +55,11 @@ export async function GET(request: Request) {
       .eq("school_id", schoolId)
       .order("created_at", { ascending: false })
       .limit(1),
+    supabaseAdmin
+      .from("dbe_compliance_documents")
+      .select("id, document_name, document_type, expiry_date, verification_status")
+      .eq("school_id", schoolId)
+      .order("document_name", { ascending: true }),
   ]);
 
   if (registrationResult.error) {
@@ -66,6 +72,12 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { error: schoolResult.error?.message || "School not found." },
       { status: 404 }
+    );
+  }
+  if (documentsResult.error) {
+    return NextResponse.json(
+      { error: documentsResult.error.message },
+      { status: 400 }
     );
   }
 
@@ -93,6 +105,8 @@ export async function GET(request: Request) {
       registration_date: registration?.registration_date || "",
       renewal_date: registration?.renewal_date || "",
       official_status: registration?.official_status || "",
+      official_status_document_id:
+        registration?.official_status_document_id || "",
       status_source: registration?.status_source || "",
       last_verified_at: registration?.last_verified_at || "",
       registration_notes: registration?.registration_notes || "",
@@ -117,12 +131,19 @@ export async function GET(request: Request) {
         registration?.physical_address || signup?.school_address || "",
       health_certificate_status:
         registration?.health_certificate_status || "Outstanding",
+      health_certificate_document_id:
+        registration?.health_certificate_document_id || "",
       fire_certificate_status:
         registration?.fire_certificate_status || "Outstanding",
+      fire_certificate_document_id:
+        registration?.fire_certificate_document_id || "",
       municipal_approval_status:
         registration?.municipal_approval_status || "Outstanding",
+      municipal_approval_document_id:
+        registration?.municipal_approval_document_id || "",
       police_clearance_status:
         registration?.police_clearance_status || "Outstanding",
     },
+    documents: documentsResult.data || [],
   });
 }

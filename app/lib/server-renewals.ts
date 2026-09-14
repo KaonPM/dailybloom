@@ -9,7 +9,7 @@ const documentRoute = "/dbe-registration/documents";
 
 export async function getSchoolRenewals(schoolId: number) {
   const [registrationResult, documentsResult, staffResult, certificatesResult] = await Promise.all([
-    supabaseAdmin.from("dbe_registration").select("id, registration_number, registration_date, renewal_date, official_status, registration_status").eq("school_id", schoolId).maybeSingle(),
+    supabaseAdmin.from("dbe_registration").select("id, registration_number, registration_date, renewal_date, official_status, registration_status, official_status_document_id").eq("school_id", schoolId).maybeSingle(),
     supabaseAdmin.from("dbe_compliance_documents").select("id, document_name, document_type, issue_date, expiry_date, verification_status").eq("school_id", schoolId),
     supabaseAdmin.from("staff_compliance_items").select("id, staff_user_id, title, issue_date, expiry_date, verification_status, document_id").eq("school_id", schoolId),
     supabaseAdmin.from("compliance_certificates").select("id, certificate_type, holder_name, issue_date, expiry_date, verification_status, renewal_status, document_id, notes").eq("school_id", schoolId),
@@ -31,13 +31,18 @@ export async function getSchoolRenewals(schoolId: number) {
   const staffDocumentIds = new Set(staff.map((item) => clean(item.document_id)).filter(Boolean));
   const manualDocumentIds = new Set(certificates.map((item) => clean(item.document_id)).filter(Boolean));
   const documentById = new Map(documents.map((item) => [clean(item.id), item]));
+  const registrationDocumentIds = new Set(
+    registration?.renewal_date && registration.official_status_document_id
+      ? [clean(registration.official_status_document_id)]
+      : []
+  );
 
   const items: RenewalItem[] = [];
   if (registration?.renewal_date) items.push(renewalItem({
     source_type: "registration", source_id: clean(registration.id), school_id: schoolId,
     title: "DBE Registration", category: "Registration", holder: "School", issue_date: date(registration.registration_date), expiry_date: date(registration.renewal_date),
     renewal_status: clean(registration.official_status) === "Renewal In Progress" ? "Renewal In Progress" : null,
-    verification_status: null, linked_document_id: null, source_route: "/dbe-registration", source_label: "Registration", is_manual: false,
+    verification_status: null, linked_document_id: date(registration.official_status_document_id), source_route: "/dbe-registration", source_label: "Registration", is_manual: false,
   }));
 
   for (const item of staff) {
@@ -52,7 +57,7 @@ export async function getSchoolRenewals(schoolId: number) {
 
   for (const item of documents) {
     const id = clean(item.id);
-    if (!item.expiry_date || staffDocumentIds.has(id)) continue;
+    if (!item.expiry_date || staffDocumentIds.has(id) || registrationDocumentIds.has(id)) continue;
     items.push(renewalItem({
       source_type: "document", source_id: id, school_id: schoolId, title: clean(item.document_name) || "Compliance document", category: clean(item.document_type) || "Compliance document",
       holder: "School", issue_date: date(item.issue_date), expiry_date: date(item.expiry_date), renewal_status: null,

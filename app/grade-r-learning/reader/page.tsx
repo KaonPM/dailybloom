@@ -115,7 +115,6 @@ export default function GradeRWorkbookReaderPage() {
     setPrinting(true);
     setMessage("");
     try {
-      const { jsPDF } = await import("jspdf");
       const printDocument = printWindow.document;
       printDocument.open();
       printDocument.write(`<!doctype html><html><head><meta charset="utf-8"><title>Preparing printable workbook</title><style>
@@ -128,31 +127,11 @@ export default function GradeRWorkbookReaderPage() {
       printDocument.close();
       const title = printDocument.getElementById("title");
       if (title) title.textContent = resource?.title || "DailyBloom homework";
-      let printablePdf: InstanceType<typeof jsPDF> | null = null;
-
-      for (const pageNumber of pages) {
-        const pdfPage = await pdf.getPage(pageNumber);
-        const viewport = pdfPage.getViewport({ scale: 2 });
-        const canvas = printDocument.createElement("canvas");
-        canvas.width = Math.ceil(viewport.width);
-        canvas.height = Math.ceil(viewport.height);
-        const context = canvas.getContext("2d");
-        if (!context) throw new Error("Print page could not be rendered.");
-        await pdfPage.render({ canvas, canvasContext: context, viewport }).promise;
-
-        const orientation = viewport.width > viewport.height ? "landscape" : "portrait";
-        if (!printablePdf) {
-          printablePdf = new jsPDF({ orientation, unit: "pt", format: [viewport.width, viewport.height], compress: true });
-        } else {
-          printablePdf.addPage([viewport.width, viewport.height], orientation);
-        }
-        printablePdf.addImage(canvas, "JPEG", 0, 0, viewport.width, viewport.height, undefined, "FAST");
-      }
-
-      if (!printablePdf) throw new Error("Printable PDF could not be prepared.");
+      const printablePdf = await pdf.extractPages([{ document: null, includePages: pages.map((pageNumber) => pageNumber - 1) }]);
+      if (!printablePdf.length) throw new Error("Printable PDF could not be prepared.");
       const status = printDocument.getElementById("status");
       if (status) status.textContent = `${selectedPagesLabel(pages)} ready. Opening the browser print viewer…`;
-      const printableUrl = URL.createObjectURL(printablePdf.output("blob"));
+      const printableUrl = URL.createObjectURL(new Blob([new Uint8Array(printablePdf)], { type: "application/pdf" }));
       printWindow.location.replace(printableUrl);
       window.setTimeout(() => URL.revokeObjectURL(printableUrl), 300_000);
     } catch {

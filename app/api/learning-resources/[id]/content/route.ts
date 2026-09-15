@@ -13,6 +13,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const schoolId = Number(search.get("school_id"));
   const assignmentId = Number(search.get("assignment_id"));
   const learnerId = String(search.get("learner_id") || "");
+  const wantsPdf = search.get("format") === "pdf";
   if (!Number.isInteger(resourceId) || resourceId < 1 || !Number.isInteger(schoolId) || schoolId < 1 || (assignmentId && (!Number.isInteger(assignmentId) || assignmentId < 1))) {
     return NextResponse.json({ error: "Workbook request is invalid." }, { status: 400 });
   }
@@ -52,6 +53,27 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
   try {
     if (resource.storage_path) {
+      if (wantsPdf) {
+        const { data, error } = await supabaseAdmin.storage.from("dbe-workbooks").download(resource.storage_path);
+        if (error || !data) throw error || new Error("Cached workbook is unavailable.");
+        return new Response(data, {
+          headers: {
+            "Cache-Control": "private, no-store",
+            "Content-Type": resource.file_type || "application/pdf",
+            "Content-Disposition": "inline",
+          },
+        });
+      }
+
+      if (assignmentId && learnerId) {
+        const pdfUrl = new URL(request.url);
+        pdfUrl.searchParams.set("format", "pdf");
+        return NextResponse.json({
+          url: `${pdfUrl.pathname}${pdfUrl.search}`,
+          resource: { id: resource.id, title: resource.title, grade: resource.grade, academic_year: resource.academic_year, language: resource.language, term: resource.term, book_number: resource.book_number, source_name: resource.source_name },
+        }, { headers: { "Cache-Control": "private, no-store" } });
+      }
+
       const { data, error } = await supabaseAdmin.storage.from("dbe-workbooks").createSignedUrl(resource.storage_path, 900);
       if (error || !data) throw error || new Error("Cached workbook is unavailable.");
       return NextResponse.json({ url: data.signedUrl, resource: { id: resource.id, title: resource.title, grade: resource.grade, academic_year: resource.academic_year, language: resource.language, term: resource.term, book_number: resource.book_number, source_name: resource.source_name } }, { headers: { "Cache-Control": "no-store" } });

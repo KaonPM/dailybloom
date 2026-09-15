@@ -10,6 +10,10 @@ import { normalizeSelectedPages, selectedPagesLabel, workbookPagesFromQuery } fr
 type Resource = { id: number; title: string; academic_year?: number | null; grade?: string | null; term?: number | null; book_number?: string | null; language?: string | null; source_name?: string | null; page_count?: number | null };
 type LoadedPdf = PDFDocumentProxy & { destroy: () => void | Promise<void> };
 
+function destroyLoadedPdf(document: LoadedPdf | undefined) {
+  if (document && typeof document.destroy === "function") void document.destroy();
+}
+
 export default function GradeRWorkbookReaderPage() {
   const params = useSearchParams();
   const pathname = usePathname();
@@ -52,12 +56,12 @@ export default function GradeRWorkbookReaderPage() {
         const document = await pdfjs.getDocument({ url: content.url, disableAutoFetch: true, disableStream: true }).promise as LoadedPdf;
         loadedDocument = document;
         if (active) { setPdf(document); setPage((current) => Math.min(current, document.numPages)); setSelectedPages((current) => normalizeSelectedPages(current, document.numPages)); setMessage(""); }
-        else void document.destroy();
+        else destroyLoadedPdf(document);
       } catch {
         if (active) setMessage("This workbook is temporarily unavailable. Please try again later or contact your DailyBloom administrator.");
       }
     })();
-    return () => { active = false; void loadedDocument?.destroy(); };
+    return () => { active = false; destroyLoadedPdf(loadedDocument); };
   }, [assignmentId, learnerId, params, resourceId, schoolId]);
 
   useEffect(() => {

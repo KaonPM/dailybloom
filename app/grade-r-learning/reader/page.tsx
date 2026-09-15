@@ -22,6 +22,7 @@ export default function GradeRWorkbookReaderPage() {
   const [page, setPage] = useState(initialPages[0] || 1);
   const [selectedPages, setSelectedPages] = useState<number[]>(initialPages);
   const [scale, setScale] = useState(1.15);
+  const [printing, setPrinting] = useState(false);
   const [message, setMessage] = useState("Loading workbook...");
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -88,11 +89,74 @@ export default function GradeRWorkbookReaderPage() {
   const resourceQuery = new URLSearchParams({ school: String(schoolId), resource_id: String(resourceId), page_from: String(selectedPages[0] || page), page_to: String(selectedPages.at(-1) || page), selected_pages: (selectedPages.length ? selectedPages : [page]).join(",") });
   const isParent = Boolean(assignmentId);
 
+  async function printAssignedPages() {
+    if (!pdf || printing) return;
+    const pages = normalizeSelectedPages(initialPages.length ? initialPages : [page], pdf.numPages);
+    const printWindow = window.open("", "_blank", "popup,width=900,height=900");
+    if (!printWindow) {
+      setMessage("The print window was blocked. Allow pop-ups for DailyBloom and try again.");
+      return;
+    }
+
+    printWindow.opener = null;
+    setPrinting(true);
+    setMessage("");
+    try {
+      const printDocument = printWindow.document;
+      printDocument.open();
+      printDocument.write(`<!doctype html><html><head><meta charset="utf-8"><title>DailyBloom homework</title><style>
+        @page { size: A4 portrait; margin: 8mm; }
+        * { box-sizing: border-box; }
+        body { margin: 0; color: #171717; font-family: Arial, sans-serif; }
+        header { margin: 0 0 8mm; }
+        h1 { margin: 0 0 2mm; font-size: 18px; }
+        p { margin: 0; font-size: 12px; }
+        .sheet { display: grid; min-height: calc(297mm - 16mm); place-items: center; break-after: page; page-break-after: always; }
+        .sheet:last-child { break-after: auto; page-break-after: auto; }
+        canvas { display: block; width: 100%; height: auto; max-height: calc(297mm - 16mm); object-fit: contain; }
+        @media print { header { display: none; } }
+      </style></head><body><header><h1 id="title"></h1><p id="status">Preparing assigned pages for printing…</p></header><main id="pages"></main></body></html>`);
+      printDocument.close();
+      printDocument.title = `${resource?.title || "DailyBloom homework"} — ${selectedPagesLabel(pages)}`;
+      const title = printDocument.getElementById("title");
+      if (title) title.textContent = resource?.title || "DailyBloom homework";
+      const pageContainer = printDocument.getElementById("pages");
+      if (!pageContainer) throw new Error("Print page could not be prepared.");
+
+      for (const pageNumber of pages) {
+        const pdfPage = await pdf.getPage(pageNumber);
+        const viewport = pdfPage.getViewport({ scale: 2 });
+        const sheet = printDocument.createElement("section");
+        sheet.className = "sheet";
+        const canvas = printDocument.createElement("canvas");
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        canvas.setAttribute("aria-label", `Workbook page ${pageNumber}`);
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Print page could not be rendered.");
+        sheet.appendChild(canvas);
+        pageContainer.appendChild(sheet);
+        await pdfPage.render({ canvas, canvasContext: context, viewport }).promise;
+      }
+
+      const status = printDocument.getElementById("status");
+      if (status) status.textContent = `${selectedPagesLabel(pages)} ready to print.`;
+      await printDocument.fonts?.ready;
+      printWindow.focus();
+      printWindow.print();
+    } catch {
+      printWindow.close();
+      setMessage("The assigned workbook pages could not be prepared for printing. Please try again.");
+    } finally {
+      setPrinting(false);
+    }
+  }
+
   return <div className="db-page-shell">
     <section className="db-page-header db-card-blue"><Link href={isParent ? "/parent/homework" : "/grade-r-learning"} className="db-main-pill">{isParent ? "Back to Homework" : "Back to DBE Workbooks"}</Link><p className="db-eyebrow" style={{ marginTop: 14 }}>Department of Basic Education</p><h1>{resource?.title || "Grade R Workbook"}</h1><p className="db-page-subtitle">{resource?.academic_year || ""} {resource?.grade || "Grade R"}{resource?.book_number ? ` · ${resource.book_number}` : ""}{resource?.term ? ` · Term ${resource.term}` : ""}{resource?.language ? ` · ${resource.language}` : ""}</p></section>
     {message ? <div className="db-card db-card-yellow" style={{ padding: 18 }}><strong>{message}</strong>{!pdf ? <p className="db-helper">The original DBE workbook has not been changed. Try again later or ask the platform administrator to verify its source file.</p> : null}</div> : null}
     {pdf ? <>
-      <section className="db-card" style={{ padding: 12, position: "sticky", top: 0, zIndex: 3 }}><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}><button className="db-button-secondary" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button><label>Page <input className="db-input" style={{ width: 82 }} type="number" min="1" max={pdf.numPages} value={page} onChange={(event) => setPage(Math.min(pdf.numPages, Math.max(1, Number(event.target.value) || 1)))} /> of {pdf.numPages}</label><button className="db-button-secondary" disabled={page >= pdf.numPages} onClick={() => setPage((current) => Math.min(pdf.numPages, current + 1))}>Next</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.max(.65, current - .15))}>Zoom out</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.min(2.2, current + .15))}>Zoom in</button><button className={selectedPages.includes(page) ? "db-button-primary" : "db-button-secondary"} onClick={togglePage}>{selectedPages.includes(page) ? `Page ${page} selected` : `Select page ${page}`}</button></div></section>
+      <section className="db-card" style={{ padding: 12, position: "sticky", top: 0, zIndex: 3 }}><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}><button className="db-button-secondary" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button><label>Page <input className="db-input" style={{ width: 82 }} type="number" min="1" max={pdf.numPages} value={page} onChange={(event) => setPage(Math.min(pdf.numPages, Math.max(1, Number(event.target.value) || 1)))} /> of {pdf.numPages}</label><button className="db-button-secondary" disabled={page >= pdf.numPages} onClick={() => setPage((current) => Math.min(pdf.numPages, current + 1))}>Next</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.max(.65, current - .15))}>Zoom out</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.min(2.2, current + .15))}>Zoom in</button><button className={selectedPages.includes(page) ? "db-button-primary" : "db-button-secondary"} onClick={togglePage}>{selectedPages.includes(page) ? `Page ${page} selected` : `Select page ${page}`}</button>{isParent ? <button className="db-button-primary" disabled={printing} onClick={() => void printAssignedPages()}>{printing ? "Preparing print…" : "Print assigned pages"}</button> : null}</div></section>
       <section className="db-card" style={{ marginTop: 10, padding: 10, overflow: "auto", textAlign: "center", background: "#EEEAE5" }}><canvas ref={canvasRef} aria-label={`Workbook page ${page}`} /></section>
       <section className="db-card db-card-lavender" style={{ padding: 14, position: "sticky", bottom: 8, zIndex: 3 }}><strong>{selectedPagesLabel(selectedPages)}</strong>{!isParent ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><Link className="db-button-primary" href={`/classroom-activities?${resourceQuery}`}>Add to Classroom Activity</Link><Link className="db-button-primary" href={`/classroom-activities?${resourceQuery}&homework=1`}>Add to Homework</Link></div> : null}</section>
     </> : null}

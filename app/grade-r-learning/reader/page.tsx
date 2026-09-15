@@ -53,7 +53,16 @@ export default function GradeRWorkbookReaderPage() {
         if (!response.ok) throw new Error("This workbook is temporarily unavailable. Please contact your DailyBloom administrator.");
         const content = await response.json();
         if (active) setResource(content.resource);
-        const document = await pdfjs.getDocument({ url: content.url, disableAutoFetch: true, disableStream: true, disableRange: Boolean(assignmentId), withCredentials: Boolean(assignmentId), wasmUrl: "/pdfjs/wasm/" }).promise as LoadedPdf;
+        const source = assignmentId
+          ? {
+              data: new Uint8Array(await (async () => {
+                const pdfResponse = await fetch(content.url, { cache: "no-store", credentials: "include" });
+                if (!pdfResponse.ok) throw new Error("The assigned workbook PDF is unavailable.");
+                return pdfResponse.arrayBuffer();
+              })()),
+            }
+          : { url: content.url };
+        const document = await pdfjs.getDocument({ ...source, disableAutoFetch: true, disableStream: true, disableRange: Boolean(assignmentId), wasmUrl: "/pdfjs/wasm/" }).promise as LoadedPdf;
         loadedDocument = document;
         if (active) { setPdf(document); setPage((current) => Math.min(current, document.numPages)); setSelectedPages((current) => normalizeSelectedPages(current, document.numPages)); setMessage(""); }
         else destroyLoadedPdf(document);

@@ -53,7 +53,7 @@ export default function GradeRWorkbookReaderPage() {
         if (!response.ok) throw new Error("This workbook is temporarily unavailable. Please contact your DailyBloom administrator.");
         const content = await response.json();
         if (active) setResource(content.resource);
-        const document = await pdfjs.getDocument({ url: content.url, disableAutoFetch: true, disableStream: true }).promise as LoadedPdf;
+        const document = await pdfjs.getDocument({ url: content.url, disableAutoFetch: true, disableStream: true, wasmUrl: "/pdfjs/wasm/" }).promise as LoadedPdf;
         loadedDocument = document;
         if (active) { setPdf(document); setPage((current) => Math.min(current, document.numPages)); setSelectedPages((current) => normalizeSelectedPages(current, document.numPages)); setMessage(""); }
         else destroyLoadedPdf(document);
@@ -72,8 +72,10 @@ export default function GradeRWorkbookReaderPage() {
       try {
         const pdfPage = await pdf.getPage(page);
         if (cancelled || !canvasRef.current) return;
-        const viewport = pdfPage.getViewport({ scale });
-        const ratio = window.devicePixelRatio || 1;
+        const pageWidth = pdfPage.getViewport({ scale: 1 }).width;
+        const availableWidth = Math.max(1, canvasRef.current.parentElement?.clientWidth || pageWidth);
+        const viewport = pdfPage.getViewport({ scale: Math.min(scale, availableWidth / pageWidth) });
+        const ratio = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(4_000_000 / (viewport.width * viewport.height)));
         const canvas = canvasRef.current;
         canvas.width = Math.floor(viewport.width * ratio);
         canvas.height = Math.floor(viewport.height * ratio);

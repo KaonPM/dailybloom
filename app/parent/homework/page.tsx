@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ParentPageActions from "../components/ParentPageActions";
-import { selectedPagesLabel } from "@/app/lib/grade-r-workbooks";
+import { selectedPagesLabel, workbookPagesFromQuery } from "@/app/lib/grade-r-workbooks";
 
 type Learner = { id: string | number; name?: string | null; school_id?: number | null };
 type Assignment = {
@@ -29,6 +30,7 @@ export default function ParentHomeworkPage() {
         const rows = (body.children || []) as Learner[];
         setLearners(rows);
         setSelected(String(rows[0]?.id || ""));
+        if (rows.length) setMessage("Loading homework...");
       });
   }, []);
 
@@ -36,13 +38,17 @@ export default function ParentHomeworkPage() {
 
   useEffect(() => {
     if (!learner?.id || !learner.school_id) return;
+    let active = true;
     const params = new URLSearchParams({ learner_id: String(learner.id), school_id: String(learner.school_id) });
     fetch(`/api/parent-homework?${params}`, { cache: "no-store" })
       .then(async (response) => ({ ok: response.ok, body: await response.json() }))
       .then(({ ok, body }) => {
+        if (!active) return;
         setAssignments(ok ? body.homework || [] : []);
         setMessage(ok ? "" : body.error || "Homework could not be loaded.");
-      });
+      })
+      .catch(() => { if (active) setMessage("Homework could not be loaded. Please try again."); });
+    return () => { active = false; };
   }, [learner?.id, learner?.school_id]);
 
   async function openHomework(assignmentId: number) {
@@ -58,20 +64,6 @@ export default function ParentHomeworkPage() {
     window.open(body.url, "_blank", "noopener,noreferrer");
   }
 
-  async function openWorkbook(assignmentId: number, resourceId: number) {
-    if (!learner?.id || !learner.school_id) return;
-    const params = new URLSearchParams({
-      learner_id: String(learner.id),
-      school_id: String(learner.school_id),
-      assignment_id: String(assignmentId),
-      resource_id: String(resourceId),
-    });
-    const response = await fetch(`/api/parent-homework?${params}`, { cache: "no-store" });
-    const body = await response.json();
-    if (!response.ok) return setMessage(body.error || "Workbook could not be opened.");
-    window.location.assign(body.url);
-  }
-
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <ParentPageActions />
@@ -81,13 +73,13 @@ export default function ParentHomeworkPage() {
           View the practitioner&apos;s instructions and open or print any attached worksheet.
         </p>
         {learners.length > 1 ? (
-          <select className="db-input" value={selected} onChange={(event) => setSelected(event.target.value)} style={{ marginTop: 12 }}>
+          <select className="db-input" value={selected} onChange={(event) => { setAssignments([]); setMessage("Loading homework..."); setSelected(event.target.value); }} style={{ marginTop: 12 }}>
             {learners.map((row) => <option key={row.id} value={row.id}>{row.name || "Learner"}</option>)}
           </select>
         ) : null}
       </div>
 
-      {assignments.length === 0 ? <div className="db-card" style={{ padding: 20 }}>No homework has been allocated.</div> : null}
+      {assignments.length === 0 && !message ? <div className="db-card" style={{ padding: 20 }}>No homework has been allocated.</div> : null}
       {assignments.map((assignment) => (
         <div key={assignment.id} className="db-card db-card-blue" style={{ padding: 18 }}>
           <strong>{assignment.homework_library?.title || "Homework instructions"}</strong>
@@ -102,8 +94,16 @@ export default function ParentHomeworkPage() {
             <p className="db-helper">No attachment — follow the instructions above.</p>
           )}
           {(assignment.workbook_resources || []).map((resource) => {
-            const pages = resource.selected_pages?.length ? selectedPagesLabel(resource.selected_pages) : resource.page_from ? `Pages ${resource.page_from}${resource.page_to ? `–${resource.page_to}` : ""}` : "Selected pages";
-            return <div key={resource.resource_id} className="db-list-card" style={{ marginTop: 10 }}><strong>{resource.title}</strong><p className="db-helper" style={{ margin: "4px 0 10px" }}>{pages} · Department of Basic Education</p><button type="button" className="db-button-secondary" onClick={() => void openWorkbook(assignment.id, resource.resource_id)}>Open selected workbook pages</button></div>;
+            const selectedPages = resource.selected_pages?.length ? resource.selected_pages : workbookPagesFromQuery(null, String(resource.page_from || ""), String(resource.page_to || ""));
+            const pages = selectedPages.length ? selectedPagesLabel(selectedPages) : "Selected pages";
+            const readerParams = new URLSearchParams({
+              learner_id: String(learner?.id || ""),
+              school_id: String(learner?.school_id || ""),
+              assignment_id: String(assignment.id),
+              resource_id: String(resource.resource_id),
+              pages: selectedPages.join(","),
+            });
+            return <div key={resource.resource_id} className="db-list-card" style={{ marginTop: 10 }}><strong>{resource.title}</strong><p className="db-helper" style={{ margin: "4px 0 10px" }}>{pages} · Department of Basic Education</p><Link className="db-button-secondary" href={`/parent/workbook?${readerParams}`}>Open selected workbook pages</Link></div>;
           })}
         </div>
       ))}

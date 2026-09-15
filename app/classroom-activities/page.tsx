@@ -1263,8 +1263,8 @@ export default function ClassroomActivitiesPage() {
 
     alert(
       validLearnerIds.length > 0 || strengthRows.length > 0
-        ? "Activity completed and learner progress records updated."
-        : "Activity completed. Learners not selected are treated as meeting expectations."
+        ? "Activity completed. Selected learner progress was saved; everyone else was recorded as Meeting the standard."
+        : "Activity completed. All learners were recorded as Meeting the standard."
     );
   }
 
@@ -1868,7 +1868,7 @@ export default function ClassroomActivitiesPage() {
 
             <label style={labelStyle}>Record learner progress from this activity</label>
             <p style={smallHint}>
-              Mark only learners needing support or showing exceptional progress. Everyone else is recorded as having taken part in the class learning opportunity.
+              Select learners who need support or show exceptional progress. Everyone left unselected is recorded as Meeting the standard.
             </p>
 
             {learners.length === 0 ? (
@@ -1895,7 +1895,7 @@ export default function ClassroomActivitiesPage() {
 
                       {previous ? (
                         <p style={{ ...smallHint, gridColumn: "1 / -1", margin: 0 }}>
-                          Previous: {supportStatusLabel(supportStatusValue(previous))} on {previous.activity_date || formatShortDate(previous.created_at || "")}
+                          Previous: {activityOutcomeLabel(previous)} on {previous.activity_date || formatShortDate(previous.created_at || "")}
                         </p>
                       ) : null}
 
@@ -2258,6 +2258,12 @@ function supportStatusLabel(value: string) {
   if (value === "monitoring") return "Monitoring";
   if (value === "resolved") return "Resolved";
   return "New";
+}
+
+function activityOutcomeLabel(item: OutcomeRow) {
+  if (item.outcome_status === "meeting_expectations") return "Meeting the standard";
+  if (item.outcome_status === "exceeding_expectations") return "Exceptional progress";
+  return supportStatusLabel(supportStatusValue(item));
 }
 
 function supportFollowUpDue(item: OutcomeRow) {

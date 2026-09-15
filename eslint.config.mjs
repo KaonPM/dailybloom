@@ -25,6 +25,8 @@ const eslintConfig = defineConfig([
     "*.updated.page.tsx",
     "output/**",
     "tmp/**",
+    // Prebuilt PDF.js decoders copied from the installed package for browsers.
+    "public/pdfjs/**",
   ]),
 ]);
 

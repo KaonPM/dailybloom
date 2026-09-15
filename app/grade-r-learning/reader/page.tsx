@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { authenticatedFetch } from "@/app/lib/authenticated-fetch";
@@ -12,6 +12,7 @@ type LoadedPdf = PDFDocumentProxy & { destroy: () => void | Promise<void> };
 
 export default function GradeRWorkbookReaderPage() {
   const params = useSearchParams();
+  const pathname = usePathname();
   const resourceId = Number(params.get("resource_id"));
   const schoolId = Number(params.get("school_id"));
   const assignmentId = Number(params.get("assignment_id"));
@@ -88,6 +89,9 @@ export default function GradeRWorkbookReaderPage() {
   const togglePage = () => setSelectedPages((current) => current.includes(page) ? current.filter((item) => item !== page) : normalizeSelectedPages([...current, page], pdf?.numPages));
   const resourceQuery = new URLSearchParams({ school: String(schoolId), resource_id: String(resourceId), page_from: String(selectedPages[0] || page), page_to: String(selectedPages.at(-1) || page), selected_pages: (selectedPages.length ? selectedPages : [page]).join(",") });
   const isParent = Boolean(assignmentId);
+  const isClassroomActivity = pathname.startsWith("/classroom-activities/");
+  const backHref = isParent ? "/parent/homework" : isClassroomActivity ? `/classroom-activities?school=${schoolId}` : "/grade-r-learning";
+  const backLabel = isParent ? "Back to Homework" : isClassroomActivity ? "Back to Classroom Activities" : "Back to DBE Workbooks";
 
   async function printWorkbookPages() {
     if (!pdf || printing) return;
@@ -156,7 +160,7 @@ export default function GradeRWorkbookReaderPage() {
   }
 
   return <div className="db-page-shell">
-    <section className="db-page-header db-card-blue"><Link href={isParent ? "/parent/homework" : "/grade-r-learning"} className="db-main-pill">{isParent ? "Back to Homework" : "Back to DBE Workbooks"}</Link><p className="db-eyebrow" style={{ marginTop: 14 }}>Department of Basic Education</p><h1>{resource?.title || "Grade R Workbook"}</h1><p className="db-page-subtitle">{resource?.academic_year || ""} {resource?.grade || "Grade R"}{resource?.book_number ? ` · ${resource.book_number}` : ""}{resource?.term ? ` · Term ${resource.term}` : ""}{resource?.language ? ` · ${resource.language}` : ""}</p></section>
+    <section className="db-page-header db-card-blue"><Link href={backHref} className="db-main-pill">{backLabel}</Link><p className="db-eyebrow" style={{ marginTop: 14 }}>Department of Basic Education</p><h1>{resource?.title || "Grade R Workbook"}</h1><p className="db-page-subtitle">{resource?.academic_year || ""} {resource?.grade || "Grade R"}{resource?.book_number ? ` · ${resource.book_number}` : ""}{resource?.term ? ` · Term ${resource.term}` : ""}{resource?.language ? ` · ${resource.language}` : ""}</p></section>
     {message ? <div className="db-card db-card-yellow" style={{ padding: 18 }}><strong>{message}</strong>{!pdf ? <p className="db-helper">The original DBE workbook has not been changed. Try again later or ask the platform administrator to verify its source file.</p> : null}</div> : null}
     {pdf ? <>
       <section className="db-card" style={{ padding: 12, position: "sticky", top: 0, zIndex: 3 }}><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}><button className="db-button-secondary" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button><label>Page <input className="db-input" style={{ width: 82 }} type="number" min="1" max={pdf.numPages} value={page} onChange={(event) => setPage(Math.min(pdf.numPages, Math.max(1, Number(event.target.value) || 1)))} /> of {pdf.numPages}</label><button className="db-button-secondary" disabled={page >= pdf.numPages} onClick={() => setPage((current) => Math.min(pdf.numPages, current + 1))}>Next</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.max(.65, current - .15))}>Zoom out</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.min(2.2, current + .15))}>Zoom in</button><button className={selectedPages.includes(page) ? "db-button-primary" : "db-button-secondary"} onClick={togglePage}>{selectedPages.includes(page) ? `Page ${page} selected` : `Select page ${page}`}</button><button className="db-button-primary" disabled={printing} onClick={() => void printWorkbookPages()}>{printing ? "Preparing print…" : isParent ? "Print assigned pages" : "Print selected pages"}</button></div></section>

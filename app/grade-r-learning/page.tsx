@@ -6,7 +6,7 @@ import RouteStateCard from "../components/RouteStateCard";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
 import { getCurrentProfile } from "../lib/auth";
 import { isGradeRClassroom } from "../lib/classroom-programme";
-import { chooseWorkbookLanguage, chooseWorkbookYear, workbookYears, type WorkbookCatalogueItem } from "../lib/grade-r-workbooks";
+import { chooseWorkbookYear, schoolWorkbookLanguageAvailability, workbookYears, type WorkbookCatalogueItem } from "../lib/grade-r-workbooks";
 import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 import { useSearchParams } from "next/navigation";
@@ -21,7 +21,9 @@ export default function GradeRLearningPage() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [collections, setCollections] = useState<Resource[]>([]);
   const [year, setYear] = useState<number | null>(null);
-  const [language, setLanguage] = useState("");
+  const [languageSelection, setLanguageSelection] = useState("school");
+  const [schoolLanguages, setSchoolLanguages] = useState<GradeRLanguageSettings>({ grade_r_home_language: "English", grade_r_first_additional_language: "Afrikaans" });
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
 
@@ -43,20 +45,24 @@ export default function GradeRLearningPage() {
     const workbooks = (resourcesBody.workbook_resources || resourcesBody.resources || []) as Resource[];
     const defaultYear = chooseWorkbookYear(workbooks, Number(resourcesBody.default_year) || null);
     const settings = (settingsResponse.ok ? settingsBody.settings : {}) as Partial<GradeRLanguageSettings>;
+    setSettingsLoaded(settingsResponse.ok);
+    if (!settingsResponse.ok) { setMessage("School language settings could not be loaded. Showing all available editions; refresh to retry."); setLanguageSelection("all"); }
+    else { setMessage(""); setLanguageSelection("school"); }
     setResources(workbooks);
     setCollections((resourcesBody.resources || []).filter((item: Resource) => item.resource_type !== "DBE Workbook"));
     setYear(defaultYear);
-    setLanguage(chooseWorkbookLanguage(workbooks, defaultYear, settings.grade_r_home_language));
+    setSchoolLanguages({ grade_r_home_language: settings.grade_r_home_language || "English", grade_r_first_additional_language: settings.grade_r_first_additional_language || "Afrikaans" });
   }, [params]);
   useEffect(() => { const timer = setTimeout(() => void load().catch(() => { setMessage("Workbooks could not be loaded. Please refresh and try again."); setHasGradeR(true); }), 0); return () => clearTimeout(timer); }, [load]);
 
   const years = useMemo(() => workbookYears(resources), [resources]);
   const languages = useMemo(() => [...new Set(resources.filter((resource) => resource.academic_year === year).map((resource) => resource.language).filter((value): value is string => Boolean(value)))].sort(), [resources, year]);
+  const schoolEditions = useMemo(() => schoolWorkbookLanguageAvailability(resources, year || 0, schoolLanguages.grade_r_home_language, schoolLanguages.grade_r_first_additional_language), [resources, year, schoolLanguages]);
   const visible = useMemo(() => resources.filter((resource) => {
-    if (resource.academic_year !== year || resource.language !== language) return false;
+    if (resource.academic_year !== year || (languageSelection === "school" ? !schoolEditions.available.includes(resource.language || "") : languageSelection !== "all" && resource.language !== languageSelection)) return false;
     const query = search.trim().toLowerCase();
     return !query || [resource.title, resource.book_number, resource.term ? `term ${resource.term}` : "", ...(resource.learning_areas || [])].some((value) => String(value || "").toLowerCase().includes(query));
-  }), [language, resources, search, year]);
+  }), [languageSelection, resources, schoolEditions.available, search, year]);
 
   if (hasGradeR === null) return <RouteStateCard eyebrow="Daily Classroom" title="Grade R Learning Hub" message="Loading learning resources." busy />;
   if (!hasGradeR) return <div className="db-card db-card-yellow" style={{ padding: 20 }}><h1 className="db-page-title">Grade R Learning Hub</h1><p className="db-helper">Create a Grade R classroom first to enable this learning hub.</p></div>;
@@ -70,14 +76,16 @@ export default function GradeRLearningPage() {
     <section id="grade-r-resources" className="db-card" style={{ padding: 18 }}>
       <p className="db-eyebrow">DBE Workbooks</p><h2 style={{ margin: "0 0 6px" }}>{year || new Date().getFullYear()} DBE Grade R Workbooks</h2>
       <p className="db-helper" style={{ marginTop: 0 }}>Each language edition is one integrated workbook containing Home Language, Mathematics and Life Skills. DailyBloom provides access and workflow integration; the Department of Basic Education remains the source.</p>
+      {settingsLoaded ? <p className="db-helper">School Setup: Home Language — <strong>{schoolLanguages.grade_r_home_language}</strong> · First Additional Language — <strong>{schoolLanguages.grade_r_first_additional_language}</strong></p> : null}
       {message ? <p className="db-status-message">{message}</p> : null}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10, margin: "14px 0" }}>
-        {years.length > 1 ? <label><strong>Academic year</strong><select className="db-input" value={year || ""} onChange={(event) => { const nextYear = Number(event.target.value); setYear(nextYear); setLanguage(chooseWorkbookLanguage(resources, nextYear, language)); }} aria-label="Academic year">{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label> : null}
-        <label><strong>Workbook language</strong><select className="db-input" value={language} onChange={(event) => setLanguage(event.target.value)} aria-label="Workbook language">{languages.map((item) => <option key={item}>{item}</option>)}</select></label>
+        {years.length > 1 ? <label><strong>Academic year</strong><select className="db-input" value={year || ""} onChange={(event) => { setYear(Number(event.target.value)); setLanguageSelection(settingsLoaded ? "school" : "all"); }} aria-label="Academic year">{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label> : null}
+        <label><strong>Workbook languages</strong><select className="db-input" value={languageSelection} onChange={(event) => setLanguageSelection(event.target.value)} aria-label="Workbook languages"><option value="school">School languages</option><option value="all">All available languages</option>{languages.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
         <label><strong>Search workbooks</strong><input className="db-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Book, term or learning area" /></label>
       </div>
+      {languageSelection === "school" && schoolEditions.missing.length ? <p role="status" className="db-status-message">No verified {year} workbook edition is available yet for {schoolEditions.missing.join(" and ")}. Master must verify and publish the official PDF before it appears here.</p> : null}
       <div style={{ display: "grid", gap: 10 }}>
-        {visible.map((resource) => <article key={resource.id} className="db-list-card" style={{ padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}><div><strong>{resource.book_number || resource.title}</strong><p className="db-helper" style={{ margin: "5px 0" }}>Grade R · {resource.term ? `Term ${resource.term}` : "Term not specified"} · {resource.language}</p><p className="db-helper" style={{ margin: 0 }}>Learning areas: {(resource.learning_areas?.length ? resource.learning_areas : ["Home Language", "Mathematics", "Life Skills"]).join(" · ")}</p><p className="db-helper" style={{ margin: "5px 0 0" }}>Source: {resource.source_name || "Department of Basic Education"}</p></div><Link className="db-button-primary" href={`/grade-r-learning/reader?resource_id=${resource.id}&school_id=${schoolId}`}>Open Workbook</Link></div></article>)}
+        {visible.map((resource) => <article key={resource.id} className="db-list-card" style={{ padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}><div><strong>{resource.book_number || resource.title}</strong><p className="db-helper" style={{ margin: "5px 0" }}>Grade R · {resource.term ? `Term ${resource.term}` : "Term not specified"} · {resource.language}{resource.language?.localeCompare(schoolLanguages.grade_r_home_language, undefined, { sensitivity: "accent" }) === 0 ? " · Home Language" : resource.language?.localeCompare(schoolLanguages.grade_r_first_additional_language, undefined, { sensitivity: "accent" }) === 0 ? " · First Additional Language" : ""}</p><p className="db-helper" style={{ margin: 0 }}>Learning areas: {(resource.learning_areas?.length ? resource.learning_areas : ["Home Language", "Mathematics", "Life Skills"]).join(" · ")}</p><p className="db-helper" style={{ margin: "5px 0 0" }}>Source: {resource.source_name || "Department of Basic Education"}</p></div><Link className="db-button-primary" href={`/grade-r-learning/reader?resource_id=${resource.id}&school_id=${schoolId}`}>Open Workbook</Link></div></article>)}
         {!visible.length ? <div className="db-card db-card-yellow" style={{ padding: 16 }}><strong>No verified workbook edition is available for this selection.</strong><p className="db-helper" style={{ marginBottom: 0 }}>The platform administrator must verify the official source or cached PDF before it is shown here.</p></div> : null}
       </div>
     </section>

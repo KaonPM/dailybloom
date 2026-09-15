@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chooseWorkbookLanguage, chooseWorkbookYear, normalizeSelectedPages, selectedPagesLabel, uniqueWorkbookEditions, workbookPagesFromQuery, workbookYears, type WorkbookCatalogueItem } from "./grade-r-workbooks";
+import { chooseWorkbookLanguage, chooseWorkbookYear, normalizeSelectedPages, schoolWorkbookLanguageAvailability, selectedPagesLabel, uniqueWorkbookEditions, workbookPagesFromQuery, workbookYears, type WorkbookCatalogueItem } from "./grade-r-workbooks";
 
 const resource = (id: number, year: number, language: string): WorkbookCatalogueItem => ({ id, title: `Book ${id}`, academic_year: year, term: 1, language });
 
@@ -16,6 +16,16 @@ test("school language is preferred only when that edition exists", () => {
   assert.equal(chooseWorkbookLanguage(resources, 2026, "Setswana"), "Setswana");
   assert.equal(chooseWorkbookLanguage(resources, 2026, "setswana"), "Setswana");
   assert.equal(chooseWorkbookLanguage(resources, 2026, "IsiZulu"), "English");
+});
+
+test("the school sees its home and first additional language editions without substituting an unrelated language", () => {
+  const resources = [resource(1, 2026, "English"), resource(2, 2026, "Setswana"), resource(3, 2026, "Afrikaans"), resource(4, 2027, "IsiZulu")];
+  assert.deepEqual(schoolWorkbookLanguageAvailability(resources, 2026, "setswana", "IsiZulu"), {
+    available: ["Setswana"], missing: ["IsiZulu"],
+  });
+  assert.deepEqual(schoolWorkbookLanguageAvailability(resources, 2026, "Setswana", "Afrikaans"), {
+    available: ["Setswana", "Afrikaans"], missing: [],
+  });
 });
 
 test("page selection is durable, sorted and supports separate pages", () => {

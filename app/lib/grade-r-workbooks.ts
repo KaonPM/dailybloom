@@ -37,6 +37,22 @@ export function chooseWorkbookLanguage(resources: WorkbookCatalogueItem[], year:
   return preferredEdition || englishEdition || languages[0] || "English";
 }
 
+export function schoolWorkbookLanguageAvailability(resources: WorkbookCatalogueItem[], year: number, homeLanguage: string, firstAdditionalLanguage: string) {
+  const languages = [...new Set(resources.filter((resource) => resource.academic_year === year).map((resource) => resource.language).filter((language): language is string => Boolean(language)))];
+  const configured = [...new Set([homeLanguage, firstAdditionalLanguage].map((language) => language.trim()).filter(Boolean))];
+  const available: string[] = [];
+  const missing: string[] = [];
+  for (const language of configured) {
+    const edition = languages.find((item) => item.localeCompare(language, undefined, { sensitivity: "accent" }) === 0);
+    if (edition) {
+      if (!available.includes(edition)) available.push(edition);
+    } else {
+      missing.push(language);
+    }
+  }
+  return { available, missing };
+}
+
 export function normalizeSelectedPages(values: Iterable<number>, pageCount?: number | null) {
   return [...new Set([...values].filter((page) => Number.isInteger(page) && page > 0 && (!pageCount || page <= pageCount)))].sort((a, b) => a - b);
 }

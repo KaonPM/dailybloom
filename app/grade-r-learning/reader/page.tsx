@@ -115,51 +115,49 @@ export default function GradeRWorkbookReaderPage() {
     setPrinting(true);
     setMessage("");
     try {
+      const { jsPDF } = await import("jspdf");
       const printDocument = printWindow.document;
       printDocument.open();
-      printDocument.write(`<!doctype html><html><head><meta charset="utf-8"><title>DailyBloom homework</title><style>
-        @page { size: A4 portrait; margin: 8mm; }
+      printDocument.write(`<!doctype html><html><head><meta charset="utf-8"><title>Preparing printable workbook</title><style>
         * { box-sizing: border-box; }
-        body { margin: 0; color: #171717; font-family: Arial, sans-serif; }
-        header { margin: 0 0 8mm; }
-        h1 { margin: 0 0 2mm; font-size: 18px; }
-        p { margin: 0; font-size: 12px; }
-        .sheet { display: grid; min-height: calc(297mm - 16mm); place-items: center; break-after: page; page-break-after: always; }
-        .sheet:last-child { break-after: auto; page-break-after: auto; }
-        canvas { display: block; width: 100%; height: auto; max-height: calc(297mm - 16mm); object-fit: contain; }
-        @media print { header { display: none; } }
-      </style></head><body><header><h1 id="title"></h1><p id="status">Preparing assigned pages for printing…</p></header><main id="pages"></main></body></html>`);
+        body { display: grid; min-height: 100vh; margin: 0; padding: 24px; place-items: center; color: #171717; background: #f7f4ef; font-family: Arial, sans-serif; text-align: center; }
+        main { max-width: 520px; padding: 28px; border: 1px solid #e3d9cd; border-radius: 20px; background: white; }
+        h1 { margin: 0 0 10px; font-size: 22px; }
+        p { margin: 0; color: #5f5964; font-size: 15px; }
+      </style></head><body><main><h1 id="title"></h1><p id="status">Preparing a printable PDF…</p></main></body></html>`);
       printDocument.close();
-      printDocument.title = `${resource?.title || "DailyBloom homework"} — ${selectedPagesLabel(pages)}`;
       const title = printDocument.getElementById("title");
       if (title) title.textContent = resource?.title || "DailyBloom homework";
-      const pageContainer = printDocument.getElementById("pages");
-      if (!pageContainer) throw new Error("Print page could not be prepared.");
+      let printablePdf: InstanceType<typeof jsPDF> | null = null;
 
       for (const pageNumber of pages) {
         const pdfPage = await pdf.getPage(pageNumber);
         const viewport = pdfPage.getViewport({ scale: 2 });
-        const sheet = printDocument.createElement("section");
-        sheet.className = "sheet";
         const canvas = printDocument.createElement("canvas");
         canvas.width = Math.ceil(viewport.width);
         canvas.height = Math.ceil(viewport.height);
-        canvas.setAttribute("aria-label", `Workbook page ${pageNumber}`);
         const context = canvas.getContext("2d");
         if (!context) throw new Error("Print page could not be rendered.");
-        sheet.appendChild(canvas);
-        pageContainer.appendChild(sheet);
         await pdfPage.render({ canvas, canvasContext: context, viewport }).promise;
+
+        const orientation = viewport.width > viewport.height ? "landscape" : "portrait";
+        if (!printablePdf) {
+          printablePdf = new jsPDF({ orientation, unit: "pt", format: [viewport.width, viewport.height], compress: true });
+        } else {
+          printablePdf.addPage([viewport.width, viewport.height], orientation);
+        }
+        printablePdf.addImage(canvas, "JPEG", 0, 0, viewport.width, viewport.height, undefined, "FAST");
       }
 
+      if (!printablePdf) throw new Error("Printable PDF could not be prepared.");
       const status = printDocument.getElementById("status");
-      if (status) status.textContent = `${selectedPagesLabel(pages)} ready to print.`;
-      await printDocument.fonts?.ready;
-      printWindow.focus();
-      printWindow.print();
+      if (status) status.textContent = `${selectedPagesLabel(pages)} ready. Opening the browser print viewer…`;
+      const printableUrl = URL.createObjectURL(printablePdf.output("blob"));
+      printWindow.location.replace(printableUrl);
+      window.setTimeout(() => URL.revokeObjectURL(printableUrl), 300_000);
     } catch {
       printWindow.close();
-      setMessage("The assigned workbook pages could not be prepared for printing. Please try again.");
+      setMessage("The assigned workbook pages could not be prepared as a printable PDF. Please try again.");
     } finally {
       setPrinting(false);
     }
@@ -169,7 +167,7 @@ export default function GradeRWorkbookReaderPage() {
     <section className="db-page-header db-card-blue"><Link href={backHref} className="db-main-pill">{backLabel}</Link><p className="db-eyebrow" style={{ marginTop: 14 }}>Department of Basic Education</p><h1>{resource?.title || "Grade R Workbook"}</h1><p className="db-page-subtitle">{resource?.academic_year || ""} {resource?.grade || "Grade R"}{resource?.book_number ? ` · ${resource.book_number}` : ""}{resource?.term ? ` · Term ${resource.term}` : ""}{resource?.language ? ` · ${resource.language}` : ""}</p></section>
     {message ? <div className="db-card db-card-yellow" style={{ padding: 18 }}><strong>{message}</strong>{!pdf ? <p className="db-helper">The original DBE workbook has not been changed. Try again later or ask the platform administrator to verify its source file.</p> : null}</div> : null}
     {pdf ? <>
-      <section className="db-card" style={{ padding: 12, position: "sticky", top: 0, zIndex: 3 }}><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}><button className="db-button-secondary" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button><label>Page <input className="db-input" style={{ width: 82 }} type="number" min="1" max={pdf.numPages} value={page} onChange={(event) => setPage(Math.min(pdf.numPages, Math.max(1, Number(event.target.value) || 1)))} /> of {pdf.numPages}</label><button className="db-button-secondary" disabled={page >= pdf.numPages} onClick={() => setPage((current) => Math.min(pdf.numPages, current + 1))}>Next</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.max(.65, current - .15))}>Zoom out</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.min(2.2, current + .15))}>Zoom in</button><button className={selectedPages.includes(page) ? "db-button-primary" : "db-button-secondary"} onClick={togglePage}>{selectedPages.includes(page) ? `Page ${page} selected` : `Select page ${page}`}</button><button className="db-button-primary" disabled={printing} onClick={() => void printWorkbookPages()}>{printing ? "Preparing print…" : isParent ? "Print assigned pages" : "Print selected pages"}</button></div></section>
+      <section className="db-card" style={{ padding: 12, position: "sticky", top: 0, zIndex: 3 }}><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}><button className="db-button-secondary" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button><label>Page <input className="db-input" style={{ width: 82 }} type="number" min="1" max={pdf.numPages} value={page} onChange={(event) => setPage(Math.min(pdf.numPages, Math.max(1, Number(event.target.value) || 1)))} /> of {pdf.numPages}</label><button className="db-button-secondary" disabled={page >= pdf.numPages} onClick={() => setPage((current) => Math.min(pdf.numPages, current + 1))}>Next</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.max(.65, current - .15))}>Zoom out</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.min(2.2, current + .15))}>Zoom in</button><button className={selectedPages.includes(page) ? "db-button-primary" : "db-button-secondary"} onClick={togglePage}>{selectedPages.includes(page) ? `Page ${page} selected` : `Select page ${page}`}</button><button className="db-button-primary" disabled={printing} onClick={() => void printWorkbookPages()}>{printing ? "Preparing PDF…" : isParent ? "Print assigned pages" : "Print selected pages"}</button></div></section>
       <section className="db-card" style={{ marginTop: 10, padding: 10, overflow: "auto", textAlign: "center", background: "#EEEAE5" }}><canvas ref={canvasRef} aria-label={`Workbook page ${page}`} /></section>
       <section className="db-card db-card-lavender" style={{ padding: 14, position: "sticky", bottom: 8, zIndex: 3 }}><strong>{selectedPagesLabel(selectedPages)}</strong>{!isParent ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><Link className="db-button-primary" href={`/classroom-activities?${resourceQuery}`}>Add to Classroom Activity</Link><Link className="db-button-primary" href={`/classroom-activities?${resourceQuery}&homework=1`}>Add to Homework</Link></div> : null}</section>
     </> : null}

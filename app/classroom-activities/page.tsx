@@ -141,6 +141,9 @@ export default function ClassroomActivitiesPage() {
   const learningResourcePageTo = searchParams.get("page_to") || "";
   const learningResourceSelectedPages = searchParams.get("selected_pages") || "";
   const openHomeworkFromLearningHub = searchParams.get("homework") === "1";
+  const requestedSection = searchParams.get("section");
+  const collectionArea = searchParams.get("collection_area") || "";
+  const collectionTerm = searchParams.get("collection_term") || "";
   const learningResourcePages = useMemo(
     () => workbookPagesFromQuery(learningResourceSelectedPages, learningResourcePageFrom, learningResourcePageTo),
     [learningResourcePageFrom, learningResourcePageTo, learningResourceSelectedPages]
@@ -177,6 +180,7 @@ export default function ClassroomActivitiesPage() {
   const [libraryDescription, setLibraryDescription] = useState("");
   const [librarySearch, setLibrarySearch] = useState("");
   const [libraryThemeFilter, setLibraryThemeFilter] = useState("");
+  const [libraryAreaFilter, setLibraryAreaFilter] = useState(collectionArea);
 
   const [trackerClassroomId, setTrackerClassroomId] = useState("");
   const [trackerArea, setTrackerArea] = useState("");
@@ -465,14 +469,17 @@ export default function ClassroomActivitiesPage() {
       const matchesTheme = libraryThemeFilter
         ? item.theme === libraryThemeFilter
         : true;
+      const matchesArea = libraryAreaFilter
+        ? item.developmental_area === libraryAreaFilter
+        : true;
       const matchesSearch = search
         ? `${item.activity_name} ${item.theme || ""} ${item.description || ""} ${item.developmental_area}`
             .toLowerCase()
             .includes(search)
         : true;
-      return matchesTheme && matchesSearch;
+      return matchesTheme && matchesArea && matchesSearch;
     });
-  }, [classroomActivityLibrary, librarySearch, libraryThemeFilter]);
+  }, [classroomActivityLibrary, libraryAreaFilter, librarySearch, libraryThemeFilter]);
   const visibleActivityLibrary = useMemo(() => filteredActivityLibrary.slice(0, libraryVisibleCount), [filteredActivityLibrary, libraryVisibleCount]);
   const visibleCompletedPlans = useMemo(() => completedPlans.slice(0, completedVisibleCount), [completedPlans, completedVisibleCount]);
 
@@ -482,13 +489,20 @@ export default function ClassroomActivitiesPage() {
 
   useEffect(() => {
     if (!profile) return;
+    if (requestedSection === "library") {
+      setActiveSection("library");
+      setIsLibraryOpen(true);
+      setLibraryAreaFilter(collectionArea);
+      return;
+    }
     setActiveSection(isPrincipal || isMaster ? "overview" : "today");
-  }, [profile, isPrincipal, isMaster]);
+  }, [collectionArea, profile, isPrincipal, isMaster, requestedSection]);
 
   useEffect(() => {
     setLibraryThemeFilter("");
+    setLibraryAreaFilter(collectionArea);
     setLibraryVisibleCount(PAGE_SIZE);
-  }, [activeClassroomIsGradeR]);
+  }, [activeClassroomIsGradeR, collectionArea]);
 
   useEffect(() => {
     if (!schoolId || !activeClassroomId) return;
@@ -1639,6 +1653,7 @@ export default function ClassroomActivitiesPage() {
                 <p style={smallHint}>
                   For each teaching day, select a theme and choose up to 3 activities.
                 </p>
+                {activeClassroomIsGradeR ? <p style={smallHint}>The DBE Workbook theme contains page sets already saved as activities. To choose different workbook pages, use the <Link href={`/grade-r-learning${schoolId ? `?school=${schoolId}` : ""}`}>Grade R Learning Hub</Link>.</p> : null}
               </div>
 
               <div style={plannerActions}>
@@ -1681,7 +1696,7 @@ export default function ClassroomActivitiesPage() {
                         <select className="db-input" value={row.theme} onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}>
                           <option value="">Select theme</option>
                           {plannerThemes().map((themeItem) => (
-                            <option key={themeItem} value={themeItem}>{themeItem}</option>
+                            <option key={themeItem} value={themeItem}>{themeItem === "Grade R: DBE Workbook" ? `${themeItem} (${activitiesForTheme(themeItem).length} saved page sets)` : themeItem}</option>
                           ))}
                         </select>
 
@@ -2066,6 +2081,7 @@ export default function ClassroomActivitiesPage() {
           <p style={smallHint}>
             Choose a ready-made activity or add one that suits the class, available materials and learners&apos; needs. Development focus is saved in the background for learner support tracking.
           </p>
+          {collectionArea ? <p role="status" className="db-status-message">Showing {collectionArea} activities recommended from the Term {collectionTerm || "selected"} collection. You can change or clear the filters below.</p> : null}
 
           <div style={filterGrid}>
             <input
@@ -2089,6 +2105,18 @@ export default function ClassroomActivitiesPage() {
               {allThemes().map((theme) => (
                 <option key={theme} value={theme}>{theme}</option>
               ))}
+            </select>
+            <select
+              className="db-input"
+              value={libraryAreaFilter}
+              onChange={(event) => {
+                setLibraryAreaFilter(event.target.value);
+                setLibraryVisibleCount(PAGE_SIZE);
+              }}
+              aria-label="Development focus"
+            >
+              <option value="">All development focuses</option>
+              {developmentalAreas.map((area) => <option key={area} value={area}>{area}</option>)}
             </select>
             <p className="db-helper" style={{ margin: "6px 0 0" }}>
               {activeClassroomIsGradeR

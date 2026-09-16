@@ -45,8 +45,10 @@ export default function WorkbookAssignments({ schoolId, classroomId, resourceId,
   }
   const targets = (homework ? assignments : plans).filter((item) => item.classroom_id === classroomId);
   const usages = [...plans, ...assignments].filter((item) => item.classroom_id === classroomId && (item.activity_learning_resources?.length || item.homework_learning_resources?.length));
+  const usageCards = usages.map((item) => <div className="db-list-card" key={`${item.activity_learning_resources ? "activity" : "homework"}-${item.id}`}><strong>{item.activity_date} · {item.activity_name || item.instruction_note}</strong>{(item.activity_learning_resources || item.homework_learning_resources || []).map((link) => { const linkedPages = normalizeSelectedPages(link.selected_pages || []).length ? normalizeSelectedPages(link.selected_pages || []) : workbookPagesFromQuery(null, String(link.page_from || ""), String(link.page_to || "")); return <p key={link.id}><Link href={`/classroom-activities/workbook?resource_id=${link.resource_id}&school_id=${schoolId}&pages=${linkedPages.join(",")}`}>{link.learning_resources?.title || "DBE workbook"} · {selectedPagesLabel(linkedPages)} — Open in workbook reader</Link></p>; })}</div>);
+  if (!resourceId) return <details className="db-card db-card-lavender" style={{ padding: 16, marginBottom: 16 }}><summary style={{ cursor: "pointer", fontWeight: 800 }}>Workbook links ({usages.length})</summary><p className="db-helper">These are workbook page sets already attached to classroom activities or homework. Open a saved link below to review it. To select new pages, open a workbook from the Grade R Learning Hub.</p>{message ? <p role="status">{message}</p> : null}<div style={{ display: "grid", gap: 8, marginTop: 10 }}>{usageCards.length ? usageCards : <p className="db-helper">No workbook pages have been linked yet.</p>}</div></details>;
   return <section className="db-card db-card-lavender" style={{ padding: 16, marginBottom: 16 }}>
-    {resourceId ? <>
+    <>
       <h3 style={{ marginTop: 0 }}>{resource?.title || "Selected DBE workbook"}</h3>
       <p className="db-helper">{resource?.academic_year} · {resource?.book_number} · {resource?.language} · {selectedPagesLabel(pages)}</p>
       <p className="db-helper">Source: Department of Basic Education</p>
@@ -61,8 +63,8 @@ export default function WorkbookAssignments({ schoolId, classroomId, resourceId,
         <button className="db-button-primary" disabled={busy || !resource || !classroomId || !pages.length}>Save {homework ? "homework" : "activity"} with workbook pages</button>
       </form>
       <details style={{ marginTop: 12 }}><summary>Link to an existing {homework ? "homework assignment" : "activity"}</summary><select aria-label="Existing assignment" className="db-input" value={target} onChange={(event) => setTarget(event.target.value)}><option value="">Select a saved item</option>{targets.map((item) => <option key={item.id} value={item.id}>{item.activity_date} · {item.activity_name || item.instruction_note}</option>)}</select><button className="db-button-secondary" disabled={!target || busy} onClick={() => void save(homework ? { homework_assignment_id: Number(target) } : { weekly_plan_id: Number(target) })}>Attach selected pages</button></details>
-    </> : <h3 style={{ marginTop: 0 }}>Workbook links</h3>}
+    </>
     {message ? <p role="status">{message}</p> : null}
-    <details style={{ marginTop: 14 }}><summary>Saved workbook activities and homework ({usages.length})</summary>{usages.map((item) => <div className="db-list-card" key={`${item.activity_learning_resources ? "activity" : "homework"}-${item.id}`}><strong>{item.activity_date} · {item.activity_name || item.instruction_note}</strong>{(item.activity_learning_resources || item.homework_learning_resources || []).map((link) => { const linkedPages = normalizeSelectedPages(link.selected_pages || []).length ? normalizeSelectedPages(link.selected_pages || []) : workbookPagesFromQuery(null, String(link.page_from || ""), String(link.page_to || "")); return <p key={link.id}><Link href={`/classroom-activities/workbook?resource_id=${link.resource_id}&school_id=${schoolId}&pages=${linkedPages.join(",")}`}>{link.learning_resources?.title || "DBE workbook"} · {selectedPagesLabel(linkedPages)} — Open in workbook reader</Link></p>; })}</div>)}</details>
+    <details style={{ marginTop: 14 }}><summary>Saved workbook activities and homework ({usages.length})</summary>{usageCards}</details>
   </section>;
 }

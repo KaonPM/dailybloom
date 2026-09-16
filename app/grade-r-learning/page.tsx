@@ -11,7 +11,7 @@ import { supabase } from "../lib/supabase";
 import { resolveSchoolContext } from "../lib/school-context";
 import { useSearchParams } from "next/navigation";
 
-type Resource = WorkbookCatalogueItem & { resource_type: string; description?: string | null; source_name?: string | null; catalogue_status?: string | null };
+type Resource = WorkbookCatalogueItem & { resource_type: string; description?: string | null; source_name?: string | null; catalogue_status?: string | null; learning_area?: string | null; topic?: string | null };
 type GradeRLanguageSettings = { grade_r_home_language: string; grade_r_first_additional_language: string };
 
 export default function GradeRLearningPage() {
@@ -25,6 +25,7 @@ export default function GradeRLearningPage() {
   const [schoolLanguages, setSchoolLanguages] = useState<GradeRLanguageSettings>({ grade_r_home_language: "English", grade_r_first_additional_language: "Afrikaans" });
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [search, setSearch] = useState("");
+  const [collectionTerm, setCollectionTerm] = useState(() => Math.min(4, Math.max(1, Math.ceil((new Date().getMonth() + 1) / 3))));
   const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
@@ -63,6 +64,7 @@ export default function GradeRLearningPage() {
     const query = search.trim().toLowerCase();
     return !query || [resource.title, resource.book_number, resource.term ? `term ${resource.term}` : "", ...(resource.learning_areas || [])].some((value) => String(value || "").toLowerCase().includes(query));
   }), [languageSelection, resources, schoolEditions.available, search, year]);
+  const visibleCollections = useMemo(() => collections.filter((item) => item.term === collectionTerm), [collectionTerm, collections]);
 
   if (hasGradeR === null) return <RouteStateCard eyebrow="Daily Classroom" title="Grade R Learning Hub" message="Loading learning resources." busy />;
   if (!hasGradeR) return <div className="db-card db-card-yellow" style={{ padding: 20 }}><h1 className="db-page-title">Grade R Learning Hub</h1><p className="db-helper">Create a Grade R classroom first to enable this learning hub.</p></div>;
@@ -89,6 +91,6 @@ export default function GradeRLearningPage() {
         {!visible.length ? <div className="db-card db-card-yellow" style={{ padding: 16 }}><strong>No verified workbook edition is available for this selection.</strong><p className="db-helper" style={{ marginBottom: 0 }}>The platform administrator must verify the official source or cached PDF before it is shown here.</p></div> : null}
       </div>
     </section>
-    {collections.length ? <section className="db-card" style={{ padding: 18 }}><h2>Learning Resources</h2><p className="db-helper">Existing DailyBloom activity collections</p>{collections.map((item) => <div className="db-list-card" key={item.id}><Link href={`/classroom-activities?school=${schoolId}`}>{item.title}</Link></div>)}</section> : null}
+    {collections.length ? <details className="db-card" style={{ padding: 18 }}><summary style={{ cursor: "pointer", fontWeight: 800, fontSize: "1.25rem" }}>DailyBloom activity collections</summary><p className="db-helper">Choose the school term, then open a collection to see matching activities in the Grade R Activity Library. The term gives the recommended teaching focus; practitioners may reuse an activity in another term when it suits the learners.</p><label><strong>Term</strong><select className="db-input" style={{ maxWidth: 220 }} value={collectionTerm} onChange={(event) => setCollectionTerm(Number(event.target.value))}>{[1, 2, 3, 4].map((term) => <option key={term} value={term}>Term {term}</option>)}</select></label><div style={{ display: "grid", gap: 10, marginTop: 12 }}>{visibleCollections.map((item) => <article className="db-list-card" key={item.id}><strong>{item.learning_area || item.title}</strong><p className="db-helper" style={{ margin: "5px 0" }}>Term {item.term} · {item.topic || "Grade R activities"}</p><Link className="db-button-secondary" href={`/classroom-activities?school=${schoolId}&section=library&collection_term=${item.term}&collection_area=${encodeURIComponent(item.learning_area || "")}`}>Open matching activities</Link></article>)}</div></details> : null}
   </div>;
 }

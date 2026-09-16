@@ -51,12 +51,45 @@ export async function POST(request: Request) {
     const title = String(body.title || "").trim().slice(0, 160);
     const instructions = String(body.instructions || "").trim().slice(0, 330);
     if (!title || !instructions || !["activity", "homework"].includes(body.entity_type) || !/^\d{4}-\d{2}-\d{2}$/.test(String(body.activity_date))) return NextResponse.json({ error: "Enter a title, instructions and activity date." }, { status: 400 });
-    const { data, error } = await supabaseAdmin.rpc("create_workbook_assignment", {
+    let { data, error } = await supabaseAdmin.rpc("create_workbook_assignment", {
       target_school: schoolId, target_classroom: classroomId, target_resource: resourceId,
       pages: selectedPages, entity_type: body.entity_type, title, instructions,
       learning_focus: String(body.learning_focus || "Life Skills").slice(0, 80),
       activity_day: body.activity_date, due_day: body.due_date || body.activity_date, actor: authorization.staff.userId,
     });
+    if (error?.code === "23505" && body.entity_type === "activity") {
+      const learningFocus = String(body.learning_focus || "Life Skills").slice(0, 80);
+      const { data: libraryItem } = await supabaseAdmin
+        .from("activity_library")
+        .select("id")
+        .eq("school_id", schoolId)
+        .eq("theme", "Grade R: DBE Workbook")
+        .eq("activity_name", title)
+        .eq("archived", false)
+        .limit(1)
+        .maybeSingle();
+      if (libraryItem) {
+        const planResult = await supabaseAdmin.from("weekly_activity_plans").insert({
+          school_id: schoolId, classroom_id: classroomId, activity_date: body.activity_date,
+          developmental_area: learningFocus, theme: "Grade R: DBE Workbook",
+          activity_library_id: libraryItem.id, activity_name: title, description: instructions,
+          day_type: "teaching_day", planned_by: authorization.staff.userId,
+        }).select("id").single();
+        if (!planResult.error && planResult.data) {
+          const linkResult = await supabaseAdmin.from("activity_learning_resources").insert({
+            weekly_plan_id: planResult.data.id, resource_id: resourceId, school_id: schoolId,
+            classroom_id: classroomId, selected_pages: selectedPages,
+            page_from: selectedPages[0], page_to: selectedPages.at(-1), created_by: authorization.staff.userId,
+          });
+          if (!linkResult.error) {
+            data = planResult.data.id;
+            error = null;
+          } else {
+            await supabaseAdmin.from("weekly_activity_plans").delete().eq("id", planResult.data.id).eq("school_id", schoolId);
+          }
+        }
+      }
+    }
     if (error) {
       const conflictMessage = body.entity_type === "homework"
         ? "Homework already exists for this date. Link these pages to the existing assignment below."

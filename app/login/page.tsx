@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
 import PasswordInput from "../components/PasswordInput";
@@ -14,7 +14,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit() {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (loading) return;
+
     if (!email || !password) {
       alert("Please enter email and password");
       return;
@@ -161,7 +164,8 @@ export default function LoginPage() {
         }}
       />
 
-      <div
+      <form
+        onSubmit={handleSubmit}
         style={{
           position: "relative",
           zIndex: 1,
@@ -240,10 +244,9 @@ export default function LoginPage() {
         />
 
         <button
-          type="button"
+          type="submit"
           className="db-button-primary"
           style={{ width: "100%", marginTop: "8px" }}
-          onClick={handleSubmit}
           disabled={loading}
         >
           {loading ? "Logging in..." : "Login"}
@@ -285,7 +288,7 @@ export default function LoginPage() {
             Sign up
           </Link>
         </p>
-      </div>
+      </form>
     </main>
   );
 }

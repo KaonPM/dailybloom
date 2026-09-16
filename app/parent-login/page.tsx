@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PasswordInput from "../components/PasswordInput";
 
@@ -58,7 +58,10 @@ export default function ParentLoginPage() {
     );
   };
 
-  const handleLogin = async () => {
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (loading) return;
+
     const digitsOnly = phone.replace(/\D/g, "");
 
     const normalizedPhone = digitsOnly.startsWith("27")
@@ -121,7 +124,7 @@ export default function ParentLoginPage() {
 
   return (
     <div className="parent-login-wrapper">
-      <div className="parent-login-card">
+      <form className="parent-login-card" onSubmit={handleLogin}>
         <div className="parent-logo">
           <h1>
             Daily
@@ -165,8 +168,8 @@ export default function ParentLoginPage() {
         </div>
 
         <button
+          type="submit"
           className="parent-button"
-          onClick={handleLogin}
           disabled={loading}
         >
           {loading ? "Logging in..." : "Login"}
@@ -201,7 +204,7 @@ export default function ParentLoginPage() {
             {installHelp ? <p className="parent-install-help" aria-live="polite">{installHelp}</p> : null}
           </div>
         ) : null}
-      </div>
+      </form>
     </div>
   );
 }

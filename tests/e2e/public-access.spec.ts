@@ -27,6 +27,51 @@ test("parent login exposes PIN recovery and install entry points", async ({ page
   await expect(page.getByRole("button", { name: "Install DailyBloom App" })).toBeVisible();
 });
 
+test("pressing Enter submits the staff login form", async ({ page }) => {
+  await page.route("https://example.supabase.co/auth/v1/token**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        access_token: "test-access-token",
+        refresh_token: "test-refresh-token",
+        token_type: "bearer",
+        expires_in: 3600,
+        user: { id: "staff-test", aud: "authenticated", role: "authenticated", email: "staff@example.test" },
+      }),
+    });
+  });
+  await page.route("**/api/auth/profile", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ profile: { id: "staff-test", role: "principal", is_active: true, school_is_active: true } }),
+    });
+  });
+
+  await page.goto("/login");
+  await page.getByPlaceholder("Email Address").fill("staff@example.test");
+  await page.getByPlaceholder("Password").fill("password");
+  await page.getByPlaceholder("Password").press("Enter");
+  await expect(page).toHaveURL(/\/dashboard$/);
+});
+
+test("pressing Enter submits the parent login form", async ({ page }) => {
+  let loginRequests = 0;
+  await page.route("**/api/parent-login", async (route) => {
+    loginRequests += 1;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ children: [{ id: "learner-test", school_id: 12, name: "Test Learner" }] }),
+    });
+  });
+
+  await page.goto("/parent-login");
+  await page.getByPlaceholder("Contact Number").fill("0712345678");
+  await page.getByPlaceholder("PIN").fill("1234");
+  await page.getByPlaceholder("PIN").press("Enter");
+  await expect(page).toHaveURL(/\/parent\/dashboard$/);
+  expect(loginRequests).toBe(1);
+});
+
 test("parent APIs reject requests without a parent session", async ({ request }) => {
   const dashboard = await request.get(
     "/api/parent-dashboard/updates?learner_id=learner-a&school_id=11"

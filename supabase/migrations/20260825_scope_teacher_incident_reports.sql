@@ -24,7 +24,7 @@ using (
           and exists (
             select 1
             from public.learners learner
-            where learner.id = incident_reports.learner_id
+            where learner.id::text = incident_reports.learner_id
               and learner.school_id = profile.school_id
               and lower(trim(coalesce(learner.class, ''))) = lower(trim(profile.classroom_name))
           )

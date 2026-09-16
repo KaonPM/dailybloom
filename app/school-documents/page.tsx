@@ -206,9 +206,14 @@ export default function SchoolDocumentsPage() {
 
     if (!confirmed) return;
 
-    await supabase.storage
+    const { error: storageError } = await supabase.storage
       .from("school-printable-documents")
       .remove([document.file_path]);
+
+    if (storageError) {
+      alert(storageError.message);
+      return;
+    }
 
     const { error } = await supabase
       .from("school_printable_documents")

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 import { getCurrentProfile } from "../lib/auth";
+import { resolveSchoolContext } from "../lib/school-context";
 import RouteStateCard from "../components/RouteStateCard";
 
 type Learner = {
@@ -30,6 +32,9 @@ type AttendanceRow = {
 };
 
 export default function AttendancePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const schoolParam = searchParams.get("school");
   const today = new Date().toISOString().split("T")[0];
   const earliestCaptureDate = new Date(Date.now() - 13 * 86400000)
     .toISOString()
@@ -77,12 +82,22 @@ export default function AttendancePage() {
   async function loadPage() {
     const { profile } = await getCurrentProfile();
 
-    if (!profile || !profile.school_id) {
-      setLoading(false);
+    if (!profile) {
+      router.replace("/login");
       return;
     }
 
-    const currentSchoolId = Number(profile.school_id);
+    const context = await resolveSchoolContext(schoolParam);
+    if (context.error) {
+      router.replace("/login");
+      return;
+    }
+    if (context.shouldReturnToMaster || !context.schoolId) {
+      router.replace("/master");
+      return;
+    }
+
+    const currentSchoolId = context.schoolId;
     const currentRole = String(profile.role || "");
     const currentTeacherClassroom = String(profile.classroom_name || "");
 

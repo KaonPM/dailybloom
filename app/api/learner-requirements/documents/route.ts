@@ -6,6 +6,7 @@ import {
   writeSecurityAudit,
 } from "@/app/lib/server-authorization";
 import { PERMISSIONS } from "@/app/lib/permissions";
+import { learnerDocumentStoragePath } from "@/app/lib/learner-document-storage";
 import {
   canonicalLearnerDocumentName,
   learnerDocumentNamesMatch,
@@ -142,11 +143,20 @@ export async function DELETE(request: Request) {
   const documentId = Number(body.document_id);
   const authorization = await requireStaffPermission(request, PERMISSIONS.REQUIREMENTS_MANAGE, schoolId);
   if (!authorization.ok) return authorization.response;
-  const { data: document } = await supabaseAdmin.from("learner_documents").select("id, learner_id, document_type, file_path").eq("id", documentId).eq("school_id", schoolId).maybeSingle();
+  const { data: document } = await supabaseAdmin.from("learner_documents").select("id, learner_id, document_type, file_path, file_url").eq("id", documentId).eq("school_id", schoolId).maybeSingle();
   if (!document) return NextResponse.json({ error: "Document not found." }, { status: 404 });
+  let filePath: string | null;
+  try {
+    filePath = learnerDocumentStoragePath(document, process.env.NEXT_PUBLIC_SUPABASE_URL!, schoolId);
+  } catch {
+    return NextResponse.json({ error: "The document's storage location could not be verified. The document was not deleted." }, { status: 400 });
+  }
+  if (filePath) {
+    const { error: storageError } = await supabaseAdmin.storage.from(BUCKET).remove([filePath]);
+    if (storageError) return NextResponse.json({ error: "The file could not be deleted. Please try again." }, { status: 502 });
+  }
   const { error } = await supabaseAdmin.from("learner_documents").delete().eq("id", documentId).eq("school_id", schoolId);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  if (document.file_path) await supabaseAdmin.storage.from(BUCKET).remove([document.file_path]);
   await writeSecurityAudit(authorization.staff, "requirements.document_deleted", { learner_id: document.learner_id, document_type: document.document_type });
   return NextResponse.json({ success: true });
 }

@@ -69,3 +69,25 @@ test("health endpoint is available without exposing configuration", async ({ req
   expect(body).not.toHaveProperty("environment");
   expect(body).not.toHaveProperty("supabase_url");
 });
+
+test("core staff modules return signed-out visitors to login without crashing", async ({ page }) => {
+  test.setTimeout(90_000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  for (const route of ["/dashboard", "/children", "/classrooms", "/attendance", "/payments", "/progress-reports", "/learner-requirements", "/school-documents"]) {
+    await page.goto(route);
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole("heading", { name: "Welcome Back" })).toBeVisible();
+  }
+  expect(errors).toEqual([]);
+});
+
+test("mobile login pages fit the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const route of ["/login", "/parent-login"]) {
+    await page.goto(route);
+    await expect(page.getByRole("button", { name: "Login", exact: true })).toBeVisible();
+    const overflows = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(overflows, `${route} should not scroll horizontally`).toBe(false);
+  }
+});

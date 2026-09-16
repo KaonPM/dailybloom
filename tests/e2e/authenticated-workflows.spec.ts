@@ -298,12 +298,16 @@ test.describe("authenticated role workflows", () => {
     const teacherUploadsLearnerDocument = await request.post(
       "/api/learner-requirements/documents",
       {
-        headers: { authorization: `Bearer ${teacherToken}` },
-        multipart: {
-          school_id: String(schoolId),
-          classroom_id: classroomName,
+        headers: teacherHeaders,
+        data: {
+          action: "create_upload",
+          school_id: schoolId,
+          classroom_id: 1,
           learner_id: learnerId,
           document_type: "Phase 2 authorization probe",
+          file_name: "probe.pdf",
+          file_type: "application/pdf",
+          file_size: 100,
         },
       }
     );

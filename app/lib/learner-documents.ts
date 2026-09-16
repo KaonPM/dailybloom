@@ -16,6 +16,10 @@ export const STANDARD_LEARNER_DOCUMENTS = [
     name: "Parent/Guardian ID",
     aliases: ["Parent/Guardian ID", "Parent / Guardian ID", "Guardian ID"],
   },
+] as const;
+
+// Retain matching for historical uploads without requiring a paper contract.
+const DIGITAL_ENROLMENT_DOCUMENTS = [
   {
     name: "Signed Parent/Guardian Enrolment Contract",
     aliases: [
@@ -25,6 +29,7 @@ export const STANDARD_LEARNER_DOCUMENTS = [
       "Enrollment Contract",
       "Parent Contract",
       "Contract",
+      "Contract 2026",
     ],
   },
 ] as const;
@@ -38,13 +43,17 @@ function normalizeDocumentName(value?: string | null) {
 }
 
 const CANONICAL_DOCUMENT_NAMES = new Map(
-  STANDARD_LEARNER_DOCUMENTS.flatMap((document) =>
+  [...STANDARD_LEARNER_DOCUMENTS, ...DIGITAL_ENROLMENT_DOCUMENTS].flatMap((document) =>
     document.aliases.map((alias) => [
       normalizeDocumentName(alias),
       document.name,
     ] as const)
   )
 );
+
+export function isDigitalEnrolmentDocument(value?: string | null) {
+  return canonicalLearnerDocumentName(value) === DIGITAL_ENROLMENT_DOCUMENTS[0].name;
+}
 
 export function canonicalLearnerDocumentName(value?: string | null) {
   const trimmedValue = (value || "").trim().replace(/\s+/g, " ");

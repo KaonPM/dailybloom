@@ -9,6 +9,7 @@ import { resolveSchoolContext } from "../../lib/school-context";
 import { authenticatedFetch } from "../../lib/authenticated-fetch";
 import {
   canonicalLearnerDocumentName,
+  isDigitalEnrolmentDocument,
   learnerDocumentNamesMatch,
   STANDARD_LEARNER_DOCUMENTS,
 } from "../../lib/learner-documents";
@@ -373,6 +374,7 @@ function mergeRequirements(
   });
 
   schoolSpecificItems.forEach((item) => {
+    if (item.category === "Document" && isDigitalEnrolmentDocument(item.item_name)) return;
     const itemName =
       item.category === "Document"
         ? canonicalLearnerDocumentName(item.item_name)

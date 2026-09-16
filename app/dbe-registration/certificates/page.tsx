@@ -43,11 +43,11 @@ export default function CertificatesPage() {
   }), [category, data, search, showNoExpiry, source, status]);
 
   async function addManual(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!schoolId) return; setSaving(true); const form = new FormData(event.currentTarget);
+    event.preventDefault(); const formElement = event.currentTarget; if (!schoolId) return; setSaving(true); const form = new FormData(formElement);
     const payload = { school_id: schoolId, resource: "certificates", certificate_type: form.get("certificate_type"), holder_name: form.get("holder_name"), issue_date: form.get("issue_date"), expiry_date: form.get("expiry_date"), renewal_status: form.get("renewal_status"), document_id: form.get("document_id"), ...(manualToEdit ? {} : { issuing_authority: form.get("issuing_authority"), certificate_reference: form.get("certificate_reference"), notes: form.get("notes") }) };
     const response = await authenticatedFetch("/api/compliance", { method: manualToEdit ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(manualToEdit ? { ...payload, id: manualToEdit.source_id } : payload) });
     const result = await response.json(); setSaving(false); if (!response.ok) { alert(result.error || "Certificate details could not be saved."); return; }
-    event.currentTarget.reset(); setManualToEdit(null); setShowManual(false); await load(schoolId);
+    formElement.reset(); setManualToEdit(null); setShowManual(false); await load(schoolId);
   }
   if (loading) return <p>Loading certificates and renewals...</p>;
   const summary = data?.summary || { total: 0, expiringSoon: 0, expired: 0, renewalInProgress: 0, current: 0, noExpiry: 0, attention: 0 };

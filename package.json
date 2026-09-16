@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:authorization && npm run test:monitoring && npm run test:classroom-activities && npm run test:parent-events && npm run test:achievement-awards && npm run test:learner-documents && npm run test:progress-reports && npm run test:billing && npm run test:whatsapp",
+    "test": "tsx --test app/lib/*.test.ts",
     "test:classroom-activities": "tsx --test app/lib/classroom-activity-dates.test.ts",
     "test:parent-events": "tsx --test app/lib/parent-event-dates.test.ts",
     "test:achievement-awards": "tsx --test app/lib/award-types.test.ts",

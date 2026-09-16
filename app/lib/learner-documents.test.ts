@@ -39,14 +39,13 @@ test("keeps school-specific extra documents unchanged", () => {
   );
 });
 
-test("defines the four standard learner documents", () => {
+test("defines the three standard learner upload documents", () => {
   assert.deepEqual(
     STANDARD_LEARNER_DOCUMENTS.map((document) => document.name),
     [
       "Birth Certificate",
       "Immunisation / Clinic Card",
       "Parent/Guardian ID",
-      "Signed Parent/Guardian Enrolment Contract",
     ]
   );
 });

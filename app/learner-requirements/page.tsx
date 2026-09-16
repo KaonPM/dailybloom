@@ -10,6 +10,7 @@ import { getCurrentProfile } from "../lib/auth";
 import SubscriptionGuard from "../components/SubscriptionGuard";
 import {
   canonicalLearnerDocumentName,
+  isDigitalEnrolmentDocument,
   learnerDocumentNamesMatch,
   STANDARD_LEARNER_DOCUMENTS,
 } from "../lib/learner-documents";
@@ -609,6 +610,7 @@ export default function LearnerRequirementsPage() {
     });
 
     schoolSpecificItems.forEach((item) => {
+      if (item.category === "Document" && isDigitalEnrolmentDocument(item.item_name)) return;
       const itemName =
         item.category === "Document"
           ? canonicalLearnerDocumentName(item.item_name)
@@ -806,17 +808,28 @@ export default function LearnerRequirementsPage() {
     if (!file || !schoolId) return;
     const key = `${item.id}-${learnerId}`;
     setDocumentAction(`upload-${key}`);
-    const form = new FormData();
-    form.set("school_id", String(schoolId));
-    form.set("classroom_id", selectedClassroomId);
-    form.set("learner_id", learnerId);
-    form.set("document_type", item.item_name);
-    form.set("file", file);
-    const response = await authenticatedFetch("/api/learner-requirements/documents", { method: "POST", body: form });
-    const result = await response.json();
-    setDocumentAction("");
-    if (!response.ok) return alert(result.error || "The document could not be uploaded.");
-    await loadClassRecords(selectedClassroomId);
+    try {
+      const details = { school_id: schoolId, classroom_id: Number(selectedClassroomId), learner_id: learnerId, document_type: item.item_name, file_name: file.name };
+      const prepareResponse = await authenticatedFetch("/api/learner-requirements/documents", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...details, action: "create_upload", file_type: file.type, file_size: file.size }),
+      });
+      const prepared = await prepareResponse.json();
+      if (!prepareResponse.ok || !prepared.path || !prepared.token) throw new Error(prepared.error || "A secure upload could not be prepared.");
+      const { error: uploadError } = await supabase.storage.from("learner-documents").uploadToSignedUrl(prepared.path, prepared.token, file, { contentType: file.type });
+      if (uploadError) throw uploadError;
+      const response = await authenticatedFetch("/api/learner-requirements/documents", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...details, action: "complete_upload", file_path: prepared.path }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "The document could not be saved.");
+      await loadClassRecords(selectedClassroomId);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "The document could not be uploaded. Please try again.");
+    } finally {
+      setDocumentAction("");
+    }
   }
 
   async function viewLearnerDocument(document: DocumentRow) {

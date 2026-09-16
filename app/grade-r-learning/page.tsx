@@ -16,6 +16,14 @@ type GradeRLanguageSettings = { grade_r_home_language: string; grade_r_first_add
 
 export default function GradeRLearningPage() {
   const params = useSearchParams();
+  const plannerContext = useMemo(() => {
+    const context = new URLSearchParams();
+    for (const key of ["return_to", "classroom_id", "week_start", "activity_date"]) {
+      const value = params.get(key);
+      if (value) context.set(key, value);
+    }
+    return context.toString();
+  }, [params]);
   const [hasGradeR, setHasGradeR] = useState<boolean | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
   const [resources, setResources] = useState<Resource[]>([]);
@@ -65,11 +73,18 @@ export default function GradeRLearningPage() {
     return !query || [resource.title, resource.book_number, resource.term ? `term ${resource.term}` : "", ...(resource.learning_areas || [])].some((value) => String(value || "").toLowerCase().includes(query));
   }), [languageSelection, resources, schoolEditions.available, search, year]);
   const visibleCollections = useMemo(() => collections.filter((item) => item.term === collectionTerm), [collectionTerm, collections]);
+  const returnToPlanner = params.get("return_to") === "planner";
+  const plannerReturnParams = new URLSearchParams({ school: String(schoolId || ""), section: "planner" });
+  for (const key of ["classroom_id", "week_start", "activity_date"]) {
+    const value = params.get(key);
+    if (value) plannerReturnParams.set(key, value);
+  }
 
   if (hasGradeR === null) return <RouteStateCard eyebrow="Daily Classroom" title="Grade R Learning Hub" message="Loading learning resources." busy />;
   if (!hasGradeR) return <div className="db-card db-card-yellow" style={{ padding: 20 }}><h1 className="db-page-title">Grade R Learning Hub</h1><p className="db-helper">Create a Grade R classroom first to enable this learning hub.</p></div>;
   return <div className="db-page-shell">
     <section className="db-page-header db-card-blue db-grade-r-hub-header"><p className="db-eyebrow">Daily Classroom</p><h1>Grade R Learning Hub</h1><p className="db-page-subtitle">Open integrated DBE workbooks and connect selected pages to the existing classroom and homework workflows.</p></section>
+    {returnToPlanner ? <section className="db-card db-card-green" style={{ padding: 14 }}><strong>Select workbook pages for your weekly plan</strong><p className="db-helper" style={{ margin: "5px 0 10px" }}>Your classroom, week and activity date will be kept when you return.</p><Link className="db-button-secondary" href={`/classroom-activities?${plannerReturnParams.toString()}`}>Return without selecting pages</Link></section> : null}
     <nav className="db-learning-hub-actions" aria-label="Grade R Learning Hub actions">
       <a className="db-learning-hub-action db-card-lavender" href="#grade-r-resources"><strong>DBE Workbooks</strong><span>Browse by year, book and language</span></a>
       <Link className="db-learning-hub-action db-card-blue" href={`/classroom-activities?school=${schoolId}`}><strong>Classroom Activities</strong><span>Plan or update the day</span></Link>
@@ -87,7 +102,7 @@ export default function GradeRLearningPage() {
       </div>
       {languageSelection === "school" && schoolEditions.missing.length ? <p role="status" className="db-status-message">No verified {year} workbook edition is available yet for {schoolEditions.missing.join(" and ")}. Master must verify and publish the official PDF before it appears here.</p> : null}
       <div style={{ display: "grid", gap: 10 }}>
-        {visible.map((resource) => <article key={resource.id} className="db-list-card" style={{ padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}><div><strong>{resource.book_number || resource.title}</strong><p className="db-helper" style={{ margin: "5px 0" }}>Grade R · {resource.term ? `Term ${resource.term}` : "Term not specified"} · {resource.language}{resource.language?.localeCompare(schoolLanguages.grade_r_home_language, undefined, { sensitivity: "accent" }) === 0 ? " · Home Language" : resource.language?.localeCompare(schoolLanguages.grade_r_first_additional_language, undefined, { sensitivity: "accent" }) === 0 ? " · First Additional Language" : ""}</p><p className="db-helper" style={{ margin: 0 }}>Learning areas: {(resource.learning_areas?.length ? resource.learning_areas : ["Home Language", "Mathematics", "Life Skills"]).join(" · ")}</p><p className="db-helper" style={{ margin: "5px 0 0" }}>Source: {resource.source_name || "Department of Basic Education"}</p></div><Link className="db-button-primary" href={`/grade-r-learning/reader?resource_id=${resource.id}&school_id=${schoolId}`}>Open Workbook</Link></div></article>)}
+        {visible.map((resource) => <article key={resource.id} className="db-list-card" style={{ padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}><div><strong>{resource.book_number || resource.title}</strong><p className="db-helper" style={{ margin: "5px 0" }}>Grade R · {resource.term ? `Term ${resource.term}` : "Term not specified"} · {resource.language}{resource.language?.localeCompare(schoolLanguages.grade_r_home_language, undefined, { sensitivity: "accent" }) === 0 ? " · Home Language" : resource.language?.localeCompare(schoolLanguages.grade_r_first_additional_language, undefined, { sensitivity: "accent" }) === 0 ? " · First Additional Language" : ""}</p><p className="db-helper" style={{ margin: 0 }}>Learning areas: {(resource.learning_areas?.length ? resource.learning_areas : ["Home Language", "Mathematics", "Life Skills"]).join(" · ")}</p><p className="db-helper" style={{ margin: "5px 0 0" }}>Source: {resource.source_name || "Department of Basic Education"}</p></div><Link className="db-button-primary" href={`/grade-r-learning/reader?resource_id=${resource.id}&school_id=${schoolId}${plannerContext ? `&${plannerContext}` : ""}`}>Open Workbook</Link></div></article>)}
         {!visible.length ? <div className="db-card db-card-yellow" style={{ padding: 16 }}><strong>No verified workbook edition is available for this selection.</strong><p className="db-helper" style={{ marginBottom: 0 }}>The platform administrator must verify the official source or cached PDF before it is shown here.</p></div> : null}
       </div>
     </section>

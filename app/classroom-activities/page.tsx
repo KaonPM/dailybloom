@@ -142,6 +142,9 @@ export default function ClassroomActivitiesPage() {
   const learningResourceSelectedPages = searchParams.get("selected_pages") || "";
   const openHomeworkFromLearningHub = searchParams.get("homework") === "1";
   const requestedSection = searchParams.get("section");
+  const requestedClassroomId = searchParams.get("classroom_id") || "";
+  const requestedWeekStart = searchParams.get("week_start") || "";
+  const requestedActivityDate = searchParams.get("activity_date") || "";
   const collectionArea = searchParams.get("collection_area") || "";
   const collectionTerm = searchParams.get("collection_term") || "";
   const learningResourcePages = useMemo(
@@ -159,7 +162,11 @@ export default function ClassroomActivitiesPage() {
   const [outcomes, setOutcomes] = useState<OutcomeRow[]>([]);
 
   const [activeClassroomId, setActiveClassroomId] = useState("");
-  const [weekStart, setWeekStart] = useState(getMonday(new Date()));
+  const [weekStart, setWeekStart] = useState(() =>
+    /^\d{4}-\d{2}-\d{2}$/.test(requestedWeekStart)
+      ? getMonday(new Date(`${requestedWeekStart}T00:00:00`))
+      : getMonday(new Date())
+  );
   const [plannerRows, setPlannerRows] = useState<PlannerRow[]>([]);
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
   const [copySourceWeekStart, setCopySourceWeekStart] = useState("");
@@ -495,8 +502,13 @@ export default function ClassroomActivitiesPage() {
       setLibraryAreaFilter(collectionArea);
       return;
     }
+    if (requestedSection === "planner" || learningResourceId) {
+      setActiveSection("planner");
+      setIsPlannerOpen(true);
+      return;
+    }
     setActiveSection(isPrincipal || isMaster ? "overview" : "today");
-  }, [collectionArea, profile, isPrincipal, isMaster, requestedSection]);
+  }, [collectionArea, learningResourceId, profile, isPrincipal, isMaster, requestedSection]);
 
   useEffect(() => {
     setLibraryThemeFilter("");
@@ -563,8 +575,10 @@ export default function ClassroomActivitiesPage() {
     await fetchAllLearners(context.schoolId, scopedClassroomId);
 
     const firstClassroom = classroomRows[0];
-
-    const initialClassroom = teacherClassroom || firstClassroom;
+    const requestedClassroom = classroomRows.find(
+      (classroom) => String(classroom.id) === requestedClassroomId
+    );
+    const initialClassroom = teacherClassroom || requestedClassroom || firstClassroom;
 
     if (initialClassroom) {
       setActiveClassroomId(String(initialClassroom.id));
@@ -1595,7 +1609,7 @@ export default function ClassroomActivitiesPage() {
         }}
       />
 
-      {schoolId && activeClassroomId ? <WorkbookAssignments schoolId={schoolId} classroomId={Number(activeClassroomId)} resourceId={Number(learningResourceId) || undefined} pages={learningResourcePages} homework={openHomeworkFromLearningHub} onSaved={() => fetchWeeklyPlans(schoolId)} /> : null}
+      {schoolId && activeClassroomId ? <WorkbookAssignments schoolId={schoolId} classroomId={Number(activeClassroomId)} resourceId={Number(learningResourceId) || undefined} pages={learningResourcePages} homework={openHomeworkFromLearningHub} defaultActivityDate={requestedActivityDate} onSaved={() => fetchWeeklyPlans(schoolId)} /> : null}
 
       <ActivityDashboardStats stats={dashboardStats} />
 
@@ -1708,7 +1722,14 @@ export default function ClassroomActivitiesPage() {
                                 value={activity.activity_library_id}
                                 onChange={(e) => {
                                   if (e.target.value === "choose-workbook-pages") {
-                                    router.push(`/grade-r-learning${schoolId ? `?school=${schoolId}` : ""}`);
+                                    const workbookParams = new URLSearchParams({
+                                      school: String(schoolId || ""),
+                                      return_to: "planner",
+                                      classroom_id: activeClassroomId,
+                                      week_start: weekStart,
+                                      activity_date: row.activity_date,
+                                    });
+                                    router.push(`/grade-r-learning?${workbookParams.toString()}`);
                                     return;
                                   }
                                   selectPlannerActivity(index, activityIndex, e.target.value);
@@ -1775,6 +1796,10 @@ export default function ClassroomActivitiesPage() {
                                 isTeachingDay(candidate.day_type)
                               )?.activity_date || addDays(weekStart, 7)
                           }
+                          suggestedInstruction={row.activities
+                            .filter((activity) => activity.activity_library_id)
+                            .map((activity) => `${activity.activity_name}: ${activity.description}`)
+                            .join("\n")}
                           enabled={isTeachingDay(row.day_type)}
                         />
                       ) : null}

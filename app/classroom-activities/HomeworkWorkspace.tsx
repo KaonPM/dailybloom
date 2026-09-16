@@ -29,6 +29,7 @@ type Props = {
   activityDate: string;
   dayLabel: string;
   defaultDueDate: string;
+  suggestedInstruction?: string;
   enabled?: boolean;
 };
 
@@ -48,6 +49,7 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
       activityDate,
       dayLabel,
       defaultDueDate,
+      suggestedInstruction = "",
       enabled = true,
     },
     ref
@@ -351,7 +353,7 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
             onClick={() => setIsOpen((current) => !current)}
             style={{ width: "auto", padding: "8px 14px" }}
           >
-            {isOpen ? "Close" : "Open"}
+            {isOpen ? "Close" : hasSavedHomework() ? "Edit homework" : "Add homework"}
           </button>
         </div>
 
@@ -361,6 +363,25 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
               Select the homework type for this day. You can save it now, or
               save every completed day together with the weekly plan.
             </p>
+
+            {suggestedInstruction && !hasSavedHomework() ? (
+              <button
+                type="button"
+                className="db-button-secondary"
+                style={{ width: "auto", marginBottom: 10 }}
+                onClick={() => {
+                  setSelections((current) => [{
+                    ...(current[0] || emptySelection(defaultDueDate)),
+                    homework_type: "instructions",
+                    homework_id: "",
+                    instruction_note: suggestedInstruction.slice(0, 500),
+                  }]);
+                  setMessage("The planned activity has been copied into the parent instructions.");
+                }}
+              >
+                Use planned activity as homework
+              </button>
+            ) : null}
 
             <div className="db-list-card" style={{ display: "grid", gap: 10 }}>
               <label style={{ display: "grid", gap: 5 }}>

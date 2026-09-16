@@ -8,8 +8,8 @@ import { normalizeSelectedPages, selectedPagesLabel, workbookPagesFromQuery, typ
 type Usage = { id: number; resource_id: number; page_from?: number | null; page_to?: number | null; selected_pages: number[]; learning_resources: WorkbookCatalogueItem | null };
 type Target = { id: number; classroom_id: number; activity_date: string; activity_name?: string; instruction_note?: string; activity_learning_resources?: Usage[]; homework_learning_resources?: Usage[] };
 
-export default function WorkbookAssignments({ schoolId, classroomId, resourceId, pages, homework, onSaved }: {
-  schoolId: number; classroomId: number; resourceId?: number; pages: number[]; homework: boolean; onSaved: () => Promise<void>;
+export default function WorkbookAssignments({ schoolId, classroomId, resourceId, pages, homework, defaultActivityDate, onSaved }: {
+  schoolId: number; classroomId: number; resourceId?: number; pages: number[]; homework: boolean; defaultActivityDate?: string; onSaved: () => Promise<void>;
 }) {
   const [resource, setResource] = useState<WorkbookCatalogueItem>();
   const [plans, setPlans] = useState<Target[]>([]);
@@ -17,6 +17,7 @@ export default function WorkbookAssignments({ schoolId, classroomId, resourceId,
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [target, setTarget] = useState("");
+  const [alsoHomework, setAlsoHomework] = useState(false);
   const load = useCallback(async () => {
     const response = await authenticatedFetch(`/api/learning-resource-links?school_id=${schoolId}`);
     const body = await response.json();
@@ -36,12 +37,22 @@ export default function WorkbookAssignments({ schoolId, classroomId, resourceId,
       const result = await response.json();
       setMessage(response.ok ? "Saved with the selected workbook pages." : result.error || "Could not save workbook pages.");
       if (response.ok) { await load(); await onSaved(); }
-    } catch { setMessage("Could not save workbook pages. Please try again."); }
+      return response.ok;
+    } catch { setMessage("Could not save workbook pages. Please try again."); return false; }
     finally { setBusy(false); }
   }
-  function create(event: FormEvent<HTMLFormElement>) {
+  async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void save({ action: "create", entity_type: homework ? "homework" : "activity", ...Object.fromEntries(new FormData(event.currentTarget)) });
+    const fields = Object.fromEntries(new FormData(event.currentTarget));
+    const saved = await save({ action: "create", entity_type: homework ? "homework" : "activity", ...fields });
+    if (!saved || homework || !alsoHomework) return;
+    const homeworkSaved = await save({
+      action: "create",
+      entity_type: "homework",
+      ...fields,
+      due_date: fields.due_date || fields.activity_date,
+    });
+    if (homeworkSaved) setMessage("Classroom activity and homework saved with the selected workbook pages.");
   }
   const targets = (homework ? assignments : plans).filter((item) => item.classroom_id === classroomId);
   const usages = [...plans, ...assignments].filter((item) => item.classroom_id === classroomId && (item.activity_learning_resources?.length || item.homework_learning_resources?.length));
@@ -53,14 +64,16 @@ export default function WorkbookAssignments({ schoolId, classroomId, resourceId,
       <p className="db-helper">{resource?.academic_year} · {resource?.book_number} · {resource?.language} · {selectedPagesLabel(pages)}</p>
       <p className="db-helper">Source: Department of Basic Education</p>
       <form key={`${resourceId}-${homework}`} onSubmit={create} style={{ display: "grid", gap: 10 }}>
-        <strong>Create {homework ? "homework" : "classroom activity"} for the classroom selected above</strong>
+        <strong>{homework ? "Send these pages as homework" : "Plan these pages for the classroom"}</strong>
         <label>Title<input className="db-input" name="title" required maxLength={160} defaultValue={`DBE workbook — ${selectedPagesLabel(pages)}`} /></label>
         <label>Instructions and notes<textarea className="db-input" name="instructions" required maxLength={330} defaultValue={`Complete ${selectedPagesLabel(pages).toLowerCase()}.`} /></label>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <label>Activity date<input className="db-input" type="date" name="activity_date" required /></label>
-          {homework ? <label>Due date<input className="db-input" type="date" name="due_date" required /></label> : <label>Learning focus<select className="db-input" name="learning_focus"><option>Language</option><option>Mathematics</option><option>Life Skills</option></select></label>}
+          <label>Activity date<input className="db-input" type="date" name="activity_date" required defaultValue={defaultActivityDate} /></label>
+          {!homework ? <label>Learning focus<select className="db-input" name="learning_focus"><option>Language</option><option>Mathematics</option><option>Life Skills</option></select></label> : null}
+          {homework || alsoHomework ? <label>Due date<input className="db-input" type="date" name="due_date" required defaultValue={defaultActivityDate} /></label> : null}
         </div>
-        <button className="db-button-primary" disabled={busy || !resource || !classroomId || !pages.length}>Save {homework ? "homework" : "activity"} with workbook pages</button>
+        {!homework ? <label className="db-list-card" style={{ display: "flex", alignItems: "center", gap: 10 }}><input type="checkbox" checked={alsoHomework} onChange={(event) => setAlsoHomework(event.target.checked)} /><span><strong>Also send these pages as homework</strong><br /><span className="db-helper">Parents will receive the same selected pages and instructions.</span></span></label> : null}
+        <button className="db-button-primary" disabled={busy || !resource || !classroomId || !pages.length}>{busy ? "Saving…" : homework ? "Send as homework" : alsoHomework ? "Plan activity and send homework" : "Plan classroom activity"}</button>
       </form>
       <details style={{ marginTop: 12 }}><summary>Link to an existing {homework ? "homework assignment" : "activity"}</summary><select aria-label="Existing assignment" className="db-input" value={target} onChange={(event) => setTarget(event.target.value)}><option value="">Select a saved item</option>{targets.map((item) => <option key={item.id} value={item.id}>{item.activity_date} · {item.activity_name || item.instruction_note}</option>)}</select><button className="db-button-secondary" disabled={!target || busy} onClick={() => void save(homework ? { homework_assignment_id: Number(target) } : { weekly_plan_id: Number(target) })}>Attach selected pages</button></details>
     </>

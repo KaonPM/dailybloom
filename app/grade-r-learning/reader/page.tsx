@@ -117,11 +117,21 @@ export default function GradeRWorkbookReaderPage() {
     setRangeFrom(first);
     setRangeTo(last);
   };
-  const resourceQuery = new URLSearchParams({ school: String(schoolId), resource_id: String(resourceId), page_from: String(selectedPages[0] || page), page_to: String(selectedPages.at(-1) || page), selected_pages: (selectedPages.length ? selectedPages : [page]).join(",") });
+  const resourceQuery = new URLSearchParams({ school: String(schoolId), resource_id: String(resourceId), page_from: String(selectedPages[0] || page), page_to: String(selectedPages.at(-1) || page), selected_pages: (selectedPages.length ? selectedPages : [page]).join(","), section: "planner" });
+  for (const key of ["classroom_id", "week_start", "activity_date"]) {
+    const value = params.get(key);
+    if (value) resourceQuery.set(key, value);
+  }
   const isParent = Boolean(assignmentId);
   const isClassroomActivity = pathname.startsWith("/classroom-activities/");
-  const backHref = isParent ? "/parent/homework" : isClassroomActivity ? `/classroom-activities?school=${schoolId}` : "/grade-r-learning";
-  const backLabel = isParent ? "Back to Homework" : isClassroomActivity ? "Back to Classroom Activities" : "Back to DBE Workbooks";
+  const returnToPlanner = params.get("return_to") === "planner";
+  const learningHubQuery = new URLSearchParams({ school: String(schoolId) });
+  for (const key of ["return_to", "classroom_id", "week_start", "activity_date"]) {
+    const value = params.get(key);
+    if (value) learningHubQuery.set(key, value);
+  }
+  const backHref = isParent ? "/parent/homework" : isClassroomActivity ? `/classroom-activities?school=${schoolId}` : `/grade-r-learning?${learningHubQuery.toString()}`;
+  const backLabel = isParent ? "Back to Homework" : isClassroomActivity ? "Back to Classroom Activities" : returnToPlanner ? "Back to workbook list" : "Back to DBE Workbooks";
 
   async function printWorkbookPages() {
     if (!pdf || printing) return;

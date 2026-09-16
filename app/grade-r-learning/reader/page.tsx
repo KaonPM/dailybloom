@@ -45,8 +45,11 @@ export default function GradeRWorkbookReaderPage() {
         } else {
           setResource({ id: resourceId, title: params.get("title") || "DBE Grade R Workbook", academic_year: Number(params.get("year")) || null, grade: "Grade R", language: params.get("language") });
         }
-        const pdfjs = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+        // The standard PDF.js build requires newer browser APIs such as
+        // Promise.withResolvers. Use its compatibility build so assigned
+        // workbooks also open on iPhones running older Safari versions.
+        const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
         const access = assignmentId ? `&assignment_id=${assignmentId}&learner_id=${encodeURIComponent(learnerId)}` : "";
         const contentUrl = `/api/learning-resources/${resourceId}/content?school_id=${schoolId}${access}`;
         const response = await (assignmentId ? fetch(contentUrl, { cache: "no-store", credentials: "include" }) : authenticatedFetch(contentUrl));

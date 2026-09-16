@@ -1706,10 +1706,17 @@ export default function ClassroomActivitiesPage() {
                               <select
                                 className="db-input"
                                 value={activity.activity_library_id}
-                                onChange={(e) => selectPlannerActivity(index, activityIndex, e.target.value)}
+                                onChange={(e) => {
+                                  if (e.target.value === "choose-workbook-pages") {
+                                    router.push(`/grade-r-learning${schoolId ? `?school=${schoolId}` : ""}`);
+                                    return;
+                                  }
+                                  selectPlannerActivity(index, activityIndex, e.target.value);
+                                }}
                                 disabled={!row.theme}
                               >
                                 <option value="">No activity selected</option>
+                                {row.theme === "Grade R: DBE Workbook" ? <option value="choose-workbook-pages">Select new pages from DBE workbook…</option> : null}
                                 {rowLibrary.map((item) => (
                                   <option key={item.id} value={item.id}>
                                     {item.activity_name}

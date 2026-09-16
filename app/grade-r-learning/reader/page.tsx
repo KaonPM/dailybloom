@@ -26,6 +26,8 @@ export default function GradeRWorkbookReaderPage() {
   const [pdf, setPdf] = useState<LoadedPdf | null>(null);
   const [page, setPage] = useState(initialPages[0] || 1);
   const [selectedPages, setSelectedPages] = useState<number[]>(initialPages);
+  const [rangeFrom, setRangeFrom] = useState(initialPages[0] || 1);
+  const [rangeTo, setRangeTo] = useState(initialPages.at(-1) || initialPages[0] || 1);
   const [scale, setScale] = useState(1.15);
   const [printing, setPrinting] = useState(false);
   const [message, setMessage] = useState("Loading workbook...");
@@ -105,6 +107,16 @@ export default function GradeRWorkbookReaderPage() {
   }, [page, pdf, scale]);
 
   const togglePage = () => setSelectedPages((current) => current.includes(page) ? current.filter((item) => item !== page) : normalizeSelectedPages([...current, page], pdf?.numPages));
+  const addPageRange = () => {
+    if (!pdf) return;
+    const first = Math.min(pdf.numPages, Math.max(1, Math.min(rangeFrom, rangeTo)));
+    const last = Math.min(pdf.numPages, Math.max(first, Math.max(rangeFrom, rangeTo)));
+    const range = Array.from({ length: last - first + 1 }, (_, index) => first + index);
+    setSelectedPages((current) => normalizeSelectedPages([...current, ...range], pdf.numPages));
+    setPage(first);
+    setRangeFrom(first);
+    setRangeTo(last);
+  };
   const resourceQuery = new URLSearchParams({ school: String(schoolId), resource_id: String(resourceId), page_from: String(selectedPages[0] || page), page_to: String(selectedPages.at(-1) || page), selected_pages: (selectedPages.length ? selectedPages : [page]).join(",") });
   const isParent = Boolean(assignmentId);
   const isClassroomActivity = pathname.startsWith("/classroom-activities/");
@@ -158,9 +170,12 @@ export default function GradeRWorkbookReaderPage() {
     <section className="db-page-header db-card-blue"><Link href={backHref} className="db-main-pill">{backLabel}</Link><p className="db-eyebrow" style={{ marginTop: 14 }}>Department of Basic Education</p><h1>{resource?.title || "Grade R Workbook"}</h1><p className="db-page-subtitle">{resource?.academic_year || ""} {resource?.grade || "Grade R"}{resource?.book_number ? ` · ${resource.book_number}` : ""}{resource?.term ? ` · Term ${resource.term}` : ""}{resource?.language ? ` · ${resource.language}` : ""}</p></section>
     {message ? <div className="db-card db-card-yellow" style={{ padding: 18 }}><strong>{message}</strong>{!pdf ? <p className="db-helper">The original DBE workbook has not been changed. Try again later or ask the platform administrator to verify its source file.</p> : null}</div> : null}
     {pdf ? <>
-      <section className="db-card" style={{ padding: 12, position: "sticky", top: 0, zIndex: 3 }}><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}><button className="db-button-secondary" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button><label>Page <input className="db-input" style={{ width: 82 }} type="number" min="1" max={pdf.numPages} value={page} onChange={(event) => setPage(Math.min(pdf.numPages, Math.max(1, Number(event.target.value) || 1)))} /> of {pdf.numPages}</label><button className="db-button-secondary" disabled={page >= pdf.numPages} onClick={() => setPage((current) => Math.min(pdf.numPages, current + 1))}>Next</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.max(.65, current - .15))}>Zoom out</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.min(2.2, current + .15))}>Zoom in</button><button className={selectedPages.includes(page) ? "db-button-primary" : "db-button-secondary"} onClick={togglePage}>{selectedPages.includes(page) ? `Page ${page} selected` : `Select page ${page}`}</button><button className="db-button-primary" disabled={printing} onClick={() => void printWorkbookPages()}>{printing ? "Preparing PDF…" : isParent ? "Print assigned pages" : "Print selected pages"}</button></div></section>
+      <section className="db-card" style={{ padding: 12, position: "sticky", top: 0, zIndex: 3 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}><button className="db-button-secondary" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button><label>Preview page <input className="db-input" style={{ width: 82 }} type="number" min="1" max={pdf.numPages} value={page} onChange={(event) => setPage(Math.min(pdf.numPages, Math.max(1, Number(event.target.value) || 1)))} /> of {pdf.numPages}</label><button className="db-button-secondary" disabled={page >= pdf.numPages} onClick={() => setPage((current) => Math.min(pdf.numPages, current + 1))}>Next</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.max(.65, current - .15))}>Zoom out</button><button className="db-button-secondary" onClick={() => setScale((current) => Math.min(2.2, current + .15))}>Zoom in</button>{!isParent ? <button className={selectedPages.includes(page) ? "db-button-primary" : "db-button-secondary"} onClick={togglePage}>{selectedPages.includes(page) ? `Remove page ${page}` : `Select page ${page}`}</button> : null}<button className="db-button-primary" disabled={printing || (!isParent && !selectedPages.length)} onClick={() => void printWorkbookPages()}>{printing ? "Preparing PDF…" : isParent ? "Print assigned pages" : "Print selected pages"}</button></div>
+        {!isParent ? <div style={{ display: "flex", alignItems: "end", justifyContent: "center", gap: 8, flexWrap: "wrap", marginTop: 10, paddingTop: 10, borderTop: "1px solid #ded8e4" }}><label>From page<input className="db-input" style={{ width: 90 }} type="number" min="1" max={pdf.numPages} value={rangeFrom} onChange={(event) => setRangeFrom(Number(event.target.value) || 1)} /></label><label>To page<input className="db-input" style={{ width: 90 }} type="number" min="1" max={pdf.numPages} value={rangeTo} onChange={(event) => setRangeTo(Number(event.target.value) || 1)} /></label><button className="db-button-primary" type="button" onClick={addPageRange}>Add page range</button><button className="db-button-secondary" type="button" disabled={!selectedPages.length} onClick={() => setSelectedPages([])}>Clear selection</button></div> : null}
+      </section>
       <section className="db-card" style={{ marginTop: 10, padding: 10, overflow: "auto", textAlign: "center", background: "#EEEAE5" }}><canvas ref={canvasRef} aria-label={`Workbook page ${page}`} /></section>
-      <section className="db-card db-card-lavender" style={{ padding: 14, position: "sticky", bottom: 8, zIndex: 3 }}><strong>{selectedPagesLabel(selectedPages)}</strong>{!isParent ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><Link className="db-button-primary" href={`/classroom-activities?${resourceQuery}`}>Add to Classroom Activity</Link><Link className="db-button-primary" href={`/classroom-activities?${resourceQuery}&homework=1`}>Add to Homework</Link></div> : null}</section>
+      <section className="db-card db-card-lavender" style={{ padding: 14, position: "sticky", bottom: 8, zIndex: 3 }}><strong>{selectedPagesLabel(selectedPages)}</strong>{!isParent && selectedPages.length ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><Link className="db-button-primary" href={`/classroom-activities?${resourceQuery}`}>Add to Classroom Activity</Link><Link className="db-button-primary" href={`/classroom-activities?${resourceQuery}&homework=1`}>Add to Homework</Link></div> : !isParent ? <p className="db-helper" style={{ marginBottom: 0 }}>Select a page or add a page range to continue.</p> : null}</section>
     </> : null}
   </div>;
 }

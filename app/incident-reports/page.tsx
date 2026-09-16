@@ -148,7 +148,9 @@ export default function IncidentReportsPage() {
     ["principal", "owner", "master"].includes(String(profile?.role || "")) ||
     (profile?.role === "admin" &&
       (profile.permissions || []).includes(PERMISSIONS.INCIDENT_REVIEW));
-  const canCreate = profile?.role === "teacher" || canReviewIncidents;
+  const canCreate = ["teacher", "practitioner", "educator"].includes(
+    String(profile?.role || "").toLowerCase()
+  ) || canReviewIncidents;
   const canAcknowledge = canReviewIncidents;
   const filteredReports = reports.filter((report) => {
     const matchesStatus = statusFilter === "all"
@@ -170,7 +172,11 @@ export default function IncidentReportsPage() {
       .or("is_deleted.is.null,is_deleted.eq.false")
       .order("name", { ascending: true });
 
-    if (currentProfile?.role === "teacher" && currentProfile.classroom_name) {
+    if (
+      ["teacher", "practitioner", "educator"].includes(
+        String(currentProfile?.role || "").toLowerCase()
+      ) && currentProfile.classroom_name
+    ) {
       query = query.eq("class", currentProfile.classroom_name);
     }
 
@@ -295,12 +301,12 @@ export default function IncidentReportsPage() {
     setPhotos(files);
   }
 
-  async function uploadPhotos(currentSchoolId: number) {
+  async function uploadPhotos(currentSchoolId: number, actorId: string) {
     const urls: string[] = [];
 
     for (const file of photos) {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-      const path = `${currentSchoolId}/${Date.now()}-${safeName}`;
+      const path = `${currentSchoolId}/${actorId}/${Date.now()}-${safeName}`;
 
       const { error } = await supabase.storage
         .from("incident-report-photos")
@@ -331,7 +337,7 @@ export default function IncidentReportsPage() {
     let uploadedPhotoPaths: string[] = [];
 
     try {
-      const photoUrls = await uploadPhotos(schoolId);
+      const photoUrls = await uploadPhotos(schoolId, profile.id);
       uploadedPhotoPaths = photoUrls;
       const principalCreatedReport = canAcknowledge;
       const classroom = Array.isArray(selectedLearner.classrooms)
@@ -388,7 +394,13 @@ export default function IncidentReportsPage() {
       if (uploadedPhotoPaths.length > 0) {
         await supabase.storage.from("incident-report-photos").remove(uploadedPhotoPaths);
       }
-      alert(error instanceof Error ? error.message : "Could not submit incident report.");
+      console.error("Incident report submission failed:", error);
+      const message = error instanceof Error
+        ? error.message
+        : typeof error === "object" && error && "message" in error
+          ? String(error.message)
+          : "Could not submit incident report.";
+      alert(message);
     } finally {
       setSaving(false);
     }

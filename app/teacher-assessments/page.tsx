@@ -12,7 +12,7 @@ import {
   gradeRRRatingScale,
 } from "../lib/grade-rr-categories";
 import {
-  gradeRCategories,
+  gradeRCategoriesForLanguages,
   gradeRRatingScale,
 } from "../lib/grade-r-categories";
 import { PERMISSIONS } from "../lib/permissions";
@@ -66,6 +66,7 @@ type LearnerRow = {
 };
 type PeriodRow = {
   id: number;
+  term_number?: number | null;
   title?: string | null;
   report_type?: string | null;
   report_template?: ReportType | null;
@@ -78,7 +79,7 @@ type AssessmentRow = {
   status?: string | null;
 };
 type AssessmentValues = Record<string, Record<string, { level: string }>>;
-type EvidenceSnapshot = { attendance: { present: number; absent: number; rate: number | null }; activities: Array<{ developmental_area?: string | null; activity_name?: string | null }>; support_cases: Array<{ developmental_area?: string | null; support_status?: string | null; observation?: string | null }>; strengths: Array<{ developmental_area?: string | null; observation?: string | null }>; support_updates: Array<{ support_status?: string | null; intervention?: string | null; progress_note?: string | null; next_review_date?: string | null }>; summaries: Array<{ notes?: string | null; teacher_notes?: string | null }>; awards: Array<{ award_name?: string | null; award_reason?: string | null }> };
+type EvidenceSnapshot = { attendance: { present: number; absent: number; rate: number | null }; activities: Array<{ developmental_area?: string | null; activity_name?: string | null }>; curriculum_evidence: Array<{ activity_name?: string | null; outcome_status?: string | null; curriculum_category?: string | null; curriculum_indicator_key?: string | null }>; support_cases: Array<{ developmental_area?: string | null; support_status?: string | null; observation?: string | null }>; strengths: Array<{ developmental_area?: string | null; observation?: string | null }>; support_updates: Array<{ support_status?: string | null; intervention?: string | null; progress_note?: string | null; next_review_date?: string | null }>; summaries: Array<{ notes?: string | null; teacher_notes?: string | null }>; awards: Array<{ award_name?: string | null; award_reason?: string | null }> };
 type ProgressReview = { id: number; review_date: string; discussion_summary: string; agreed_actions?: string | null; home_support?: string | null; next_review_date?: string | null; recorded_by_name?: string | null; created_at: string };
 type AssessmentUpsertRow = {
   school_id: number;
@@ -102,6 +103,7 @@ export default function TeacherAssessmentsPage() {
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [gradeRLanguages, setGradeRLanguages] = useState({ home: "English", additional: "Afrikaans" });
 
   const [classrooms, setClassrooms] = useState<ClassroomRow[]>([]);
   const [learners, setLearners] = useState<LearnerRow[]>([]);
@@ -154,7 +156,7 @@ export default function TeacherAssessmentsPage() {
 
   const activeCategories =
     reportType === "grade-r"
-      ? gradeRCategories
+      ? gradeRCategoriesForLanguages(gradeRLanguages.home, gradeRLanguages.additional)
       : reportType === "grade-rr"
         ? gradeRRCategories
         : reportCategories;
@@ -297,6 +299,15 @@ export default function TeacherAssessmentsPage() {
     setProfile(currentProfile);
     setSchoolId(Number(currentProfile.school_id));
 
+    const languageResponse = await authenticatedFetch(`/api/grade-r-settings?school_id=${currentProfile.school_id}`);
+    const languageBody = await languageResponse.json();
+    if (languageResponse.ok && languageBody.settings) {
+      setGradeRLanguages({
+        home: languageBody.settings.grade_r_home_language || "English",
+        additional: languageBody.settings.grade_r_first_additional_language || "Afrikaans",
+      });
+    }
+
     const classroomRows = await fetchClassrooms(
       Number(currentProfile.school_id),
       currentProfile
@@ -306,12 +317,12 @@ export default function TeacherAssessmentsPage() {
     const requestedLearnerId = searchParams.get("learner") || "";
     const requestedPeriodId = searchParams.get("period") || "";
     const requestedClassroom = classroomRows.find((item) => String(item.id) === requestedClassroomId);
-    if (requestedClassroom && requestedLearnerId && periodRows.some((item) => String(item.id) === requestedPeriodId)) {
+    if (requestedClassroom) {
       setSelectedClassroomId(requestedClassroomId);
-      setSelectedLearnerId(requestedLearnerId);
-      setSelectedPeriodId(requestedPeriodId);
       setReportType(getClassroomReportType(requestedClassroom.classroom_name));
       await fetchLearnersByClassroom(requestedClassroomId, Number(currentProfile.school_id), classroomRows);
+      if (requestedLearnerId) setSelectedLearnerId(requestedLearnerId);
+      if (periodRows.some((item) => String(item.id) === requestedPeriodId)) setSelectedPeriodId(requestedPeriodId);
     }
 
     const assignedClassroomId =
@@ -463,7 +474,7 @@ export default function TeacherAssessmentsPage() {
 
     const categories =
       template === "grade-r"
-        ? gradeRCategories
+        ? gradeRCategoriesForLanguages(gradeRLanguages.home, gradeRLanguages.additional)
         : template === "grade-rr"
           ? gradeRRCategories
           : reportCategories;
@@ -809,6 +820,7 @@ export default function TeacherAssessmentsPage() {
             <p style={textStyle}>Use this evidence to inform your professional judgement. It does not automatically set a rating.</p>
             <div className="db-list-card"><strong>Attendance</strong><p style={textStyle}>{evidence.attendance.rate === null ? "No attendance captured for this period." : `${evidence.attendance.rate}% present · ${evidence.attendance.present} present · ${evidence.attendance.absent} absent`}</p></div>
             <div className="db-list-card"><strong>Completed class learning opportunities ({evidence.activities.length})</strong><p style={textStyle}>{[...new Set(evidence.activities.map((item) => item.developmental_area).filter(Boolean))].join(" · ") || "No completed activities recorded for this period."}</p></div>
+            <div className="db-list-card"><strong>Curriculum-linked learner evidence ({evidence.curriculum_evidence?.length || 0})</strong><p style={textStyle}>{[...new Set((evidence.curriculum_evidence || []).map((item) => item.curriculum_category).filter(Boolean))].join(" · ") || "No curriculum-linked outcomes recorded for this period."}</p></div>
             <div className="db-list-card"><strong>Support and interventions</strong><p style={textStyle}>{evidence.support_cases.length ? `${evidence.support_cases.length} support case(s) · ${evidence.support_updates.length} recorded follow-up(s)` : "No learner support cases recorded for this period."}</p>{evidence.support_updates.slice(0, 2).map((item, index) => <p key={index} style={textStyle}>{item.intervention || item.progress_note || item.support_status}{item.next_review_date ? ` · Review: ${item.next_review_date}` : ""}</p>)}</div>
             <div className="db-list-card"><strong>Strengths and exceptional progress</strong><p style={textStyle}>{evidence.strengths.length ? `${evidence.strengths.length} strength record(s) from classroom activities.` : "No exceptional-progress records for this period."}</p>{evidence.strengths.slice(0, 2).map((item, index) => <p key={index} style={textStyle}>{item.developmental_area}{item.observation ? ` · ${item.observation}` : ""}</p>)}</div>
             <div className="db-list-card"><strong>Daily observations and achievements</strong><p style={textStyle}>{evidence.summaries.length} summary observation(s) · {evidence.awards.length} award(s)</p></div>

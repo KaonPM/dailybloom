@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
   if (learnerResult.error || !learnerResult.data) return NextResponse.json({ error: learnerResult.error?.message || "Learner not found." }, { status: 404 });
   const learner = learnerResult.data;
-  const { data: attendanceRows, error: attendanceError } = await supabaseAdmin.from("attendance").select("status, attendance_date").eq("school_id", schoolId).eq("learner_name", learner.name || "");
+  const { data: attendanceRows, error: attendanceError } = await supabaseAdmin.from("attendance").select("status, attendance_date").eq("school_id", schoolId).eq("learner_id", learnerId);
   if (attendanceError) return NextResponse.json({ error: attendanceError.message }, { status: 500 });
   const failure = schoolResult.error || enrolmentResult.error || placementResult.error || documentsResult.error || requirementsResult.error;
   if (failure) return NextResponse.json({ error: failure.message }, { status: 500 });

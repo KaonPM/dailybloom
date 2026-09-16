@@ -74,7 +74,17 @@ export async function GET(request: Request) {
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (libraryResult.error || assignmentResult.error) return NextResponse.json({ error: libraryResult.error?.message || assignmentResult.error?.message }, { status: 400 });
-  return NextResponse.json({ homework: libraryResult.data || [], assignments: assignmentResult.data || [] });
+  const assignmentIds = (assignmentResult.data || []).map((item) => Number(item.id));
+  const [engagementResult, learnerResult] = await Promise.all([
+    assignmentIds.length ? supabaseAdmin.from("homework_engagement").select("status").eq("school_id", schoolId).in("homework_assignment_id", assignmentIds) : Promise.resolve({ data: [], error: null }),
+    classroomId ? supabaseAdmin.from("learners").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("classroom_id", classroomId).or("is_deleted.is.null,is_deleted.eq.false") : Promise.resolve({ count: 0, error: null }),
+  ]);
+  const engagement = { assigned: learnerResult.count || 0, opened: 0, completed: 0 };
+  for (const row of engagementResult.data || []) {
+    if (row.status === "completed") engagement.completed += 1;
+    else if (row.status === "opened") engagement.opened += 1;
+  }
+  return NextResponse.json({ homework: libraryResult.data || [], assignments: assignmentResult.data || [], engagement });
 }
 
 export async function POST(request: Request) {

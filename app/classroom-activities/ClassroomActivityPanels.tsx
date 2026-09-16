@@ -4,6 +4,8 @@ type DashboardStats = {
   weekPlanned: boolean;
   planned: number;
   completed: number;
+  awaitingCompletion: number;
+  evidenceRecords: number;
 };
 
 type ClassroomOverviewRow = {
@@ -13,6 +15,8 @@ type ClassroomOverviewRow = {
   weekReady: boolean;
   todayComplete: boolean;
   openSupport: number;
+  evidenceRecords: number;
+  curriculumAreas: number;
 };
 
 type CompletedActivity = {
@@ -33,6 +37,8 @@ export function ActivityDashboardStats({ stats }: { stats: DashboardStats }) {
       />
       <StatCard title="Planned" value={stats.planned} note="Teaching activities" />
       <StatCard title="Completed" value={stats.completed} note="Completed this week" />
+      <StatCard title="Awaiting Completion" value={stats.awaitingCompletion} note="Activities needing outcomes" />
+      <StatCard title="Evidence" value={stats.evidenceRecords} note="Learner outcomes this week" />
     </div>
   );
 }
@@ -61,8 +67,7 @@ export function ClassroomActivityOverview({
                   {row.todayComplete ? "Complete" : "Pending"}
                 </p>
                 <p style={smallHint}>
-                  {row.completed}/{row.planned} activities completed · {row.openSupport}{" "}
-                  open support cases
+                  {row.completed}/{row.planned} activities completed · {row.curriculumAreas} curriculum area(s) · {row.evidenceRecords} evidence record(s) · {row.openSupport} open support cases
                 </p>
               </div>
               <button

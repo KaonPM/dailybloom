@@ -49,6 +49,16 @@ export default function GradeRLearningPage() {
       authenticatedFetch(`/api/learning-resources?school_id=${context.schoolId}`),
       authenticatedFetch(`/api/grade-r-settings?school_id=${context.schoolId}`),
     ]);
+    const { data: currentGradeRPeriod } = await supabase
+      .from("report_periods")
+      .select("term_number")
+      .eq("school_id", context.schoolId)
+      .eq("status", "open")
+      .eq("report_template", "grade-r")
+      .not("term_number", "is", null)
+      .order("opening_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
     const [resourcesBody, settingsBody] = await Promise.all([resourcesResponse.json(), settingsResponse.json()]);
     if (!resourcesResponse.ok) { setMessage(resourcesBody.error || "DBE workbooks could not be loaded."); return; }
     const workbooks = (resourcesBody.workbook_resources || resourcesBody.resources || []) as Resource[];
@@ -60,6 +70,7 @@ export default function GradeRLearningPage() {
     setResources(workbooks);
     setCollections((resourcesBody.resources || []).filter((item: Resource) => item.resource_type !== "DBE Workbook"));
     setYear(defaultYear);
+    if (currentGradeRPeriod?.term_number) setCollectionTerm(Number(currentGradeRPeriod.term_number));
     setSchoolLanguages({ grade_r_home_language: settings.grade_r_home_language || "English", grade_r_first_additional_language: settings.grade_r_first_additional_language || "Afrikaans" });
   }, [params]);
   useEffect(() => { const timer = setTimeout(() => void load().catch(() => { setMessage("Workbooks could not be loaded. Please refresh and try again."); setHasGradeR(true); }), 0); return () => clearTimeout(timer); }, [load]);
@@ -106,6 +117,6 @@ export default function GradeRLearningPage() {
         {!visible.length ? <div className="db-card db-card-yellow" style={{ padding: 16 }}><strong>No verified workbook edition is available for this selection.</strong><p className="db-helper" style={{ marginBottom: 0 }}>The platform administrator must verify the official source or cached PDF before it is shown here.</p></div> : null}
       </div>
     </section>
-    {collections.length ? <details className="db-card" style={{ padding: 18 }}><summary style={{ cursor: "pointer", fontWeight: 800, fontSize: "1.25rem" }}>DailyBloom activity collections</summary><p className="db-helper">Choose the school term, then open a collection to see matching activities in the Grade R Activity Library. The term gives the recommended teaching focus; practitioners may reuse an activity in another term when it suits the learners.</p><label><strong>Term</strong><select className="db-input" style={{ maxWidth: 220 }} value={collectionTerm} onChange={(event) => setCollectionTerm(Number(event.target.value))}>{[1, 2, 3, 4].map((term) => <option key={term} value={term}>Term {term}</option>)}</select></label><div style={{ display: "grid", gap: 10, marginTop: 12 }}>{visibleCollections.map((item) => <article className="db-list-card" key={item.id}><strong>{item.learning_area || item.title}</strong><p className="db-helper" style={{ margin: "5px 0" }}>Term {item.term} · {item.topic || "Grade R activities"}</p><Link className="db-button-secondary" href={`/classroom-activities?school=${schoolId}&section=library&collection_term=${item.term}&collection_area=${encodeURIComponent(item.learning_area || "")}`}>Open matching activities</Link></article>)}</div></details> : null}
+    {collections.length ? <details className="db-card" style={{ padding: 18 }}><summary style={{ cursor: "pointer", fontWeight: 800, fontSize: "1.25rem" }}>DailyBloom activity collections</summary><p className="db-helper">The open Grade R report period selects the term automatically. Each collection now opens activities assigned to that term and suggested teaching week; practitioners may still browse the full library when needed.</p><label><strong>Term</strong><select className="db-input" style={{ maxWidth: 220 }} value={collectionTerm} onChange={(event) => setCollectionTerm(Number(event.target.value))}>{[1, 2, 3, 4].map((term) => <option key={term} value={term}>Term {term}</option>)}</select></label><div style={{ display: "grid", gap: 10, marginTop: 12 }}>{visibleCollections.map((item) => <article className="db-list-card" key={item.id}><strong>{item.learning_area || item.title}</strong><p className="db-helper" style={{ margin: "5px 0" }}>Term {item.term} · {item.topic || "Grade R activities"}</p><Link className="db-button-secondary" href={`/classroom-activities?school=${schoolId}&section=library&collection_term=${item.term}&collection_area=${encodeURIComponent(item.learning_area || "")}`}>View term activities</Link></article>)}</div></details> : null}
   </div>;
 }

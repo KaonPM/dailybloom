@@ -63,6 +63,7 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
     const [uploading, setUploading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [message, setMessage] = useState("");
+    const [engagement, setEngagement] = useState({ assigned: 0, opened: 0, completed: 0 });
 
     const request = useCallback(async (url: string, init?: RequestInit) => {
       const { data } = await supabase.auth.getSession();
@@ -106,6 +107,7 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
           ? assigned.slice(0, 1)
           : [emptySelection(defaultDueDate)]
       );
+      setEngagement(body.engagement || { assigned: 0, opened: 0, completed: 0 });
     }, [
       activityDate,
       classroomId,
@@ -341,7 +343,7 @@ export const HomeworkWorkspace = forwardRef<HomeworkWorkspaceHandle, Props>(
             {!isOpen ? (
               <p className="db-helper" style={{ margin: "4px 0 0" }}>
                 {hasSavedHomework()
-                  ? "Homework ready to be included when the week is saved."
+                  ? `${engagement.completed} completed · ${engagement.opened} opened · ${Math.max(0, engagement.assigned - engagement.opened - engagement.completed)} ${selection.due_date < new Date().toISOString().slice(0, 10) ? "overdue" : "not opened"}`
                   : "No homework allocated."}
               </p>
             ) : null}

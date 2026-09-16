@@ -56,6 +56,21 @@ export const gradeRCategories: ProgressReportCategory[] = [
   },
 ];
 
+export function gradeRCategoriesForLanguages(
+  homeLanguage = "English",
+  firstAdditionalLanguage = "Afrikaans"
+): ProgressReportCategory[] {
+  return gradeRCategories.map((category) => {
+    if (category.key === "english_home_language") {
+      return { ...category, label: `${homeLanguage} Home Language` };
+    }
+    if (category.key === "first_additional_language") {
+      return { ...category, label: `${firstAdditionalLanguage} First Additional Language` };
+    }
+    return category;
+  });
+}
+
 export const gradeRRatingScale: ProgressReportRatingLevel[] = [
   { value: 7, label: "Outstanding achievement (80-100%)" },
   { value: 6, label: "Meritorious achievement (70-79%)" },

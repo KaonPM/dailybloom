@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabaseAdmin
     .from("activity_library")
-    .select("id, school_id, developmental_area, theme, activity_name, description, created_by, archived")
+    .select("id, school_id, developmental_area, theme, activity_name, description, term_number, week_number, curriculum_category, curriculum_indicator_key, created_by, archived")
     .eq("school_id", schoolId)
     .eq("archived", false)
     .order("theme", { ascending: true })

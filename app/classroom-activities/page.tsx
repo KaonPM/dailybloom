@@ -71,6 +71,10 @@ type ActivityLibraryItem = {
   theme: string | null;
   activity_name: string;
   description: string | null;
+  term_number?: number | null;
+  week_number?: number | null;
+  curriculum_category?: string | null;
+  curriculum_indicator_key?: string | null;
   created_by?: string | null;
   archived?: boolean | null;
 };
@@ -160,6 +164,7 @@ export default function ClassroomActivitiesPage() {
   const [activityLibrary, setActivityLibrary] = useState<ActivityLibraryItem[]>([]);
   const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlan[]>([]);
   const [outcomes, setOutcomes] = useState<OutcomeRow[]>([]);
+  const [gradeRLanguages, setGradeRLanguages] = useState({ home: "English", additional: "Afrikaans" });
 
   const [activeClassroomId, setActiveClassroomId] = useState("");
   const [weekStart, setWeekStart] = useState(() =>
@@ -364,8 +369,10 @@ export default function ClassroomActivitiesPage() {
       weekPlanned: plannedOrClosedDates >= 5,
       planned,
       completed,
+      awaitingCompletion: Math.max(0, planned - completed),
+      evidenceRecords: outcomes.filter((item) => String(item.classroom_id) === String(activeClassroomId) && String(item.activity_date || "") >= weekStart && String(item.activity_date || "") <= weekEnd).length,
     };
-  }, [currentWeekPlans]);
+  }, [activeClassroomId, currentWeekPlans, outcomes, weekEnd, weekStart]);
 
   const classroomOverviewRows = useMemo(() => {
     return classrooms.map((classroom) => {
@@ -403,9 +410,11 @@ export default function ClassroomActivitiesPage() {
             .filter((plan) => plan.activity_date === todayDate)
             .every((plan) => plan.completed),
         openSupport,
+        evidenceRecords: outcomes.filter((outcome) => String(outcome.classroom_id) === String(classroom.id) && String(outcome.activity_date || "") >= weekStart && String(outcome.activity_date || "") <= weekEnd).length,
+        curriculumAreas: new Set(classPlans.map((plan) => plan.developmental_area).filter(Boolean)).size,
       };
     });
-  }, [classrooms, weeklyPlans, latestOutcomes, weekStart, weekEnd, todayDate]);
+  }, [classrooms, weeklyPlans, latestOutcomes, outcomes, weekStart, weekEnd, todayDate]);
 
   const supportSummaryRows = useMemo(() => {
     return latestOutcomes
@@ -477,16 +486,19 @@ export default function ClassroomActivitiesPage() {
         ? item.theme === libraryThemeFilter
         : true;
       const matchesArea = libraryAreaFilter
-        ? item.developmental_area === libraryAreaFilter
+        ? gradeRCollectionAreaMatches(libraryAreaFilter, item.developmental_area)
+        : true;
+      const matchesTerm = collectionTerm && activeClassroomIsGradeR
+        ? Number(item.term_number) === Number(collectionTerm)
         : true;
       const matchesSearch = search
         ? `${item.activity_name} ${item.theme || ""} ${item.description || ""} ${item.developmental_area}`
             .toLowerCase()
             .includes(search)
         : true;
-      return matchesTheme && matchesArea && matchesSearch;
+      return matchesTheme && matchesArea && matchesTerm && matchesSearch;
     });
-  }, [classroomActivityLibrary, libraryAreaFilter, librarySearch, libraryThemeFilter]);
+  }, [activeClassroomIsGradeR, classroomActivityLibrary, collectionTerm, libraryAreaFilter, librarySearch, libraryThemeFilter]);
   const visibleActivityLibrary = useMemo(() => filteredActivityLibrary.slice(0, libraryVisibleCount), [filteredActivityLibrary, libraryVisibleCount]);
   const visibleCompletedPlans = useMemo(() => completedPlans.slice(0, completedVisibleCount), [completedPlans, completedVisibleCount]);
 
@@ -555,6 +567,15 @@ export default function ClassroomActivitiesPage() {
     }
 
     setSchoolId(context.schoolId);
+
+    const languageResponse = await authenticatedFetch(`/api/grade-r-settings?school_id=${context.schoolId}`);
+    const languageBody = await languageResponse.json();
+    if (languageResponse.ok && languageBody.settings) {
+      setGradeRLanguages({
+        home: languageBody.settings.grade_r_home_language || "English",
+        additional: languageBody.settings.grade_r_first_additional_language || "Afrikaans",
+      });
+    }
 
     const classroomRows = await fetchClassrooms(context.schoolId, currentProfile);
     await fetchActivityLibrary(context.schoolId);
@@ -745,6 +766,7 @@ export default function ClassroomActivitiesPage() {
     }
 
     const rows = missingItems.map((item) => ({
+      ...(isGradeRActivityTheme(item.theme) ? gradeRActivityMetadata(item) : {}),
       school_id: currentSchoolId,
       developmental_area: item.developmental_area,
       theme: item.theme,
@@ -1464,6 +1486,7 @@ export default function ClassroomActivitiesPage() {
       const { error } = await supabase
         .from("activity_library")
         .update({
+          ...(activeClassroomIsGradeR ? gradeRActivityMetadata({ theme: scopedTheme, activity_name: libraryActivityName, description: libraryDescription, developmental_area: backgroundArea }, collectionTerm ? Number(collectionTerm) : undefined) : {}),
           developmental_area: backgroundArea,
           theme: scopedTheme,
           activity_name: libraryActivityName.trim(),
@@ -1480,6 +1503,7 @@ export default function ClassroomActivitiesPage() {
     } else {
       const { error } = await supabase.from("activity_library").insert([
         {
+          ...(activeClassroomIsGradeR ? gradeRActivityMetadata({ theme: scopedTheme, activity_name: libraryActivityName, description: libraryDescription, developmental_area: backgroundArea }, collectionTerm ? Number(collectionTerm) : undefined) : {}),
           school_id: schoolId,
           developmental_area: backgroundArea,
           theme: scopedTheme,
@@ -1627,7 +1651,7 @@ export default function ClassroomActivitiesPage() {
                       Week: {row.weekReady ? "Planned" : "Incomplete"} · Today: {row.todayComplete ? "Complete" : "Pending"}
                     </p>
                     <p style={smallHint}>
-                      {row.completed}/{row.planned} activities completed · {row.openSupport} open support cases
+                      {row.completed}/{row.planned} activities completed · {row.curriculumAreas} curriculum area(s) · {row.evidenceRecords} evidence record(s) · {row.openSupport} open support cases
                     </p>
                   </div>
                   <button
@@ -1710,7 +1734,7 @@ export default function ClassroomActivitiesPage() {
                         <select className="db-input" value={row.theme} onChange={(e) => updatePlannerRow(index, { theme: e.target.value })}>
                           <option value="">Select theme</option>
                           {plannerThemes().map((themeItem) => (
-                            <option key={themeItem} value={themeItem}>{themeItem === "Grade R: DBE Workbook" ? `${themeItem} (${activitiesForTheme(themeItem).length} saved page sets)` : themeItem}</option>
+                            <option key={themeItem} value={themeItem}>{themeItem === "Grade R: DBE Workbook" ? `${themeItem} (${activitiesForTheme(themeItem).length} saved page sets)` : displayGradeRTheme(themeItem, gradeRLanguages.home)}</option>
                           ))}
                         </select>
 
@@ -1840,7 +1864,7 @@ export default function ClassroomActivitiesPage() {
                 }}
               >
                 <strong>{plan.activity_name}</strong>
-                <span style={smallHint}>{plan.theme}</span>
+                <span style={smallHint}>{displayGradeRTheme(plan.theme, gradeRLanguages.home)}</span>
                 <span style={smallHint}>{plan.completed ? "Completed" : "Not completed yet"}</span>
               </button>
             ))}
@@ -1862,7 +1886,7 @@ export default function ClassroomActivitiesPage() {
                 <div key={plan.id} style={todayPlanButton}>
                   <strong>{plan.activity_name}</strong>
                   <span style={smallHint}>{formatDisplayDate(plan.activity_date)}</span>
-                  <span style={smallHint}>{plan.theme}</span>
+                  <span style={smallHint}>{displayGradeRTheme(plan.theme, gradeRLanguages.home)}</span>
                   <span style={smallHint}>{plan.completed ? "Completed" : "Not completed yet"}</span>
                 </div>
               ))}
@@ -1898,7 +1922,7 @@ export default function ClassroomActivitiesPage() {
                 >
                   <strong>{plan.activity_name}</strong>
                   <span style={smallHint}>{formatDisplayDate(plan.activity_date)}</span>
-                  <span style={smallHint}>{plan.theme}</span>
+                  <span style={smallHint}>{displayGradeRTheme(plan.theme, gradeRLanguages.home)}</span>
                 </button>
               ))}
             </div>
@@ -2135,7 +2159,7 @@ export default function ClassroomActivitiesPage() {
             >
               <option value="">All themes</option>
               {allThemes().map((theme) => (
-                <option key={theme} value={theme}>{theme}</option>
+                <option key={theme} value={theme}>{displayGradeRTheme(theme, gradeRLanguages.home)}</option>
               ))}
             </select>
             <select
@@ -2203,7 +2227,8 @@ export default function ClassroomActivitiesPage() {
             {visibleActivityLibrary.map((item) => (
               <div key={item.id} className="db-list-card">
                 <strong>{item.activity_name}</strong>
-                <p style={textStyle}>{item.theme || "No theme"}</p>
+                <p style={textStyle}>{displayGradeRTheme(item.theme || "No theme", gradeRLanguages.home)}</p>
+                {item.term_number ? <p style={smallHint}>Term {item.term_number}{item.week_number ? ` · Suggested week ${item.week_number}` : ""}</p> : null}
                 <p style={smallHint}>{item.description}</p>
 
                 <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
@@ -2264,6 +2289,37 @@ function weekdaysFromMonday(mondayDate: string) {
     label,
     date: addDays(mondayDate, index),
   }));
+}
+
+function displayGradeRTheme(theme: string, homeLanguage: string) {
+  return theme.replace(/^Grade R:\s*English Home Language$/i, `Grade R: ${homeLanguage} Home Language`);
+}
+
+function gradeRCollectionAreaMatches(collectionArea: string, developmentalArea: string) {
+  if (collectionArea === "Life Skills") {
+    return ["Life Skills", "Ring Time", "Creative Art", "Fine Motor", "Gross Motor", "Music & Movement", "Outdoor Play", "Sensory Development"].includes(developmentalArea);
+  }
+  return collectionArea === developmentalArea;
+}
+
+function gradeRActivityMetadata(item: Pick<DefaultActivityLibraryItem, "theme" | "activity_name" | "description" | "developmental_area">, requestedTerm?: number) {
+  const fingerprint = `${item.theme}|${item.activity_name}`.split("").reduce((sum, character) => sum + character.charCodeAt(0), 0);
+  const termNumber = requestedTerm && requestedTerm >= 1 && requestedTerm <= 4 ? requestedTerm : (fingerprint % 4) + 1;
+  const category = item.developmental_area === "Mathematics"
+    ? "mathematics"
+    : ["Language", "Story Time", "Music & Movement"].includes(item.developmental_area)
+      ? "english_home_language"
+      : "life_skills";
+  const indicator = item.developmental_area === "Mathematics"
+    ? "counts_and_recognises_numbers"
+    : ["Language", "Story Time", "Music & Movement"].includes(item.developmental_area)
+      ? "listens_and_responds"
+      : ["Gross Motor", "Outdoor Play"].includes(item.developmental_area)
+        ? "gross_motor_control"
+        : ["Creative Art", "Fine Motor"].includes(item.developmental_area)
+          ? "creative_expression"
+          : "personal_social_wellbeing";
+  return { term_number: termNumber, week_number: (Math.floor(fingerprint / 4) % 10) + 1, curriculum_category: category, curriculum_indicator_key: indicator };
 }
 
 function inferDevelopmentalArea(theme: string, activityName: string, description: string) {

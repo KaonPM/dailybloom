@@ -15,6 +15,7 @@ type Assignment = {
   instruction_note?: string | null;
   homework_library: { title?: string; file_name?: string | null } | null;
   workbook_resources?: Array<{ resource_id: number; page_from?: number | null; page_to?: number | null; selected_pages?: number[]; title: string }>;
+  engagement?: { status?: "assigned" | "opened" | "completed"; opened_at?: string | null; completed_at?: string | null };
 };
 
 export default function ParentHomeworkPage() {
@@ -64,6 +65,28 @@ export default function ParentHomeworkPage() {
     window.open(body.url, "_blank", "noopener,noreferrer");
   }
 
+  async function recordStatus(assignmentId: number, status: "opened" | "completed") {
+    if (!learner?.id || !learner.school_id) return;
+    const response = await fetch("/api/parent-homework", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ learner_id: learner.id, school_id: learner.school_id, assignment_id: assignmentId, status }),
+    });
+    if (!response.ok) {
+      const body = await response.json();
+      setMessage(body.error || "Homework status could not be updated.");
+      return;
+    }
+    setAssignments((current) => current.map((item) => item.id === assignmentId ? { ...item, engagement: { ...item.engagement, status, opened_at: item.engagement?.opened_at || new Date().toISOString(), completed_at: status === "completed" ? new Date().toISOString() : item.engagement?.completed_at } } : item));
+  }
+
+  function engagementLabel(assignment: Assignment) {
+    if (assignment.engagement?.status === "completed") return "Completed";
+    if (assignment.engagement?.status === "opened") return "Opened";
+    if ((assignment.due_date || assignment.activity_date) < new Date().toISOString().slice(0, 10)) return "Overdue";
+    return "Not opened";
+  }
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <ParentPageActions />
@@ -85,6 +108,7 @@ export default function ParentHomeworkPage() {
           <strong>{assignment.homework_library?.title || "Homework instructions"}</strong>
           <p className="db-helper">For {assignment.activity_date}</p>
           <p className="db-helper"><strong>Due:</strong> {assignment.due_date || assignment.activity_date}</p>
+          <p className="db-helper"><strong>Status:</strong> {engagementLabel(assignment)}</p>
           {assignment.instruction_note ? <p><strong>Instructions:</strong> {assignment.instruction_note}</p> : null}
           {assignment.homework_id ? (
             <button type="button" className="db-button-primary" onClick={() => void openHomework(assignment.id)}>
@@ -103,8 +127,9 @@ export default function ParentHomeworkPage() {
               resource_id: String(resource.resource_id),
               pages: selectedPages.join(","),
             });
-            return <div key={resource.resource_id} className="db-list-card" style={{ marginTop: 10 }}><strong>{resource.title}</strong><p className="db-helper" style={{ margin: "4px 0 10px" }}>{pages} · Department of Basic Education</p><Link className="db-button-secondary" href={`/parent/workbook?${readerParams}`}>Open selected workbook pages</Link></div>;
+            return <div key={resource.resource_id} className="db-list-card" style={{ marginTop: 10 }}><strong>{resource.title}</strong><p className="db-helper" style={{ margin: "4px 0 10px" }}>{pages} · Department of Basic Education</p><Link className="db-button-secondary" href={`/parent/workbook?${readerParams}`} onClick={() => void recordStatus(assignment.id, "opened")}>Open selected workbook pages</Link></div>;
           })}
+          {assignment.engagement?.status !== "completed" ? <button type="button" className="db-button-secondary" style={{ marginTop: 10 }} onClick={() => void recordStatus(assignment.id, "completed")}>Mark as completed</button> : <p className="db-helper">Thank you. The practitioner can see that this homework was completed.</p>}
         </div>
       ))}
       {message ? <p role="status" className="db-helper">{message}</p> : null}

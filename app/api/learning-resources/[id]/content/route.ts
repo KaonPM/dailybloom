@@ -35,6 +35,17 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     if (!link || Number(assignment?.school_id) !== schoolId || Number(assignment?.classroom_id) !== Number(learner?.classroom_id)) {
       return NextResponse.json({ error: "Workbook access is not allowed." }, { status: 403 });
     }
+    const timestamp = new Date().toISOString();
+    const { data: engagement } = await supabaseAdmin.from("homework_engagement").select("status, opened_at, completed_at").eq("homework_assignment_id", assignmentId).eq("learner_id", learnerId).maybeSingle();
+    await supabaseAdmin.from("homework_engagement").upsert({
+      school_id: schoolId,
+      homework_assignment_id: assignmentId,
+      learner_id: learnerId,
+      status: engagement?.status === "completed" ? "completed" : "opened",
+      opened_at: engagement?.opened_at || timestamp,
+      completed_at: engagement?.completed_at || null,
+      updated_at: timestamp,
+    }, { onConflict: "homework_assignment_id,learner_id" });
   } else {
     const authorization = await requireStaffPermission(request, PERMISSIONS.ACTIVITIES_MANAGE, schoolId);
     if (!authorization.ok) return authorization.response;

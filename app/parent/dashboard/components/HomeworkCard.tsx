@@ -10,6 +10,7 @@ type HomeworkRow = {
   instruction_note?: string | null;
   homework_library?: { title?: string | null } | { title?: string | null }[] | null;
   workbook_resources?: Array<{ resource_id: number; page_from?: number | null; page_to?: number | null; title: string }>;
+  engagement?: { status?: string | null };
 };
 
 type Props = {
@@ -92,6 +93,7 @@ export default function HomeworkCard({
               <strong>{homeworkTitle(row)}</strong>
               <span style={noteStyle}>For {row.activity_date}</span>
               <span style={noteStyle}>Due {row.due_date || row.activity_date}</span>
+              <span style={noteStyle}>Status: {row.engagement?.status === "completed" ? "Completed" : row.engagement?.status === "opened" ? "Opened" : (row.due_date || row.activity_date) < new Date().toISOString().slice(0, 10) ? "Overdue" : "Not opened"}</span>
               <span style={noteStyle}>
                 {row.instruction_note || "Open homework for the practitioner's instructions."}
               </span>

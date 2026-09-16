@@ -27,7 +27,7 @@ import type {
   ProgressReportRatingLevel as RatingLevel,
   ProgressReportType as ReportType,
 } from "../lib/progress-report-types";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { authenticatedFetch } from "../lib/authenticated-fetch";
@@ -104,6 +104,7 @@ type LearnerRow = {
 
 type PeriodRow = {
   id: number;
+  term_number?: number | null;
   title?: string | null;
   period_title?: string | null;
   term?: string | null;
@@ -147,6 +148,7 @@ type GradeRLanguageSettings = {
 
 export default function ProgressReportsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [schoolId, setSchoolId] = useState<number | null>(null);
@@ -183,6 +185,7 @@ export default function ProgressReportsPage() {
 
   const [newPeriodTitle, setNewPeriodTitle] = useState("");
   const [newPeriodType, setNewPeriodType] = useState("quarterly");
+  const [newTermNumber, setNewTermNumber] = useState("");
   const [newOpeningDate, setNewOpeningDate] = useState("");
   const [newClosingDate, setNewClosingDate] = useState("");
   const [newReportTemplate, setNewReportTemplate] = useState<
@@ -363,13 +366,27 @@ export default function ProgressReportsPage() {
     const classroomRows = await fetchClassrooms(currentSchoolId, profile);
     await fetchTeachers(currentSchoolId);
     const learnerRows = await fetchLearners(currentSchoolId, classroomRows, profile);
-    await fetchPeriods(currentSchoolId);
+    const periodRows = await fetchPeriods(currentSchoolId);
     const permittedLearnerIds = profile.role === "teacher"
       ? learnerRows.map((learner) => String(learner.id))
       : undefined;
     await fetchAllAssessments(currentSchoolId, permittedLearnerIds);
     await fetchGradeRTermResults(currentSchoolId, permittedLearnerIds);
     await fetchGeneratedReports(currentSchoolId, permittedLearnerIds);
+
+    const requestedClassroomId = searchParams.get("classroom") || "";
+    const requestedLearnerId = searchParams.get("learner") || "";
+    const requestedPeriodId = searchParams.get("period") || "";
+    if (classroomRows.some((item) => String(item.id) === requestedClassroomId)) setSelectedClassroomId(requestedClassroomId);
+    if (learnerRows.some((item) => String(item.id) === requestedLearnerId)) setSelectedLearnerId(requestedLearnerId);
+    const requestedPeriod = periodRows.find((item) => String(item.id) === requestedPeriodId);
+    if (requestedPeriod) {
+      setSelectedPeriodId(requestedPeriodId);
+      setReportType(normalizeReportType(requestedPeriod.report_template));
+      setOpeningDate(requestedPeriod.opening_date || "");
+      setClosingDate(requestedPeriod.closing_date || "");
+      setPeriodDefaultApplied(true);
+    }
 
     if (profile.role === "teacher") {
       await fetchTeacherReportSummaries(currentSchoolId, profile.id);
@@ -568,10 +585,12 @@ export default function ProgressReportsPage() {
 
     if (error) {
       alert(error.message);
-      return;
+      return [] as PeriodRow[];
     }
 
-    setPeriods(data || []);
+    const nextPeriods = (data || []) as PeriodRow[];
+    setPeriods(nextPeriods);
+    return nextPeriods;
   }
 
   async function fetchAllAssessments(
@@ -698,12 +717,18 @@ export default function ProgressReportsPage() {
       return;
     }
 
+    if (newReportTemplate === "grade-r" && !newTermNumber) {
+      alert("Choose the Grade R school term for this report period.");
+      return;
+    }
+
     const { error } = await supabase.from("report_periods").insert([
       {
         school_id: schoolId,
         title: newPeriodTitle.trim(),
         report_type: newPeriodType,
         report_template: newReportTemplate,
+        term_number: newTermNumber ? Number(newTermNumber) : null,
         opening_date: newOpeningDate || null,
         closing_date: newClosingDate || null,
         status: "open",
@@ -717,6 +742,7 @@ export default function ProgressReportsPage() {
 
     setNewPeriodTitle("");
     setNewPeriodType("quarterly");
+    setNewTermNumber("");
     setNewReportTemplate("developmental");
     setNewOpeningDate("");
     setNewClosingDate("");
@@ -1319,6 +1345,7 @@ export default function ProgressReportsPage() {
   }
 
   function getCoverTermLabel(period: PeriodRow | null | undefined) {
+    if (period?.term_number) return `TERM ${period.term_number}`;
     const title = String(period?.title || "").trim();
     const termMatch = title.match(/term\s*\d+/i);
 
@@ -2185,7 +2212,7 @@ export default function ProgressReportsPage() {
   ] as const;
 
   function getGradeRTermNumber(period?: PeriodRow) {
-    return Number(
+    return Number(period?.term_number ||
       String(period?.title || period?.term || "").match(/term\s*([1-4])/i)?.[1] || 0
     );
   }
@@ -2253,17 +2280,11 @@ export default function ProgressReportsPage() {
       const marks = gradeRFinalisationMarks[subject.resultKey] || { sba: "", exam: "" };
       const calculatedSba = getAutoGradeRSbaMark(subject.assessmentCategory);
       const sba = Number(marks.sba !== "" ? marks.sba : stored?.sba_mark ?? calculatedSba);
-      const examMark = Number(marks.exam !== "" ? marks.exam : stored?.exam_mark);
-      const exam = termNumber === 4 ? examMark : null;
 
       if (!Number.isFinite(sba) || sba < 0 || sba > 100) {
         throw new Error(`Enter an SBA mark from 0 to 100 for ${subject.label}.`);
       }
-      if (termNumber === 4 && (!Number.isFinite(examMark) || examMark < 0 || examMark > 100)) {
-        throw new Error(`Enter an exam mark from 0 to 100 for ${subject.label}.`);
-      }
-
-      const finalMark = termNumber === 4 ? sba * 0.4 + examMark * 0.6 : sba;
+      const finalMark = sba;
       return {
         school_id: schoolId,
         classroom_id: Number(selectedClassroomId),
@@ -2272,7 +2293,7 @@ export default function ProgressReportsPage() {
         subject_key: subject.resultKey,
         term_number: termNumber,
         sba_mark: sba,
-        exam_mark: exam,
+        exam_mark: null,
         final_mark: finalMark,
         final_code: dbCodeFromPercent(finalMark),
         subject_label_snapshot: subject.label,
@@ -2496,6 +2517,14 @@ export default function ProgressReportsPage() {
               <option value="biannual">Semester Report</option>
               <option value="annual">Annual Report</option>
             </select>
+
+            <label style={labelText}>
+              School term
+              <select className="db-input" value={newTermNumber} onChange={(event) => setNewTermNumber(event.target.value)} required={newReportTemplate === "grade-r"}>
+                <option value="">Not term-specific</option>
+                {[1, 2, 3, 4].map((term) => <option key={term} value={term}>Term {term}</option>)}
+              </select>
+            </label>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
               <label style={labelText}>
@@ -3127,15 +3156,14 @@ export default function ProgressReportsPage() {
               <div className="db-card db-card-blue no-print" style={{ padding: "20px", marginBottom: "20px" }}>
                 <h3 style={{ ...sectionTitle, fontSize: "18px" }}>Grade R Term Result Confirmation</h3>
                 <p style={textStyle}>
-                  The practitioner checklist remains unchanged. Confirm the official marks below: Terms 1–3 use SBA; Term 4 calculates the final mark as 40% SBA and 60% examination.
+                  Confirm the continuous-assessment mark for each subject. Grade R uses evidence gathered through activities and observation throughout every term.
                 </p>
                 <div style={{ overflowX: "auto" }}>
                   <table className="grade-r-finalisation-table">
                     <thead>
                       <tr>
                         <th>Subject</th>
-                        <th>SBA mark (%)</th>
-                        {getGradeRTermNumber(selectedPeriod) === 4 ? <th>Exam mark (%)</th> : null}
+                        <th>Continuous assessment (%)</th>
                         <th>Final mark / DBE code</th>
                       </tr>
                     </thead>
@@ -3145,13 +3173,8 @@ export default function ProgressReportsPage() {
                         const edited = gradeRFinalisationMarks[subject.resultKey];
                         const autoSba = getAutoGradeRSbaMark(subject.assessmentCategory);
                         const sbaValue = edited?.sba ?? (stored?.sba_mark != null ? String(stored.sba_mark) : autoSba?.toFixed(1) || "");
-                        const examValue = edited?.exam ?? (stored?.exam_mark != null ? String(stored.exam_mark) : "");
                         const sba = Number(sbaValue);
-                        const exam = Number(examValue);
-                        const isTermFour = getGradeRTermNumber(selectedPeriod) === 4;
-                        const finalMark = Number.isFinite(sba) && (!isTermFour || Number.isFinite(exam))
-                          ? isTermFour ? sba * 0.4 + exam * 0.6 : sba
-                          : null;
+                        const finalMark = Number.isFinite(sba) ? sba : null;
                         return (
                           <tr key={subject.resultKey}>
                             <td>{subject.label}</td>
@@ -3165,26 +3188,10 @@ export default function ProgressReportsPage() {
                                 value={sbaValue}
                                 onChange={(event) => setGradeRFinalisationMarks((current) => ({
                                   ...current,
-                                  [subject.resultKey]: { sba: event.target.value, exam: current[subject.resultKey]?.exam ?? examValue },
-                                }))}
-                              />
-                            </td>
-                            {isTermFour ? (
-                              <td>
-                                <input
-                                  className="db-input"
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  step="0.1"
-                                  value={examValue}
-                                  onChange={(event) => setGradeRFinalisationMarks((current) => ({
-                                    ...current,
-                                    [subject.resultKey]: { sba: current[subject.resultKey]?.sba ?? sbaValue, exam: event.target.value },
+                                    [subject.resultKey]: { sba: event.target.value, exam: "" },
                                   }))}
                                 />
                               </td>
-                            ) : null}
                             <td>{finalMark == null ? "Enter marks" : `${finalMark.toFixed(1)}% · Code ${dbCodeFromPercent(finalMark)}`}</td>
                           </tr>
                         );
@@ -3703,7 +3710,7 @@ function GradeRDBEReport({ learner, classroom, school, teacherName, periods, ass
     ["life_skills", "life_skills", "Life Skills"],
     ["first_additional_language", "afrikaans_first_additional_language", `${languageSettings.grade_r_first_additional_language} First Additional Language`],
   ] as const;
-  const termNumber = (period?: PeriodRow) => Number(String(period?.title || period?.term || "").match(/term\s*([1-4])/i)?.[1] || 0);
+  const termNumber = (period?: PeriodRow) => Number(period?.term_number || String(period?.title || period?.term || "").match(/term\s*([1-4])/i)?.[1] || 0);
   const terms = [1, 2, 3, 4].map((term) => ({ term, periodIds: new Set(periods.filter((period) => termNumber(period) === term && normalizeReportType(period.report_template || period.report_type) === "grade-r").map((period) => Number(period.id))) }));
   const dbCode = (average: number | null) => average === null ? "" : average >= 5.5 ? "4" : average >= 4 ? "3" : average >= 2.5 ? "2" : "1";
   const band = (code: string) => ({ "4": "70-100%", "3": "50-69%", "2": "35-49%", "1": "1-34%" }[code] || "");
@@ -3721,7 +3728,7 @@ function GradeRDBEReport({ learner, classroom, school, teacherName, periods, ass
     <header className="grade-r-dbe-header"><div><strong>{school?.school_name || "School Name"}</strong><br />{school?.address || school?.physical_address || ""}<br />{school?.emis_number ? `EMIS: ${school.emis_number}` : ""}</div><div><strong>GRADE R LEARNER REPORT</strong><br />{currentPeriod.title || currentPeriod.term || "Term report"}</div></header>
     <div className="grade-r-dbe-meta"><span><b>Learner:</b> {learner.legal_name || learner.name}</span><span><b>Admission No:</b> {learner.admission_number || "Not assigned"}</span><span><b>Date of Birth:</b> {learner.date_of_birth || "Not added"}</span><span><b>Class:</b> {classroom.classroom_name}</span><span><b>Educator:</b> {teacherName}</span></div>
     <p className="grade-r-dbe-key"><b>DBE Foundation Phase codes:</b> 4 Outstanding/Excellent (70-100%) · 3 Satisfactory (50-69%) · 2 Partial (35-49%) · 1 Not achieved (1-34%)</p>
-    <table className="grade-r-dbe-table"><thead><tr><th>Subject</th>{terms.map(({ term }) => <th key={term}>Term {term}<br /><small>{term === 4 ? "SBA 40% · Exam 60%" : "Code / %"}</small></th>)}<th>Final average</th></tr></thead><tbody>{subjectRows.map(([assessmentCategory, resultKey, label]) => { const finalResults = terms.map(({ periodIds }) => result(assessmentCategory, resultKey, periodIds)).filter((item) => item.code); const savedMarks = finalResults.map((item) => item.mark).filter((mark): mark is number => mark != null); const finalMark = savedMarks.length ? savedMarks.reduce((sum, mark) => sum + mark, 0) / savedMarks.length : null; const final = finalMark == null ? finalResults.at(-1) : { code: finalMark >= 70 ? "4" : finalMark >= 50 ? "3" : finalMark >= 35 ? "2" : "1", band: `${finalMark.toFixed(1)}%` }; return <tr key={resultKey}><td>{savedLabel(resultKey, label)}</td>{terms.map(({ term, periodIds }) => { const item = result(assessmentCategory, resultKey, periodIds); return <td key={term}>{item.code ? <>{item.code}<br /><small>{item.band}</small>{term === 4 && item.sba != null && item.exam != null ? <><br /><small>SBA {item.sba.toFixed(1)} · Exam {item.exam.toFixed(1)}</small></> : null}</> : "—"}</td>; })}<td>{final?.code ? <>{final.code}<br /><small>{final.band}</small></> : "—"}</td></tr>; })}</tbody></table>
+    <table className="grade-r-dbe-table"><thead><tr><th>Subject</th>{terms.map(({ term }) => <th key={term}>Term {term}<br /><small>Continuous assessment</small></th>)}<th>Final average</th></tr></thead><tbody>{subjectRows.map(([assessmentCategory, resultKey, label]) => { const finalResults = terms.map(({ periodIds }) => result(assessmentCategory, resultKey, periodIds)).filter((item) => item.code); const savedMarks = finalResults.map((item) => item.mark).filter((mark): mark is number => mark != null); const finalMark = savedMarks.length ? savedMarks.reduce((sum, mark) => sum + mark, 0) / savedMarks.length : null; const final = finalMark == null ? finalResults.at(-1) : { code: finalMark >= 70 ? "4" : finalMark >= 50 ? "3" : finalMark >= 35 ? "2" : "1", band: `${finalMark.toFixed(1)}%` }; return <tr key={resultKey}><td>{savedLabel(resultKey, label)}</td>{terms.map(({ term, periodIds }) => { const item = result(assessmentCategory, resultKey, periodIds); return <td key={term}>{item.code ? <>{item.code}<br /><small>{item.band}</small></> : "—"}</td>; })}<td>{final?.code ? <>{final.code}<br /><small>{final.band}</small></> : "—"}</td></tr>; })}</tbody></table>
     <div className="grade-r-dbe-detail"><p><b>Days absent:</b> {daysAbsent ?? "Calculating..."}</p><p><b>Extra-mural participation:</b> ______________________________</p><p><b>General remarks:</b> {remarks || "No practitioner remarks added."}</p><p><b>Principal comments:</b> {principalComment || "______________________________"}</p></div>
     <footer className="grade-r-dbe-signatures"><span>Class Educator: ____________________</span><span>Principal: ____________________</span><span>Parent: ____________________</span></footer>
   </div>;

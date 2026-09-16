@@ -1405,16 +1405,16 @@ export default function LearnerProfilePage() {
                   ? `Current support note: ${learner.support_needs}`
                   : "Review developmental reports, evidence, interventions and follow-ups."
               }
-              action="Open support register"
+              action="Open learner progress"
               onClick={() =>
                 router.push(
-                  schoolId ? `/support-register?school=${schoolId}` : "/support-register"
+                  `/teacher-assessments?classroom=${encodeURIComponent(String(learner.classroom_id || ""))}&learner=${encodeURIComponent(learner.id)}`
                 )
               }
               secondaryAction="Open reports"
               onSecondaryClick={() =>
                 router.push(
-                  schoolId ? `/progress-reports?school=${schoolId}` : "/progress-reports"
+                  `/progress-reports?classroom=${encodeURIComponent(String(learner.classroom_id || ""))}&learner=${encodeURIComponent(learner.id)}`
                 )
               }
             />

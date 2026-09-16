@@ -57,7 +57,12 @@ export async function POST(request: Request) {
       learning_focus: String(body.learning_focus || "Life Skills").slice(0, 80),
       activity_day: body.activity_date, due_day: body.due_date || body.activity_date, actor: authorization.staff.userId,
     });
-    if (error) return NextResponse.json({ error: error.code === "23505" ? "Homework already exists for this date. Link these pages to the existing assignment below." : "The workbook assignment could not be saved. Check the date and selected workbook." }, { status: 400 });
+    if (error) {
+      const conflictMessage = body.entity_type === "homework"
+        ? "Homework already exists for this date. Link these pages to the existing assignment below."
+        : "That classroom activity already exists. Link these pages to the existing activity below.";
+      return NextResponse.json({ error: error.code === "23505" ? conflictMessage : "The workbook assignment could not be saved. Check the date and selected workbook." }, { status: 400 });
+    }
     await writeSecurityAudit(authorization.staff, "learning_resource.assignment_created", { entity_type: body.entity_type, entity_id: data, resource_id: resourceId, selected_pages: selectedPages });
     return NextResponse.json({ success: true, id: data });
   }

@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 
 import { PERMISSIONS } from "@/app/lib/permissions";
 import { isGradeRClassroom } from "@/app/lib/classroom-programme";
+import { ageOnJanuaryFirst, classroomAcceptsLearnerAge } from "@/app/lib/annual-classroom-rollover";
 import { learnerDocumentNamesMatch, STANDARD_LEARNER_DOCUMENTS } from "@/app/lib/learner-documents";
+import { archiveGradeRLearners } from "@/app/lib/server-annual-classroom-rollover";
 import { requireStaffPermission, writeSecurityAudit } from "@/app/lib/server-authorization";
 import { supabaseAdmin } from "@/app/lib/supabase-admin";
 
@@ -67,23 +69,6 @@ function relatedClassroomName(value: unknown) {
     : "";
 }
 
-function ageOnNewYear(dateOfBirth: string | null, schoolYear: number) {
-  const match = typeof dateOfBirth === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOfBirth) : null;
-  if (!match) return null;
-  const birthYear = Number(match[1]);
-  const birthMonth = Number(match[2]);
-  const birthDay = Number(match[3]);
-  if (!Number.isInteger(birthYear) || birthMonth < 1 || birthMonth > 12 || birthDay < 1 || birthDay > 31) return null;
-  return schoolYear - birthYear - (birthMonth > 1 || (birthMonth === 1 && birthDay > 1) ? 1 : 0);
-}
-
-function classroomAcceptsAge(ageGroups: unknown, age: number) {
-  return rows<string>(Array.isArray(ageGroups) ? ageGroups : []).some((group) => {
-    const match = /^(\d+)\s*-\s*(\d+)\s*years?$/i.exec(group.trim());
-    return Boolean(match && age >= Number(match[1]) && age <= Number(match[2]));
-  });
-}
-
 async function sendParentPush(args: { externalIds: string[]; heading: string; message: string; url: string }) {
   const appId = process.env.ONESIGNAL_APP_ID || process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
   const restApiKey = process.env.ONESIGNAL_REST_API_KEY;
@@ -113,7 +98,7 @@ export async function GET(request: Request) {
   const access = await requireStaffPermission(request, PERMISSIONS.SCHOOL_MANAGE, schoolId);
   if (!access.ok) return access.response;
 
-  const [schoolResult, feeResult, campaignsResult, formsResult, classroomsResult, approvedEnrolmentsResult, recurringAddonsResult] = await Promise.all([
+  const [schoolResult, feeResult, campaignsResult, formsResult, classroomsResult, approvedEnrolmentsResult, recurringAddonsResult, automaticRolloverResult] = await Promise.all([
     supabaseAdmin.from("schools").select("id, school_name").eq("id", schoolId).maybeSingle(),
     supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("school_id", schoolId).eq("fee_code", "registration").maybeSingle(),
     supabaseAdmin.from("school_reenrolment_campaigns").select("id, school_year, source_form_id, form_snapshot, registration_fee_type_id, registration_fee_amount, response_deadline, status, rollover_applied_at, created_at").eq("school_id", schoolId).order("school_year", { ascending: false }),
@@ -121,8 +106,9 @@ export async function GET(request: Request) {
     supabaseAdmin.from("classrooms").select("id, classroom_name, age_groups").eq("school_id", schoolId).order("classroom_name"),
     supabaseAdmin.from("school_enrolment_enquiries").select("id,learner_id,enquiry_reference,parent_name,academic_year,submitted_data").eq("school_id",schoolId).eq("status","approved").not("learner_id","is",null).order("academic_year").order("created_at"),
     supabaseAdmin.from("school_fee_types").select("id, fee_name, amount").eq("school_id", schoolId).eq("fee_category", "recurring_addon").eq("is_active", true).order("fee_name"),
+    supabaseAdmin.from("school_automatic_rollovers").select("academic_year, allocated_count, archived_grade_r_count, awaiting_manual_count, applied_at").eq("school_id", schoolId).order("academic_year", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  const failure = schoolResult.error || feeResult.error || campaignsResult.error || formsResult.error || classroomsResult.error || approvedEnrolmentsResult.error || recurringAddonsResult.error;
+  const failure = schoolResult.error || feeResult.error || campaignsResult.error || formsResult.error || classroomsResult.error || approvedEnrolmentsResult.error || recurringAddonsResult.error || automaticRolloverResult.error;
   if (failure) return NextResponse.json({ error: failure.message }, { status: 500 });
 
   const campaign = rows(campaignsResult.data).find((candidate) => candidate.status === "open") || null;
@@ -190,6 +176,7 @@ export async function GET(request: Request) {
     enrolment_forms: rows(formsResult.data),
     classrooms: rows(classroomsResult.data),
     recurring_addons: rows(recurringAddonsResult.data),
+    automatic_rollover: automaticRolloverResult.data || null,
     reenrolments,
     approved_enrolments: approvedRows.map((row)=>({...row,learner:approvedLearners.get(row.learner_id)||null,placement:placements.get(`${row.learner_id}:${row.academic_year}`)||null})),
   });
@@ -213,16 +200,18 @@ export async function POST(request: Request) {
     if (!Number.isInteger(schoolYear) || schoolYear < 2020 || schoolYear > 2100) {
       return NextResponse.json({ error: "Choose a valid school year." }, { status: 400 });
     }
-    const [openCampaignResult, feeResult, formResult] = await Promise.all([
+    const [openCampaignResult, feeResult, formResult, automaticRolloverResult] = await Promise.all([
       supabaseAdmin.from("school_reenrolment_campaigns").select("id").eq("school_id", schoolId).eq("status", "open").maybeSingle(),
       supabaseAdmin.from("school_fee_types").select("id, amount").eq("school_id", schoolId).eq("fee_code", "registration").maybeSingle(),
       sourceFormId
         ? supabaseAdmin.from("school_enrolment_forms").select("id, form_name, form_type, instructions").eq("id", sourceFormId).eq("school_id", schoolId).eq("is_active", true).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
+      supabaseAdmin.from("school_automatic_rollovers").select("id").eq("school_id", schoolId).eq("academic_year", schoolYear).maybeSingle(),
     ]);
-    if (openCampaignResult.error || feeResult.error || formResult.error) return NextResponse.json({ error: openCampaignResult.error?.message || feeResult.error?.message || formResult.error?.message }, { status: 500 });
+    if (openCampaignResult.error || feeResult.error || formResult.error || automaticRolloverResult.error) return NextResponse.json({ error: openCampaignResult.error?.message || feeResult.error?.message || formResult.error?.message || automaticRolloverResult.error?.message }, { status: 500 });
     if (sourceFormId && !formResult.data) return NextResponse.json({ error: "Choose an active enrolment form for this school." }, { status: 400 });
     if (openCampaignResult.data) return NextResponse.json({ error: "Close the current re-enrolment campaign before creating another one." }, { status: 409 });
+    if (automaticRolloverResult.data) return NextResponse.json({ error: `The automatic ${schoolYear} classroom rollover has already been completed for this school.` }, { status: 409 });
     if (applyRegistrationFee && !feeResult.data) return NextResponse.json({ error: "Set a Registration Fee in School Fee Setup first, or continue without one." }, { status: 400 });
 
     const rpcResult = await supabaseAdmin.rpc("create_school_reenrolment_campaign", {
@@ -561,8 +550,8 @@ export async function POST(request: Request) {
     const plans: Array<{ reenrolmentId: string; learnerId: string; classroomId: number }> = [];
     const sortedRecords = [...records].sort((left, right) => String(learnersById.get(left.learner_id)?.date_of_birth || "9999-12-31").localeCompare(String(learnersById.get(right.learner_id)?.date_of_birth || "9999-12-31")) || left.learner_id.localeCompare(right.learner_id));
     for (const record of sortedRecords) {
-      const age = ageOnNewYear(learnersById.get(record.learner_id)?.date_of_birth || null, campaignResult.data.school_year);
-      const matches = age === null ? [] : classrooms.filter((classroom) => classroomAcceptsAge(classroom.age_groups, age));
+      const age = ageOnJanuaryFirst(learnersById.get(record.learner_id)?.date_of_birth || null, campaignResult.data.school_year);
+      const matches = age === null ? [] : classrooms.filter((classroom) => classroomAcceptsLearnerAge(classroom.age_groups, age));
       if (!matches.length) continue;
       const classroom = matches.sort((left, right) => (classroomLoad.get(left.id) || 0) - (classroomLoad.get(right.id) || 0) || left.id - right.id)[0];
       classroomLoad.set(classroom.id, (classroomLoad.get(classroom.id) || 0) + 1);
@@ -597,9 +586,13 @@ export async function POST(request: Request) {
     if (!campaignResult.data) return NextResponse.json({ error: "Re-enrolment campaign not found." }, { status: 404 });
     const targetStart = new Date(`${campaignResult.data.school_year}-01-01T00:00:00+02:00`);
     if (new Date() < targetStart) return NextResponse.json({ error: `Classroom moves can only be applied from 1 January ${campaignResult.data.school_year}.` }, { status: 400 });
-    const recordsResult = await supabaseAdmin.from("learner_reenrolments").select("id, learner_id, next_classroom_id").eq("campaign_id", campaignId).eq("status", "approved").is("classroom_applied_at", null).not("next_classroom_id", "is", null);
-    if (recordsResult.error) return NextResponse.json({ error: recordsResult.error.message }, { status: 500 });
+    const [recordsResult, schoolLeaversResult] = await Promise.all([
+      supabaseAdmin.from("learner_reenrolments").select("id, learner_id, next_classroom_id").eq("campaign_id", campaignId).eq("status", "approved").is("classroom_applied_at", null).not("next_classroom_id", "is", null),
+      supabaseAdmin.from("learner_reenrolments").select("id, learner_id").eq("campaign_id", campaignId).eq("status", "school_leaver").is("classroom_applied_at", null),
+    ]);
+    if (recordsResult.error || schoolLeaversResult.error) return NextResponse.json({ error: recordsResult.error?.message || schoolLeaversResult.error?.message }, { status: 500 });
     const records = rows<{ id: string; learner_id: string; next_classroom_id: number }>(recordsResult.data);
+    const schoolLeavers = rows<{ id: string; learner_id: string }>(schoolLeaversResult.data);
     const classIds = [...new Set(records.map((record) => record.next_classroom_id))];
     const classesResult = classIds.length ? await supabaseAdmin.from("classrooms").select("id, classroom_name").eq("school_id", schoolId).in("id", classIds) : { data: [], error: null };
     if (classesResult.error) return NextResponse.json({ error: classesResult.error.message }, { status: 500 });
@@ -608,13 +601,29 @@ export async function POST(request: Request) {
     for (const record of records) {
       const learnerUpdate = await supabaseAdmin.from("learners").update({ classroom_id: record.next_classroom_id, class: classNames.get(record.next_classroom_id) || null }).eq("id", record.learner_id).eq("school_id", schoolId);
       if (learnerUpdate.error) return NextResponse.json({ error: learnerUpdate.error.message }, { status: 500 });
+      const placementUpdate = await supabaseAdmin.from("learner_placements").update({ placement_status: "current", start_date: `${campaignResult.data.school_year}-01-01`, end_date: null, updated_at: appliedAt }).eq("learner_id", record.learner_id).eq("school_id", schoolId).eq("academic_year", campaignResult.data.school_year);
+      if (placementUpdate.error) return NextResponse.json({ error: placementUpdate.error.message }, { status: 500 });
       const recordUpdate = await supabaseAdmin.from("learner_reenrolments").update({ classroom_applied_at: appliedAt, updated_at: appliedAt }).eq("id", record.id).is("classroom_applied_at", null);
       if (recordUpdate.error) return NextResponse.json({ error: recordUpdate.error.message }, { status: 500 });
     }
+    try {
+      await archiveGradeRLearners(schoolId, schoolLeavers.map((record) => record.learner_id), campaignResult.data.school_year, appliedAt);
+    } catch (archiveError) {
+      return NextResponse.json({ error: archiveError instanceof Error ? archiveError.message : "Grade R learners could not be archived." }, { status: 500 });
+    }
+    if (schoolLeavers.length) {
+      const schoolLeaverUpdate = await supabaseAdmin.from("learner_reenrolments").update({ classroom_applied_at: appliedAt, updated_at: appliedAt }).in("id", schoolLeavers.map((record) => record.id)).is("classroom_applied_at", null);
+      if (schoolLeaverUpdate.error) return NextResponse.json({ error: schoolLeaverUpdate.error.message }, { status: 500 });
+    }
+    const rolloverLearnerIds = [...records.map((record) => record.learner_id), ...schoolLeavers.map((record) => record.learner_id)];
+    if (rolloverLearnerIds.length) {
+      const previousPlacementUpdate = await supabaseAdmin.from("learner_placements").update({ placement_status: "completed", end_date: `${campaignResult.data.school_year - 1}-12-31`, updated_at: appliedAt }).eq("school_id", schoolId).lt("academic_year", campaignResult.data.school_year).in("learner_id", rolloverLearnerIds).neq("placement_status", "completed");
+      if (previousPlacementUpdate.error) return NextResponse.json({ error: previousPlacementUpdate.error.message }, { status: 500 });
+    }
     const campaignUpdate = await supabaseAdmin.from("school_reenrolment_campaigns").update({ status: "closed", rollover_applied_at: appliedAt, updated_at: appliedAt }).eq("id", campaignId);
     if (campaignUpdate.error) return NextResponse.json({ error: campaignUpdate.error.message }, { status: 500 });
-    await writeSecurityAudit(access.staff, "reenrolment_classroom_rollover_applied", { campaign_id: campaignId, learner_count: records.length });
-    return NextResponse.json({ success: true, applied: records.length, message: `${records.length} approved learner classroom move${records.length === 1 ? " was" : "s were"} applied.` });
+    await writeSecurityAudit(access.staff, "reenrolment_classroom_rollover_applied", { campaign_id: campaignId, learner_count: records.length, archived_grade_r_count: schoolLeavers.length });
+    return NextResponse.json({ success: true, applied: records.length, archived_grade_r: schoolLeavers.length, message: `${records.length} approved learner classroom move${records.length === 1 ? " was" : "s were"} applied. ${schoolLeavers.length} Grade R learner${schoolLeavers.length === 1 ? " was" : "s were"} archived.` });
   }
 
   return NextResponse.json({ error: "Unsupported re-enrolment action." }, { status: 400 });

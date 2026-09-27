@@ -102,6 +102,9 @@ test("scheduled notification APIs fail closed without cron authorization", async
 
   const smsReminders = await request.get("/api/sms/process-reminders");
   expect(smsReminders.status()).toBe(401);
+
+  const annualRollover = await request.get("/api/cron/annual-classroom-rollover");
+  expect(annualRollover.status()).toBe(401);
 });
 
 test("health endpoint is available without exposing configuration", async ({ request }) => {

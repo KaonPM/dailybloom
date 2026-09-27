@@ -69,6 +69,7 @@ type ReenrolmentData = {
   classrooms: Array<{ id: number; classroom_name: string }>;
   recurring_addons: Array<{ id: number; fee_name: string; amount: number }>;
   approved_enrolments: Array<{id:string;learner_id:string;enquiry_reference:string;parent_name:string;academic_year:number;submitted_data?:Record<string,unknown>|null;learner?:{name?:string|null;legal_name?:string|null;guardian_name?:string|null;class?:string|null;classroom_id?:number|null}|null;placement?:{classroom_id:number|null;classrooms?:{classroom_name?:string}|Array<{classroom_name?:string}>}|null}>;
+  automatic_rollover: { academic_year: number; allocated_count: number; archived_grade_r_count: number; awaiting_manual_count: number; applied_at: string } | null;
 };
 
 const money = (value: number | null | undefined) =>
@@ -291,6 +292,16 @@ export default function ReEnrolmentsPage() {
       {loading ? <section className="db-card"><p className="db-helper">Loading re-enrolment information…</p></section> : null}
 
       {!loading && data && !campaign ? (
+        <>
+        {data.automatic_rollover ? (
+          <section className="db-card db-card-green" style={{ padding: 18 }}>
+            <p className="db-eyebrow">Automatic annual rollover</p>
+            <h2 style={{ margin: "4px 0 8px" }}>{data.automatic_rollover.academic_year} rollover completed</h2>
+            <p className="db-helper" style={{ margin: 0 }}>
+              {data.automatic_rollover.allocated_count} learner{data.automatic_rollover.allocated_count === 1 ? "" : "s"} allocated by age · {data.automatic_rollover.archived_grade_r_count} Grade R learner{data.automatic_rollover.archived_grade_r_count === 1 ? "" : "s"} archived{data.automatic_rollover.awaiting_manual_count ? ` · ${data.automatic_rollover.awaiting_manual_count} awaiting manual classroom allocation` : ""}.
+            </p>
+          </section>
+        ) : null}
         <section className="db-card" style={{ padding: 24 }}>
           <h2 style={{ marginTop: 0 }}>Open a re-enrolment campaign</h2>
           <p className="db-helper" style={{ maxWidth: 820 }}>
@@ -325,6 +336,7 @@ export default function ReEnrolmentsPage() {
             </div>
           </form>
         </section>
+        </>
       ) : null}
 
       {!loading && data && campaign ? (

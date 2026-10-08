@@ -373,22 +373,6 @@ export default function LandingPage() {
               <Link href="/data-deletion" style={footerLink}>Data Deletion</Link>
             </p>
             <p style={footerText}>© 2026 DailyBloom. All rights reserved.</p>
-            <p style={footerText}>
-              DailyBloom is a preschool management and parent engagement platform for learner records,
-              attendance, classroom activities, daily summaries, announcements and parent portal communication.
-            </p>
-            <p style={footerText}>
-              DailyBloom helps schools communicate with parents or guardians through the secure
-              parent portal, supported by approved SMS, push-notification and email workflows.
-            </p>
-            <p style={footerText}>
-              Schools remain responsible for obtaining parent or guardian consent and for ensuring that
-              learner, parent and guardian information submitted to DailyBloom is accurate and lawfully collected.
-            </p>
-            <p style={footerText}>
-              DailyBloom does not replace professional legal, financial, educational, medical, accounting
-              or regulatory advice.
-            </p>
           </div>
         </footer>
       </section>

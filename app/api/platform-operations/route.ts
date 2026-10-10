@@ -32,6 +32,32 @@ async function getSchoolBillingContext(schoolId: number) {
     .maybeSingle();
   if (error) throw error;
   if (!school) throw new Error("School was not found.");
+
+  // Schools approved from a signup request may have their contact number in
+  // the onboarding record, rather than the master school record. Use that
+  // verified onboarding number for billing and repair the master record so
+  // later billing actions use the same contact.
+  if (!String(school.contact_number || "").trim()) {
+    const { data: signup, error: signupError } = await supabaseAdmin
+      .from("school_signup_requests")
+      .select("school_phone")
+      .eq("school_id", schoolId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (signupError) throw signupError;
+
+    const onboardingPhone = String(signup?.school_phone || "").trim();
+    if (onboardingPhone) {
+      const { error: updateError } = await supabaseAdmin
+        .from("schools")
+        .update({ contact_number: onboardingPhone })
+        .eq("id", schoolId);
+      if (updateError) throw updateError;
+      return { ...school, contact_number: onboardingPhone };
+    }
+  }
+
   return school;
 }
 

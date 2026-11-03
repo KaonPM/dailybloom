@@ -486,7 +486,8 @@ export default function ProgressReportsPage() {
 
     if (error) {
       const { data: rpcData, error: rpcError } = await supabase.rpc(
-        "get_school_teachers_for_attendance"
+        "get_school_teachers_for_attendance",
+        { p_school_id: currentSchoolId }
       );
 
       if (rpcError) {
@@ -520,7 +521,8 @@ export default function ProgressReportsPage() {
     }
 
     const { data: rpcData, error: rpcError } = await supabase.rpc(
-      "get_school_teachers_for_attendance"
+      "get_school_teachers_for_attendance",
+      { p_school_id: currentSchoolId }
     );
 
     if (rpcError) {

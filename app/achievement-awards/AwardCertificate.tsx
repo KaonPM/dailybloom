@@ -1,5 +1,7 @@
 "use client";
 
+import type { CSSProperties } from "react";
+
 type AwardCertificateProps = {
   school?: {
     school_name?: string | null;
@@ -34,53 +36,45 @@ export function AwardCertificate({
   return (
     <div
       className="award-certificate-document"
-      style={{
-        position: "relative",
-        minHeight: "690px",
-        border: `24px solid ${primary}`,
-        background: "#fff",
-        overflow: "hidden",
-        textAlign: "center",
-        boxSizing: "border-box",
-      }}
+      style={{ "--award-primary": primary, "--award-secondary": secondary } as CSSProperties}
     >
-      <div style={{ position: "absolute", inset: 22, border: "1px solid rgba(212,175,55,.75)" }} />
-      <div style={{ position: "absolute", left: 120, top: 0, width: 170, height: "100%", background: secondary }} />
-      <div style={{ position: "absolute", right: -54, top: -34, width: 260, height: 88, background: secondary, transform: "rotate(45deg)" }} />
-      <div style={{ position: "absolute", right: -54, bottom: -34, width: 260, height: 88, background: secondary, transform: "rotate(-45deg)" }} />
+      <div className="award-certificate-inner-border" />
+      <div className="award-certificate-ribbon" />
+      <div className="award-certificate-corner award-certificate-corner-top" />
+      <div className="award-certificate-corner award-certificate-corner-bottom" />
 
       {school?.logo_url ? (
         <img
           src={school.logo_url}
           alt="School logo"
-          style={{ position: "absolute", top: "50%", left: "58%", width: 310, height: 310, objectFit: "contain", opacity: 0.12, transform: "translate(-50%, -50%)" }}
+          className="award-certificate-logo"
         />
       ) : null}
 
       {preview ? (
-        <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", transform: "rotate(-24deg)", fontSize: 76, fontWeight: 900, color: "rgba(79,111,189,.10)", zIndex: 2, pointerEvents: "none" }}>
+        <div className="award-certificate-draft">
           DRAFT PREVIEW
         </div>
       ) : null}
 
-      <div style={{ position: "relative", zIndex: 1, padding: "74px 70px 44px 330px", minHeight: 642, display: "flex", flexDirection: "column", justifyContent: "space-between", boxSizing: "border-box" }}>
+      <div className="award-certificate-content">
         <div>
-          <h1 style={{ margin: 0, fontSize: 66, color: "#D4AF37", letterSpacing: 2, fontWeight: 900, lineHeight: 1 }}>CERTIFICATE</h1>
-          <h2 style={{ margin: "10px auto 54px", fontSize: 34, color: "#111", fontWeight: 400, letterSpacing: 1 }}>{awardSubtitle}</h2>
-          <p style={{ margin: "0 0 28px", fontSize: 18, color: "#111", letterSpacing: 4, fontWeight: 700 }}>PROUDLY PRESENTED TO</p>
-          <h2 style={{ margin: "0 auto 38px", fontSize: learnerSize, color: "#D4AF37", fontWeight: 400, fontFamily: "Georgia, serif", fontStyle: "italic", maxWidth: 820, lineHeight: 1.05, overflowWrap: "break-word" }}>{learnerName || "Learner Name"}</h2>
-          <p style={{ margin: "0 auto", maxWidth: 620, fontSize: 18, color: "#111", fontWeight: 800, fontStyle: "italic", lineHeight: 1.35 }}>
+          <h1 className="award-certificate-title">CERTIFICATE</h1>
+          <h2 className="award-certificate-subtitle">{awardSubtitle}</h2>
+          <p className="award-certificate-presented">PROUDLY PRESENTED TO</p>
+          <h2 className="award-certificate-learner" style={{ "--award-learner-size": `${learnerSize}px` } as CSSProperties}>{learnerName || "Learner Name"}</h2>
+          <p className="award-certificate-reason">
             FOR {(awardReason || "AWARD REASON").toUpperCase()}
             <br />YEAR {academicYear}
           </p>
-          <p style={{ marginTop: 34, fontSize: 16, color: "#333" }}>{school?.school_name || "School Name"}</p>
+          <p className="award-certificate-school">{school?.school_name || "School Name"}</p>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 90, alignItems: "end" }}>
+        <div className="award-certificate-signatures">
           {[{ name: teacherName, label: "CLASS PRACTITIONER" }, { name: principalName, label: "PRINCIPAL" }].map((signature) => (
             <div key={signature.label}>
-              <p style={{ borderBottom: "2px solid #D4AF37", paddingBottom: 4, margin: "0 auto 8px", maxWidth: 220, color: "#111", fontSize: 16, fontWeight: 700 }}>{signature.name || "Not recorded"}</p>
-              <p style={{ margin: 0, fontSize: 14, color: "#111" }}>{signature.label}</p>
+              <p className="award-certificate-signature-name">{signature.name || "Not recorded"}</p>
+              <p className="award-certificate-signature-label">{signature.label}</p>
             </div>
           ))}
         </div>

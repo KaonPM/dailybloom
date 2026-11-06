@@ -362,27 +362,35 @@ export default function AchievementAwardsPage() {
   async function downloadCertificate(item: AwardRow) {
     if (item.workflow_status !== "issued") return;
     setSelectedCertificate(item);
-    requestAnimationFrame(async () => {
-      const element = document.querySelector(".award-certificate-document") as HTMLElement | null;
-      if (!element) return;
-      try {
-        element.classList.add("award-certificate-export");
-        const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: "#fff" });
-        const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-        pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 297, 210);
-        const { error } = await supabase.rpc("record_achievement_certificate_reprint", {
-          p_award_id: item.id,
-          p_action: "download",
-        });
-        if (error) throw error;
-        pdf.save(`${learnerName(item.learner_id).replace(/\s+/g, "_")}_Certificate.pdf`);
-      } catch (error) {
-        console.error(error);
-        alert("Certificate download failed.");
-      } finally {
-        element.classList.remove("award-certificate-export");
-      }
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
     });
+    const element = document.querySelector(".award-certificate-document") as HTMLElement | null;
+    if (!element) {
+      alert("Certificate preview could not be prepared. Please try again.");
+      return;
+    }
+
+    try {
+      element.classList.add("award-certificate-export");
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: "#fff" });
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 297, 210);
+      pdf.save(`${learnerName(item.learner_id).replace(/\s+/g, "_")}_Certificate.pdf`);
+
+      const { error } = await supabase.rpc("record_achievement_certificate_reprint", {
+        p_award_id: item.id,
+        p_action: "download",
+      });
+      if (error) console.error("Could not record certificate download:", error);
+    } catch (error) {
+      console.error("Certificate download failed:", error);
+      alert("Certificate download failed. Please try again.");
+    } finally {
+      element.classList.remove("award-certificate-export");
+    }
   }
 
   function learnerName(id: Identifier) {

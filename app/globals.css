@@ -676,7 +676,7 @@ textarea {
   background: #fff;
   text-align: center;
 }
-.award-certificate-inner-border { position: absolute; inset: 22px; border: 1px solid color-mix(in srgb, var(--award-secondary) 75%, transparent); }
+.award-certificate-inner-border { position: absolute; inset: 22px; border: 1px solid var(--award-secondary); opacity: .75; }
 .award-certificate-ribbon { position: absolute; top: 0; bottom: 0; left: 120px; width: 170px; background: var(--award-secondary); }
 .award-certificate-corner { position: absolute; right: -54px; width: 260px; height: 88px; background: var(--award-secondary); }
 .award-certificate-corner-top { top: -34px; transform: rotate(45deg); }

@@ -64,10 +64,12 @@ export function AwardCertificate({
   preview = false,
 }: AwardCertificateProps) {
   const previewShellRef = useRef<HTMLDivElement>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
+  const [learnerSize, setLearnerSize] = useState(112);
   const primary = school?.primary_color || "#4f6fbd";
   const secondary = school?.secondary_color || "#D4AF37";
-  const learnerSize = learnerName.length > 60 ? 80 : learnerName.length > 40 ? 120 : 180;
+  const displayLearnerName = learnerName || "Learner Name";
 
   useEffect(() => {
     const shell = previewShellRef.current;
@@ -84,6 +86,33 @@ export function AwardCertificate({
 
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    const content = mainContentRef.current;
+    if (!content) return;
+    let cancelled = false;
+
+    void content.ownerDocument.fonts.ready.then(() => {
+      if (cancelled) return;
+
+      const context = content.ownerDocument.createElement("canvas").getContext("2d");
+      if (!context) {
+        console.error("Could not measure the certificate learner name.");
+        return;
+      }
+
+      const maxFontSize = 112;
+      context.font = `${maxFontSize}px "Great Vibes", "Brush Script MT", cursive`;
+      const textWidth = context.measureText(displayLearnerName).width;
+      const availableWidth = Math.max(1, content.clientWidth - 48);
+      const fittedSize = Math.max(40, Math.min(maxFontSize, maxFontSize * availableWidth / Math.max(textWidth, 1)));
+      setLearnerSize(fittedSize);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [displayLearnerName]);
 
   return (
     <div
@@ -120,11 +149,11 @@ export function AwardCertificate({
           ) : null}
 
           <div className="award-certificate-content">
-            <div className="award-certificate-main-content">
+            <div ref={mainContentRef} className="award-certificate-main-content">
               <h1 className="award-certificate-title" style={{ fontSize: "104px" }}>CERTIFICATE</h1>
               <h2 className="award-certificate-subtitle">{awardSubtitle}</h2>
               <p className="award-certificate-presented">PROUDLY PRESENTED TO</p>
-              <h2 className="award-certificate-learner" style={{ fontSize: `${learnerSize}px` }}>{learnerName || "Learner Name"}</h2>
+              <h2 className="award-certificate-learner" style={{ fontSize: `${learnerSize}px` }}>{displayLearnerName}</h2>
               <p className="award-certificate-reason">
                 FOR {(awardReason || "AWARD REASON").toUpperCase()}
                 <br />YEAR {academicYear}

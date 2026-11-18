@@ -42,6 +42,16 @@ export function AwardCertificate({
       <div className="award-certificate-ribbon" />
       <div className="award-certificate-corner award-certificate-corner-top" />
       <div className="award-certificate-corner award-certificate-corner-bottom" />
+      <div className="award-certificate-badge" aria-label="Best Award">
+        <div className="award-certificate-badge-seal">
+          <span className="award-certificate-badge-stars" aria-hidden="true">★★★★★</span>
+          <strong>BEST</strong>
+          <span>AWARD</span>
+          <span className="award-certificate-badge-stars" aria-hidden="true">★★★★★</span>
+        </div>
+        <div className="award-certificate-badge-ribbon award-certificate-badge-ribbon-left" />
+        <div className="award-certificate-badge-ribbon award-certificate-badge-ribbon-right" />
+      </div>
 
       {school?.logo_url ? (
         <img

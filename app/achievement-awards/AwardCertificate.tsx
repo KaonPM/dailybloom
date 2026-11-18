@@ -31,7 +31,7 @@ export function AwardCertificate({
 }: AwardCertificateProps) {
   const primary = school?.primary_color || "#4f6fbd";
   const secondary = school?.secondary_color || "#D4AF37";
-  const learnerSize = learnerName.length > 60 ? 40 : learnerName.length > 40 ? 48 : 58;
+  const learnerSize = learnerName.length > 60 ? 52 : learnerName.length > 40 ? 66 : 88;
 
   return (
     <div
@@ -43,7 +43,9 @@ export function AwardCertificate({
       <div className="award-certificate-corner award-certificate-corner-top" />
       <div className="award-certificate-corner award-certificate-corner-bottom" />
       <div className="award-certificate-badge" aria-label="Best Award">
+        <div className="award-certificate-badge-rosette" aria-hidden="true" />
         <div className="award-certificate-badge-seal">
+          <div className="award-certificate-badge-inner-ring" aria-hidden="true" />
           <span className="award-certificate-badge-stars" aria-hidden="true">★★★★★</span>
           <strong>BEST</strong>
           <span>AWARD</span>
@@ -77,7 +79,7 @@ export function AwardCertificate({
             FOR {(awardReason || "AWARD REASON").toUpperCase()}
             <br />YEAR {academicYear}
           </p>
-          <p className="award-certificate-school">{school?.school_name || "School Name"}</p>
+          {!school?.logo_url ? <p className="award-certificate-school">{school?.school_name || "School Name"}</p> : null}
         </div>
 
         <div className="award-certificate-signatures">

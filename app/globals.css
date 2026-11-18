@@ -697,6 +697,17 @@ textarea {
 .award-certificate-signature-name { max-width: 220px; margin: 0 auto 8px; padding-bottom: 4px; border-bottom: 2px solid var(--award-gold); color: #111; font-size: 16px; font-weight: 700; }
 .award-certificate-signature-label { margin: 0; color: #111; font-size: 14px; }
 
+/* html2canvas captures the document at this fixed A4 landscape canvas before
+   jsPDF places it on the page. This keeps the exported PDF proportional to
+   the approved certificate artwork rather than the width of the preview card. */
+.award-certificate-document.award-certificate-export {
+  width: 1122px;
+  min-width: 1122px;
+  height: 794px;
+  min-height: 794px;
+  aspect-ratio: auto;
+}
+
 @media (max-width: 560px) {
   .award-certificate-document:not(.award-certificate-export) { min-height: 610px; aspect-ratio: auto; border-width: 14px; }
   .award-certificate-document:not(.award-certificate-export) .award-certificate-inner-border { inset: 10px; }

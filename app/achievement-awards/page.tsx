@@ -390,10 +390,21 @@ export default function AchievementAwardsPage() {
           .serializeToString(badgeSvg)
           .replace(/var\(--award-primary\)/g, colors.getPropertyValue("--award-primary").trim())
           .replace(/var\(--award-gold\)/g, colors.getPropertyValue("--award-gold").trim());
-        const badgeImage = new Image();
-        badgeImage.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serializedBadge)}`;
-        await badgeImage.decode();
-        badgeDataUrl = badgeImage.src;
+        const sourceImage = new Image();
+        sourceImage.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serializedBadge)}`;
+        await sourceImage.decode();
+
+        const badgeCanvas = document.createElement("canvas");
+        const badgeWidth = badge.viewBox.baseVal.width;
+        const badgeHeight = badge.viewBox.baseVal.height;
+        badgeCanvas.width = badgeWidth;
+        badgeCanvas.height = badgeHeight;
+        const context = badgeCanvas.getContext("2d");
+        if (!context) {
+          throw new Error("Certificate badge could not be prepared for export.");
+        }
+        context.drawImage(sourceImage, 0, 0, badgeWidth, badgeHeight);
+        badgeDataUrl = badgeCanvas.toDataURL("image/png");
       }
 
       const canvas = await html2canvas(element, {

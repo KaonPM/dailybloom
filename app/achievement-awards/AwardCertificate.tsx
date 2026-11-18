@@ -1,6 +1,10 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+
+const CERTIFICATE_WIDTH = 1122;
+const CERTIFICATE_HEIGHT = 794;
 
 type AwardCertificateProps = {
   school?: {
@@ -59,55 +63,84 @@ export function AwardCertificate({
   principalName,
   preview = false,
 }: AwardCertificateProps) {
+  const previewShellRef = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale] = useState(1);
   const primary = school?.primary_color || "#4f6fbd";
   const secondary = school?.secondary_color || "#D4AF37";
   const learnerSize = learnerName.length > 60 ? 80 : learnerName.length > 40 ? 120 : 180;
 
+  useEffect(() => {
+    const shell = previewShellRef.current;
+    if (!shell) return;
+
+    const updateScale = () => {
+      const nextScale = Math.min(1, shell.clientWidth / CERTIFICATE_WIDTH);
+      setPreviewScale((currentScale) => Math.abs(currentScale - nextScale) < 0.001 ? currentScale : nextScale);
+    };
+
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(shell);
+    updateScale();
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div
-      className="award-certificate-document"
-      style={{ "--award-primary": primary, "--award-secondary": secondary } as CSSProperties}
+      ref={previewShellRef}
+      className="award-certificate-preview-shell"
+      style={{ height: `${CERTIFICATE_HEIGHT * previewScale}px` }}
     >
-      <div className="award-certificate-inner-border" />
-      <div className="award-certificate-ribbon" />
-      <div className="award-certificate-corner award-certificate-corner-top" />
-      <div className="award-certificate-corner award-certificate-corner-bottom" />
-      <AwardBadge />
+      <div
+        className="award-certificate-preview-canvas"
+        style={{ transform: `scale(${previewScale})` }}
+      >
+        <div
+          className="award-certificate-document"
+          style={{ "--award-primary": primary, "--award-secondary": secondary } as CSSProperties}
+        >
+          <div className="award-certificate-inner-border" />
+          <div className="award-certificate-ribbon" />
+          <div className="award-certificate-corner award-certificate-corner-top" />
+          <div className="award-certificate-corner award-certificate-corner-bottom" />
+          <AwardBadge />
 
-      {school?.logo_url ? (
-        <img
-          src={school.logo_url}
-          alt="School logo"
-          className="award-certificate-logo"
-        />
-      ) : null}
+          {school?.logo_url ? (
+            <img
+              src={school.logo_url}
+              alt="School logo"
+              className="award-certificate-logo"
+            />
+          ) : null}
 
-      {preview ? (
-        <div className="award-certificate-draft">
-          DRAFT PREVIEW
-        </div>
-      ) : null}
-
-      <div className="award-certificate-content">
-        <div className="award-certificate-main-content">
-          <h1 className="award-certificate-title" style={{ fontSize: "104px" }}>CERTIFICATE</h1>
-          <h2 className="award-certificate-subtitle">{awardSubtitle}</h2>
-          <p className="award-certificate-presented">PROUDLY PRESENTED TO</p>
-          <h2 className="award-certificate-learner" style={{ fontSize: `${learnerSize}px` }}>{learnerName || "Learner Name"}</h2>
-          <p className="award-certificate-reason">
-            FOR {(awardReason || "AWARD REASON").toUpperCase()}
-            <br />YEAR {academicYear}
-          </p>
-          {!school?.logo_url ? <p className="award-certificate-school">{school?.school_name || "School Name"}</p> : null}
-        </div>
-
-        <div className="award-certificate-signatures">
-          {[{ name: teacherName, label: "CLASS PRACTITIONER" }, { name: principalName, label: "PRINCIPAL" }].map((signature) => (
-            <div key={signature.label}>
-              <p className="award-certificate-signature-name">{signature.name || "Not recorded"}</p>
-              <p className="award-certificate-signature-label">{signature.label}</p>
+          {preview ? (
+            <div className="award-certificate-draft">
+              DRAFT PREVIEW
             </div>
-          ))}
+          ) : null}
+
+          <div className="award-certificate-content">
+            <div className="award-certificate-main-content">
+              <h1 className="award-certificate-title" style={{ fontSize: "104px" }}>CERTIFICATE</h1>
+              <h2 className="award-certificate-subtitle">{awardSubtitle}</h2>
+              <p className="award-certificate-presented">PROUDLY PRESENTED TO</p>
+              <h2 className="award-certificate-learner" style={{ fontSize: `${learnerSize}px` }}>{learnerName || "Learner Name"}</h2>
+              <p className="award-certificate-reason">
+                FOR {(awardReason || "AWARD REASON").toUpperCase()}
+                <br />YEAR {academicYear}
+              </p>
+              {!school?.logo_url ? <p className="award-certificate-school">{school?.school_name || "School Name"}</p> : null}
+            </div>
+
+            <div className="award-certificate-signatures">
+              {[{ name: teacherName, label: "CLASS PRACTITIONER" }, { name: principalName, label: "PRINCIPAL" }].map((signature) => (
+                <div key={signature.label}>
+                  <p className="award-certificate-signature-name">{signature.name || "Not recorded"}</p>
+                  <p className="award-certificate-signature-label">{signature.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

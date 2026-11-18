@@ -161,11 +161,11 @@ textarea {
 .db-card-purple { border-top: 6px solid #bba7f6; }
 
 /* Keep operational screens calm and compact; printable documents use their own styles. */
-.db-main-content h1:not(.db-page-title) {
+.db-main-content h1:not(.db-page-title):not(.award-certificate-title) {
   font-size: 22px !important;
 }
 
-.db-main-content h2:not(.db-page-title):not(.db-stat-value) {
+.db-main-content h2:not(.db-page-title):not(.db-stat-value):not(.award-certificate-subtitle):not(.award-certificate-learner) {
   font-size: 18px !important;
 }
 
@@ -675,11 +675,21 @@ textarea {
   height: 794px;
   min-height: 794px;
   aspect-ratio: auto;
-  margin: 0 auto;
+  margin: 0;
   overflow: hidden;
   border: 24px solid var(--award-primary);
   background: #fff;
   text-align: center;
+}
+.award-certificate-preview-shell {
+  width: 100%;
+  max-width: 1122px;
+  margin: 0 auto;
+}
+.award-certificate-preview-canvas {
+  width: 1122px;
+  height: 794px;
+  transform-origin: top left;
 }
 .award-certificate-inner-border { position: absolute; inset: 22px; border: 1px solid var(--award-primary); opacity: .8; }
 .award-certificate-ribbon { position: absolute; top: 0; bottom: 0; left: 120px; width: 170px; background: var(--award-secondary); }

@@ -375,14 +375,30 @@ export default function AchievementAwardsPage() {
 
     try {
       await document.fonts.ready;
+      const width = element.offsetWidth;
+      const height = element.offsetHeight;
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         backgroundColor: "#fff",
-        width: element.offsetWidth,
-        height: element.offsetHeight,
-        windowWidth: element.offsetWidth,
-        windowHeight: element.offsetHeight,
+        width,
+        height,
+        windowWidth: width,
+        windowHeight: height,
+        onclone: (clonedDocument) => {
+          const shell = clonedDocument.querySelector(".award-certificate-preview-shell");
+          const previewCanvas = clonedDocument.querySelector(".award-certificate-preview-canvas");
+          if (!(shell instanceof HTMLElement) || !(previewCanvas instanceof HTMLElement)) {
+            throw new Error("Certificate export layout could not be prepared.");
+          }
+
+          shell.style.width = `${width}px`;
+          shell.style.maxWidth = "none";
+          shell.style.height = `${height}px`;
+          previewCanvas.style.width = `${width}px`;
+          previewCanvas.style.height = `${height}px`;
+          previewCanvas.style.transform = "none";
+        },
       });
       const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 297, 210);
@@ -525,7 +541,7 @@ export default function AchievementAwardsPage() {
       ) : null}
 
       {previewOpen || selectedCertificate ? (
-        <div className="db-card" style={{ ...cardStyle, overflowX: "auto" }}>
+        <div className="db-card" style={cardStyle}>
           <AwardCertificate
             school={school}
             learnerName={selectedCertificate ? learnerName(selectedCertificate.learner_id) : selectedLearner?.legal_name || selectedLearner?.name || ""}

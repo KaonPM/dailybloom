@@ -61,7 +61,7 @@ export function AwardCertificate({
 }: AwardCertificateProps) {
   const primary = school?.primary_color || "#4f6fbd";
   const secondary = school?.secondary_color || "#D4AF37";
-  const learnerSize = learnerName.length > 60 ? 64 : learnerName.length > 40 ? 92 : 136;
+  const learnerSize = learnerName.length > 60 ? 80 : learnerName.length > 40 ? 120 : 160;
 
   return (
     <div

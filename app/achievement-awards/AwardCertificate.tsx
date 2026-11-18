@@ -150,7 +150,7 @@ export function AwardCertificate({
 
           <div className="award-certificate-content">
             <div ref={mainContentRef} className="award-certificate-main-content">
-              <h1 className="award-certificate-title" style={{ fontSize: "104px" }}>CERTIFICATE</h1>
+              <h1 className="award-certificate-title">CERTIFICATE</h1>
               <h2 className="award-certificate-subtitle">{awardSubtitle}</h2>
               <p className="award-certificate-presented">PROUDLY PRESENTED TO</p>
               <h2 className="award-certificate-learner" style={{ fontSize: `${learnerSize}px` }}>{displayLearnerName}</h2>

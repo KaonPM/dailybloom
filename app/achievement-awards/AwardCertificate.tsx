@@ -19,6 +19,36 @@ type AwardCertificateProps = {
   preview?: boolean;
 };
 
+function AwardBadge() {
+  const points = Array.from({ length: 32 }, (_, index) => {
+    const angle = (-Math.PI / 2) + (index * Math.PI / 16);
+    const radius = index % 2 === 0 ? 136 : 108;
+    return `${155 + Math.cos(angle) * radius},${140 + Math.sin(angle) * radius}`;
+  }).join(" ");
+
+  return (
+    <svg className="award-certificate-badge" viewBox="0 0 310 400" role="img" aria-label="Best Award">
+      <defs>
+        <linearGradient id="award-badge-gold" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stopColor="#f5dc76" />
+          <stop offset=".48" stopColor="#c49a2d" />
+          <stop offset="1" stopColor="#f0ce5a" />
+        </linearGradient>
+      </defs>
+      <path d="M87 223 50 361 106 338 138 381 166 243Z" fill="var(--award-primary)" stroke="var(--award-gold)" strokeWidth="5" strokeLinejoin="round" />
+      <path d="m223 223 37 138-56-23-32 43-28-138Z" fill="var(--award-primary)" stroke="var(--award-gold)" strokeWidth="5" strokeLinejoin="round" />
+      <polygon points={points} fill="url(#award-badge-gold)" />
+      <circle cx="155" cy="140" r="113" fill="var(--award-primary)" stroke="var(--award-gold)" strokeWidth="5" />
+      <circle cx="155" cy="140" r="101" fill="none" stroke="var(--award-gold)" strokeWidth="3" />
+      <circle cx="155" cy="140" r="95" fill="none" stroke="rgba(255,255,255,.22)" strokeWidth="2" />
+      <text x="155" y="74" textAnchor="middle" fill="var(--award-gold)" fontSize="17" letterSpacing="4">★★★★★</text>
+      <text x="155" y="143" textAnchor="middle" fill="#fff" fontFamily="Montserrat, Arial, sans-serif" fontSize="44" fontWeight="900" letterSpacing="2">BEST</text>
+      <text x="155" y="181" textAnchor="middle" fill="#fff" fontFamily="Montserrat, Arial, sans-serif" fontSize="28" fontWeight="400" letterSpacing="1">AWARD</text>
+      <text x="155" y="213" textAnchor="middle" fill="var(--award-gold)" fontSize="17" letterSpacing="4">★★★★★</text>
+    </svg>
+  );
+}
+
 export function AwardCertificate({
   school,
   learnerName,
@@ -31,7 +61,7 @@ export function AwardCertificate({
 }: AwardCertificateProps) {
   const primary = school?.primary_color || "#4f6fbd";
   const secondary = school?.secondary_color || "#D4AF37";
-  const learnerSize = learnerName.length > 60 ? 52 : learnerName.length > 40 ? 66 : 88;
+  const learnerSize = learnerName.length > 60 ? 58 : learnerName.length > 40 ? 78 : 118;
 
   return (
     <div
@@ -42,18 +72,7 @@ export function AwardCertificate({
       <div className="award-certificate-ribbon" />
       <div className="award-certificate-corner award-certificate-corner-top" />
       <div className="award-certificate-corner award-certificate-corner-bottom" />
-      <div className="award-certificate-badge" aria-label="Best Award">
-        <div className="award-certificate-badge-rosette" aria-hidden="true" />
-        <div className="award-certificate-badge-seal">
-          <div className="award-certificate-badge-inner-ring" aria-hidden="true" />
-          <span className="award-certificate-badge-stars" aria-hidden="true">★★★★★</span>
-          <strong>BEST</strong>
-          <span>AWARD</span>
-          <span className="award-certificate-badge-stars" aria-hidden="true">★★★★★</span>
-        </div>
-        <div className="award-certificate-badge-ribbon award-certificate-badge-ribbon-left" />
-        <div className="award-certificate-badge-ribbon award-certificate-badge-ribbon-right" />
-      </div>
+      <AwardBadge />
 
       {school?.logo_url ? (
         <img

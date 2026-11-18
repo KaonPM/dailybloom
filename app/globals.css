@@ -671,7 +671,8 @@ textarea {
   --award-gold: #d4af37;
   position: relative;
   width: 100%;
-  min-height: 690px;
+  aspect-ratio: 297 / 210;
+  min-height: 0;
   overflow: hidden;
   border: 24px solid var(--award-primary);
   background: #fff;
@@ -682,19 +683,10 @@ textarea {
 .award-certificate-corner { position: absolute; right: -54px; width: 260px; height: 88px; background: var(--award-secondary); }
 .award-certificate-corner-top { top: -34px; transform: rotate(45deg); }
 .award-certificate-corner-bottom { bottom: -34px; transform: rotate(-45deg); }
-.award-certificate-badge { position: absolute; z-index: 3; top: 168px; left: 54px; width: 270px; height: 332px; filter: drop-shadow(0 10px 12px rgba(0,0,0,.22)); }
-.award-certificate-badge-rosette { position: absolute; z-index: 1; top: -27px; left: -12px; width: 294px; height: 294px; background: var(--award-gold); clip-path: polygon(50% 0%, 59% 15%, 71% 4%, 76% 21%, 91% 14%, 91% 30%, 100% 34%, 92% 47%, 100% 57%, 86% 64%, 91% 79%, 75% 78%, 70% 94%, 58% 84%, 48% 100%, 40% 84%, 26% 94%, 23% 78%, 7% 80%, 13% 64%, 0% 56%, 9% 45%, 0% 34%, 16% 30%, 10% 14%, 27% 21%, 30% 4%, 42% 15%); }
-.award-certificate-badge-seal { position: absolute; z-index: 2; top: 0; left: 13px; display: flex; width: 244px; height: 244px; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 5px solid var(--award-gold); border-radius: 50%; outline: 5px solid var(--award-primary); outline-offset: 7px; background: var(--award-primary); box-shadow: 0 0 0 3px var(--award-gold), 0 0 0 8px var(--award-primary); color: #fff; }
-.award-certificate-badge-inner-ring { position: absolute; inset: 10px; border: 3px solid var(--award-gold); border-radius: 50%; pointer-events: none; }
-.award-certificate-badge-seal strong { position: relative; color: #fff; font-family: "Montserrat", Arial, sans-serif; font-size: 46px; font-weight: 900; letter-spacing: 2px; line-height: .9; }
-.award-certificate-badge-seal > span:not(.award-certificate-badge-stars) { position: relative; color: #fff; font-family: "Montserrat", Arial, sans-serif; font-size: 27px; font-weight: 400; letter-spacing: 1px; }
-.award-certificate-badge-stars { color: var(--award-gold); font-size: 20px; letter-spacing: 2px; line-height: 1; }
-.award-certificate-badge-ribbon { position: absolute; z-index: 1; top: 214px; width: 83px; height: 123px; border: 4px solid var(--award-gold); background: var(--award-primary); clip-path: polygon(0 0, 100% 0, 78% 100%, 50% 79%, 23% 100%); }
-.award-certificate-badge-ribbon-left { left: 58px; transform: rotate(16deg); transform-origin: top center; }
-.award-certificate-badge-ribbon-right { right: 58px; transform: rotate(-16deg); transform-origin: top center; }
+.award-certificate-badge { position: absolute; z-index: 3; top: 168px; left: 50px; width: 302px; height: 390px; overflow: visible; filter: drop-shadow(0 10px 12px rgba(0,0,0,.22)); }
 .award-certificate-logo { position: absolute; top: 50%; left: 58%; width: 310px; height: 310px; object-fit: contain; opacity: .12; transform: translate(-50%, -50%); }
 .award-certificate-draft { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; color: rgba(79,111,189,.10); font-size: 76px; font-weight: 900; pointer-events: none; transform: rotate(-24deg); }
-.award-certificate-content { position: relative; z-index: 1; box-sizing: border-box; display: flex; min-height: 642px; padding: 74px 70px 44px 330px; flex-direction: column; justify-content: space-between; }
+.award-certificate-content { position: relative; z-index: 1; box-sizing: border-box; display: flex; height: 100%; min-height: 0; padding: 74px 70px 88px 330px; flex-direction: column; justify-content: space-between; }
 .award-certificate-title { margin: 0; color: var(--award-gold); font-family: "Montserrat", Arial, sans-serif; font-size: 82px; font-weight: 900; line-height: 1; letter-spacing: 2px; }
 .award-certificate-subtitle { margin: 12px auto 56px; color: #111; font-family: "Montserrat", Arial, sans-serif; font-size: 40px; font-weight: 400; letter-spacing: 1px; }
 .award-certificate-presented { margin: 0 0 28px; color: #111; font-family: "Montserrat", Arial, sans-serif; font-size: 21px; font-weight: 600; letter-spacing: 4px; }
@@ -706,7 +698,7 @@ textarea {
 .award-certificate-signature-label { margin: 0; color: #111; font-size: 14px; }
 
 @media (max-width: 560px) {
-  .award-certificate-document:not(.award-certificate-export) { min-height: 610px; border-width: 14px; }
+  .award-certificate-document:not(.award-certificate-export) { min-height: 610px; aspect-ratio: auto; border-width: 14px; }
   .award-certificate-document:not(.award-certificate-export) .award-certificate-inner-border { inset: 10px; }
   .award-certificate-document:not(.award-certificate-export) .award-certificate-ribbon { left: 24px; width: 54px; }
   .award-certificate-document:not(.award-certificate-export) .award-certificate-corner { right: -42px; width: 140px; height: 48px; }

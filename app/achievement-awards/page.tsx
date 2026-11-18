@@ -377,6 +377,25 @@ export default function AchievementAwardsPage() {
       await document.fonts.ready;
       const width = element.offsetWidth;
       const height = element.offsetHeight;
+      const badge = element.querySelector<SVGSVGElement>(".award-certificate-badge");
+      let badgeDataUrl: string | null = null;
+
+      if (badge) {
+        const colors = window.getComputedStyle(element);
+        const badgeSvg = badge.cloneNode(true) as SVGSVGElement;
+        badgeSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        badgeSvg.setAttribute("width", String(badge.viewBox.baseVal.width));
+        badgeSvg.setAttribute("height", String(badge.viewBox.baseVal.height));
+        const serializedBadge = new XMLSerializer()
+          .serializeToString(badgeSvg)
+          .replace(/var\(--award-primary\)/g, colors.getPropertyValue("--award-primary").trim())
+          .replace(/var\(--award-gold\)/g, colors.getPropertyValue("--award-gold").trim());
+        const badgeImage = new Image();
+        badgeImage.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serializedBadge)}`;
+        await badgeImage.decode();
+        badgeDataUrl = badgeImage.src;
+      }
+
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
@@ -388,6 +407,7 @@ export default function AchievementAwardsPage() {
         onclone: (clonedDocument) => {
           const shell = clonedDocument.querySelector<HTMLElement>(".award-certificate-preview-shell");
           const previewCanvas = clonedDocument.querySelector<HTMLElement>(".award-certificate-preview-canvas");
+          const clonedBadge = clonedDocument.querySelector<SVGSVGElement>(".award-certificate-badge");
           if (!shell || !previewCanvas) {
             throw new Error("Certificate export layout could not be prepared.");
           }
@@ -398,6 +418,14 @@ export default function AchievementAwardsPage() {
           previewCanvas.style.width = `${width}px`;
           previewCanvas.style.height = `${height}px`;
           previewCanvas.style.transform = "none";
+
+          if (badgeDataUrl && clonedBadge) {
+            const badgeImage = clonedDocument.createElement("img");
+            badgeImage.className = clonedBadge.getAttribute("class") || "";
+            badgeImage.alt = clonedBadge.getAttribute("aria-label") || "";
+            badgeImage.src = badgeDataUrl;
+            clonedBadge.replaceWith(badgeImage);
+          }
         },
       });
       const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });

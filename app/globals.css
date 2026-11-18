@@ -706,10 +706,10 @@ textarea {
   .award-certificate-document:not(.award-certificate-export) .award-certificate-logo { left: 54%; width: 230px; height: 230px; }
   .award-certificate-document:not(.award-certificate-export) .award-certificate-draft { font-size: 42px; }
   .award-certificate-document:not(.award-certificate-export) .award-certificate-content { min-height: 582px; padding: 52px 24px 30px 88px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-title { font-size: clamp(30px, 10vw, 42px); letter-spacing: 1px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-subtitle { margin: 8px auto 34px; font-size: 19px; line-height: 1.2; }
+  .award-certificate-document:not(.award-certificate-export) .award-certificate-title { font-size: clamp(48px, 13vw, 60px); letter-spacing: 1px; }
+  .award-certificate-document:not(.award-certificate-export) .award-certificate-subtitle { margin: 8px auto 34px; font-size: 26px; line-height: 1.2; }
   .award-certificate-document:not(.award-certificate-export) .award-certificate-presented { margin-bottom: 18px; font-size: 11px; letter-spacing: 2px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-learner { margin-bottom: 26px; font-size: min(var(--award-learner-size), 34px); }
+  .award-certificate-document:not(.award-certificate-export) .award-certificate-learner { margin-bottom: 26px; font-size: min(var(--award-learner-size), 70px); }
   .award-certificate-document:not(.award-certificate-export) .award-certificate-reason { font-size: 13px; }
   .award-certificate-document:not(.award-certificate-export) .award-certificate-school { margin-top: 20px; font-size: 12px; }
   .award-certificate-document:not(.award-certificate-export) .award-certificate-signatures { gap: 16px; }

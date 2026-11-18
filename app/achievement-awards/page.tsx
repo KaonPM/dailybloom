@@ -386,9 +386,9 @@ export default function AchievementAwardsPage() {
         windowWidth: width,
         windowHeight: height,
         onclone: (clonedDocument) => {
-          const shell = clonedDocument.querySelector(".award-certificate-preview-shell");
-          const previewCanvas = clonedDocument.querySelector(".award-certificate-preview-canvas");
-          if (!(shell instanceof HTMLElement) || !(previewCanvas instanceof HTMLElement)) {
+          const shell = clonedDocument.querySelector<HTMLElement>(".award-certificate-preview-shell");
+          const previewCanvas = clonedDocument.querySelector<HTMLElement>(".award-certificate-preview-canvas");
+          if (!shell || !previewCanvas) {
             throw new Error("Certificate export layout could not be prepared.");
           }
 

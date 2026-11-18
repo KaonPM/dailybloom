@@ -374,7 +374,7 @@ export default function AchievementAwardsPage() {
     }
 
     try {
-      element.classList.add("award-certificate-export");
+      await document.fonts.ready;
       const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: "#fff" });
       const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 297, 210);
@@ -388,8 +388,6 @@ export default function AchievementAwardsPage() {
     } catch (error) {
       console.error("Certificate download failed:", error);
       alert("Certificate download failed. Please try again.");
-    } finally {
-      element.classList.remove("award-certificate-export");
     }
   }
 

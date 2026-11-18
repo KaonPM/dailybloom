@@ -663,16 +663,18 @@ textarea {
   background: #ffffff;
 }
 
-/* Annual achievement certificates stay printable at A4 landscape while the
-   on-screen mobile preview uses its own readable, vertical composition. */
+/* Annual achievement certificates use the same landscape artwork in the
+   preview and the A4 PDF export. */
 .award-certificate-document {
   --award-primary: #4f6fbd;
   --award-secondary: #d4af37;
-  --award-gold: #d4af37;
+  --award-gold: #e2bc4d;
   position: relative;
-  width: 100%;
-  aspect-ratio: 297 / 210;
-  min-height: 0;
+  width: 1122px;
+  min-width: 1122px;
+  height: 794px;
+  min-height: 794px;
+  aspect-ratio: auto;
   overflow: hidden;
   border: 24px solid var(--award-primary);
   background: #fff;
@@ -687,46 +689,15 @@ textarea {
 .award-certificate-logo { position: absolute; z-index: 0; top: 50%; left: 58%; width: 310px; height: 310px; object-fit: contain; opacity: .075; transform: translate(-50%, -50%); }
 .award-certificate-draft { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; color: rgba(79,111,189,.10); font-size: 76px; font-weight: 900; pointer-events: none; transform: rotate(-24deg); }
 .award-certificate-content { position: relative; z-index: 1; box-sizing: border-box; display: flex; height: 100%; min-height: 0; padding: 74px 70px 88px 330px; flex-direction: column; justify-content: space-between; }
-.award-certificate-title { margin: 0; color: var(--award-gold); font-family: "Montserrat", Arial, sans-serif; font-size: 104px; font-weight: 900; line-height: 1; letter-spacing: 2px; }
-.award-certificate-subtitle { margin: 12px auto 56px; color: #111; font-family: "Montserrat", Arial, sans-serif; font-size: 40px; font-weight: 400; letter-spacing: 1px; }
-.award-certificate-presented { margin: 0 0 28px; color: #111; font-family: "Montserrat", Arial, sans-serif; font-size: 21px; font-weight: 600; letter-spacing: 4px; }
+.award-certificate-title { margin: 0; color: var(--award-gold); font-family: "Montserrat", Arial, sans-serif; font-size: 76px; font-weight: 900; line-height: 1; letter-spacing: 2px; }
+.award-certificate-subtitle { margin: 12px auto 56px; color: #111; font-family: "Montserrat", Arial, sans-serif; font-size: 32px; font-weight: 400; letter-spacing: 1px; }
+.award-certificate-presented { margin: 0 0 28px; color: #111; font-family: "Montserrat", Arial, sans-serif; font-size: 15px; font-weight: 600; letter-spacing: 4px; }
 .award-certificate-learner { position: relative; z-index: 1; max-width: 900px; margin: 0 auto 38px; overflow-wrap: break-word; color: var(--award-gold); font-family: "Great Vibes", "Brush Script MT", cursive; font-size: var(--award-learner-size); font-style: normal; font-weight: 400; line-height: 1.05; text-shadow: 0 2px 3px rgba(255,255,255,.92), 0 0 18px rgba(255,255,255,.82); }
-.award-certificate-reason { max-width: 700px; margin: 0 auto; color: #111; font-size: 21px; font-style: italic; font-weight: 800; line-height: 1.35; }
+.award-certificate-reason { max-width: 700px; margin: 0 auto; color: #111; font-size: 16px; font-style: italic; font-weight: 800; line-height: 1.35; }
 .award-certificate-school { margin-top: 34px; color: #333; font-size: 16px; }
 .award-certificate-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 90px; align-items: end; }
-.award-certificate-signature-name { max-width: 220px; margin: 0 auto 8px; padding-bottom: 4px; border-bottom: 2px solid var(--award-gold); color: #111; font-size: 16px; font-weight: 700; }
-.award-certificate-signature-label { margin: 0; color: #111; font-size: 14px; }
-
-/* html2canvas captures the document at this fixed A4 landscape canvas before
-   jsPDF places it on the page. This keeps the exported PDF proportional to
-   the approved certificate artwork rather than the width of the preview card. */
-.award-certificate-document.award-certificate-export {
-  width: 1122px;
-  min-width: 1122px;
-  height: 794px;
-  min-height: 794px;
-  aspect-ratio: auto;
-}
-
-@media (max-width: 560px) {
-  .award-certificate-document:not(.award-certificate-export) { min-height: 610px; aspect-ratio: auto; border-width: 14px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-inner-border { inset: 10px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-ribbon { left: 24px; width: 54px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-corner { right: -42px; width: 140px; height: 48px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-badge { top: 170px; left: 4px; width: 106px; height: 142px; transform: scale(.46); transform-origin: top left; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-logo { left: 54%; width: 230px; height: 230px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-draft { font-size: 42px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-content { min-height: 582px; padding: 52px 24px 30px 88px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-title { font-size: clamp(48px, 13vw, 60px); letter-spacing: 1px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-subtitle { margin: 8px auto 34px; font-size: 26px; line-height: 1.2; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-presented { margin-bottom: 18px; font-size: 11px; letter-spacing: 2px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-learner { margin-bottom: 26px; font-size: min(var(--award-learner-size), 70px); }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-reason { font-size: 13px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-school { margin-top: 20px; font-size: 12px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-signatures { gap: 16px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-signature-name { margin-bottom: 5px; font-size: 11px; }
-  .award-certificate-document:not(.award-certificate-export) .award-certificate-signature-label { font-size: 9px; }
-}
+.award-certificate-signature-name { max-width: 220px; margin: 0 auto 8px; padding-bottom: 4px; border-bottom: 2px solid var(--award-gold); color: #111; font-size: 12px; font-weight: 700; }
+.award-certificate-signature-label { margin: 0; color: #111; font-size: 11px; }
 
 .db-toolbar {
   display: flex;

@@ -689,7 +689,8 @@ textarea {
 .award-certificate-badge { position: absolute; z-index: 3; top: 168px; left: 50px; width: 302px; height: 390px; overflow: visible; filter: drop-shadow(0 10px 12px rgba(0,0,0,.22)); }
 .award-certificate-logo { position: absolute; z-index: 0; top: 50%; left: 58%; width: 310px; height: 310px; object-fit: contain; opacity: .075; transform: translate(-50%, -50%); }
 .award-certificate-draft { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; color: rgba(79,111,189,.10); font-size: 76px; font-weight: 900; pointer-events: none; transform: rotate(-24deg); }
-.award-certificate-content { position: relative; z-index: 1; box-sizing: border-box; display: flex; height: 100%; min-height: 0; padding: 74px 70px 88px 330px; flex-direction: column; justify-content: space-between; text-align: center; }
+.award-certificate-content { position: relative; z-index: 1; box-sizing: border-box; display: flex; height: 100%; min-height: 0; padding: 62px 70px 88px 330px; flex-direction: column; justify-content: space-between; text-align: center; }
+.award-certificate-main-content { display: flex; min-height: 0; flex: 1; flex-direction: column; justify-content: center; }
 .award-certificate-title { margin: 0; color: var(--award-gold); font-family: "Montserrat", Arial, sans-serif; font-size: 104px; font-weight: 900; line-height: 1; letter-spacing: 2px; }
 .award-certificate-subtitle { margin: 12px auto 56px; color: #111; font-family: "Montserrat", Arial, sans-serif; font-size: 32px; font-weight: 400; letter-spacing: 1px; }
 .award-certificate-presented { margin: 0 0 28px; color: #111; font-family: "Montserrat", Arial, sans-serif; font-size: 15px; font-weight: 600; letter-spacing: 4px; }

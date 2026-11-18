@@ -375,7 +375,15 @@ export default function AchievementAwardsPage() {
 
     try {
       await document.fonts.ready;
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: "#fff" });
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#fff",
+        width: element.offsetWidth,
+        height: element.offsetHeight,
+        windowWidth: element.offsetWidth,
+        windowHeight: element.offsetHeight,
+      });
       const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 297, 210);
       pdf.save(`${learnerName(item.learner_id).replace(/\s+/g, "_")}_Certificate.pdf`);

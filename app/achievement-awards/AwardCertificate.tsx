@@ -61,7 +61,7 @@ export function AwardCertificate({
 }: AwardCertificateProps) {
   const primary = school?.primary_color || "#4f6fbd";
   const secondary = school?.secondary_color || "#D4AF37";
-  const learnerSize = learnerName.length > 60 ? 80 : learnerName.length > 40 ? 120 : 160;
+  const learnerSize = learnerName.length > 60 ? 80 : learnerName.length > 40 ? 120 : 180;
 
   return (
     <div
@@ -89,11 +89,11 @@ export function AwardCertificate({
       ) : null}
 
       <div className="award-certificate-content">
-        <div>
-          <h1 className="award-certificate-title">CERTIFICATE</h1>
+        <div className="award-certificate-main-content">
+          <h1 className="award-certificate-title" style={{ fontSize: "104px" }}>CERTIFICATE</h1>
           <h2 className="award-certificate-subtitle">{awardSubtitle}</h2>
           <p className="award-certificate-presented">PROUDLY PRESENTED TO</p>
-          <h2 className="award-certificate-learner" style={{ "--award-learner-size": `${learnerSize}px` } as CSSProperties}>{learnerName || "Learner Name"}</h2>
+          <h2 className="award-certificate-learner" style={{ fontSize: `${learnerSize}px` }}>{learnerName || "Learner Name"}</h2>
           <p className="award-certificate-reason">
             FOR {(awardReason || "AWARD REASON").toUpperCase()}
             <br />YEAR {academicYear}
